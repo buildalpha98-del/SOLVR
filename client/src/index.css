@@ -1,3 +1,12 @@
+/* 
+ * DESIGN PHILOSOPHY: Warm Modernism
+ * - Warm cream background (#FBF7F0) with deep forest green (#1B3A2D) text
+ * - Terracotta (#C4552A) accents for highlights and CTAs
+ * - Pale sage (#D4E4D8) for card backgrounds
+ * - Fraunces (display serif) + Nunito (body) + Instrument Serif (quotes)
+ * - Narrative scroll layout with alternating content blocks
+ */
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -43,74 +52,53 @@
 }
 
 :root {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-600);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.235 0.015 65);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.235 0.015 65);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.235 0.015 65);
-  --secondary: oklch(0.98 0.001 286.375);
-  --secondary-foreground: oklch(0.4 0.015 65);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.141 0.005 285.823);
+  /* Warm Modernism Palette */
+  --warm-cream: #FBF7F0;
+  --forest-green: #1B3A2D;
+  --forest-green-light: #2D5A42;
+  --terracotta: #C4552A;
+  --terracotta-light: #E8734A;
+  --sage: #D4E4D8;
+  --sage-dark: #A8C4B0;
+  --warm-tan: #E8DDD0;
+  --warm-brown: #8B6E52;
+
+  --radius: 0.75rem;
+  --background: #FBF7F0;
+  --foreground: #1B3A2D;
+  --card: #FFFFFF;
+  --card-foreground: #1B3A2D;
+  --popover: #FFFFFF;
+  --popover-foreground: #1B3A2D;
+  --primary: #1B3A2D;
+  --primary-foreground: #FBF7F0;
+  --secondary: #D4E4D8;
+  --secondary-foreground: #1B3A2D;
+  --muted: #F0EBE3;
+  --muted-foreground: #6B7C6E;
+  --accent: #C4552A;
+  --accent-foreground: #FFFFFF;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.623 0.214 259.815);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.235 0.015 65);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.623 0.214 259.815);
-}
+  --border: #E0D8CC;
+  --input: #E0D8CC;
+  --ring: #C4552A;
 
-.dark {
-  --primary: var(--color-blue-700);
-  --primary-foreground: var(--color-blue-50);
-  --sidebar-primary: var(--color-blue-500);
-  --sidebar-primary-foreground: var(--color-blue-50);
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.85 0.005 65);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.85 0.005 65);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.85 0.005 65);
-  --secondary: oklch(0.24 0.006 286.033);
-  --secondary-foreground: oklch(0.7 0.005 65);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground:  oklch(0.92 0.005 65);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.488 0.243 264.376);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.85 0.005 65);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground:  oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.488 0.243 264.376);
+  /* Chart colors - warm palette */
+  --chart-1: #C4552A;
+  --chart-2: #1B3A2D;
+  --chart-3: #A8C4B0;
+  --chart-4: #E8734A;
+  --chart-5: #8B6E52;
+
+  --sidebar: #F0EBE3;
+  --sidebar-foreground: #1B3A2D;
+  --sidebar-primary: #1B3A2D;
+  --sidebar-primary-foreground: #FBF7F0;
+  --sidebar-accent: #D4E4D8;
+  --sidebar-accent-foreground: #1B3A2D;
+  --sidebar-border: #E0D8CC;
+  --sidebar-ring: #C4552A;
 }
 
 @layer base {
@@ -119,6 +107,12 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Nunito', sans-serif;
+    background-color: #FBF7F0;
+    color: #1B3A2D;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Fraunces', serif;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -134,24 +128,11 @@
 }
 
 @layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
   .container {
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
+    padding-left: 1rem;
     padding-right: 1rem;
   }
 
@@ -162,16 +143,114 @@
 
   @media (min-width: 640px) {
     .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
+      padding-left: 1.5rem;
       padding-right: 1.5rem;
     }
   }
 
   @media (min-width: 1024px) {
     .container {
-      padding-left: 2rem; /* 32px - desktop padding */
+      padding-left: 2rem;
       padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
+      max-width: 1280px;
     }
   }
+
+  /* Warm Modernism custom classes */
+  .font-display {
+    font-family: 'Fraunces', serif;
+  }
+  .font-body {
+    font-family: 'Nunito', sans-serif;
+  }
+  .font-quote {
+    font-family: 'Instrument Serif', serif;
+  }
+
+  .section-divider {
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(to right, transparent, #C4552A, transparent);
+    margin: 0;
+  }
+
+  .stat-card {
+    background: #FFFFFF;
+    border: 1px solid #E0D8CC;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 12px rgba(27, 58, 45, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(27, 58, 45, 0.12);
+  }
+
+  .sector-card {
+    background: #FFFFFF;
+    border: 1px solid #E0D8CC;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(27, 58, 45, 0.06);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .sector-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(27, 58, 45, 0.14);
+  }
+
+  .terracotta-tag {
+    background: #FDE8DF;
+    color: #C4552A;
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'Nunito', sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .progress-bar-bg {
+    background: #E0D8CC;
+    border-radius: 999px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Scroll animation utility */
+.fade-up {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+.count-animate {
+  animation: countUp 0.5s ease forwards;
+}
+
+/* Grain texture overlay */
+.grain-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }
