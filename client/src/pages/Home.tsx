@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { Link } from "wouter";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -14,12 +15,13 @@ import {
 // ─── Assets ──────────────────────────────────────────────────────────────────
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-hero-3MgmpQfNxd2H5w9Faxmtzg.webp";
 const PROCESS_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-process-Ach3FWj53TDEo7V7Ls3PtV.webp";
-const LOGO_MARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-logo-mark-Z7dYe9CvAYC7jtqaRZ8aPU.webp";
+const LOGO_MARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-logo-dark-bg-eEYnip9AdxDy3wd5JtPzD2.webp";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const sectors = [
   {
     id: "law",
+    slug: "/industries/law-firms",
     icon: "⚖️",
     title: "Law Firms",
     tagline: "From research to billing — automated.",
@@ -38,6 +40,7 @@ const sectors = [
   },
   {
     id: "plumbers",
+    slug: "/industries/plumbers",
     icon: "🔧",
     title: "Plumbers",
     tagline: "Win more jobs. Chase less paperwork.",
@@ -56,6 +59,7 @@ const sectors = [
   },
   {
     id: "carpenters",
+    slug: "/industries/carpenters",
     icon: "🪚",
     title: "Carpenters",
     tagline: "More time on tools, less on admin.",
@@ -74,6 +78,7 @@ const sectors = [
   },
   {
     id: "builders",
+    slug: "/industries/builders",
     icon: "🏗️",
     title: "Builders",
     tagline: "Tender smarter. Build faster.",
@@ -92,6 +97,7 @@ const sectors = [
   },
   {
     id: "health",
+    slug: "/industries/health-clinics",
     icon: "🏥",
     title: "Health Clinics",
     tagline: "Less documentation. More patient care.",
@@ -110,6 +116,7 @@ const sectors = [
   },
   {
     id: "physio",
+    slug: "/industries/physiotherapists",
     icon: "🦴",
     title: "Physios",
     tagline: "Automate the notes. Focus on the patient.",
@@ -339,7 +346,10 @@ function SectorCard({ sector }: { sector: typeof sectors[0] }) {
         >
           {open ? "Show less ↑" : `+${sector.useCases.length - 2} more use cases`}
         </button>
-        <a href="#book" className="btn-primary text-sm py-2 px-4">Book Now →</a>
+        <div className="flex gap-2">
+          <Link href={sector.slug} className="btn-outline-dark text-sm py-2 px-3" style={{ fontSize: "0.78rem" }}>Learn More</Link>
+          <a href="#book" className="btn-primary text-sm py-2 px-4">Book Now →</a>
+        </div>
       </div>
     </div>
   );
@@ -404,10 +414,7 @@ export default function Home() {
         <div className="container flex items-center justify-between h-16">
           {/* Logo */}
           <a href="#" className="flex items-center gap-2.5 text-decoration-none">
-            <img src={LOGO_MARK} alt="Elevate AI" className="w-8 h-8 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
-            <span className="font-display font-bold text-lg" style={{ color: "#FAFAF8" }}>
-              Elevate <span style={{ color: "#F5A623" }}>AI</span>
-            </span>
+            <img src={LOGO_MARK} alt="Elevate AI" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
           </a>
 
           {/* Desktop nav */}
@@ -976,10 +983,7 @@ export default function Home() {
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-3">
-                <img src={LOGO_MARK} alt="Elevate AI" className="w-8 h-8 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
-                <span className="font-display font-bold text-lg" style={{ color: "#FAFAF8" }}>
-                  Elevate <span style={{ color: "#F5A623" }}>AI</span>
-                </span>
+          <img src={LOGO_MARK} alt="Elevate AI" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
               </div>
               <p className="font-body text-sm leading-relaxed mb-4" style={{ color: "rgba(255,255,255,0.5)", maxWidth: "280px" }}>
                 We help trades, health professionals, and service businesses implement AI that saves time and grows revenue.
