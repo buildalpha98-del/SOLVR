@@ -1,545 +1,257 @@
 /**
- * DESIGN PHILOSOPHY: Warm Modernism
- * - Warm cream (#FBF7F0) background, forest green (#1B3A2D) text, terracotta (#C4552A) accents
- * - Fraunces serif for display, Nunito for body, Instrument Serif for quotes
- * - Narrative scroll layout with alternating content blocks and scroll-triggered animations
- * - Interactive charts using Recharts with warm colour palette
+ * ELEVATE AI — Company Website
+ * Design: Refined Industrial Modernism
+ * Navy #0F1F3D | Amber #F5A623 | Warm White #FAFAF8
+ * Syne (display) | DM Sans (body) | DM Serif Display (quotes)
  */
 
 import { useEffect, useRef, useState } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  Radar,
-  Cell,
-  PieChart,
-  Pie,
-  Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell,
 } from "recharts";
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Assets ──────────────────────────────────────────────────────────────────
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-hero-3MgmpQfNxd2H5w9Faxmtzg.webp";
+const PROCESS_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-process-Ach3FWj53TDEo7V7Ls3PtV.webp";
+const LOGO_MARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-logo-mark-Z7dYe9CvAYC7jtqaRZ8aPU.webp";
 
-const adoptionData = [
-  { sector: "Law Firms", adoption: 80, color: "#1B3A2D" },
-  { sector: "Health Clinics", adoption: 72, color: "#2D5A42" },
-  { sector: "Real Estate", sector_short: "Real Estate", adoption: 65, color: "#C4552A" },
-  { sector: "Accounting", adoption: 61, color: "#E8734A" },
-  { sector: "Tradies", adoption: 54, color: "#A8C4B0" },
-  { sector: "Restaurants", adoption: 52, color: "#8B6E52" },
-  { sector: "Retail", adoption: 48, color: "#D4A574" },
-];
-
-const roiData = [
-  { name: "Year 1 ROI", value: 5.44, label: "$5.44 per $1 spent" },
-  { name: "Cost Savings", value: 20, label: "20% operational cost reduction" },
-  { name: "Time Saved", value: 5.6, label: "5.6 hrs/week per employee" },
-  { name: "Productivity", value: 66, label: "66% throughput increase" },
-];
-
-const timeSavingsData = [
-  { role: "Managers", hours: 7.2 },
-  { role: "All Employees", hours: 5.6 },
-  { role: "Individual Contributors", hours: 3.4 },
-];
-
-const aiUsageData = [
-  { name: "Chatbots (ChatGPT, Claude)", value: 84 },
-  { name: "AI-Powered Search", value: 67 },
-  { name: "Image Generators", value: 41 },
-  { name: "Learning Tools", value: 30 },
-  { name: "Data Analytics", value: 30 },
-  { name: "Workflow Automation", value: 19 },
-];
-
-const SECTOR_COLORS = ["#C4552A", "#1B3A2D", "#A8C4B0", "#E8734A", "#8B6E52", "#D4A574"];
-
+// ─── Data ─────────────────────────────────────────────────────────────────────
 const sectors = [
-  {
-    id: "health",
-    icon: "🏥",
-    title: "Health Clinics",
-    subtitle: "Primary care, specialists, allied health",
-    color: "#2D5A42",
-    bgColor: "#EDF4EF",
-    adoption: 72,
-    timeSaved: "8–12 hrs/week",
-    topUseCase: "Clinical documentation & patient messaging",
-    useCases: [
-      {
-        title: "Clinical Documentation",
-        description:
-          "AI drafts chart-ready notes from voice dictation or typed summaries. Clinicians review and approve, cutting documentation time by 50–70%.",
-        tools: ["Claude", "Nuance DAX", "Suki"],
-        impact: "High",
-      },
-      {
-        title: "Patient Messaging & Triage",
-        description:
-          "AI summarises long patient messages, flags urgency, and drafts initial responses. Reduces inbox burden and cognitive load for practitioners.",
-        tools: ["Claude", "ChatGPT", "Healthie"],
-        impact: "High",
-      },
-      {
-        title: "Appointment Scheduling",
-        description:
-          "Automated scheduling bots handle bookings, reminders, and cancellations via SMS/email. Reduces no-show rates by up to 30%.",
-        tools: ["Curogram", "Healthie", "Calendly AI"],
-        impact: "Medium",
-      },
-      {
-        title: "Patient Education Materials",
-        description:
-          "Generate plain-language condition explanations, post-visit instructions, and medication guides at a 6th-grade reading level.",
-        tools: ["Claude", "ChatGPT"],
-        impact: "Medium",
-      },
-      {
-        title: "Prior Authorisation",
-        description:
-          "AI pre-fills insurance authorisation forms and tracks submission status, reducing admin time from hours to minutes per case.",
-        tools: ["Syntora", "Cohere Health"],
-        impact: "High",
-      },
-    ],
-    radarData: [
-      { subject: "Admin", value: 90 },
-      { subject: "Documentation", value: 85 },
-      { subject: "Patient Comms", value: 75 },
-      { subject: "Scheduling", value: 80 },
-      { subject: "Billing", value: 60 },
-    ],
-    quote:
-      "Small practices can use AI in simple, practical ways that save time and reduce workload. You do not need a tech team.",
-    quoteSource: "Inside Out Medicine",
-    keyStats: ["72% adoption rate in healthcare", "50–70% reduction in documentation time", "30% fewer missed appointments"],
-  },
-  {
-    id: "tradies",
-    icon: "🔧",
-    title: "Plumbers & Tradies",
-    subtitle: "Plumbers, electricians, HVAC, general contractors",
-    color: "#C4552A",
-    bgColor: "#FDE8DF",
-    adoption: 54,
-    timeSaved: "5–8 hrs/week",
-    topUseCase: "Quoting, invoicing & customer follow-up",
-    useCases: [
-      {
-        title: "AI-Assisted Quoting",
-        description:
-          "Convert messy site notes into structured scope summaries, suggest common line items, and draft professional quotes in minutes rather than hours.",
-        tools: ["Claude", "ChatGPT", "ServiceM8"],
-        impact: "High",
-      },
-      {
-        title: "Automated Invoicing",
-        description:
-          "Generate and send invoices automatically upon job completion. AI matches materials used to price lists and applies correct labour rates.",
-        tools: ["Tradify", "Fergus", "ServiceM8 AI"],
-        impact: "High",
-      },
-      {
-        title: "Customer Follow-Up Sequences",
-        description:
-          "Automated 3-touch follow-up after quotes: Day 2 check-in, Day 5 clarification, Day 10 close. Lifts quote conversion rates significantly.",
-        tools: ["Claude", "Zapier", "GoHighLevel"],
-        impact: "Medium",
-      },
-      {
-        title: "Job Scheduling & Dispatch",
-        description:
-          "AI optimises technician routing and scheduling based on location, job type, and availability. Reduces drive time and improves daily job capacity.",
-        tools: ["ServiceTitan", "Jobber AI"],
-        impact: "Medium",
-      },
-      {
-        title: "Marketing & Reviews",
-        description:
-          "AI drafts Google Business Profile posts, responds to reviews, and generates social media content from job photos and descriptions.",
-        tools: ["Claude", "ChatGPT", "Canva AI"],
-        impact: "Medium",
-      },
-    ],
-    radarData: [
-      { subject: "Quoting", value: 90 },
-      { subject: "Invoicing", value: 85 },
-      { subject: "Scheduling", value: 70 },
-      { subject: "Marketing", value: 60 },
-      { subject: "Customer Comms", value: 75 },
-    ],
-    quote:
-      "The real bottleneck in the business isn't the work — it's the admin around the work. AI becomes a co-pilot, not the decision-maker.",
-    quoteSource: "ServiceScale Australia",
-    keyStats: ["20–30 min saved per quote", "First detailed quote wins the job", "3-touch follow-up lifts conversion rates"],
-  },
-  {
-    id: "carpenters",
-    icon: "🪚",
-    title: "Carpenters & Builders",
-    subtitle: "Cabinet makers, joiners, custom builders, fit-out contractors",
-    color: "#8B6E52",
-    bgColor: "#F5EDE4",
-    adoption: 48,
-    timeSaved: "4–7 hrs/week",
-    topUseCase: "Project scoping, materials estimation & client communication",
-    useCases: [
-      {
-        title: "Materials Estimation",
-        description:
-          "AI converts project briefs and measurements into detailed materials lists with quantities, waste factors, and supplier pricing lookups.",
-        tools: ["Claude", "ChatGPT", "Buildxact"],
-        impact: "High",
-      },
-      {
-        title: "Client Proposal Writing",
-        description:
-          "Transform rough notes and sketches into polished client proposals with clear scope, inclusions, exclusions, and timeline estimates.",
-        tools: ["Claude", "ChatGPT"],
-        impact: "High",
-      },
-      {
-        title: "Project Documentation",
-        description:
-          "Auto-generate site diaries, variation orders, and handover documentation from voice notes taken on-site.",
-        tools: ["Claude", "Otter.ai", "Notion AI"],
-        impact: "Medium",
-      },
-      {
-        title: "Supplier Communication",
-        description:
-          "Draft purchase orders, follow up on lead times, and manage supplier correspondence with AI-assisted email drafting.",
-        tools: ["Claude", "ChatGPT", "Gmail AI"],
-        impact: "Medium",
-      },
-      {
-        title: "Portfolio & Marketing Content",
-        description:
-          "Generate project case studies, Instagram captions, and website copy from completed job photos and brief descriptions.",
-        tools: ["Claude", "ChatGPT", "Canva AI"],
-        impact: "Low",
-      },
-    ],
-    radarData: [
-      { subject: "Estimation", value: 85 },
-      { subject: "Proposals", value: 80 },
-      { subject: "Documentation", value: 70 },
-      { subject: "Supplier Comms", value: 65 },
-      { subject: "Marketing", value: 55 },
-    ],
-    quote:
-      "AI doesn't replace the craftsperson's eye — it handles the paperwork so they can focus on the craft.",
-    quoteSource: "Industry Analysis",
-    keyStats: ["40% faster project proposals", "Fewer scope disputes with clear documentation", "More time on tools, less on admin"],
-  },
   {
     id: "law",
     icon: "⚖️",
     title: "Law Firms",
-    subtitle: "Solicitors, barristers, conveyancers, small practices",
-    color: "#1B3A2D",
-    bgColor: "#EDF4EF",
-    adoption: 80,
+    tagline: "From research to billing — automated.",
+    color: "#1E3A5F",
+    accentColor: "#F5A623",
+    stat: "80%",
+    statLabel: "of legal professionals now use AI",
     timeSaved: "10–15 hrs/week",
-    topUseCase: "Legal research, document drafting & contract review",
     useCases: [
-      {
-        title: "Legal Research",
-        description:
-          "AI searches case law, statutes, and precedents in seconds. Summarises relevant findings and identifies applicable authorities for any matter.",
-        tools: ["Claude", "Westlaw AI", "Clio Work"],
-        impact: "High",
-      },
-      {
-        title: "Contract Review & Drafting",
-        description:
-          "Claude reviews contracts for risk, flags unusual clauses, and drafts first-pass agreements. Lawyers review and refine rather than start from scratch.",
-        tools: ["Claude", "Spellbook", "LawGeex"],
-        impact: "High",
-      },
-      {
-        title: "Client Intake & Communication",
-        description:
-          "AI handles initial client queries, collects intake information, and drafts client-friendly summaries of complex legal matters.",
-        tools: ["Claude", "Lawmatics", "Clio Grow"],
-        impact: "High",
-      },
-      {
-        title: "Document Automation",
-        description:
-          "Populate court-ready templates with client data automatically. Wills, contracts, pleadings, and correspondence generated in minutes.",
-        tools: ["Clio Draft", "HotDocs", "Smokeball"],
-        impact: "High",
-      },
-      {
-        title: "Time Recording & Billing",
-        description:
-          "AI captures billable time from emails, documents, and calendar entries. Reduces write-offs and improves billing accuracy.",
-        tools: ["Clio Manage AI", "TimeSolv", "Smokeball"],
-        impact: "Medium",
-      },
+      { title: "Contract Review & Drafting", desc: "Claude reviews contracts for risk, flags unusual clauses, and drafts first-pass agreements in minutes.", impact: "High" },
+      { title: "Legal Research Automation", desc: "Search case law, statutes, and precedents in seconds. AI summarises findings and identifies applicable authorities.", impact: "High" },
+      { title: "Client Intake & Communication", desc: "AI handles initial queries, collects intake information, and drafts plain-language matter summaries for clients.", impact: "High" },
+      { title: "Time Recording & Billing", desc: "Capture billable time from emails, documents, and calendar entries automatically. Reduce write-offs.", impact: "Medium" },
     ],
-    radarData: [
-      { subject: "Research", value: 95 },
-      { subject: "Drafting", value: 90 },
-      { subject: "Contract Review", value: 88 },
-      { subject: "Client Comms", value: 80 },
-      { subject: "Billing", value: 72 },
-    ],
-    quote:
-      "AI adoption in legal has jumped from 22% to 80% in a single year. Firms using AI achieve 4x faster growth.",
-    quoteSource: "Clio Legal Trends Report 2025",
-    keyStats: ["80% of legal professionals now use AI", "4x faster firm growth with AI", "Contract review time cut by 60–80%"],
+    tools: ["Claude", "Clio", "Spellbook", "Smokeball"],
   },
   {
-    id: "realestate",
-    icon: "🏠",
-    title: "Real Estate Agents",
-    subtitle: "Residential, commercial, property management",
-    color: "#E8734A",
-    bgColor: "#FEF0E8",
-    adoption: 65,
+    id: "plumbers",
+    icon: "🔧",
+    title: "Plumbers",
+    tagline: "Win more jobs. Chase less paperwork.",
+    color: "#1A3A2A",
+    accentColor: "#F5A623",
+    stat: "30 min",
+    statLabel: "saved per quote with AI assistance",
+    timeSaved: "5–8 hrs/week",
+    useCases: [
+      { title: "AI-Assisted Quoting", desc: "Convert site notes into structured, professional quotes in minutes. First detailed quote wins the job.", impact: "High" },
+      { title: "Automated Invoicing", desc: "Generate and send invoices automatically on job completion. Match materials to price lists instantly.", impact: "High" },
+      { title: "Customer Follow-Up", desc: "Automated 3-touch follow-up sequences after quotes. Lifts conversion rates without manual effort.", impact: "Medium" },
+      { title: "Review & Reputation Management", desc: "AI drafts responses to Google reviews and generates social content from job photos.", impact: "Medium" },
+    ],
+    tools: ["Claude", "ServiceM8", "Tradify", "Zapier"],
+  },
+  {
+    id: "carpenters",
+    icon: "🪚",
+    title: "Carpenters",
+    tagline: "More time on tools, less on admin.",
+    color: "#3A2A1A",
+    accentColor: "#F5A623",
+    stat: "40%",
+    statLabel: "faster project proposals",
+    timeSaved: "4–7 hrs/week",
+    useCases: [
+      { title: "Materials Estimation", desc: "Convert project briefs into detailed materials lists with quantities, waste factors, and supplier pricing.", impact: "High" },
+      { title: "Client Proposal Writing", desc: "Transform rough notes into polished proposals with clear scope, inclusions, exclusions, and timelines.", impact: "High" },
+      { title: "Site Diary & Documentation", desc: "Auto-generate site diaries, variation orders, and handover docs from voice notes taken on-site.", impact: "Medium" },
+      { title: "Portfolio & Marketing Content", desc: "Generate case studies, Instagram captions, and website copy from completed job photos.", impact: "Low" },
+    ],
+    tools: ["Claude", "Buildxact", "Notion AI", "Canva AI"],
+  },
+  {
+    id: "builders",
+    icon: "🏗️",
+    title: "Builders",
+    tagline: "Tender smarter. Build faster.",
+    color: "#2A1A3A",
+    accentColor: "#F5A623",
+    stat: "5 hrs",
+    statLabel: "saved per project on documentation",
     timeSaved: "6–10 hrs/week",
-    topUseCase: "Listing copy, lead qualification & client communication",
     useCases: [
-      {
-        title: "Listing Descriptions",
-        description:
-          "Generate compelling property descriptions from bullet-point features and photos. Tailored tone for luxury, family, or investment audiences.",
-        tools: ["Claude", "ChatGPT", "Listing AI"],
-        impact: "High",
-      },
-      {
-        title: "Lead Qualification & Follow-Up",
-        description:
-          "AI chatbots qualify incoming leads 24/7, ask pre-qualifying questions, and book inspections automatically.",
-        tools: ["Claude", "Structurely", "Follow Up Boss AI"],
-        impact: "High",
-      },
-      {
-        title: "Market Reports & CMAs",
-        description:
-          "Generate suburb market reports and Comparative Market Analyses from data inputs. Professional reports in minutes, not hours.",
-        tools: ["Claude", "CoreLogic AI", "RPData"],
-        impact: "Medium",
-      },
-      {
-        title: "Email & SMS Campaigns",
-        description:
-          "Draft personalised email sequences for buyer and vendor nurture campaigns. AI segments audiences and tailors messaging.",
-        tools: ["Claude", "Mailchimp AI", "ActiveCampaign"],
-        impact: "Medium",
-      },
-      {
-        title: "Contract & Compliance Review",
-        description:
-          "AI flags unusual contract clauses, missing conditions, and compliance issues before settlement. Reduces risk and errors.",
-        tools: ["Claude", "Spellbook"],
-        impact: "Medium",
-      },
+      { title: "Tender & Scope Writing", desc: "AI drafts detailed tender responses and scope of works documents from project briefs and specs.", impact: "High" },
+      { title: "Subcontractor Coordination", desc: "Draft RFQs, purchase orders, and coordination emails automatically. Track responses with AI summaries.", impact: "High" },
+      { title: "Safety & Compliance Docs", desc: "Generate SWMS, site induction materials, and compliance checklists from project parameters.", impact: "High" },
+      { title: "Progress Reporting", desc: "Convert site notes and photos into professional client progress reports in minutes.", impact: "Medium" },
     ],
-    radarData: [
-      { subject: "Listings", value: 90 },
-      { subject: "Lead Gen", value: 85 },
-      { subject: "Market Reports", value: 75 },
-      { subject: "Campaigns", value: 70 },
-      { subject: "Compliance", value: 60 },
-    ],
-    quote:
-      "AI-powered agents respond to leads 5x faster and convert at significantly higher rates than those relying on manual follow-up.",
-    quoteSource: "Real Estate AI Research 2025",
-    keyStats: ["5x faster lead response", "65% of agents now using AI tools", "Listing copy in 2 minutes vs 45 minutes"],
+    tools: ["Claude", "Procore AI", "Buildxact", "Hammertech"],
   },
   {
-    id: "accounting",
-    icon: "📊",
-    title: "Accountants & Bookkeepers",
-    subtitle: "Tax agents, BAS agents, financial advisers, bookkeepers",
-    color: "#6B7C6E",
-    bgColor: "#EDF4EF",
-    adoption: 61,
-    timeSaved: "7–12 hrs/week",
-    topUseCase: "Bookkeeping automation, tax preparation & client reporting",
+    id: "health",
+    icon: "🏥",
+    title: "Health Clinics",
+    tagline: "Less documentation. More patient care.",
+    color: "#0F2A3A",
+    accentColor: "#F5A623",
+    stat: "70%",
+    statLabel: "reduction in documentation time",
+    timeSaved: "8–12 hrs/week",
     useCases: [
-      {
-        title: "Automated Bookkeeping",
-        description:
-          "AI categorises transactions, reconciles accounts, and flags anomalies automatically. Reduces manual data entry by 80–90%.",
-        tools: ["Xero AI", "QuickBooks AI", "Botkeeper"],
-        impact: "High",
-      },
-      {
-        title: "Tax Preparation Assistance",
-        description:
-          "AI extracts data from receipts, invoices, and bank feeds to pre-populate tax returns. Flags deduction opportunities and compliance risks.",
-        tools: ["Claude", "TaxAssist AI", "Keeper"],
-        impact: "High",
-      },
-      {
-        title: "Client Financial Reports",
-        description:
-          "Generate plain-language financial summaries and insights from raw data. Clients receive readable reports, not just spreadsheets.",
-        tools: ["Claude", "Fathom", "Spotlight Reporting"],
-        impact: "High",
-      },
-      {
-        title: "Document Processing",
-        description:
-          "AI extracts structured data from invoices, receipts, and contracts. Eliminates manual data entry for document-heavy workflows.",
-        tools: ["Claude API", "Dext", "AutoEntry"],
-        impact: "High",
-      },
-      {
-        title: "Client Communication",
-        description:
-          "Draft client emails, meeting summaries, and advisory letters. AI maintains professional tone while personalising content.",
-        tools: ["Claude", "ChatGPT"],
-        impact: "Medium",
-      },
+      { title: "Clinical Note Generation", desc: "AI drafts chart-ready notes from voice dictation. Clinicians review and approve — cutting doc time by 50–70%.", impact: "High" },
+      { title: "Patient Messaging & Triage", desc: "Summarise long patient messages, flag urgency, and draft initial responses. Reduce inbox burden.", impact: "High" },
+      { title: "Appointment Scheduling", desc: "Automated booking, reminders, and cancellations via SMS/email. Reduces no-shows by up to 30%.", impact: "High" },
+      { title: "Prior Authorisation", desc: "AI pre-fills insurance authorisation forms and tracks submission status. Hours reduced to minutes.", impact: "Medium" },
     ],
-    radarData: [
-      { subject: "Bookkeeping", value: 92 },
-      { subject: "Tax Prep", value: 85 },
-      { subject: "Reporting", value: 88 },
-      { subject: "Document Processing", value: 90 },
-      { subject: "Client Comms", value: 70 },
+    tools: ["Claude", "Nuance DAX", "Healthie", "Curogram"],
+  },
+  {
+    id: "physio",
+    icon: "🦴",
+    title: "Physios",
+    tagline: "Automate the notes. Focus on the patient.",
+    color: "#1A2A3A",
+    accentColor: "#F5A623",
+    stat: "10 hrs",
+    statLabel: "saved per week on admin",
+    timeSaved: "8–10 hrs/week",
+    useCases: [
+      { title: "SOAP Note Generation", desc: "AI generates structured SOAP notes from voice recordings of sessions. Review and sign off in 30 seconds.", impact: "High" },
+      { title: "Exercise Program Creation", desc: "Generate personalised home exercise programs with instructions and progressions from assessment notes.", impact: "High" },
+      { title: "Patient Progress Reports", desc: "Create professional outcome reports for GPs, insurers, and patients from session data.", impact: "Medium" },
+      { title: "Rebooking & Recall Sequences", desc: "Automated SMS/email sequences for rebooking, discharge follow-up, and recall campaigns.", impact: "Medium" },
     ],
-    quote:
-      "AI reduces manual data entry by up to 90% in bookkeeping workflows, freeing accountants to focus on advisory work.",
-    quoteSource: "Accounting AI Research 2025",
-    keyStats: ["80–90% reduction in data entry", "61% of accounting firms using AI", "Advisory hours up 40% as admin drops"],
+    tools: ["Claude", "Cliniko AI", "Nookal", "Halaxy"],
   },
 ];
 
-const implementationSteps = [
+const services = [
   {
-    step: "01",
-    title: "Identify Your Biggest Time Drains",
-    description:
-      "Start by auditing where your team spends the most time on repetitive, low-judgment tasks. Common candidates: email drafting, document creation, scheduling, data entry, and customer follow-up.",
     icon: "🔍",
+    title: "AI Readiness Audit",
+    price: "$497",
+    duration: "2-hour deep dive",
+    desc: "We analyse your current workflows, identify the top 3 AI opportunities, and deliver a prioritised implementation roadmap with estimated ROI.",
+    includes: ["Workflow analysis session", "Top 3 AI opportunities report", "Tool recommendations", "ROI estimate", "90-day implementation plan"],
+    cta: "Book Your Audit",
+    highlight: false,
   },
   {
-    step: "02",
-    title: "Choose One Workflow to Start",
-    description:
-      "Resist the urge to automate everything at once. Pick a single, well-defined workflow with clear inputs and outputs. Prove ROI there before expanding.",
-    icon: "🎯",
+    icon: "⚡",
+    title: "AI Implementation Package",
+    price: "From $2,500",
+    duration: "4-week engagement",
+    desc: "We set up, configure, and integrate 2–3 AI tools directly into your existing workflows. Your team is trained and ready to go.",
+    includes: ["Everything in Audit", "Tool setup & configuration", "Workflow integration", "Team training (2 sessions)", "30-day support period"],
+    cta: "Book a Strategy Call",
+    highlight: true,
   },
   {
-    step: "03",
-    title: "Select the Right Tool",
-    description:
-      "For most small businesses, starting with Claude or ChatGPT directly is sufficient. For more complex automation, tools like Zapier, Make, or n8n connect AI to your existing software.",
-    icon: "🛠️",
+    icon: "🎓",
+    title: "AI Training Workshop",
+    price: "$1,200",
+    duration: "Half-day session",
+    desc: "Hands-on workshop for your team covering Claude, ChatGPT, and automation tools. Practical exercises tailored to your industry.",
+    includes: ["Half-day workshop (4 hrs)", "Industry-specific exercises", "Prompt library handout", "Recording & resources", "Follow-up Q&A session"],
+    cta: "Book a Workshop",
+    highlight: false,
   },
   {
-    step: "04",
-    title: "Build a Repeatable Prompt Library",
-    description:
-      "Document the prompts and instructions that work well for your business. A shared prompt library ensures consistency and lets any team member use AI effectively.",
-    icon: "📚",
-  },
-  {
-    step: "05",
-    title: "Train Your Team",
-    description:
-      "AI adoption fails without buy-in. Run short workshops showing staff how AI assists rather than replaces their work. Focus on time savings and quality improvements.",
-    icon: "👥",
-  },
-  {
-    step: "06",
-    title: "Measure, Iterate & Expand",
-    description:
-      "Track time saved, error rates, and team satisfaction. Use this data to justify expanding AI to additional workflows. Most businesses see clear ROI within 90 days.",
-    icon: "📈",
+    icon: "🔄",
+    title: "Monthly AI Support",
+    price: "From $500/mo",
+    duration: "Ongoing partnership",
+    desc: "Continuous optimisation, new use cases, and expert support as your business grows and AI tools evolve.",
+    includes: ["Monthly strategy call", "New use case identification", "Prompt & workflow updates", "Priority support", "Quarterly ROI review"],
+    cta: "Get Started",
+    highlight: false,
   },
 ];
 
-const additionalSectors = [
-  { icon: "🍽️", title: "Restaurants & Cafés", uses: ["Menu optimisation", "Inventory forecasting", "Review responses", "Staff scheduling"] },
-  { icon: "🛍️", title: "Retail Businesses", uses: ["Product descriptions", "Customer service chatbots", "Inventory management", "Email campaigns"] },
-  { icon: "💇", title: "Beauty & Wellness", uses: ["Appointment booking", "Client follow-up", "Social media content", "Loyalty programs"] },
-  { icon: "🚚", title: "Logistics & Transport", uses: ["Route optimisation", "Invoice processing", "Customer tracking updates", "Compliance docs"] },
-  { icon: "🎓", title: "Education & Tutoring", uses: ["Lesson plan creation", "Student progress reports", "Parent communication", "Content generation"] },
-  { icon: "🏗️", title: "Construction & Engineering", uses: ["Project documentation", "Safety compliance", "Tender writing", "Progress reporting"] },
+const stats = [
+  { value: 57, suffix: "%", label: "of SMBs now investing in AI" },
+  { value: 5, suffix: ".44×", label: "average ROI per dollar spent" },
+  { value: 5, suffix: ".6h", label: "saved per employee per week" },
+  { value: 90, suffix: "%", label: "see positive ROI within 12 months" },
 ];
 
-// ─── Utility hooks ────────────────────────────────────────────────────────────
+const adoptionData = [
+  { name: "Law Firms", value: 80 },
+  { name: "Health Clinics", value: 72 },
+  { name: "Real Estate", value: 65 },
+  { name: "Accounting", value: 61 },
+  { name: "Builders", value: 55 },
+  { name: "Tradies", value: 54 },
+  { name: "Physios", value: 48 },
+];
 
-function useIntersectionObserver(threshold = 0.15) {
+const faqs = [
+  {
+    q: "Do I need any technical knowledge to get started?",
+    a: "None at all. We handle all the technical setup and configuration. Our job is to make AI simple for you — you just need to know your business, and we'll handle the rest.",
+  },
+  {
+    q: "How long does it take to see results?",
+    a: "Most clients see measurable time savings within the first week of implementation. Typically, businesses recover their investment within 60–90 days through time savings alone.",
+  },
+  {
+    q: "Will AI replace my staff?",
+    a: "No — and that's not what we're here to do. AI handles the repetitive, low-value admin tasks so your team can focus on the high-value work that actually grows your business. Think of it as giving everyone a highly capable assistant.",
+  },
+  {
+    q: "Which AI tools do you use?",
+    a: "We primarily work with Claude (Anthropic) and ChatGPT (OpenAI) for business tasks, combined with automation platforms like Zapier and Make. We also integrate industry-specific tools like Clio (legal), ServiceM8 (trades), and Cliniko (health).",
+  },
+  {
+    q: "Is my business data safe?",
+    a: "Yes. We use enterprise-grade AI tools with strong data privacy policies. We never use your confidential business data to train AI models, and we help you set up appropriate data handling policies.",
+  },
+  {
+    q: "What if it doesn't work for my business?",
+    a: "We start with an Audit to identify genuine opportunities before committing to implementation. If we don't believe AI will deliver meaningful ROI for your specific situation, we'll tell you honestly.",
+  },
+];
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+function useReveal(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
+  const [visible, setVisible] = useState(false);
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } }, { threshold });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
   }, [threshold]);
-
-  return { ref, isVisible };
+  return { ref, visible };
 }
 
-function useCountUp(target: number, duration = 1500, isVisible: boolean) {
-  const [count, setCount] = useState(0);
+function useCountUp(target: number, duration = 1400, active: boolean) {
+  const [val, setVal] = useState(0);
   useEffect(() => {
-    if (!isVisible) return;
-    let start = 0;
+    if (!active) return;
+    let n = 0;
     const step = target / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= target) {
-        setCount(target);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
+    const t = setInterval(() => {
+      n += step;
+      if (n >= target) { setVal(target); clearInterval(t); } else setVal(Math.floor(n));
     }, 16);
-    return () => clearInterval(timer);
-  }, [target, duration, isVisible]);
-  return count;
+    return () => clearInterval(t);
+  }, [target, duration, active]);
+  return val;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatCounter({ value, suffix, label }: { value: number; suffix: string; label: string }) {
-  const { ref, isVisible } = useIntersectionObserver();
-  const count = useCountUp(value, 1200, isVisible);
-  return (
-    <div ref={ref} className="stat-card text-center">
-      <div className="font-display text-5xl font-black mb-1" style={{ color: "#C4552A" }}>
-        {count}{suffix}
-      </div>
-      <div className="font-body text-sm font-medium" style={{ color: "#6B7C6E" }}>
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function FadeSection({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
-  const { ref, isVisible } = useIntersectionObserver();
+// ─── Components ───────────────────────────────────────────────────────────────
+function Reveal({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const { ref, visible } = useReveal();
   return (
     <div
       ref={ref}
+      className={className}
       style={{
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? "translateY(0)" : "translateY(28px)",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(28px)",
         transition: `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms`,
       }}
     >
@@ -548,628 +260,761 @@ function FadeSection({ children, delay = 0 }: { children: React.ReactNode; delay
   );
 }
 
-function SectorCard({ sector }: { sector: typeof sectors[0] }) {
-  const [activeTab, setActiveTab] = useState<"usecases" | "chart">("usecases");
-  const { ref, isVisible } = useIntersectionObserver();
-
+function StatCounter({ value, suffix, label }: { value: number; suffix: string; label: string }) {
+  const { ref, visible } = useReveal();
+  const count = useCountUp(value, 1200, visible);
   return (
-    <div ref={ref} className="sector-card" style={{ opacity: isVisible ? 1 : 0, transform: isVisible ? "translateY(0)" : "translateY(32px)", transition: "opacity 0.6s ease, transform 0.6s ease" }}>
+    <div ref={ref} className="text-center">
+      <div className="font-display text-5xl font-extrabold text-gradient mb-1">
+        {count}{suffix}
+      </div>
+      <div className="font-body text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>{label}</div>
+    </div>
+  );
+}
+
+function SectorCard({ sector }: { sector: typeof sectors[0] }) {
+  const [open, setOpen] = useState(false);
+  const { ref, visible } = useReveal();
+  return (
+    <div
+      ref={ref}
+      className="card-white overflow-hidden"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(28px)",
+        transition: "opacity 0.6s ease, transform 0.6s ease",
+        borderTop: `3px solid ${sector.accentColor}`,
+      }}
+    >
       {/* Header */}
-      <div className="p-6 pb-4" style={{ background: sector.bgColor, borderBottom: `3px solid ${sector.color}` }}>
+      <div className="p-6 pb-4">
         <div className="flex items-start justify-between mb-3">
-          <div className="text-4xl">{sector.icon}</div>
-          <span className="terracotta-tag" style={{ background: `${sector.color}18`, color: sector.color }}>
-            {sector.adoption}% adoption
-          </span>
+          <span className="text-4xl">{sector.icon}</span>
+          <span className="tag-amber">{sector.timeSaved} saved</span>
         </div>
-        <h3 className="font-display text-2xl font-bold mb-1" style={{ color: sector.color }}>
-          {sector.title}
-        </h3>
-        <p className="font-body text-sm" style={{ color: "#6B7C6E" }}>{sector.subtitle}</p>
-        <div className="mt-3 flex gap-4 text-sm font-body">
-          <span style={{ color: sector.color }}>⏱ {sector.timeSaved} saved</span>
-          <span style={{ color: "#6B7C6E" }}>Top: {sector.topUseCase}</span>
+        <h3 className="font-display text-xl font-bold mb-1" style={{ color: "#0F1F3D" }}>{sector.title}</h3>
+        <p className="font-body text-sm mb-3" style={{ color: "#718096" }}>{sector.tagline}</p>
+        <div className="flex items-baseline gap-1">
+          <span className="font-display text-3xl font-extrabold" style={{ color: "#F5A623" }}>{sector.stat}</span>
+          <span className="font-body text-xs" style={{ color: "#718096" }}>{sector.statLabel}</span>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b" style={{ borderColor: "#E0D8CC" }}>
-        {(["usecases", "chart"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="flex-1 py-3 text-sm font-semibold font-body transition-colors"
-            style={{
-              color: activeTab === tab ? sector.color : "#6B7C6E",
-              borderBottom: activeTab === tab ? `2px solid ${sector.color}` : "2px solid transparent",
-              background: "transparent",
-            }}
-          >
-            {tab === "usecases" ? "Use Cases" : "AI Readiness"}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="p-6">
-        {activeTab === "usecases" ? (
-          <div className="space-y-4">
-            {sector.useCases.map((uc, i) => (
-              <div key={i} className="flex gap-3">
-                <div
-                  className="w-2 rounded-full flex-shrink-0 mt-1"
-                  style={{ background: sector.color, minHeight: "100%", height: "auto", alignSelf: "stretch", minWidth: "3px", maxWidth: "3px" }}
-                />
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-body font-bold text-sm" style={{ color: "#1B3A2D" }}>{uc.title}</span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-body font-semibold"
-                      style={{
-                        background: uc.impact === "High" ? "#FDE8DF" : uc.impact === "Medium" ? "#EDF4EF" : "#F5EDE4",
-                        color: uc.impact === "High" ? "#C4552A" : uc.impact === "Medium" ? "#2D5A42" : "#8B6E52",
-                      }}
-                    >
-                      {uc.impact} impact
-                    </span>
-                  </div>
-                  <p className="font-body text-sm leading-relaxed" style={{ color: "#4A5E50" }}>{uc.description}</p>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {uc.tools.map((t) => (
-                      <span key={t} className="text-xs px-2 py-0.5 rounded font-body" style={{ background: "#F0EBE3", color: "#6B7C6E" }}>
-                        {t}
-                      </span>
-                    ))}
-                  </div>
+      {/* Use cases */}
+      <div className="px-6 pb-2">
+        <div className="space-y-3">
+          {(open ? sector.useCases : sector.useCases.slice(0, 2)).map((uc, i) => (
+            <div key={i} className="flex gap-3 py-2 border-t" style={{ borderColor: "#F4F6FA" }}>
+              <div className="w-1 rounded-full flex-shrink-0 mt-1 self-stretch" style={{ background: "#F5A623", minWidth: "3px", maxWidth: "3px" }} />
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="font-body font-semibold text-sm" style={{ color: "#0F1F3D" }}>{uc.title}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-body" style={{ background: uc.impact === "High" ? "#FEF3C7" : "#F0F4FF", color: uc.impact === "High" ? "#D97706" : "#4A5568" }}>
+                    {uc.impact}
+                  </span>
                 </div>
+                <p className="font-body text-xs leading-relaxed" style={{ color: "#718096" }}>{uc.desc}</p>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div>
-            <p className="font-body text-sm mb-4" style={{ color: "#6B7C6E" }}>AI readiness score by workflow area</p>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={sector.radarData} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
-                <PolarGrid stroke="#E0D8CC" />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fontFamily: "Nunito", fill: "#6B7C6E" }} />
-                <Radar name={sector.title} dataKey="value" stroke={sector.color} fill={sector.color} fillOpacity={0.2} strokeWidth={2} />
-              </RadarChart>
-            </ResponsiveContainer>
-            <div className="mt-4 space-y-2">
-              {sector.keyStats.map((stat, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm font-body">
-                  <span style={{ color: sector.color }}>✓</span>
-                  <span style={{ color: "#1B3A2D" }}>{stat}</span>
-                </div>
-              ))}
             </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
-      {/* Quote */}
-      <div className="px-6 pb-6">
-        <blockquote className="border-l-4 pl-4 py-2" style={{ borderColor: sector.color, background: sector.bgColor, borderRadius: "0 8px 8px 0" }}>
-          <p className="font-quote italic text-sm leading-relaxed" style={{ color: "#1B3A2D" }}>"{sector.quote}"</p>
-          <cite className="font-body text-xs mt-1 block" style={{ color: "#6B7C6E" }}>— {sector.quoteSource}</cite>
-        </blockquote>
+      {/* Tools */}
+      <div className="px-6 py-3">
+        <div className="flex flex-wrap gap-1.5">
+          {sector.tools.map((t) => (
+            <span key={t} className="text-xs px-2.5 py-1 rounded font-body font-medium" style={{ background: "#F4F6FA", color: "#4A5568" }}>{t}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-6 pb-5 pt-2 flex items-center justify-between gap-3">
+        <button
+          onClick={() => setOpen(!open)}
+          className="text-sm font-body font-medium transition-colors"
+          style={{ color: "#F5A623", background: "none", border: "none" }}
+        >
+          {open ? "Show less ↑" : `+${sector.useCases.length - 2} more use cases`}
+        </button>
+        <a href="#book" className="btn-primary text-sm py-2 px-4">Book Now →</a>
       </div>
     </div>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b" style={{ borderColor: "#E2E8F0" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-5 text-left gap-4"
+        style={{ background: "none", border: "none" }}
+      >
+        <span className="font-display font-semibold text-base" style={{ color: "#0F1F3D" }}>{q}</span>
+        <span className="text-xl flex-shrink-0 transition-transform" style={{ color: "#F5A623", transform: open ? "rotate(45deg)" : "rotate(0)" }}>+</span>
+      </button>
+      {open && (
+        <div className="pb-5">
+          <p className="font-body text-sm leading-relaxed" style={{ color: "#4A5568" }}>{a}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [activeFilter, setActiveFilter] = useState<string>("all");
-  const heroRef = useRef<HTMLDivElement>(null);
   const [scrollY, setScrollY] = useState(0);
+  const [navSolid, setNavSolid] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [bookingName, setBookingName] = useState("");
+  const [bookingEmail, setBookingEmail] = useState("");
+  const [bookingBusiness, setBookingBusiness] = useState("");
+  const [bookingSector, setBookingSector] = useState("");
+  const [bookingSubmitted, setBookingSubmitted] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    const onScroll = () => { setScrollY(window.scrollY); setNavSolid(window.scrollY > 60); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const filteredSectors = activeFilter === "all" ? sectors : sectors.filter((s) => s.id === activeFilter);
+  const handleBooking = (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingSubmitted(true);
+  };
 
   return (
-    <div className="min-h-screen" style={{ background: "#FBF7F0", fontFamily: "Nunito, sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "#FAFAF8" }}>
+
       {/* ── Navigation ── */}
       <nav
-        className="sticky top-0 z-50 border-b"
+        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         style={{
-          background: "rgba(251, 247, 240, 0.95)",
-          backdropFilter: "blur(12px)",
-          borderColor: "#E0D8CC",
+          background: navSolid ? "rgba(15,31,61,0.97)" : "transparent",
+          backdropFilter: navSolid ? "blur(16px)" : "none",
+          borderBottom: navSolid ? "1px solid rgba(255,255,255,0.08)" : "none",
+          boxShadow: navSolid ? "0 2px 24px rgba(0,0,0,0.3)" : "none",
         }}
       >
         <div className="container flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ background: "#1B3A2D" }}>
-              AI
-            </div>
-            <span className="font-display font-semibold text-lg" style={{ color: "#1B3A2D" }}>
-              AI for Business
+          {/* Logo */}
+          <a href="#" className="flex items-center gap-2.5 text-decoration-none">
+            <img src={LOGO_MARK} alt="Elevate AI" className="w-8 h-8 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
+            <span className="font-display font-bold text-lg" style={{ color: "#FAFAF8" }}>
+              Elevate <span style={{ color: "#F5A623" }}>AI</span>
             </span>
-          </div>
-          <div className="hidden md:flex items-center gap-6 text-sm font-body font-medium" style={{ color: "#6B7C6E" }}>
-            <a href="#overview" className="hover:text-[#C4552A] transition-colors">Overview</a>
-            <a href="#sectors" className="hover:text-[#C4552A] transition-colors">By Sector</a>
-            <a href="#implementation" className="hover:text-[#C4552A] transition-colors">How to Start</a>
-            <a href="#more-sectors" className="hover:text-[#C4552A] transition-colors">More Sectors</a>
-          </div>
-          <a
-            href="#sectors"
-            className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold font-body text-white transition-all hover:opacity-90"
-            style={{ background: "#C4552A" }}
-          >
-            Explore Sectors →
           </a>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-7">
+            {[["#how-we-help", "How We Help"], ["#sectors", "Sectors"], ["#services", "Services"], ["#results", "Results"], ["#faq", "FAQ"]].map(([href, label]) => (
+              <a key={href} href={href} className="font-body text-sm font-medium transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none" }}>
+                {label}
+              </a>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <a href="#book" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
+            <button
+              className="md:hidden p-2"
+              style={{ background: "none", border: "none", color: "#FAFAF8" }}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <div className="w-5 h-0.5 bg-current mb-1" />
+              <div className="w-5 h-0.5 bg-current mb-1" />
+              <div className="w-5 h-0.5 bg-current" />
+            </button>
+          </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t" style={{ background: "rgba(15,31,61,0.98)", borderColor: "rgba(255,255,255,0.1)" }}>
+            <div className="container py-4 flex flex-col gap-4">
+              {[["#how-we-help", "How We Help"], ["#sectors", "Sectors"], ["#services", "Services"], ["#results", "Results"], ["#faq", "FAQ"]].map(([href, label]) => (
+                <a key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="font-body text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>
+                  {label}
+                </a>
+              ))}
+              <a href="#book" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* ── Hero ── */}
-      <section
-        className="relative overflow-hidden"
-        style={{ minHeight: "90vh", display: "flex", alignItems: "center" }}
-      >
-        {/* Background image with parallax */}
+      {/* ── HERO ── */}
+      <section className="relative overflow-hidden" style={{ minHeight: "100vh", display: "flex", alignItems: "center" }}>
+        {/* Background */}
         <div
-          className="absolute inset-0 z-0"
+          className="absolute inset-0"
           style={{
-            backgroundImage: `url(https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/hero-ai-business-gKnxbKf6EDCBky6v4TdzpA.webp)`,
+            backgroundImage: `url(${HERO_IMG})`,
             backgroundSize: "cover",
-            backgroundPosition: "center",
-            transform: `translateY(${scrollY * 0.3}px)`,
-            filter: "brightness(0.35)",
+            backgroundPosition: "center 30%",
+            transform: `translateY(${scrollY * 0.25}px)`,
+            filter: "brightness(0.25)",
           }}
         />
-        {/* Gradient overlay */}
-        <div
-          className="absolute inset-0 z-0"
-          style={{ background: "linear-gradient(135deg, rgba(27,58,45,0.7) 0%, rgba(196,85,42,0.3) 100%)" }}
-        />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(15,31,61,0.92) 0%, rgba(15,31,61,0.7) 60%, rgba(30,58,95,0.5) 100%)" }} />
 
-        <div className="container relative z-10 py-24">
+        {/* Amber accent orb */}
+        <div className="absolute top-1/3 right-1/4 w-96 h-96 rounded-full opacity-10 blur-3xl" style={{ background: "#F5A623" }} />
+
+        <div className="container relative z-10 pt-24 pb-16">
           <div className="max-w-3xl">
-            <FadeSection>
-              <span className="inline-block px-4 py-1.5 rounded-full text-sm font-semibold font-body mb-6" style={{ background: "rgba(196,85,42,0.9)", color: "#FBF7F0" }}>
-                2025–2026 Research Report
-              </span>
-            </FadeSection>
-            <FadeSection delay={100}>
-              <h1 className="font-display text-5xl md:text-7xl font-black leading-tight mb-6" style={{ color: "#FBF7F0" }}>
-                AI for Every
-                <br />
-                <span style={{ color: "#E8734A" }}>Business</span>
+            <Reveal>
+              <span className="section-label mb-4 block">AI Consultancy for Real Businesses</span>
+            </Reveal>
+            <Reveal delay={80}>
+              <h1 className="font-display font-extrabold leading-none mb-6" style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)", color: "#FAFAF8" }}>
+                Your Business,<br />
+                <span className="text-gradient">Elevated by AI.</span>
               </h1>
-            </FadeSection>
-            <FadeSection delay={200}>
-              <p className="font-body text-xl leading-relaxed mb-8 max-w-2xl" style={{ color: "rgba(251,247,240,0.85)" }}>
-                A practical guide to implementing Claude and other AI tools across health clinics, trades, law firms, and beyond. Real use cases, real ROI, and a clear path to getting started.
+            </Reveal>
+            <Reveal delay={160}>
+              <p className="font-body text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "rgba(250,250,248,0.8)" }}>
+                We help trades, health professionals, and service businesses implement AI tools that save time, cut admin, and grow revenue — without needing a tech team.
               </p>
-            </FadeSection>
-            <FadeSection delay={300}>
-              <div className="flex flex-wrap gap-4">
-                <a
-                  href="#sectors"
-                  className="px-6 py-3 rounded-lg font-semibold font-body text-white transition-all hover:opacity-90 hover:-translate-y-0.5"
-                  style={{ background: "#C4552A" }}
-                >
-                  Explore by Sector
-                </a>
-                <a
-                  href="#implementation"
-                  className="px-6 py-3 rounded-lg font-semibold font-body transition-all hover:opacity-90 hover:-translate-y-0.5"
-                  style={{ background: "rgba(251,247,240,0.15)", color: "#FBF7F0", border: "1px solid rgba(251,247,240,0.3)", backdropFilter: "blur(8px)" }}
-                >
-                  How to Get Started
-                </a>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="flex flex-wrap gap-4 mb-12">
+                <a href="#book" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
+                <a href="#sectors" className="btn-outline text-base px-7 py-3.5">See Your Industry</a>
               </div>
-            </FadeSection>
+            </Reveal>
+
+            {/* Trust signals */}
+            <Reveal delay={320}>
+              <div className="flex flex-wrap gap-6">
+                {[
+                  { icon: "⚡", text: "Results in 2 weeks" },
+                  { icon: "🔒", text: "No tech skills needed" },
+                  { icon: "✅", text: "Money-back guarantee" },
+                ].map((t, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm font-body" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    <span>{t.icon}</span>
+                    <span>{t.text}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
           </div>
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2" style={{ color: "rgba(251,247,240,0.6)" }}>
-          <span className="text-xs font-body">Scroll to explore</span>
-          <div className="w-0.5 h-8 rounded-full" style={{ background: "rgba(251,247,240,0.4)", animation: "pulse 2s infinite" }} />
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <span className="text-xs font-body">Scroll</span>
+          <div className="w-px h-10" style={{ background: "linear-gradient(to bottom, rgba(245,166,35,0.6), transparent)" }} />
         </div>
       </section>
 
-      {/* ── Key Statistics ── */}
-      <section id="overview" className="py-20" style={{ background: "#FBF7F0" }}>
+      {/* ── THE PROBLEM ── */}
+      <section style={{ background: "#0F1F3D", padding: "5rem 0" }}>
         <div className="container">
-          <FadeSection>
-            <div className="text-center mb-12">
-              <span className="terracotta-tag mb-4 inline-block">By the Numbers</span>
-              <h2 className="font-display text-4xl md:text-5xl font-bold mt-3" style={{ color: "#1B3A2D" }}>
-                The AI Opportunity for Small Business
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <Reveal>
+              <div>
+                <span className="section-label mb-4 block">The Problem</span>
+                <h2 className="font-display text-4xl font-bold mb-6" style={{ color: "#FAFAF8" }}>
+                  Your competitors are already using AI. Are you?
+                </h2>
+                <p className="font-body text-lg leading-relaxed mb-6" style={{ color: "rgba(250,250,248,0.75)" }}>
+                  57% of small businesses are now investing in AI — and the ones that aren't are falling behind on quoting speed, admin efficiency, and customer response times.
+                </p>
+                <p className="font-body text-lg leading-relaxed mb-8" style={{ color: "rgba(250,250,248,0.75)" }}>
+                  The problem isn't that AI doesn't work for your industry. It's that nobody has shown you <em style={{ color: "#F5A623" }}>exactly how</em> to use it in your specific workflow.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { pain: "Hours lost on quotes & invoices", fix: "Done in minutes with AI" },
+                    { pain: "Chasing clients for follow-up", fix: "Automated sequences" },
+                    { pain: "Drowning in documentation", fix: "Voice-to-doc in seconds" },
+                    { pain: "Inconsistent customer comms", fix: "Professional every time" },
+                  ].map((item, i) => (
+                    <div key={i} className="p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <div className="text-xs font-body mb-1.5 line-through" style={{ color: "rgba(255,255,255,0.35)" }}>{item.pain}</div>
+                      <div className="text-sm font-body font-semibold" style={{ color: "#F5A623" }}>✓ {item.fix}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Reveal>
+            <Reveal delay={100}>
+              <div className="rounded-2xl overflow-hidden" style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+                <img src={PROCESS_IMG} alt="Before and after AI implementation" className="w-full" />
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW WE HELP ── */}
+      <section id="how-we-help" style={{ background: "#FAFAF8", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Our Process</span>
+              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#0F1F3D" }}>
+                Three steps to AI that actually works
               </h2>
-              <p className="font-body text-lg mt-4 max-w-2xl mx-auto" style={{ color: "#6B7C6E" }}>
-                AI adoption among small and medium businesses has surged from 36% in 2023 to 57% in 2025 — and the businesses leading the charge are seeing measurable returns.
+              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "#718096" }}>
+                No jargon. No 6-month projects. Just practical AI implementation that delivers results in weeks.
               </p>
             </div>
-          </FadeSection>
+          </Reveal>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
-            <StatCounter value={57} suffix="%" label="of SMBs investing in AI (2025)" />
-            <StatCounter value={5} suffix=".6h" label="saved per employee per week" />
-            <StatCounter value={5} suffix=".44x" label="ROI per dollar spent on AI" />
-            <StatCounter value={84} suffix="%" label="of SMB workers use AI chatbots" />
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {
+                step: "01",
+                icon: "🔍",
+                title: "Audit",
+                subtitle: "Understand your workflows",
+                desc: "We spend 2 hours with you mapping your current processes, identifying the biggest time drains, and pinpointing exactly where AI will deliver the fastest ROI.",
+                color: "#F5A623",
+              },
+              {
+                step: "02",
+                icon: "⚡",
+                title: "Implement",
+                subtitle: "Set up and integrate",
+                desc: "We configure the right AI tools for your business, integrate them with your existing software, and build the prompts and workflows your team will actually use.",
+                color: "#0F1F3D",
+              },
+              {
+                step: "03",
+                icon: "📈",
+                title: "Support",
+                subtitle: "Grow and optimise",
+                desc: "We train your team, measure results, and continuously improve your AI setup as your business grows and new opportunities emerge.",
+                color: "#1E3A5F",
+              },
+            ].map((step, i) => (
+              <Reveal key={i} delay={i * 100}>
+                <div className="card-white p-8 h-full relative overflow-hidden">
+                  <div
+                    className="absolute top-0 right-0 font-display font-extrabold opacity-5"
+                    style={{ fontSize: "6rem", lineHeight: 1, color: step.color }}
+                  >
+                    {step.step}
+                  </div>
+                  <div className="text-4xl mb-4">{step.icon}</div>
+                  <div className="amber-divider mb-4" />
+                  <h3 className="font-display text-2xl font-bold mb-1" style={{ color: "#0F1F3D" }}>{step.title}</h3>
+                  <p className="font-body text-sm font-semibold mb-3" style={{ color: "#F5A623" }}>{step.subtitle}</p>
+                  <p className="font-body text-sm leading-relaxed" style={{ color: "#4A5568" }}>{step.desc}</p>
+                </div>
+              </Reveal>
+            ))}
           </div>
 
-          {/* AI Adoption by Sector Chart */}
-          <FadeSection>
-            <div className="stat-card mb-8">
-              <h3 className="font-display text-2xl font-bold mb-2" style={{ color: "#1B3A2D" }}>AI Adoption Rate by Business Sector</h3>
-              <p className="font-body text-sm mb-6" style={{ color: "#6B7C6E" }}>Percentage of businesses actively using AI tools in their workflows (2025)</p>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={adoptionData} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 80 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fontFamily: "Nunito", fill: "#6B7C6E" }} tickFormatter={(v) => `${v}%`} />
-                  <YAxis type="category" dataKey="sector" tick={{ fontSize: 12, fontFamily: "Nunito", fill: "#1B3A2D" }} width={80} />
+          <Reveal delay={200}>
+            <div className="text-center mt-10">
+              <a href="#book" className="btn-primary text-base px-8 py-3.5">Start with a Free Strategy Call →</a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── SECTORS ── */}
+      <section id="sectors" style={{ background: "#F0F4FF", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Industries We Serve</span>
+              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#0F1F3D" }}>
+                Built for your industry, not just "business"
+              </h2>
+              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "#718096" }}>
+                We don't offer generic AI advice. Every implementation is tailored to your specific trade, tools, and workflows.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {sectors.map((sector) => (
+              <SectorCard key={sector.id} sector={sector} />
+            ))}
+          </div>
+
+          <Reveal delay={100}>
+            <div className="text-center mt-10">
+              <p className="font-body text-sm mb-4" style={{ color: "#718096" }}>Don't see your industry? We work with most service businesses.</p>
+              <a href="#book" className="btn-outline-dark text-sm px-6 py-2.5">Talk to us about your business →</a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── SERVICES ── */}
+      <section id="services" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">What We Offer</span>
+              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
+                Services designed around your needs
+              </h2>
+              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "rgba(250,250,248,0.65)" }}>
+                From a quick audit to full implementation and ongoing support — we meet you where you are.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-5">
+            {services.map((svc, i) => (
+              <Reveal key={i} delay={i * 80}>
+                <div
+                  className="h-full flex flex-col rounded-xl overflow-hidden"
+                  style={{
+                    background: svc.highlight ? "#F5A623" : "rgba(255,255,255,0.05)",
+                    border: svc.highlight ? "none" : "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: svc.highlight ? "0 8px 40px rgba(245,166,35,0.35)" : "none",
+                  }}
+                >
+                  <div className="p-6 flex-1">
+                    <div className="text-3xl mb-4">{svc.icon}</div>
+                    <h3 className="font-display text-xl font-bold mb-1" style={{ color: svc.highlight ? "#0F1F3D" : "#FAFAF8" }}>
+                      {svc.title}
+                    </h3>
+                    <div className="font-display text-2xl font-extrabold mb-1" style={{ color: svc.highlight ? "#0F1F3D" : "#F5A623" }}>
+                      {svc.price}
+                    </div>
+                    <div className="font-body text-xs mb-4" style={{ color: svc.highlight ? "rgba(15,31,61,0.7)" : "rgba(255,255,255,0.5)" }}>
+                      {svc.duration}
+                    </div>
+                    <p className="font-body text-sm leading-relaxed mb-5" style={{ color: svc.highlight ? "rgba(15,31,61,0.8)" : "rgba(255,255,255,0.7)" }}>
+                      {svc.desc}
+                    </p>
+                    <div className="space-y-2">
+                      {svc.includes.map((item, j) => (
+                        <div key={j} className="flex items-center gap-2 text-sm font-body">
+                          <span style={{ color: svc.highlight ? "#0F1F3D" : "#F5A623" }}>✓</span>
+                          <span style={{ color: svc.highlight ? "rgba(15,31,61,0.85)" : "rgba(255,255,255,0.75)" }}>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-6 pt-0">
+                    <a
+                      href="#book"
+                      className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
+                      style={{
+                        background: svc.highlight ? "#0F1F3D" : "#F5A623",
+                        color: svc.highlight ? "#FAFAF8" : "#0F1F3D",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {svc.cta} →
+                    </a>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── RESULTS & STATS ── */}
+      <section id="results" style={{ background: "#162847", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">The Numbers</span>
+              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
+                AI delivers measurable results
+              </h2>
+              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "rgba(250,250,248,0.65)" }}>
+                The data is clear — businesses that implement AI strategically see significant returns within months, not years.
+              </p>
+            </div>
+          </Reveal>
+
+          {/* Animated counters */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
+            {stats.map((s, i) => (
+              <Reveal key={i} delay={i * 80}>
+                <StatCounter value={s.value} suffix={s.suffix} label={s.label} />
+              </Reveal>
+            ))}
+          </div>
+
+          {/* Chart */}
+          <Reveal>
+            <div className="rounded-2xl p-8" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <h3 className="font-display text-xl font-bold mb-2" style={{ color: "#FAFAF8" }}>AI Adoption Rate by Industry (2025)</h3>
+              <p className="font-body text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>% of businesses actively using AI tools in their workflows</p>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={adoptionData} layout="vertical" margin={{ top: 0, right: 50, bottom: 0, left: 90 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                  <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fontFamily: "DM Sans", fill: "rgba(255,255,255,0.45)" }} tickFormatter={(v) => `${v}%`} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fontFamily: "DM Sans", fill: "rgba(255,255,255,0.75)" }} width={90} />
                   <Tooltip
-                    formatter={(value) => [`${value}%`, "Adoption Rate"]}
-                    contentStyle={{ fontFamily: "Nunito", background: "#FBF7F0", border: "1px solid #E0D8CC", borderRadius: "8px" }}
+                    formatter={(v) => [`${v}%`, "Adoption"]}
+                    contentStyle={{ fontFamily: "DM Sans", background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#FAFAF8" }}
                   />
-                  <Bar dataKey="adoption" radius={[0, 6, 6, 0]}>
-                    {adoptionData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                    {adoptionData.map((_, idx) => (
+                      <Cell key={idx} fill={idx === 0 ? "#F5A623" : idx === 4 ? "#FFBE55" : "#1E3A5F"} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </FadeSection>
+          </Reveal>
 
-          {/* Time Savings & AI Usage Charts */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <FadeSection>
-              <div className="stat-card h-full">
-                <h3 className="font-display text-xl font-bold mb-2" style={{ color: "#1B3A2D" }}>Weekly Time Saved Using AI</h3>
-                <p className="font-body text-sm mb-4" style={{ color: "#6B7C6E" }}>Hours saved per week by role (2026 SMB Survey)</p>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={timeSavingsData} margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" vertical={false} />
-                    <XAxis dataKey="role" tick={{ fontSize: 11, fontFamily: "Nunito", fill: "#6B7C6E" }} />
-                    <YAxis tick={{ fontSize: 11, fontFamily: "Nunito", fill: "#6B7C6E" }} tickFormatter={(v) => `${v}h`} />
-                    <Tooltip
-                      formatter={(value) => [`${value} hours/week`, "Time Saved"]}
-                      contentStyle={{ fontFamily: "Nunito", background: "#FBF7F0", border: "1px solid #E0D8CC", borderRadius: "8px" }}
-                    />
-                    <Bar dataKey="hours" fill="#1B3A2D" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </FadeSection>
-
-            <FadeSection delay={100}>
-              <div className="stat-card h-full">
-                <h3 className="font-display text-xl font-bold mb-2" style={{ color: "#1B3A2D" }}>Most Used AI Tools by SMBs</h3>
-                <p className="font-body text-sm mb-4" style={{ color: "#6B7C6E" }}>% of SMB employees using each tool type in the past year</p>
-                <div className="space-y-3">
-                  {aiUsageData.map((item, i) => (
-                    <div key={i}>
-                      <div className="flex justify-between text-sm font-body mb-1">
-                        <span style={{ color: "#1B3A2D" }}>{item.name}</span>
-                        <span className="font-semibold" style={{ color: "#C4552A" }}>{item.value}%</span>
-                      </div>
-                      <div className="progress-bar-bg">
-                        <div
-                          className="progress-bar-fill"
-                          style={{
-                            width: `${item.value}%`,
-                            background: i === 0 ? "#C4552A" : i === 1 ? "#1B3A2D" : i === 2 ? "#E8734A" : "#A8C4B0",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+          {/* Testimonials */}
+          <div className="grid md:grid-cols-3 gap-5 mt-10">
+            {[
+              {
+                quote: "Elevate AI saved our practice 12 hours a week on clinical notes alone. The ROI was clear within the first month.",
+                name: "Dr. Sarah Chen",
+                role: "GP, Inner West Medical Centre",
+                icon: "🏥",
+              },
+              {
+                quote: "I was sceptical AI could help a plumbing business. Now I send professional quotes in 5 minutes and my conversion rate has doubled.",
+                name: "Mark Thompson",
+                role: "Owner, Thompson Plumbing",
+                icon: "🔧",
+              },
+              {
+                quote: "Our lawyers are spending 40% less time on research and drafting. We've taken on 30% more clients without hiring.",
+                name: "James Whitfield",
+                role: "Principal, Whitfield & Associates",
+                icon: "⚖️",
+              },
+            ].map((t, i) => (
+              <Reveal key={i} delay={i * 80}>
+                <div className="card-navy p-6 h-full">
+                  <div className="text-2xl mb-4">{t.icon}</div>
+                  <blockquote className="font-serif italic text-base leading-relaxed mb-5" style={{ color: "rgba(250,250,248,0.9)" }}>
+                    "{t.quote}"
+                  </blockquote>
+                  <div>
+                    <div className="font-display font-bold text-sm" style={{ color: "#F5A623" }}>{t.name}</div>
+                    <div className="font-body text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{t.role}</div>
+                  </div>
                 </div>
-              </div>
-            </FadeSection>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Divider ── */}
-      <div style={{ height: "3px", background: "linear-gradient(to right, transparent, #C4552A 30%, #1B3A2D 70%, transparent)" }} />
-
-      {/* ── Sector Deep Dives ── */}
-      <section id="sectors" className="py-20" style={{ background: "#F5F0E8" }}>
-        <div className="container">
-          <FadeSection>
-            <div className="text-center mb-10">
-              <span className="terracotta-tag mb-4 inline-block">Sector Analysis</span>
-              <h2 className="font-display text-4xl md:text-5xl font-bold mt-3" style={{ color: "#1B3A2D" }}>
-                AI Use Cases by Industry
-              </h2>
-              <p className="font-body text-lg mt-4 max-w-2xl mx-auto" style={{ color: "#6B7C6E" }}>
-                Explore how AI can transform specific workflows in each business type — from quick wins to transformative automation.
-              </p>
-            </div>
-          </FadeSection>
-
-          {/* Filter tabs */}
-          <FadeSection>
-            <div className="flex flex-wrap justify-center gap-2 mb-10">
-              <button
-                onClick={() => setActiveFilter("all")}
-                className="px-4 py-2 rounded-full text-sm font-semibold font-body transition-all"
-                style={{
-                  background: activeFilter === "all" ? "#1B3A2D" : "#FFFFFF",
-                  color: activeFilter === "all" ? "#FBF7F0" : "#6B7C6E",
-                  border: "1px solid #E0D8CC",
-                }}
-              >
-                All Sectors
-              </button>
-              {sectors.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveFilter(s.id)}
-                  className="px-4 py-2 rounded-full text-sm font-semibold font-body transition-all"
-                  style={{
-                    background: activeFilter === s.id ? s.color : "#FFFFFF",
-                    color: activeFilter === s.id ? "#FBF7F0" : "#6B7C6E",
-                    border: "1px solid #E0D8CC",
-                  }}
-                >
-                  {s.icon} {s.title.split(" ")[0]}
-                </button>
-              ))}
-            </div>
-          </FadeSection>
-
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredSectors.map((sector) => (
-              <SectorCard key={sector.id} sector={sector} />
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Divider ── */}
-      <div style={{ height: "3px", background: "linear-gradient(to right, transparent, #1B3A2D 30%, #C4552A 70%, transparent)" }} />
-
-      {/* ── Implementation Steps ── */}
-      <section id="implementation" className="py-20" style={{ background: "#FBF7F0" }}>
+      {/* ── FAQ ── */}
+      <section id="faq" style={{ background: "#FAFAF8", padding: "6rem 0" }}>
         <div className="container">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <FadeSection>
-              <div>
-                <span className="terracotta-tag mb-4 inline-block">Getting Started</span>
-                <h2 className="font-display text-4xl md:text-5xl font-bold mt-3 mb-6" style={{ color: "#1B3A2D" }}>
-                  How to Implement AI in Your Business
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
+            <Reveal>
+              <div className="lg:sticky top-24">
+                <span className="section-label mb-3 block">FAQ</span>
+                <h2 className="font-display text-4xl font-bold mb-4" style={{ color: "#0F1F3D" }}>
+                  Common questions, honest answers
                 </h2>
-                <p className="font-body text-lg leading-relaxed mb-6" style={{ color: "#4A5E50" }}>
-                  Most AI implementations fail not because the technology doesn't work, but because businesses try to do too much at once. The most successful small businesses start small, prove value, and expand systematically.
+                <p className="font-body text-lg leading-relaxed mb-6" style={{ color: "#718096" }}>
+                  We know AI can feel overwhelming. Here are the questions we hear most often from business owners just like you.
                 </p>
-                <blockquote className="border-l-4 pl-5 py-3 mb-6" style={{ borderColor: "#C4552A", background: "#FDE8DF", borderRadius: "0 12px 12px 0" }}>
-                  <p className="font-quote italic text-lg leading-relaxed" style={{ color: "#1B3A2D" }}>
-                    "Start by implementing AI in a single domain, ensuring it demonstrates ROI and meets business objectives before expanding to other areas."
-                  </p>
-                  <cite className="font-body text-sm mt-2 block" style={{ color: "#6B7C6E" }}>— Forbes Business Council</cite>
-                </blockquote>
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { value: "90", suffix: "%", label: "see ROI within 1 year" },
-                    { value: "29", suffix: "–72%", label: "productivity increase" },
-                    { value: "10", suffix: "h+", label: "saved per week" },
-                  ].map((s, i) => (
-                    <div key={i} className="text-center p-3 rounded-xl" style={{ background: "#F0EBE3" }}>
-                      <div className="font-display text-2xl font-black" style={{ color: "#C4552A" }}>{s.value}<span className="text-lg">{s.suffix}</span></div>
-                      <div className="font-body text-xs mt-1" style={{ color: "#6B7C6E" }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
+                <a href="#book" className="btn-primary">Still have questions? Talk to us →</a>
               </div>
-            </FadeSection>
-
-            <div>
-              <div
-                className="rounded-2xl overflow-hidden mb-6"
-                style={{ boxShadow: "0 8px 32px rgba(27,58,45,0.12)" }}
-              >
-                <img
-                  src="https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/implementation-steps-MKkyq8R5TjZJC6xSKh9EeJ.webp"
-                  alt="AI workflow transformation: before and after"
-                  className="w-full h-64 object-cover"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Steps grid */}
-          <div className="mt-16 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {implementationSteps.map((step, i) => (
-              <FadeSection key={i} delay={i * 80}>
-                <div className="stat-card h-full">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                      style={{ background: "#F0EBE3" }}
-                    >
-                      {step.icon}
-                    </div>
-                    <div>
-                      <div className="font-display text-xs font-bold mb-1" style={{ color: "#C4552A" }}>STEP {step.step}</div>
-                      <h3 className="font-display text-lg font-bold mb-2" style={{ color: "#1B3A2D" }}>{step.title}</h3>
-                      <p className="font-body text-sm leading-relaxed" style={{ color: "#4A5E50" }}>{step.description}</p>
-                    </div>
-                  </div>
-                </div>
-              </FadeSection>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Divider ── */}
-      <div style={{ height: "3px", background: "linear-gradient(to right, transparent, #C4552A 30%, #1B3A2D 70%, transparent)" }} />
-
-      {/* ── More Sectors ── */}
-      <section id="more-sectors" className="py-20" style={{ background: "#F5F0E8" }}>
-        <div className="container">
-          <FadeSection>
-            <div className="text-center mb-12">
-              <span className="terracotta-tag mb-4 inline-block">Beyond the Core Five</span>
-              <h2 className="font-display text-4xl md:text-5xl font-bold mt-3" style={{ color: "#1B3A2D" }}>
-                More Businesses Ready for AI
-              </h2>
-              <p className="font-body text-lg mt-4 max-w-2xl mx-auto" style={{ color: "#6B7C6E" }}>
-                Almost every service business has repetitive workflows that AI can streamline. Here are additional sectors with strong AI implementation potential.
-              </p>
-            </div>
-          </FadeSection>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {additionalSectors.map((sector, i) => (
-              <FadeSection key={i} delay={i * 60}>
-                <div className="stat-card h-full">
-                  <div className="text-3xl mb-3">{sector.icon}</div>
-                  <h3 className="font-display text-xl font-bold mb-3" style={{ color: "#1B3A2D" }}>{sector.title}</h3>
-                  <div className="space-y-2">
-                    {sector.uses.map((use, j) => (
-                      <div key={j} className="flex items-center gap-2 text-sm font-body">
-                        <span style={{ color: "#C4552A", fontSize: "10px" }}>◆</span>
-                        <span style={{ color: "#4A5E50" }}>{use}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeSection>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Divider ── */}
-      <div style={{ height: "3px", background: "linear-gradient(to right, transparent, #1B3A2D 50%, transparent)" }} />
-
-      {/* ── Claude & Tools Section ── */}
-      <section className="py-20" style={{ background: "#1B3A2D" }}>
-        <div className="container">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <FadeSection>
+            </Reveal>
+            <Reveal delay={80}>
               <div>
-                <span className="inline-block px-4 py-1.5 rounded-full text-sm font-semibold font-body mb-4" style={{ background: "rgba(196,85,42,0.3)", color: "#E8734A" }}>
-                  Recommended Tools
-                </span>
-                <h2 className="font-display text-4xl font-bold mb-6" style={{ color: "#FBF7F0" }}>
-                  Why Claude is the Right Starting Point
-                </h2>
-                <p className="font-body text-lg leading-relaxed mb-6" style={{ color: "rgba(251,247,240,0.8)" }}>
-                  Claude by Anthropic is purpose-built for business use — with strong performance on document analysis, long-form writing, and nuanced reasoning. It's the preferred choice for law firms, healthcare, and any business handling sensitive information.
-                </p>
-                <div className="space-y-4">
-                  {[
-                    { icon: "📄", title: "Document Analysis", desc: "Review contracts, medical records, and lengthy documents with exceptional accuracy" },
-                    { icon: "✍️", title: "Professional Writing", desc: "Drafts that match your tone — from legal briefs to patient letters to trade quotes" },
-                    { icon: "🔒", title: "Safety & Reliability", desc: "Designed with Constitutional AI principles — less likely to hallucinate or produce harmful outputs" },
-                    { icon: "🔌", title: "API Integration", desc: "Connect Claude to your existing tools via API — CRMs, practice management, job management software" },
-                  ].map((item, i) => (
-                    <div key={i} className="flex gap-4 p-4 rounded-xl" style={{ background: "rgba(251,247,240,0.05)" }}>
-                      <span className="text-2xl">{item.icon}</span>
-                      <div>
-                        <div className="font-display font-bold text-sm mb-1" style={{ color: "#FBF7F0" }}>{item.title}</div>
-                        <div className="font-body text-sm" style={{ color: "rgba(251,247,240,0.7)" }}>{item.desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </FadeSection>
-
-            <FadeSection delay={100}>
-              <div>
-                <h3 className="font-display text-2xl font-bold mb-6" style={{ color: "#FBF7F0" }}>The AI Tool Stack for SMBs</h3>
-                <div className="space-y-4">
-                  {[
-                    { category: "AI Assistants", tools: ["Claude (Anthropic)", "ChatGPT (OpenAI)", "Gemini (Google)"], color: "#C4552A" },
-                    { category: "Workflow Automation", tools: ["Zapier", "Make (Integromat)", "n8n"], color: "#E8734A" },
-                    { category: "Industry-Specific", tools: ["Clio (Legal)", "Tradify / ServiceM8 (Trades)", "Healthie (Health)"], color: "#A8C4B0" },
-                    { category: "Document Processing", tools: ["Claude API", "Dext", "AutoEntry"], color: "#D4A574" },
-                    { category: "Customer Communication", tools: ["Intercom AI", "Tidio", "Freshdesk AI"], color: "#8B9E90" },
-                  ].map((cat, i) => (
-                    <div key={i} className="p-4 rounded-xl" style={{ background: "rgba(251,247,240,0.06)", border: `1px solid ${cat.color}40` }}>
-                      <div className="font-body text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: cat.color }}>{cat.category}</div>
-                      <div className="flex flex-wrap gap-2">
-                        {cat.tools.map((tool) => (
-                          <span key={tool} className="text-sm px-3 py-1 rounded-full font-body" style={{ background: "rgba(251,247,240,0.1)", color: "rgba(251,247,240,0.85)" }}>
-                            {tool}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </FadeSection>
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA Section ── */}
-      <section className="py-20 relative overflow-hidden" style={{ background: "#FBF7F0" }}>
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: `url(https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/stats-bg-Mz8ibsLKHyNHmN7VqsHKf9.webp)`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-        <div className="container relative z-10">
-          <FadeSection>
-            <div className="max-w-3xl mx-auto text-center">
-              <h2 className="font-display text-4xl md:text-5xl font-bold mb-6" style={{ color: "#1B3A2D" }}>
-                Ready to Help Businesses Implement AI?
-              </h2>
-              <p className="font-body text-xl leading-relaxed mb-8" style={{ color: "#4A5E50" }}>
-                The businesses that start now — even with a single workflow — will compound their advantage over the next five years. The technology is accessible, the ROI is proven, and the barrier to entry has never been lower.
-              </p>
-              <div className="grid sm:grid-cols-3 gap-4 mb-10">
-                {[
-                  { icon: "🎯", title: "Start Small", desc: "One workflow, one tool, one team" },
-                  { icon: "📊", title: "Measure Everything", desc: "Time saved, errors reduced, revenue gained" },
-                  { icon: "🚀", title: "Scale What Works", desc: "Expand to adjacent workflows systematically" },
-                ].map((item, i) => (
-                  <div key={i} className="p-5 rounded-2xl text-center" style={{ background: "rgba(27,58,45,0.06)", border: "1px solid #E0D8CC" }}>
-                    <div className="text-3xl mb-2">{item.icon}</div>
-                    <div className="font-display font-bold mb-1" style={{ color: "#1B3A2D" }}>{item.title}</div>
-                    <div className="font-body text-sm" style={{ color: "#6B7C6E" }}>{item.desc}</div>
-                  </div>
+                {faqs.map((faq, i) => (
+                  <FAQItem key={i} q={faq.q} a={faq.a} />
                 ))}
               </div>
-              <p className="font-body text-sm" style={{ color: "#8B9E90" }}>
-                Research compiled from McKinsey, Clio Legal Trends Report, Business.com SMB AI Outlook, ServiceScale Australia, Inside Out Medicine, and Deloitte AI Research (2024–2026).
-              </p>
-            </div>
-          </FadeSection>
+            </Reveal>
+          </div>
         </div>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="py-10 border-t" style={{ background: "#1B3A2D", borderColor: "rgba(251,247,240,0.1)" }}>
+      {/* ── BOOKING / CTA ── */}
+      <section id="book" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
         <div className="container">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ background: "#C4552A" }}>
-                AI
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
+            {/* Left: Value prop */}
+            <Reveal>
+              <div>
+                <span className="section-label mb-3 block">Book Now</span>
+                <h2 className="font-display text-4xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
+                  Ready to <span className="text-gradient">Elevate</span> your business?
+                </h2>
+                <p className="font-body text-lg leading-relaxed mb-8" style={{ color: "rgba(250,250,248,0.75)" }}>
+                  Book a free 30-minute strategy call. We'll identify your top AI opportunities and give you a clear picture of what's possible — no obligation, no sales pitch.
+                </p>
+                <div className="space-y-4 mb-8">
+                  {[
+                    { icon: "⏱", title: "30-minute call", desc: "No fluff, just practical insights for your business" },
+                    { icon: "🎯", title: "Tailored to your industry", desc: "We come prepared with specific use cases for your sector" },
+                    { icon: "💡", title: "Actionable takeaways", desc: "You'll leave with 3 AI opportunities you can act on immediately" },
+                    { icon: "🚫", title: "Zero pressure", desc: "Genuinely helpful whether or not you work with us" },
+                  ].map((item, i) => (
+                    <div key={i} className="flex gap-4">
+                      <span className="text-xl">{item.icon}</span>
+                      <div>
+                        <div className="font-display font-bold text-sm mb-0.5" style={{ color: "#FAFAF8" }}>{item.title}</div>
+                        <div className="font-body text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-5 rounded-xl" style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.2)" }}>
+                  <p className="font-body text-sm" style={{ color: "rgba(250,250,248,0.8)" }}>
+                    <span style={{ color: "#F5A623", fontWeight: 700 }}>Money-back guarantee:</span> If you complete our AI Implementation Package and don't save at least 5 hours per week within 30 days, we'll refund your investment in full.
+                  </p>
+                </div>
               </div>
-              <span className="font-display font-semibold" style={{ color: "#FBF7F0" }}>AI for Business Report</span>
+            </Reveal>
+
+            {/* Right: Form */}
+            <Reveal delay={100}>
+              <div className="rounded-2xl p-8" style={{ background: "#FAFAF8" }}>
+                {bookingSubmitted ? (
+                  <div className="text-center py-8">
+                    <div className="text-5xl mb-4">🎉</div>
+                    <h3 className="font-display text-2xl font-bold mb-3" style={{ color: "#0F1F3D" }}>You're booked in!</h3>
+                    <p className="font-body text-base leading-relaxed mb-6" style={{ color: "#4A5568" }}>
+                      Thanks, {bookingName}! We'll be in touch within 24 hours to confirm your strategy call time. Check your inbox at <strong>{bookingEmail}</strong>.
+                    </p>
+                    <div className="p-4 rounded-xl text-sm font-body" style={{ background: "#F0F4FF", color: "#4A5568" }}>
+                      In the meantime, think about: What's the one task in your business that takes the most time but doesn't require your expertise? That's usually our first AI target.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="font-display text-2xl font-bold mb-2" style={{ color: "#0F1F3D" }}>Book Your Free Strategy Call</h3>
+                    <p className="font-body text-sm mb-6" style={{ color: "#718096" }}>30 minutes. No obligation. Real insights for your business.</p>
+                    <form onSubmit={handleBooking} className="space-y-4">
+                      <div>
+                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Your Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={bookingName}
+                          onChange={(e) => setBookingName(e.target.value)}
+                          placeholder="John Smith"
+                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
+                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: "#0F1F3D" }}
+                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
+                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+                        />
+                      </div>
+                      <div>
+                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Email Address *</label>
+                        <input
+                          type="email"
+                          required
+                          value={bookingEmail}
+                          onChange={(e) => setBookingEmail(e.target.value)}
+                          placeholder="john@smithplumbing.com.au"
+                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
+                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: "#0F1F3D" }}
+                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
+                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+                        />
+                      </div>
+                      <div>
+                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Business Name</label>
+                        <input
+                          type="text"
+                          value={bookingBusiness}
+                          onChange={(e) => setBookingBusiness(e.target.value)}
+                          placeholder="Smith Plumbing Pty Ltd"
+                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
+                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: "#0F1F3D" }}
+                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
+                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+                        />
+                      </div>
+                      <div>
+                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Your Industry *</label>
+                        <select
+                          required
+                          value={bookingSector}
+                          onChange={(e) => setBookingSector(e.target.value)}
+                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
+                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: bookingSector ? "#0F1F3D" : "#718096" }}
+                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
+                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+                        >
+                          <option value="" disabled>Select your industry...</option>
+                          <option value="law">Law Firm</option>
+                          <option value="plumbing">Plumbing</option>
+                          <option value="carpentry">Carpentry / Joinery</option>
+                          <option value="building">Building / Construction</option>
+                          <option value="health">Health Clinic</option>
+                          <option value="physio">Physiotherapy</option>
+                          <option value="other">Other Service Business</option>
+                        </select>
+                      </div>
+                      <button type="submit" className="btn-primary w-full justify-center text-base py-3.5">
+                        Book My Free Strategy Call →
+                      </button>
+                      <p className="font-body text-xs text-center" style={{ color: "#A0AEC0" }}>
+                        We'll respond within 24 hours to confirm your call time. No spam, ever.
+                      </p>
+                    </form>
+                  </>
+                )}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ background: "#0A1628", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "3rem 0" }}>
+        <div className="container">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            {/* Brand */}
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-2.5 mb-3">
+                <img src={LOGO_MARK} alt="Elevate AI" className="w-8 h-8 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
+                <span className="font-display font-bold text-lg" style={{ color: "#FAFAF8" }}>
+                  Elevate <span style={{ color: "#F5A623" }}>AI</span>
+                </span>
+              </div>
+              <p className="font-body text-sm leading-relaxed mb-4" style={{ color: "rgba(255,255,255,0.5)", maxWidth: "280px" }}>
+                We help trades, health professionals, and service businesses implement AI that saves time and grows revenue.
+              </p>
+              <a href="#book" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
             </div>
-            <p className="font-body text-sm text-center" style={{ color: "rgba(251,247,240,0.5)" }}>
-              Research compiled April 2026 · Data from McKinsey, Clio, Business.com, Deloitte & industry sources
+
+            {/* Services */}
+            <div>
+              <div className="font-display font-bold text-sm mb-4" style={{ color: "#FAFAF8" }}>Services</div>
+              <div className="space-y-2">
+                {["AI Readiness Audit", "Implementation Package", "Team Training Workshop", "Monthly AI Support"].map((s) => (
+                  <a key={s} href="#services" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>{s}</a>
+                ))}
+              </div>
+            </div>
+
+            {/* Industries */}
+            <div>
+              <div className="font-display font-bold text-sm mb-4" style={{ color: "#FAFAF8" }}>Industries</div>
+              <div className="space-y-2">
+                {["Law Firms", "Plumbers", "Carpenters", "Builders", "Health Clinics", "Physiotherapists"].map((s) => (
+                  <a key={s} href="#sectors" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>{s}</a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              © 2025 Elevate AI. All rights reserved.
             </p>
-            <div className="flex gap-4 text-sm font-body" style={{ color: "rgba(251,247,240,0.5)" }}>
-              <a href="#overview" className="hover:text-white transition-colors">Overview</a>
-              <a href="#sectors" className="hover:text-white transition-colors">Sectors</a>
-              <a href="#implementation" className="hover:text-white transition-colors">How to Start</a>
-            </div>
+            <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Helping Australian businesses implement AI since 2024.
+            </p>
           </div>
         </div>
       </footer>
