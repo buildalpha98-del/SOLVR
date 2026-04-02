@@ -1,5 +1,5 @@
 /**
- * ELEVATE AI — Sector Data
+ * SOLVR — Sector Data
  * All 6 industry datasets for individual landing pages
  */
 

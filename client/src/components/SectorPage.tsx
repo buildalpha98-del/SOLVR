@@ -1,5 +1,5 @@
 /**
- * ELEVATE AI — Shared Sector Landing Page Component
+ * SOLVR — Shared Sector Landing Page Component
  * Used by all 6 industry pages: Law, Plumbers, Carpenters, Builders, Health, Physio
  * Design: Navy #0F1F3D | Amber #F5A623 | Warm White #FAFAF8
  */
@@ -63,7 +63,7 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 }
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
-const LOGO_DARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-logo-dark-bg-eEYnip9AdxDy3wd5JtPzD2.webp";
+const LOGO_DARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
 function Nav() {
   const [solid, setSolid] = useState(false);
@@ -78,7 +78,7 @@ function Nav() {
       style={{ background: solid ? "rgba(15,31,61,0.97)" : "rgba(15,31,61,0.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="container flex items-center justify-between h-16">
         <Link href="/">
-          <img src={LOGO_DARK} alt="Elevate AI" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
+          <img src={LOGO_DARK} alt="Solvr" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
         </Link>
         <div className="hidden md:flex items-center gap-6">
           {[["/#how-we-help", "How We Help"], ["/#sectors", "Industries"], ["/#services", "Services"], ["/#results", "Results"]].map(([href, label]) => (
@@ -401,9 +401,9 @@ export default function SectorPage({ data }: { data: SectorData }) {
       {/* ── FOOTER ── */}
       <footer style={{ background: "#0A1628", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "2.5rem 0" }}>
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
-          <img src={LOGO_DARK} alt="Elevate AI" className="h-7 object-contain" style={{ maxWidth: "140px" }} />
+          <img src={LOGO_DARK} alt="Solvr" className="h-7 object-contain" style={{ maxWidth: "140px" }} />
           <p className="font-body text-xs text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
-            © 2025 Elevate AI. Helping Australian businesses implement AI.
+            © 2025 Solvr. Helping Australian businesses implement AI.
           </p>
           <a href="/#book" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
         </div>

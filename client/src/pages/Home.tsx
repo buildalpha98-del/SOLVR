@@ -1,5 +1,5 @@
 /**
- * ELEVATE AI — Company Website
+ * SOLVR — Company Website
  * Design: Refined Industrial Modernism
  * Navy #0F1F3D | Amber #F5A623 | Warm White #FAFAF8
  * Syne (display) | DM Sans (body) | DM Serif Display (quotes)
@@ -15,7 +15,7 @@ import {
 // ─── Assets ──────────────────────────────────────────────────────────────────
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-hero-3MgmpQfNxd2H5w9Faxmtzg.webp";
 const PROCESS_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-process-Ach3FWj53TDEo7V7Ls3PtV.webp";
-const LOGO_MARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-logo-dark-bg-eEYnip9AdxDy3wd5JtPzD2.webp";
+const LOGO_MARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const sectors = [
@@ -414,7 +414,7 @@ export default function Home() {
         <div className="container flex items-center justify-between h-16">
           {/* Logo */}
           <a href="#" className="flex items-center gap-2.5 text-decoration-none">
-            <img src={LOGO_MARK} alt="Elevate AI" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
+            <img src={LOGO_MARK} alt="Solvr" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
           </a>
 
           {/* Desktop nav */}
@@ -477,17 +477,17 @@ export default function Home() {
         <div className="container relative z-10 pt-24 pb-16">
           <div className="max-w-3xl">
             <Reveal>
-              <span className="section-label mb-4 block">AI Consultancy for Real Businesses</span>
+              <span className="section-label mb-4 block">Stop Doing Admin. Start Doing Work.</span>
             </Reveal>
             <Reveal delay={80}>
               <h1 className="font-display font-extrabold leading-none mb-6" style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)", color: "#FAFAF8" }}>
-                Your Business,<br />
-                <span className="text-gradient">Elevated by AI.</span>
+                Your Admin,<br />
+                <span className="text-gradient">Solved by AI.</span>
               </h1>
             </Reveal>
             <Reveal delay={160}>
               <p className="font-body text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "rgba(250,250,248,0.8)" }}>
-                We help trades, health professionals, and service businesses implement AI tools that save time, cut admin, and grow revenue — without needing a tech team.
+                Solvr helps trades, health professionals, and service businesses implement AI tools that eliminate admin, win more jobs, and get home on time — without needing a tech team.
               </p>
             </Reveal>
             <Reveal delay={240}>
@@ -813,7 +813,7 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-5 mt-10">
             {[
               {
-                quote: "Elevate AI saved our practice 12 hours a week on clinical notes alone. The ROI was clear within the first month.",
+                quote: "Solvr saved our practice 12 hours a week on clinical notes alone. The ROI was clear within the first month.",
                 name: "Dr. Sarah Chen",
                 role: "GP, Inner West Medical Centre",
                 icon: "🏥",
@@ -1016,7 +1016,7 @@ export default function Home() {
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-3">
-          <img src={LOGO_MARK} alt="Elevate AI" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
+          <img src={LOGO_MARK} alt="Solvr" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
               </div>
               <p className="font-body text-sm leading-relaxed mb-4" style={{ color: "rgba(255,255,255,0.5)", maxWidth: "280px" }}>
                 We help trades, health professionals, and service businesses implement AI that saves time and grows revenue.
@@ -1045,13 +1045,16 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              © 2025 Elevate AI. All rights reserved.
+              © 2025 Solvr. All rights reserved. | Clearpath AI Pty Ltd
             </p>
-            <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              Helping Australian businesses implement AI since 2024.
-            </p>
+            <a href="https://instagram.com/solvr.au" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 font-body text-sm font-semibold transition-colors hover:text-amber-400"
+              style={{ color: "rgba(255,255,255,0.55)", textDecoration: "none" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+              @solvr.au
+            </a>
           </div>
         </div>
       </footer>
