@@ -27,3 +27,4 @@
 - [x] Build /voice-agent product page (Never Miss a Job)
 - [x] Add /voice-agent route to App.tsx
 - [x] Update "Try the Demo" nav link to point to /voice-agent
+- [x] Update voice agent pricing tiers with competitive market rates
