@@ -1,0 +1,25 @@
+# Solvr Website TODO
+
+- [x] Basic homepage layout with Warm Modernism design
+- [x] Navigation menu (desktop + mobile)
+- [x] Hero section with CTA
+- [x] Problem section
+- [x] How We Help (3-step process)
+- [x] Sectors grid (6 industries)
+- [x] Services section (4 packages)
+- [x] Results section with stats, chart, testimonials
+- [x] FAQ section
+- [x] Booking form with confirmation state
+- [x] Footer with Instagram link
+- [x] 6 individual sector landing pages
+- [x] Free AI Audit quiz (/ai-audit) with 7 questions and scoring
+- [x] Full Solvr rebrand (logo, colours, tagline)
+- [x] SEO metadata fixed (title, description, keywords, Open Graph)
+- [x] Full-stack upgrade (web-db-user: database, backend, auth)
+- [x] Announcement banner (dismissible, amber)
+- [x] Owner push notifications on booking + audit submissions
+- [x] tRPC notification backend routes
+- [x] 8 passing vitest tests
+- [x] GitHub integration connected
+- [x] "Try the Demo" nav link (desktop + mobile) → solvrvoice-2kmsccza.manus.space
+- [x] Demo CTA section between testimonials and FAQ
