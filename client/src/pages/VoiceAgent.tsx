@@ -254,6 +254,401 @@ const testimonials = [
   },
 ];
 
+// ─── Pricing Section Component ──────────────────────────────────────────────
+function PricingSection() {
+  const [isAnnual, setIsAnnual] = useState(false);
+  const [missedCalls, setMissedCalls] = useState(3);
+  const [avgJobValue, setAvgJobValue] = useState(800);
+
+  const annualPrices: Record<string, { monthly: number; annual: number }> = {
+    Starter: { monthly: 247, annual: Math.round((247 * 10) / 12) },
+    Professional: { monthly: 497, annual: Math.round((497 * 10) / 12) },
+  };
+
+  const missedRevPerMonth = missedCalls * avgJobValue * 30 * 0.3;
+  const receptionistCost = 4500;
+
+  return (
+    <section id="pricing" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
+      <div className="container">
+        <Reveal>
+          <div className="text-center mb-10">
+            <span className="section-label mb-3 block">Pricing</span>
+            <h2
+              className="font-display text-4xl md:text-5xl font-bold mb-4"
+              style={{ color: "#FAFAF8" }}
+            >
+              Simple, transparent pricing
+            </h2>
+            <p
+              className="font-body text-lg max-w-xl mx-auto mb-8"
+              style={{ color: "rgba(250,250,248,0.65)" }}
+            >
+              No setup fees. No lock-in contracts. 14-day free trial on all plans.
+            </p>
+
+            {/* Billing toggle */}
+            <div
+              className="inline-flex items-center gap-1 p-1 rounded-full"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            >
+              <button
+                onClick={() => setIsAnnual(false)}
+                className="font-body text-sm font-semibold px-5 py-2 rounded-full transition-all"
+                style={{
+                  background: !isAnnual ? "#F5A623" : "transparent",
+                  color: !isAnnual ? "#0F1F3D" : "rgba(255,255,255,0.6)",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setIsAnnual(true)}
+                className="font-body text-sm font-semibold px-5 py-2 rounded-full transition-all flex items-center gap-2"
+                style={{
+                  background: isAnnual ? "#F5A623" : "transparent",
+                  color: isAnnual ? "#0F1F3D" : "rgba(255,255,255,0.6)",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Annual
+                <span
+                  className="text-xs font-bold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: isAnnual ? "rgba(15,31,61,0.2)" : "rgba(245,166,35,0.2)",
+                    color: "#F5A623",
+                  }}
+                >
+                  2 months free
+                </span>
+              </button>
+            </div>
+          </div>
+        </Reveal>
+
+        <div className="grid md:grid-cols-3 gap-6 mb-16">
+          {pricing.map((plan, i) => {
+            const priceInfo = annualPrices[plan.name];
+            const displayPrice = priceInfo
+              ? isAnnual
+                ? `$${priceInfo.annual}`
+                : `$${priceInfo.monthly}`
+              : plan.price;
+            const annualSaving = priceInfo
+              ? (priceInfo.monthly - priceInfo.annual) * 12
+              : 0;
+
+            return (
+              <Reveal key={i} delay={i * 80}>
+                <div
+                  className="h-full flex flex-col rounded-xl overflow-hidden"
+                  style={{
+                    background: plan.highlight ? "#F5A623" : "rgba(255,255,255,0.05)",
+                    border: plan.highlight ? "none" : "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: plan.highlight ? "0 8px 40px rgba(245,166,35,0.35)" : "none",
+                  }}
+                >
+                  <div className="p-6 flex-1">
+                    {plan.highlight && (
+                      <div
+                        className="text-xs font-body font-bold px-3 py-1 rounded-full inline-block mb-3"
+                        style={{ background: "rgba(15,31,61,0.15)", color: "#0F1F3D" }}
+                      >
+                        MOST POPULAR
+                      </div>
+                    )}
+                    <h3
+                      className="font-display text-xl font-bold mb-1"
+                      style={{ color: plan.highlight ? "#0F1F3D" : "#FAFAF8" }}
+                    >
+                      {plan.name}
+                    </h3>
+                    <div className="flex items-end gap-1 mb-1">
+                      <div
+                        className="font-display text-3xl font-extrabold"
+                        style={{ color: plan.highlight ? "#0F1F3D" : "#F5A623" }}
+                      >
+                        {displayPrice}
+                      </div>
+                      {plan.period && (
+                        <span
+                          className="text-base font-normal mb-0.5"
+                          style={{
+                            color: plan.highlight
+                              ? "rgba(15,31,61,0.6)"
+                              : "rgba(255,255,255,0.5)",
+                          }}
+                        >
+                          /month
+                        </span>
+                      )}
+                    </div>
+                    {isAnnual && priceInfo && (
+                      <div
+                        className="font-body text-xs mb-3"
+                        style={{
+                          color: plan.highlight
+                            ? "rgba(15,31,61,0.6)"
+                            : "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        Billed as ${priceInfo.annual * 12}/yr — save ${annualSaving}
+                      </div>
+                    )}
+                    <p
+                      className="font-body text-sm leading-relaxed mb-5"
+                      style={{
+                        color: plan.highlight
+                          ? "rgba(15,31,61,0.8)"
+                          : "rgba(255,255,255,0.7)",
+                      }}
+                    >
+                      {plan.desc}
+                    </p>
+                    <div className="space-y-2">
+                      {plan.features.map((item, j) => (
+                        <div key={j} className="flex items-center gap-2 text-sm font-body">
+                          <span style={{ color: plan.highlight ? "#0F1F3D" : "#F5A623" }}>✓</span>
+                          <span
+                            style={{
+                              color: plan.highlight
+                                ? "rgba(15,31,61,0.85)"
+                                : "rgba(255,255,255,0.75)",
+                            }}
+                          >
+                            {item}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-6 pt-0">
+                    <a
+                      href="/#book"
+                      className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
+                      style={{
+                        background: plan.highlight ? "#0F1F3D" : "#F5A623",
+                        color: plan.highlight ? "#FAFAF8" : "#0F1F3D",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {plan.cta} →
+                    </a>
+                  </div>
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
+
+        {/* ── Cost Calculator ── */}
+        <Reveal>
+          <div
+            className="rounded-2xl p-8 md:p-10"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            <div className="text-center mb-8">
+              <h3
+                className="font-display text-2xl font-bold mb-2"
+                style={{ color: "#FAFAF8" }}
+              >
+                Compare to hiring a receptionist
+              </h3>
+              <p
+                className="font-body text-sm"
+                style={{ color: "rgba(255,255,255,0.55)" }}
+              >
+                Adjust the sliders to see your potential savings
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-10 items-start">
+              {/* Sliders */}
+              <div className="space-y-8">
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <label
+                      className="font-body text-sm font-semibold"
+                      style={{ color: "rgba(255,255,255,0.8)" }}
+                    >
+                      Missed calls per day
+                    </label>
+                    <span
+                      className="font-display font-bold text-sm"
+                      style={{ color: "#F5A623" }}
+                    >
+                      {missedCalls} calls
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={10}
+                    value={missedCalls}
+                    onChange={(e) => setMissedCalls(Number(e.target.value))}
+                    className="w-full"
+                    style={{ accentColor: "#F5A623" }}
+                  />
+                  <div className="flex justify-between mt-1">
+                    <span className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>1</span>
+                    <span className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>10</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <label
+                      className="font-body text-sm font-semibold"
+                      style={{ color: "rgba(255,255,255,0.8)" }}
+                    >
+                      Average job value
+                    </label>
+                    <span
+                      className="font-display font-bold text-sm"
+                      style={{ color: "#F5A623" }}
+                    >
+                      ${avgJobValue.toLocaleString()}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={200}
+                    max={5000}
+                    step={100}
+                    value={avgJobValue}
+                    onChange={(e) => setAvgJobValue(Number(e.target.value))}
+                    className="w-full"
+                    style={{ accentColor: "#F5A623" }}
+                  />
+                  <div className="flex justify-between mt-1">
+                    <span className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>$200</span>
+                    <span className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>$5,000</span>
+                  </div>
+                </div>
+
+                <div
+                  className="p-4 rounded-xl text-sm font-body"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    color: "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  Estimates assume 30% call-to-job conversion rate and a
+                  part-time receptionist cost of $4,500/month (salary, super,
+                  leave, and training included).
+                </div>
+              </div>
+
+              {/* Results */}
+              <div className="space-y-4">
+                <div
+                  className="p-5 rounded-xl"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div
+                    className="font-body text-xs mb-1"
+                    style={{ color: "rgba(255,255,255,0.45)" }}
+                  >
+                    Revenue lost to missed calls (est.)
+                  </div>
+                  <div
+                    className="font-display text-2xl font-extrabold"
+                    style={{ color: "#ef4444" }}
+                  >
+                    −${Math.round(missedRevPerMonth).toLocaleString()}/mo
+                  </div>
+                </div>
+
+                <div
+                  className="p-5 rounded-xl"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <div
+                    className="font-body text-xs mb-1"
+                    style={{ color: "rgba(255,255,255,0.45)" }}
+                  >
+                    Part-time receptionist cost
+                  </div>
+                  <div
+                    className="font-display text-2xl font-extrabold"
+                    style={{ color: "#ef4444" }}
+                  >
+                    −${receptionistCost.toLocaleString()}/mo
+                  </div>
+                </div>
+
+                <div
+                  className="p-5 rounded-xl"
+                  style={{
+                    background: "rgba(245,166,35,0.12)",
+                    border: "1px solid rgba(245,166,35,0.3)",
+                  }}
+                >
+                  <div
+                    className="font-body text-xs mb-1"
+                    style={{ color: "rgba(245,166,35,0.7)" }}
+                  >
+                    Solvr AI Voice Agent (Professional)
+                  </div>
+                  <div
+                    className="font-display text-2xl font-extrabold"
+                    style={{ color: "#F5A623" }}
+                  >
+                    $497/mo
+                  </div>
+                  <div
+                    className="font-body text-xs mt-1"
+                    style={{ color: "rgba(255,255,255,0.35)" }}
+                  >
+                    All calls answered. All jobs captured.
+                  </div>
+                </div>
+
+                <div
+                  className="p-5 rounded-xl text-center"
+                  style={{ background: "#F5A623" }}
+                >
+                  <div
+                    className="font-body text-xs mb-1"
+                    style={{ color: "rgba(15,31,61,0.65)" }}
+                  >
+                    Your estimated monthly saving vs. receptionist
+                  </div>
+                  <div
+                    className="font-display text-3xl font-extrabold"
+                    style={{ color: "#0F1F3D" }}
+                  >
+                    +${Math.round(receptionistCost + missedRevPerMonth - 497).toLocaleString()}/mo
+                  </div>
+                  <div
+                    className="font-body text-xs mt-1"
+                    style={{ color: "rgba(15,31,61,0.6)" }}
+                  >
+                    That's ${Math.round((receptionistCost + missedRevPerMonth - 497) * 12).toLocaleString()} back in your pocket every year
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function VoiceAgent() {
   const [scrollY, setScrollY] = useState(0);
@@ -678,126 +1073,7 @@ export default function VoiceAgent() {
       </section>
 
       {/* ── PRICING ── */}
-      <section id="pricing" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
-        <div className="container">
-          <Reveal>
-            <div className="text-center mb-14">
-              <span className="section-label mb-3 block">Pricing</span>
-              <h2
-                className="font-display text-4xl md:text-5xl font-bold mb-4"
-                style={{ color: "#FAFAF8" }}
-              >
-                Simple, transparent pricing
-              </h2>
-              <p
-                className="font-body text-lg max-w-xl mx-auto"
-                style={{ color: "rgba(250,250,248,0.65)" }}
-              >
-                No setup fees. No lock-in contracts. 14-day free trial on all
-                plans.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {pricing.map((plan, i) => (
-              <Reveal key={i} delay={i * 80}>
-                <div
-                  className="h-full flex flex-col rounded-xl overflow-hidden"
-                  style={{
-                    background: plan.highlight
-                      ? "#F5A623"
-                      : "rgba(255,255,255,0.05)",
-                    border: plan.highlight
-                      ? "none"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    boxShadow: plan.highlight
-                      ? "0 8px 40px rgba(245,166,35,0.35)"
-                      : "none",
-                  }}
-                >
-                  <div className="p-6 flex-1">
-                    <h3
-                      className="font-display text-xl font-bold mb-1"
-                      style={{
-                        color: plan.highlight ? "#0F1F3D" : "#FAFAF8",
-                      }}
-                    >
-                      {plan.name}
-                    </h3>
-                    <div
-                      className="font-display text-3xl font-extrabold mb-1"
-                      style={{
-                        color: plan.highlight ? "#0F1F3D" : "#F5A623",
-                      }}
-                    >
-                      {plan.price}
-                      <span
-                        className="text-base font-normal"
-                        style={{
-                          color: plan.highlight
-                            ? "rgba(15,31,61,0.6)"
-                            : "rgba(255,255,255,0.5)",
-                        }}
-                      >
-                        {plan.period}
-                      </span>
-                    </div>
-                    <p
-                      className="font-body text-sm leading-relaxed mb-5"
-                      style={{
-                        color: plan.highlight
-                          ? "rgba(15,31,61,0.8)"
-                          : "rgba(255,255,255,0.7)",
-                      }}
-                    >
-                      {plan.desc}
-                    </p>
-                    <div className="space-y-2">
-                      {plan.features.map((item, j) => (
-                        <div
-                          key={j}
-                          className="flex items-center gap-2 text-sm font-body"
-                        >
-                          <span
-                            style={{
-                              color: plan.highlight ? "#0F1F3D" : "#F5A623",
-                            }}
-                          >
-                            ✓
-                          </span>
-                          <span
-                            style={{
-                              color: plan.highlight
-                                ? "rgba(15,31,61,0.85)"
-                                : "rgba(255,255,255,0.75)",
-                            }}
-                          >
-                            {item}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="p-6 pt-0">
-                    <a
-                      href="/#book"
-                      className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
-                      style={{
-                        background: plan.highlight ? "#0F1F3D" : "#F5A623",
-                        color: plan.highlight ? "#FAFAF8" : "#0F1F3D",
-                        textDecoration: "none",
-                      }}
-                    >
-                      {plan.cta} →
-                    </a>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PricingSection />
 
       {/* ── TESTIMONIALS ── */}
       <section style={{ background: "#162847", padding: "6rem 0" }}>

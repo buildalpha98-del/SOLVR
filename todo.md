@@ -28,3 +28,5 @@
 - [x] Add /voice-agent route to App.tsx
 - [x] Update "Try the Demo" nav link to point to /voice-agent
 - [x] Update voice agent pricing tiers with competitive market rates
+- [x] Add annual/monthly billing toggle to voice agent pricing (2 months free on annual)
+- [x] Add "Compare to hiring a receptionist" cost calculator widget
