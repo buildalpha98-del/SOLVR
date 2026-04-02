@@ -1,0 +1,1046 @@
+/**
+ * SOLVR — Voice Agent Product Page
+ * "Never Miss a Job" — 24/7 AI phone answering for tradies
+ */
+
+import { useEffect, useRef, useState } from "react";
+import { Link } from "wouter";
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+function useReveal(threshold = 0.12) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { threshold }
+    );
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return { ref, visible };
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+function Reveal({
+  children,
+  delay = 0,
+  className = "",
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  className?: string;
+}) {
+  const { ref, visible } = useReveal();
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(28px)",
+        transition: `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b" style={{ borderColor: "#E2E8F0" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-5 text-left gap-4"
+        style={{ background: "none", border: "none" }}
+      >
+        <span
+          className="font-display font-semibold text-base"
+          style={{ color: "#0F1F3D" }}
+        >
+          {q}
+        </span>
+        <span
+          className="text-xl flex-shrink-0 transition-transform"
+          style={{
+            color: "#F5A623",
+            transform: open ? "rotate(45deg)" : "rotate(0)",
+          }}
+        >
+          +
+        </span>
+      </button>
+      {open && (
+        <div className="pb-5">
+          <p
+            className="font-body text-sm leading-relaxed"
+            style={{ color: "#4A5568" }}
+          >
+            {a}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const LOGO_MARK =
+  "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
+
+const features = [
+  {
+    icon: "📞",
+    title: "Never Miss a Call",
+    desc: "AI answers every call instantly — even when you're on the tools, in a meeting, or after hours.",
+  },
+  {
+    icon: "🗓️",
+    title: "Books Jobs Automatically",
+    desc: "Qualifies the job, checks your calendar, and books the appointment without you lifting a finger.",
+  },
+  {
+    icon: "💬",
+    title: "Natural Conversations",
+    desc: "Sounds human, handles questions, and adapts to your business — not a robotic menu system.",
+  },
+  {
+    icon: "📊",
+    title: "Lead Capture & CRM Sync",
+    desc: "Every call is logged with contact details, job notes, and urgency — synced to your CRM instantly.",
+  },
+  {
+    icon: "⚡",
+    title: "Set Up in 48 Hours",
+    desc: "We configure everything — your business details, availability, pricing, and tone. You just go live.",
+  },
+  {
+    icon: "🔒",
+    title: "Australian-Hosted & Secure",
+    desc: "All data stays in Australia. GDPR-compliant, encrypted, and built for trust.",
+  },
+];
+
+const howItWorks = [
+  {
+    step: "01",
+    title: "Customer Calls",
+    desc: "Your business number rings. AI picks up instantly — no hold music, no missed calls.",
+    icon: "📱",
+  },
+  {
+    step: "02",
+    title: "AI Qualifies the Job",
+    desc: "Asks the right questions: What's the issue? Where are you located? When do you need it done?",
+    icon: "🤖",
+  },
+  {
+    step: "03",
+    title: "Books or Escalates",
+    desc: "Books the job directly into your calendar, or flags urgent calls for immediate follow-up.",
+    icon: "✅",
+  },
+];
+
+const pricing = [
+  {
+    name: "Starter",
+    price: "$297",
+    period: "/month",
+    desc: "Perfect for solo tradies and small teams testing AI for the first time.",
+    features: [
+      "Up to 100 calls/month",
+      "Basic job qualification",
+      "Calendar integration",
+      "SMS notifications",
+      "Email support",
+    ],
+    cta: "Start Free Trial",
+    highlight: false,
+  },
+  {
+    name: "Professional",
+    price: "$597",
+    period: "/month",
+    desc: "For growing businesses that need reliability and advanced features.",
+    features: [
+      "Up to 500 calls/month",
+      "Advanced qualification logic",
+      "CRM sync (ServiceM8, Tradify, etc.)",
+      "Custom voice & tone",
+      "Priority support",
+      "Call recording & analytics",
+    ],
+    cta: "Start Free Trial",
+    highlight: true,
+  },
+  {
+    name: "Enterprise",
+    price: "Custom",
+    period: "",
+    desc: "For multi-site operations and franchises with complex workflows.",
+    features: [
+      "Unlimited calls",
+      "Multi-location support",
+      "Custom integrations",
+      "Dedicated account manager",
+      "SLA guarantee",
+      "White-label option",
+    ],
+    cta: "Book a Call",
+    highlight: false,
+  },
+];
+
+const faqs = [
+  {
+    q: "Does it sound like a robot?",
+    a: "No. Our AI uses natural speech patterns, handles interruptions, and adapts to your business tone. Most callers don't realise they're speaking to AI until you tell them.",
+  },
+  {
+    q: "What if the AI can't answer a question?",
+    a: "It escalates immediately. If a call requires human judgment (e.g., complex pricing, urgent issues), the AI flags it and sends you an instant SMS with the caller's details.",
+  },
+  {
+    q: "Can I customise what the AI says?",
+    a: "Yes. We configure the AI to match your business — your pricing structure, service area, availability, and tone. You can update it anytime through a simple dashboard.",
+  },
+  {
+    q: "How long does setup take?",
+    a: "48 hours from signup to live. We handle everything: phone number porting (or new number setup), AI training, calendar integration, and testing.",
+  },
+  {
+    q: "What if I already have a receptionist?",
+    a: "Perfect. Use the AI for after-hours, overflow, or as a backup when your team is busy. You control when it's active.",
+  },
+  {
+    q: "Is there a contract?",
+    a: "No lock-in. Monthly billing, cancel anytime. We offer a 14-day free trial so you can test it risk-free.",
+  },
+];
+
+const testimonials = [
+  {
+    quote:
+      "I was missing 3–4 calls a day because I'm on the tools. Now every call gets answered, and I'm booking 40% more jobs without hiring a receptionist.",
+    name: "Mark Thompson",
+    role: "Owner, Thompson Plumbing",
+    icon: "🔧",
+  },
+  {
+    quote:
+      "The AI books jobs while I'm mid-install. Customers love the instant response, and I love not paying $4k/month for a receptionist.",
+    name: "Sarah Chen",
+    role: "Director, Chen Electrical",
+    icon: "⚡",
+  },
+  {
+    quote:
+      "We run 3 crews across Sydney. The AI handles all inbound calls, qualifies urgency, and routes to the right team. Game changer.",
+    name: "James Whitfield",
+    role: "Operations Manager, Whitfield Carpentry",
+    icon: "🪚",
+  },
+];
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function VoiceAgent() {
+  const [scrollY, setScrollY] = useState(0);
+  const [navSolid, setNavSolid] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setScrollY(window.scrollY);
+      setNavSolid(window.scrollY > 60);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <div className="min-h-screen" style={{ background: "#FAFAF8" }}>
+      {/* ── Navigation ── */}
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+        style={{
+          background: navSolid ? "rgba(15,31,61,0.97)" : "transparent",
+          backdropFilter: navSolid ? "blur(16px)" : "none",
+          borderBottom: navSolid
+            ? "1px solid rgba(255,255,255,0.08)"
+            : "none",
+          boxShadow: navSolid ? "0 2px 24px rgba(0,0,0,0.3)" : "none",
+        }}
+      >
+        <div className="container flex items-center justify-between h-16">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2.5 text-decoration-none">
+            <img
+              src={LOGO_MARK}
+              alt="Solvr"
+              className="h-8 object-contain"
+              style={{ maxWidth: "160px" }}
+            />
+          </Link>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-7">
+            {[
+              ["/", "Home"],
+              ["/#sectors", "Industries"],
+              ["/#services", "Services"],
+              ["/voice-agent", "Voice Agent"],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="font-body text-sm font-medium transition-colors hover:text-amber-400"
+                style={{
+                  color: "rgba(255,255,255,0.75)",
+                  textDecoration: "none",
+                }}
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <a
+              href="https://solvrvoice-2kmsccza.manus.space/demo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all"
+              style={{
+                background: "rgba(245,166,35,0.08)",
+                border: "1px dashed rgba(245,166,35,0.5)",
+                color: "#F5A623",
+                textDecoration: "none",
+              }}
+            >
+              ▶ Try the Demo
+            </a>
+            <a href="#pricing" className="btn-primary hidden md:inline-flex">
+              See Pricing
+            </a>
+            <button
+              className="md:hidden p-2"
+              style={{ background: "none", border: "none", color: "#FAFAF8" }}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <div className="w-5 h-0.5 bg-current mb-1" />
+              <div className="w-5 h-0.5 bg-current mb-1" />
+              <div className="w-5 h-0.5 bg-current" />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div
+            className="md:hidden border-t"
+            style={{
+              background: "rgba(15,31,61,0.98)",
+              borderColor: "rgba(255,255,255,0.1)",
+            }}
+          >
+            <div className="container py-4 flex flex-col gap-4">
+              {[
+                ["/", "Home"],
+                ["/#sectors", "Industries"],
+                ["/#services", "Services"],
+                ["/voice-agent", "Voice Agent"],
+              ].map(([href, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="font-body text-sm font-medium"
+                  style={{
+                    color: "rgba(255,255,255,0.85)",
+                    textDecoration: "none",
+                  }}
+                >
+                  {label}
+                </a>
+              ))}
+              <a
+                href="https://solvrvoice-2kmsccza.manus.space/demo"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg"
+                style={{
+                  background: "rgba(245,166,35,0.1)",
+                  border: "1px dashed rgba(245,166,35,0.5)",
+                  color: "#F5A623",
+                }}
+              >
+                ▶ Try the Demo
+              </a>
+              <a
+                href="#pricing"
+                onClick={() => setMobileMenuOpen(false)}
+                className="btn-primary text-center"
+              >
+                See Pricing
+              </a>
+            </div>
+          </div>
+        )}
+      </nav>
+
+      {/* ── HERO ── */}
+      <section
+        className="relative overflow-hidden"
+        style={{ minHeight: "90vh", display: "flex", alignItems: "center" }}
+      >
+        {/* Background gradient */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(15,31,61,0.95) 0%, rgba(30,58,95,0.85) 100%)",
+          }}
+        />
+
+        {/* Amber accent orb */}
+        <div
+          className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-10 blur-3xl"
+          style={{ background: "#F5A623" }}
+        />
+
+        <div className="container relative z-10 pt-24 pb-16">
+          <div className="max-w-3xl">
+            <Reveal>
+              <span className="section-label mb-4 block">
+                AI Voice Agent for Tradies
+              </span>
+            </Reveal>
+            <Reveal delay={80}>
+              <h1
+                className="font-display font-extrabold leading-none mb-6"
+                style={{
+                  fontSize: "clamp(2.8rem, 6vw, 5rem)",
+                  color: "#FAFAF8",
+                }}
+              >
+                Never Miss a Job
+                <br />
+                <span className="text-gradient">Ever Again.</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={160}>
+              <p
+                className="font-body text-xl leading-relaxed mb-8 max-w-xl"
+                style={{ color: "rgba(250,250,248,0.8)" }}
+              >
+                AI answers your phone 24/7, qualifies the job, and books it
+                into your calendar — even when you're on the tools. No
+                receptionist. No missed calls. No lost revenue.
+              </p>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="flex flex-wrap gap-4 mb-8">
+                <a
+                  href="https://solvrvoice-2kmsccza.manus.space/demo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary text-base px-7 py-3.5"
+                >
+                  ▶ Try a Live Call Now
+                </a>
+                <a href="#pricing" className="btn-outline text-base px-7 py-3.5">
+                  See Pricing
+                </a>
+              </div>
+            </Reveal>
+
+            {/* Trust signals */}
+            <Reveal delay={320}>
+              <div className="flex flex-wrap gap-6">
+                {[
+                  { icon: "⚡", text: "Live in 48 hours" },
+                  { icon: "🇦🇺", text: "Australian-hosted" },
+                  { icon: "✅", text: "14-day free trial" },
+                ].map((t, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 text-sm font-body"
+                    style={{ color: "rgba(255,255,255,0.7)" }}
+                  >
+                    <span>{t.icon}</span>
+                    <span>{t.text}</span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ── THE PROBLEM ── */}
+      <section style={{ background: "#0F1F3D", padding: "5rem 0" }}>
+        <div className="container">
+          <div className="max-w-4xl mx-auto">
+            <Reveal>
+              <div className="text-center mb-12">
+                <span className="section-label mb-4 block">The Problem</span>
+                <h2
+                  className="font-display text-4xl font-bold mb-6"
+                  style={{ color: "#FAFAF8" }}
+                >
+                  Every missed call is a job going to your competitor
+                </h2>
+                <p
+                  className="font-body text-lg leading-relaxed"
+                  style={{ color: "rgba(250,250,248,0.75)" }}
+                >
+                  You're on the tools. A customer calls. You can't answer. They
+                  call the next tradie on Google. You just lost $800–$2,500 in
+                  revenue because you were doing your job.
+                </p>
+              </div>
+            </Reveal>
+
+            <div className="grid md:grid-cols-3 gap-5">
+              {[
+                {
+                  stat: "67%",
+                  label: "of customers won't leave a voicemail",
+                  impact: "They just call someone else",
+                },
+                {
+                  stat: "3–5",
+                  label: "missed calls per day for solo tradies",
+                  impact: "That's $50k–$120k/year lost",
+                },
+                {
+                  stat: "24 hrs",
+                  label: "average response time to voicemail",
+                  impact: "Job's already booked elsewhere",
+                },
+              ].map((item, i) => (
+                <Reveal key={i} delay={i * 80}>
+                  <div
+                    className="p-6 rounded-xl text-center"
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      className="font-display text-4xl font-extrabold mb-2 text-gradient"
+                      style={{ color: "#F5A623" }}
+                    >
+                      {item.stat}
+                    </div>
+                    <div
+                      className="font-body text-sm mb-2"
+                      style={{ color: "rgba(255,255,255,0.7)" }}
+                    >
+                      {item.label}
+                    </div>
+                    <div
+                      className="font-body text-xs"
+                      style={{ color: "rgba(255,255,255,0.4)" }}
+                    >
+                      {item.impact}
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section style={{ background: "#FAFAF8", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">How It Works</span>
+              <h2
+                className="font-display text-4xl md:text-5xl font-bold mb-4"
+                style={{ color: "#0F1F3D" }}
+              >
+                Three steps. Zero missed calls.
+              </h2>
+              <p
+                className="font-body text-lg max-w-xl mx-auto"
+                style={{ color: "#718096" }}
+              >
+                Your business number forwards to our AI. Every call is answered
+                in under 2 seconds.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            {howItWorks.map((step, i) => (
+              <Reveal key={i} delay={i * 100}>
+                <div
+                  className="card-white p-8 h-full relative overflow-hidden"
+                  style={{ borderTop: "3px solid #F5A623" }}
+                >
+                  <div
+                    className="absolute top-0 right-0 font-display font-extrabold opacity-5"
+                    style={{ fontSize: "6rem", lineHeight: 1, color: "#0F1F3D" }}
+                  >
+                    {step.step}
+                  </div>
+                  <div className="text-4xl mb-4">{step.icon}</div>
+                  <div
+                    className="w-12 h-1 rounded-full mb-4"
+                    style={{ background: "#F5A623" }}
+                  />
+                  <h3
+                    className="font-display text-2xl font-bold mb-3"
+                    style={{ color: "#0F1F3D" }}
+                  >
+                    {step.title}
+                  </h3>
+                  <p
+                    className="font-body text-sm leading-relaxed"
+                    style={{ color: "#4A5568" }}
+                  >
+                    {step.desc}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={200}>
+            <div className="text-center">
+              <a
+                href="https://solvrvoice-2kmsccza.manus.space/demo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary text-base px-8 py-3.5"
+              >
+                ▶ Hear It in Action — Try a Live Call
+              </a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section style={{ background: "#F0F4FF", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Features</span>
+              <h2
+                className="font-display text-4xl md:text-5xl font-bold mb-4"
+                style={{ color: "#0F1F3D" }}
+              >
+                Everything you need to never miss a job
+              </h2>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, i) => (
+              <Reveal key={i} delay={i * 60}>
+                <div className="card-white p-6 h-full">
+                  <div className="text-3xl mb-3">{feature.icon}</div>
+                  <h3
+                    className="font-display text-lg font-bold mb-2"
+                    style={{ color: "#0F1F3D" }}
+                  >
+                    {feature.title}
+                  </h3>
+                  <p
+                    className="font-body text-sm leading-relaxed"
+                    style={{ color: "#4A5568" }}
+                  >
+                    {feature.desc}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
+      <section id="pricing" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Pricing</span>
+              <h2
+                className="font-display text-4xl md:text-5xl font-bold mb-4"
+                style={{ color: "#FAFAF8" }}
+              >
+                Simple, transparent pricing
+              </h2>
+              <p
+                className="font-body text-lg max-w-xl mx-auto"
+                style={{ color: "rgba(250,250,248,0.65)" }}
+              >
+                No setup fees. No lock-in contracts. 14-day free trial on all
+                plans.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {pricing.map((plan, i) => (
+              <Reveal key={i} delay={i * 80}>
+                <div
+                  className="h-full flex flex-col rounded-xl overflow-hidden"
+                  style={{
+                    background: plan.highlight
+                      ? "#F5A623"
+                      : "rgba(255,255,255,0.05)",
+                    border: plan.highlight
+                      ? "none"
+                      : "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: plan.highlight
+                      ? "0 8px 40px rgba(245,166,35,0.35)"
+                      : "none",
+                  }}
+                >
+                  <div className="p-6 flex-1">
+                    <h3
+                      className="font-display text-xl font-bold mb-1"
+                      style={{
+                        color: plan.highlight ? "#0F1F3D" : "#FAFAF8",
+                      }}
+                    >
+                      {plan.name}
+                    </h3>
+                    <div
+                      className="font-display text-3xl font-extrabold mb-1"
+                      style={{
+                        color: plan.highlight ? "#0F1F3D" : "#F5A623",
+                      }}
+                    >
+                      {plan.price}
+                      <span
+                        className="text-base font-normal"
+                        style={{
+                          color: plan.highlight
+                            ? "rgba(15,31,61,0.6)"
+                            : "rgba(255,255,255,0.5)",
+                        }}
+                      >
+                        {plan.period}
+                      </span>
+                    </div>
+                    <p
+                      className="font-body text-sm leading-relaxed mb-5"
+                      style={{
+                        color: plan.highlight
+                          ? "rgba(15,31,61,0.8)"
+                          : "rgba(255,255,255,0.7)",
+                      }}
+                    >
+                      {plan.desc}
+                    </p>
+                    <div className="space-y-2">
+                      {plan.features.map((item, j) => (
+                        <div
+                          key={j}
+                          className="flex items-center gap-2 text-sm font-body"
+                        >
+                          <span
+                            style={{
+                              color: plan.highlight ? "#0F1F3D" : "#F5A623",
+                            }}
+                          >
+                            ✓
+                          </span>
+                          <span
+                            style={{
+                              color: plan.highlight
+                                ? "rgba(15,31,61,0.85)"
+                                : "rgba(255,255,255,0.75)",
+                            }}
+                          >
+                            {item}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="p-6 pt-0">
+                    <a
+                      href="/#book"
+                      className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
+                      style={{
+                        background: plan.highlight ? "#0F1F3D" : "#F5A623",
+                        color: plan.highlight ? "#FAFAF8" : "#0F1F3D",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {plan.cta} →
+                    </a>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section style={{ background: "#162847", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Testimonials</span>
+              <h2
+                className="font-display text-4xl md:text-5xl font-bold mb-4"
+                style={{ color: "#FAFAF8" }}
+              >
+                Tradies who stopped missing calls
+              </h2>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-3 gap-5">
+            {testimonials.map((t, i) => (
+              <Reveal key={i} delay={i * 80}>
+                <div className="card-navy p-6 h-full">
+                  <div className="text-2xl mb-4">{t.icon}</div>
+                  <blockquote
+                    className="font-serif italic text-base leading-relaxed mb-5"
+                    style={{ color: "rgba(250,250,248,0.9)" }}
+                  >
+                    "{t.quote}"
+                  </blockquote>
+                  <div>
+                    <div
+                      className="font-display font-bold text-sm"
+                      style={{ color: "#F5A623" }}
+                    >
+                      {t.name}
+                    </div>
+                    <div
+                      className="font-body text-xs"
+                      style={{ color: "rgba(255,255,255,0.5)" }}
+                    >
+                      {t.role}
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section style={{ background: "#FAFAF8", padding: "6rem 0" }}>
+        <div className="container">
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
+            <Reveal>
+              <div className="lg:sticky top-24">
+                <span className="section-label mb-3 block">FAQ</span>
+                <h2
+                  className="font-display text-4xl font-bold mb-4"
+                  style={{ color: "#0F1F3D" }}
+                >
+                  Common questions
+                </h2>
+                <p
+                  className="font-body text-lg leading-relaxed mb-6"
+                  style={{ color: "#718096" }}
+                >
+                  Everything you need to know about the AI voice agent.
+                </p>
+                <a href="/#book" className="btn-primary">
+                  Still have questions? Talk to us →
+                </a>
+              </div>
+            </Reveal>
+            <Reveal delay={80}>
+              <div>
+                {faqs.map((faq, i) => (
+                  <FAQItem key={i} q={faq.q} a={faq.a} />
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section style={{ background: "#0F1F3D", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center max-w-3xl mx-auto">
+              <h2
+                className="font-display text-4xl md:text-5xl font-bold mb-6"
+                style={{ color: "#FAFAF8" }}
+              >
+                Stop losing jobs to missed calls
+              </h2>
+              <p
+                className="font-body text-xl leading-relaxed mb-8"
+                style={{ color: "rgba(250,250,248,0.75)" }}
+              >
+                Try the AI voice agent free for 14 days. No credit card. No
+                setup fees. Live in 48 hours.
+              </p>
+              <div className="flex flex-wrap gap-4 justify-center">
+                <a
+                  href="https://solvrvoice-2kmsccza.manus.space/demo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary text-base px-8 py-3.5"
+                >
+                  ▶ Try a Live Call Now
+                </a>
+                <a href="/#book" className="btn-outline text-base px-8 py-3.5">
+                  Book a Strategy Call
+                </a>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer
+        style={{
+          background: "#0A1628",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          padding: "3rem 0",
+        }}
+      >
+        <div className="container">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            {/* Brand */}
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-2.5 mb-3">
+                <img
+                  src={LOGO_MARK}
+                  alt="Solvr"
+                  className="h-8 object-contain"
+                  style={{ maxWidth: "160px" }}
+                />
+              </div>
+              <p
+                className="font-body text-sm leading-relaxed mb-4"
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  maxWidth: "280px",
+                }}
+              >
+                We help trades, health professionals, and service businesses
+                implement AI that saves time and grows revenue.
+              </p>
+              <a href="/#book" className="btn-primary text-sm py-2 px-5">
+                Book a Free Call
+              </a>
+            </div>
+
+            {/* Products */}
+            <div>
+              <div
+                className="font-display font-bold text-sm mb-4"
+                style={{ color: "#FAFAF8" }}
+              >
+                Products
+              </div>
+              <div className="space-y-2">
+                {["Voice Agent", "AI Audit", "Implementation", "Training"].map(
+                  (s) => (
+                    <a
+                      key={s}
+                      href="/#services"
+                      className="block font-body text-sm transition-colors hover:text-amber-400"
+                      style={{
+                        color: "rgba(255,255,255,0.5)",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {s}
+                    </a>
+                  )
+                )}
+              </div>
+            </div>
+
+            {/* Industries */}
+            <div>
+              <div
+                className="font-display font-bold text-sm mb-4"
+                style={{ color: "#FAFAF8" }}
+              >
+                Industries
+              </div>
+              <div className="space-y-2">
+                {[
+                  "Law Firms",
+                  "Plumbers",
+                  "Carpenters",
+                  "Builders",
+                  "Health Clinics",
+                  "Physiotherapists",
+                ].map((s) => (
+                  <a
+                    key={s}
+                    href="/#sectors"
+                    className="block font-body text-sm transition-colors hover:text-amber-400"
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {s}
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-4"
+            style={{ borderColor: "rgba(255,255,255,0.06)" }}
+          >
+            <p
+              className="font-body text-xs"
+              style={{ color: "rgba(255,255,255,0.35)" }}
+            >
+              © 2025 Solvr. All rights reserved. | Clearpath AI Pty Ltd
+            </p>
+            <a
+              href="https://instagram.com/solvr.au"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 font-body text-sm font-semibold transition-colors hover:text-amber-400"
+              style={{
+                color: "rgba(255,255,255,0.55)",
+                textDecoration: "none",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+              </svg>
+              @solvr.au
+            </a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

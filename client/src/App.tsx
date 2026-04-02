@@ -13,6 +13,7 @@ import Builders from "./pages/sectors/Builders";
 import HealthClinics from "./pages/sectors/HealthClinics";
 import Physiotherapists from "./pages/sectors/Physiotherapists";
 import AiAudit from "./pages/AiAudit";
+import VoiceAgent from "./pages/VoiceAgent";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/industries/health-clinics" component={HealthClinics} />
       <Route path="/industries/physiotherapists" component={Physiotherapists} />
       <Route path="/ai-audit" component={AiAudit} />
+      <Route path="/voice-agent" component={VoiceAgent} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

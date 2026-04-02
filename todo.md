@@ -24,3 +24,6 @@
 - [x] "Try the Demo" nav link (desktop + mobile) → solvrvoice-2kmsccza.manus.space
 - [x] Demo CTA section between testimonials and FAQ
 - [x] Update demo links to point to /demo path (solvrvoice-2kmsccza.manus.space/demo)
+- [x] Build /voice-agent product page (Never Miss a Job)
+- [x] Add /voice-agent route to App.tsx
+- [x] Update "Try the Demo" nav link to point to /voice-agent
