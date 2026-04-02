@@ -15,9 +15,23 @@ import Physiotherapists from "./pages/sectors/Physiotherapists";
 import AiAudit from "./pages/AiAudit";
 import VoiceAgent from "./pages/VoiceAgent";
 
+// ── Solvr Operations Console & Tools ─────────────────────────────────────────
+import Demo from "./pages/Demo";
+import Onboarding from "./pages/Onboarding";
+import AdminLeads from "./pages/AdminLeads";
+import AdminOnboarding from "./pages/AdminOnboarding";
+import CrmDashboard from "./pages/CrmDashboard";
+import CrmClientDetail from "./pages/CrmClientDetail";
+import ConsoleDashboard from "./pages/ConsoleDashboard";
+import ConsolePipeline from "./pages/ConsolePipeline";
+import ConsoleTasks from "./pages/ConsoleTasks";
+import ConsoleAIAssistant from "./pages/ConsoleAIAssistant";
+import PromptBuilder from "./pages/PromptBuilder";
+
 function Router() {
   return (
     <Switch>
+      {/* ── Public marketing site ─────────────────────────────────────────── */}
       <Route path="/" component={Home} />
       <Route path="/industries/law-firms" component={LawFirms} />
       <Route path="/industries/plumbers" component={Plumbers} />
@@ -27,6 +41,32 @@ function Router() {
       <Route path="/industries/physiotherapists" component={Physiotherapists} />
       <Route path="/ai-audit" component={AiAudit} />
       <Route path="/voice-agent" component={VoiceAgent} />
+
+      {/* ── Voice agent demo (shareable with prospects) ───────────────────── */}
+      <Route path="/demo" component={Demo} />
+
+      {/* ── Client onboarding intake form (public) ────────────────────────── */}
+      <Route path="/onboarding" component={Onboarding} />
+
+      {/* ── Admin tools (protected by Manus login) ────────────────────────── */}
+      <Route path="/admin" component={AdminLeads} />
+      <Route path="/admin/onboarding" component={AdminOnboarding} />
+      <Route path="/admin/crm" component={CrmDashboard} />
+      <Route path="/admin/crm/:id" component={CrmClientDetail} />
+      <Route path="/admin/prompt-builder" component={PromptBuilder} />
+
+      {/* ── Unified Operations Console (protected) ────────────────────────── */}
+      <Route path="/console" component={ConsoleDashboard} />
+      <Route path="/console/pipeline" component={ConsolePipeline} />
+      <Route path="/console/tasks" component={ConsoleTasks} />
+      <Route path="/console/ai" component={ConsoleAIAssistant} />
+      <Route path="/console/crm" component={CrmDashboard} />
+      <Route path="/console/crm/:id" component={CrmClientDetail} />
+      <Route path="/console/onboarding" component={AdminOnboarding} />
+      <Route path="/console/leads" component={AdminLeads} />
+      <Route path="/console/prompt-builder" component={PromptBuilder} />
+
+      {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

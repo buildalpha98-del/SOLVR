@@ -8,6 +8,13 @@
       "when": 1775117291619,
       "tag": "0000_typical_deathbird",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1775163332414,
+      "tag": "0001_silky_secret_warriors",
+      "breakpoints": true
     }
   ]
 }
