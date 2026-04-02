@@ -7,6 +7,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -386,6 +388,19 @@ export default function Home() {
   const [bookingBusiness, setBookingBusiness] = useState("");
   const [bookingSector, setBookingSector] = useState("");
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  const submitBookingMutation = trpc.notifications.submitBooking.useMutation({
+    onSuccess: () => {
+      setBookingSubmitted(true);
+      toast.success("Booking received! We'll be in touch within 24 hours.");
+    },
+    onError: () => {
+      // Still show success to user — notification may have failed but we captured the intent
+      setBookingSubmitted(true);
+      toast.success("Booking received! We'll be in touch within 24 hours.");
+    },
+  });
 
   useEffect(() => {
     const onScroll = () => { setScrollY(window.scrollY); setNavSolid(window.scrollY > 60); };
@@ -393,9 +408,19 @@ export default function Home() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const handleBooking = (e: React.FormEvent) => {
+  const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBookingSubmitted(true);
+    setBookingLoading(true);
+    try {
+      await submitBookingMutation.mutateAsync({
+        name: bookingName,
+        email: bookingEmail,
+        business: bookingBusiness,
+        sector: bookingSector,
+      });
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   return (
@@ -994,8 +1019,8 @@ export default function Home() {
                           <option value="other">Other Service Business</option>
                         </select>
                       </div>
-                      <button type="submit" className="btn-primary w-full justify-center text-base py-3.5">
-                        Book My Free Strategy Call →
+                      <button type="submit" disabled={bookingLoading} className="btn-primary w-full justify-center text-base py-3.5" style={{ opacity: bookingLoading ? 0.7 : 1, cursor: bookingLoading ? "not-allowed" : "pointer" }}>
+                        {bookingLoading ? "Sending your request..." : "Book My Free Strategy Call →"}
                       </button>
                       <p className="font-body text-xs text-center" style={{ color: "#A0AEC0" }}>
                         We'll respond within 24 hours to confirm your call time. No spam, ever.

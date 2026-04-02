@@ -6,6 +6,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
@@ -245,9 +247,29 @@ export default function AiAudit() {
     scrollTop();
   }
 
+  const submitAuditMutation = trpc.notifications.submitAudit.useMutation({
+    onSuccess: () => {
+      toast.success("Your personalised AI report is ready!");
+    },
+    onError: () => {
+      // Silent fail — still show results
+    },
+  });
+
   function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
     setEmailSubmitted(true);
+    // Fire notification to owner (non-blocking)
+    submitAuditMutation.mutate({
+      email,
+      name: name || undefined,
+      industry: industryType,
+      tier: result?.tier || "Medium",
+      score: totalScore,
+      topWins: indRec?.tools?.slice(0, 3) || [],
+      quickWin: indRec?.quickWin || "",
+      roiEstimate: result ? `${result.weeklyHours} hours/week recovered` : "",
+    });
     setTimeout(() => {
       setStep("result");
       scrollTop();

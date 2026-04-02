@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import AnnouncementBanner from "./components/AnnouncementBanner";
 import Home from "./pages/Home";
 import LawFirms from "./pages/sectors/LawFirms";
 import Plumbers from "./pages/sectors/Plumbers";
@@ -36,6 +37,8 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
+          {/* Dismissible announcement banner — shown site-wide until dismissed */}
+          <AnnouncementBanner />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
