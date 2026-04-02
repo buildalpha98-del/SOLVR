@@ -427,6 +427,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Link href="/ai-audit" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623", textDecoration: "none" }}>Free AI Audit ✦</Link>
             <a href="#book" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
             <button
               className="md:hidden p-2"
@@ -490,9 +491,20 @@ export default function Home() {
               </p>
             </Reveal>
             <Reveal delay={240}>
-              <div className="flex flex-wrap gap-4 mb-12">
+              <div className="flex flex-wrap gap-4 mb-8">
                 <a href="#book" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
                 <a href="#sectors" className="btn-outline text-base px-7 py-3.5">See Your Industry</a>
+              </div>
+              <div className="mb-12">
+                <Link href="/ai-audit"
+                  className="inline-flex items-center gap-3 px-5 py-3 rounded-xl font-body text-sm font-semibold transition-all"
+                  style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.35)", color: "#F5A623", textDecoration: "none" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(245,166,35,0.2)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(245,166,35,0.12)"; }}>
+                  <span>✦</span>
+                  <span>Take the Free AI Audit — find out exactly which tools will save you the most time</span>
+                  <span>→</span>
+                </Link>
               </div>
             </Reveal>
 
@@ -624,6 +636,27 @@ export default function Home() {
           <Reveal delay={200}>
             <div className="text-center mt-10">
               <a href="#book" className="btn-primary text-base px-8 py-3.5">Start with a Free Strategy Call →</a>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ── AI AUDIT PROMO BANNER ── */}
+      <section style={{ background: "#F5A623", padding: "3rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div>
+                <div className="font-display font-extrabold text-2xl mb-1" style={{ color: "#0F1F3D" }}>Not sure where to start with AI?</div>
+                <p className="font-body text-base" style={{ color: "rgba(15,31,61,0.75)" }}>Take our free 2-minute AI Audit — get a personalised report showing exactly which tools will save you the most time.</p>
+              </div>
+              <Link href="/ai-audit"
+                className="flex-shrink-0 font-display font-bold text-base px-8 py-3.5 rounded-xl transition-all"
+                style={{ background: "#0F1F3D", color: "#F5A623", textDecoration: "none", whiteSpace: "nowrap" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#162847"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#0F1F3D"; }}>
+                Take the Free AI Audit →
+              </Link>
             </div>
           </Reveal>
         </div>
