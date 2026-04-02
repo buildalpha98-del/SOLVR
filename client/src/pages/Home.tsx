@@ -452,6 +452,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <a href="https://solvrvoice-2kmsccza.manus.space" target="_blank" rel="noopener noreferrer" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.08)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623", textDecoration: "none" }}>▶ Try the Demo</a>
             <Link href="/ai-audit" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623", textDecoration: "none" }}>Free AI Audit ✦</Link>
             <a href="#book" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
             <button
@@ -475,6 +476,7 @@ export default function Home() {
                   {label}
                 </a>
               ))}
+              <a href="https://solvrvoice-2kmsccza.manus.space" target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.1)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623" }}>▶ Try the Demo</a>
               <a href="#book" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
             </div>
           </div>
@@ -870,6 +872,37 @@ export default function Home() {
               </Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── DEMO CTA ── */}
+      <section style={{ background: "#0F1F3D", padding: "5rem 0", borderTop: "1px solid rgba(245,166,35,0.15)" }}>
+        <div className="container">
+          <Reveal>
+            <div className="rounded-2xl p-10 md:p-14 flex flex-col md:flex-row items-center gap-8 md:gap-16" style={{ background: "rgba(245,166,35,0.06)", border: "1px dashed rgba(245,166,35,0.35)" }}>
+              <div className="flex-1">
+                <span className="section-label mb-3 block" style={{ color: "#F5A623" }}>Live Demo</span>
+                <h2 className="font-display text-3xl md:text-4xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
+                  Hear the AI answer a call — right now.
+                </h2>
+                <p className="font-body text-lg leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
+                  Our "Never Miss a Job" voice agent answers calls, qualifies the job, and books it in — 24/7, even when you're on the tools. Try a live call in under 60 seconds.
+                </p>
+              </div>
+              <div className="flex flex-col items-center gap-4 shrink-0">
+                <a
+                  href="https://solvrvoice-2kmsccza.manus.space"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary text-base px-8 py-4"
+                  style={{ fontSize: "1rem" }}
+                >
+                  ▶ Try the Live Demo →
+                </a>
+                <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>No sign-up. Works on any device.</p>
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 
