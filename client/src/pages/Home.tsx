@@ -452,7 +452,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <a href="https://solvrvoice-2kmsccza.manus.space" target="_blank" rel="noopener noreferrer" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.08)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623", textDecoration: "none" }}>▶ Try the Demo</a>
+            <a href="https://solvrvoice-2kmsccza.manus.space/demo" target="_blank" rel="noopener noreferrer" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.08)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623", textDecoration: "none" }}>▶ Try the Demo</a>
             <Link href="/ai-audit" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623", textDecoration: "none" }}>Free AI Audit ✦</Link>
             <a href="#book" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
             <button
@@ -476,7 +476,7 @@ export default function Home() {
                   {label}
                 </a>
               ))}
-              <a href="https://solvrvoice-2kmsccza.manus.space" target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.1)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623" }}>▶ Try the Demo</a>
+              <a href="https://solvrvoice-2kmsccza.manus.space/demo" target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.1)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623" }}>▶ Try the Demo</a>
               <a href="#book" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
             </div>
           </div>
@@ -891,7 +891,7 @@ export default function Home() {
               </div>
               <div className="flex flex-col items-center gap-4 shrink-0">
                 <a
-                  href="https://solvrvoice-2kmsccza.manus.space"
+                  href="https://solvrvoice-2kmsccza.manus.space/demo"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary text-base px-8 py-4"

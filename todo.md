@@ -23,3 +23,4 @@
 - [x] GitHub integration connected
 - [x] "Try the Demo" nav link (desktop + mobile) → solvrvoice-2kmsccza.manus.space
 - [x] Demo CTA section between testimonials and FAQ
+- [x] Update demo links to point to /demo path (solvrvoice-2kmsccza.manus.space/demo)
