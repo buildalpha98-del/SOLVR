@@ -402,9 +402,15 @@ export default function SectorPage({ data }: { data: SectorData }) {
       <footer style={{ background: "#0A1628", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "2.5rem 0" }}>
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
           <img src={LOGO_DARK} alt="Solvr" className="h-7 object-contain" style={{ maxWidth: "140px" }} />
-          <p className="font-body text-xs text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
-            © 2025 Solvr. Helping Australian businesses implement AI.
-          </p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="font-body text-xs text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+              © {new Date().getFullYear()} Solvr. Helping Australian businesses implement AI.
+            </p>
+            <div className="flex gap-4 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
+              <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
+            </div>
+          </div>
           <a href="/#book" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
         </div>
       </footer>

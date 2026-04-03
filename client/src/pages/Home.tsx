@@ -1115,8 +1115,12 @@ export default function Home() {
 
           <div className="border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              © 2025 Solvr. All rights reserved. | Clearpath AI Pty Ltd
+              © {new Date().getFullYear()} Solvr. All rights reserved.
             </p>
+            <div className="flex gap-5 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
+              <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
+            </div>
             <a href="https://instagram.com/solvr.au" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 font-body text-sm font-semibold transition-colors hover:text-amber-400"
               style={{ color: "rgba(255,255,255,0.55)", textDecoration: "none" }}>

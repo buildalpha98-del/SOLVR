@@ -667,7 +667,13 @@ export default function AiAudit() {
       <footer style={{ background: "#0A1628", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "2rem 0" }}>
         <div className="container flex flex-col md:flex-row items-center justify-between gap-3">
           <img src={LOGO} alt="Solvr" className="h-7 object-contain" style={{ maxWidth: "130px" }} />
-          <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>© 2025 Solvr. Free AI Audit Tool.</p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>© {new Date().getFullYear()} Solvr. Free AI Audit Tool.</p>
+            <div className="flex gap-4 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
+              <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
+            </div>
+          </div>
           <a href="/#book" className="btn-primary text-sm py-2 px-4">Book a Free Call</a>
         </div>
       </footer>

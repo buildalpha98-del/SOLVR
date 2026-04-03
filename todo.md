@@ -35,3 +35,4 @@
 - [x] Create Terms of Service page (/terms)
 - [x] Create Privacy Policy page (/privacy)
 - [x] Prepare LinkedIn company page content
+- [x] Add T&Cs and Privacy Policy footer links to all pages
