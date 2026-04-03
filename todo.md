@@ -37,3 +37,6 @@
 - [x] Prepare LinkedIn company page content
 - [x] Add T&Cs and Privacy Policy footer links to all pages
 - [x] Update ABN in Terms of Service (47 262 120 626)
+- [x] Upload official Solvr logos to CDN
+- [x] Update website to use correct official logos
+- [x] Regenerate all 6 Instagram posts with correct branding

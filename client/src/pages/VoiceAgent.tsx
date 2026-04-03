@@ -92,8 +92,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
-const LOGO_MARK =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
+const LOGO_MARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark_ca3aa2bf.png";
 
 const features = [
   {

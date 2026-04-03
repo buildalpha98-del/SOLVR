@@ -63,7 +63,7 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
 }
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
-const LOGO_DARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
+const LOGO_DARK = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark_ca3aa2bf.png";
 
 function Nav() {
   const [solid, setSolid] = useState(false);
