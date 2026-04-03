@@ -36,3 +36,4 @@
 - [x] Create Privacy Policy page (/privacy)
 - [x] Prepare LinkedIn company page content
 - [x] Add T&Cs and Privacy Policy footer links to all pages
+- [x] Update ABN in Terms of Service (47 262 120 626)

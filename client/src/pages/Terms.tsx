@@ -8,7 +8,7 @@ import { Link } from "wouter";
 export default function Terms() {
   const effectiveDate = "3 April 2026";
   const businessName = "Solvr";
-  const abn = ""; // To be filled in
+  const abn = "47 262 120 626";
   const email = "hello@solvr.com.au";
   const website = "solvr.com.au";
 
