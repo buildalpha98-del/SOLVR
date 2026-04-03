@@ -651,7 +651,7 @@ export default function AiAudit() {
                     <p className="font-body text-sm mb-6" style={{ color: "rgba(255,255,255,0.6)" }}>
                       Book a free 30-minute strategy call. We'll walk through your audit results and show you exactly how to implement your top AI wins.
                     </p>
-                    <a href="/#book" className="btn-primary text-base px-8 py-3.5 inline-block">Book My Free Strategy Call →</a>
+                    <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary text-base px-8 py-3.5 inline-block">Book My Free Strategy Call →</a>
                     <div className="mt-4">
                       <Link href="/" className="font-body text-sm" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>← Back to Solvr</Link>
                     </div>
@@ -674,7 +674,7 @@ export default function AiAudit() {
               <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
             </div>
           </div>
-          <a href="/#book" className="btn-primary text-sm py-2 px-4">Book a Free Call</a>
+          <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-4">Book a Free Call</a>
         </div>
       </footer>
     </div>

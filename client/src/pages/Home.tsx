@@ -7,12 +7,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
-import { toast } from "sonner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
+
+// ─── Config ─────────────────────────────────────────────────────────────────
+const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
 
 // ─── Assets ──────────────────────────────────────────────────────────────────
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/elevate-hero-3MgmpQfNxd2H5w9Faxmtzg.webp";
@@ -350,7 +351,7 @@ function SectorCard({ sector }: { sector: typeof sectors[0] }) {
         </button>
         <div className="flex gap-2">
           <Link href={sector.slug} className="btn-outline-dark text-sm py-2 px-3" style={{ fontSize: "0.78rem" }}>Learn More</Link>
-          <a href="#book" className="btn-primary text-sm py-2 px-4">Book Now →</a>
+          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-4">Book Now →</a>
         </div>
       </div>
     </div>
@@ -383,47 +384,13 @@ export default function Home() {
   const [scrollY, setScrollY] = useState(0);
   const [navSolid, setNavSolid] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [bookingName, setBookingName] = useState("");
-  const [bookingEmail, setBookingEmail] = useState("");
-  const [bookingBusiness, setBookingBusiness] = useState("");
-  const [bookingSector, setBookingSector] = useState("");
-  const [bookingSubmitted, setBookingSubmitted] = useState(false);
-  const [bookingLoading, setBookingLoading] = useState(false);
-
-  const submitBookingMutation = trpc.notifications.submitBooking.useMutation({
-    onSuccess: () => {
-      setBookingSubmitted(true);
-      toast.success("Booking received! We'll be in touch within 24 hours.");
-    },
-    onError: () => {
-      // Still show success to user — notification may have failed but we captured the intent
-      setBookingSubmitted(true);
-      toast.success("Booking received! We'll be in touch within 24 hours.");
-    },
-  });
-
   useEffect(() => {
     const onScroll = () => { setScrollY(window.scrollY); setNavSolid(window.scrollY > 60); };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const handleBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBookingLoading(true);
-    try {
-      await submitBookingMutation.mutateAsync({
-        name: bookingName,
-        email: bookingEmail,
-        business: bookingBusiness,
-        sector: bookingSector,
-      });
-    } finally {
-      setBookingLoading(false);
-    }
-  };
-
-  return (
+   return (
     <div className="min-h-screen" style={{ background: "#FAFAF8" }}>
 
       {/* ── Navigation ── */}
@@ -454,7 +421,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Link href="/voice-agent" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.08)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623", textDecoration: "none" }}>▶ Voice Agent</Link>
             <Link href="/ai-audit" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623", textDecoration: "none" }}>Free AI Audit ✦</Link>
-            <a href="#book" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
+            <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
             {/* Discreet admin link — only visible on hover, not prominent to clients */}
             <Link href="/console" className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all opacity-30 hover:opacity-100" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "none" }} title="Admin Console">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -481,7 +448,7 @@ export default function Home() {
                 </a>
               ))}
               <Link href="/voice-agent" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.1)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623" }}>▶ Voice Agent</Link>
-              <a href="#book" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
             </div>
           </div>
         )}
@@ -523,7 +490,7 @@ export default function Home() {
             </Reveal>
             <Reveal delay={240}>
               <div className="flex flex-wrap gap-4 mb-8">
-                <a href="#book" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
                 <a href="#sectors" className="btn-outline text-base px-7 py-3.5">See Your Industry</a>
               </div>
               <div className="mb-12">
@@ -666,7 +633,7 @@ export default function Home() {
 
           <Reveal delay={200}>
             <div className="text-center mt-10">
-              <a href="#book" className="btn-primary text-base px-8 py-3.5">Start with a Free Strategy Call →</a>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-base px-8 py-3.5">Start with a Free Strategy Call →</a>
             </div>
           </Reveal>
         </div>
@@ -717,7 +684,7 @@ export default function Home() {
           <Reveal delay={100}>
             <div className="text-center mt-10">
               <p className="font-body text-sm mb-4" style={{ color: "#718096" }}>Don't see your industry? We work with most service businesses.</p>
-              <a href="#book" className="btn-outline-dark text-sm px-6 py-2.5">Talk to us about your business →</a>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-outline-dark text-sm px-6 py-2.5">Talk to us about your business →</a>
             </div>
           </Reveal>
         </div>
@@ -774,7 +741,7 @@ export default function Home() {
                   </div>
                   <div className="p-6 pt-0">
                     <a
-                      href="#book"
+                      href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
                       className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
                       style={{
                         background: svc.highlight ? "#0F1F3D" : "#F5A623",
@@ -929,7 +896,7 @@ export default function Home() {
                 <p className="font-body text-lg leading-relaxed mb-6" style={{ color: "#718096" }}>
                   We know AI can feel overwhelming. Here are the questions we hear most often from business owners just like you.
                 </p>
-                <a href="#book" className="btn-primary">Still have questions? Talk to us →</a>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary">Still have questions? Talk to us →</a>
               </div>
             </Reveal>
             <Reveal delay={80}>
@@ -952,7 +919,7 @@ export default function Home() {
               <div>
                 <span className="section-label mb-3 block">Book Now</span>
                 <h2 className="font-display text-4xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
-                  Ready to <span className="text-gradient">Elevate</span> your business?
+                  Ready to <span className="text-gradient">Solve</span> your admin?
                 </h2>
                 <p className="font-body text-lg leading-relaxed mb-8" style={{ color: "rgba(250,250,248,0.75)" }}>
                   Book a free 30-minute strategy call. We'll identify your top AI opportunities and give you a clear picture of what's possible — no obligation, no sales pitch.
@@ -981,96 +948,17 @@ export default function Home() {
               </div>
             </Reveal>
 
-            {/* Right: Form */}
+            {/* Right: Calendly Embed */}
             <Reveal delay={100}>
-              <div className="rounded-2xl p-8" style={{ background: "#FAFAF8" }}>
-                {bookingSubmitted ? (
-                  <div className="text-center py-8">
-                    <div className="text-5xl mb-4">🎉</div>
-                    <h3 className="font-display text-2xl font-bold mb-3" style={{ color: "#0F1F3D" }}>You're booked in!</h3>
-                    <p className="font-body text-base leading-relaxed mb-6" style={{ color: "#4A5568" }}>
-                      Thanks, {bookingName}! We'll be in touch within 24 hours to confirm your strategy call time. Check your inbox at <strong>{bookingEmail}</strong>.
-                    </p>
-                    <div className="p-4 rounded-xl text-sm font-body" style={{ background: "#F0F4FF", color: "#4A5568" }}>
-                      In the meantime, think about: What's the one task in your business that takes the most time but doesn't require your expertise? That's usually our first AI target.
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <h3 className="font-display text-2xl font-bold mb-2" style={{ color: "#0F1F3D" }}>Book Your Free Strategy Call</h3>
-                    <p className="font-body text-sm mb-6" style={{ color: "#718096" }}>30 minutes. No obligation. Real insights for your business.</p>
-                    <form onSubmit={handleBooking} className="space-y-4">
-                      <div>
-                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Your Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={bookingName}
-                          onChange={(e) => setBookingName(e.target.value)}
-                          placeholder="John Smith"
-                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
-                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: "#0F1F3D" }}
-                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
-                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
-                        />
-                      </div>
-                      <div>
-                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Email Address *</label>
-                        <input
-                          type="email"
-                          required
-                          value={bookingEmail}
-                          onChange={(e) => setBookingEmail(e.target.value)}
-                          placeholder="john@smithplumbing.com.au"
-                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
-                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: "#0F1F3D" }}
-                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
-                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
-                        />
-                      </div>
-                      <div>
-                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Business Name</label>
-                        <input
-                          type="text"
-                          value={bookingBusiness}
-                          onChange={(e) => setBookingBusiness(e.target.value)}
-                          placeholder="Smith Plumbing Pty Ltd"
-                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
-                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: "#0F1F3D" }}
-                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
-                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
-                        />
-                      </div>
-                      <div>
-                        <label className="font-body text-sm font-semibold block mb-1.5" style={{ color: "#0F1F3D" }}>Your Industry *</label>
-                        <select
-                          required
-                          value={bookingSector}
-                          onChange={(e) => setBookingSector(e.target.value)}
-                          className="w-full px-4 py-3 rounded-lg font-body text-sm outline-none transition-all"
-                          style={{ border: "1.5px solid #E2E8F0", background: "#FAFAF8", color: bookingSector ? "#0F1F3D" : "#718096" }}
-                          onFocus={(e) => (e.target.style.borderColor = "#F5A623")}
-                          onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
-                        >
-                          <option value="" disabled>Select your industry...</option>
-                          <option value="law">Law Firm</option>
-                          <option value="plumbing">Plumbing</option>
-                          <option value="carpentry">Carpentry / Joinery</option>
-                          <option value="building">Building / Construction</option>
-                          <option value="health">Health Clinic</option>
-                          <option value="physio">Physiotherapy</option>
-                          <option value="other">Other Service Business</option>
-                        </select>
-                      </div>
-                      <button type="submit" disabled={bookingLoading} className="btn-primary w-full justify-center text-base py-3.5" style={{ opacity: bookingLoading ? 0.7 : 1, cursor: bookingLoading ? "not-allowed" : "pointer" }}>
-                        {bookingLoading ? "Sending your request..." : "Book My Free Strategy Call →"}
-                      </button>
-                      <p className="font-body text-xs text-center" style={{ color: "#A0AEC0" }}>
-                        We'll respond within 24 hours to confirm your call time. No spam, ever.
-                      </p>
-                    </form>
-                  </>
-                )}
+              <div className="rounded-2xl overflow-hidden" style={{ background: "#FAFAF8", minHeight: "580px" }}>
+                <iframe
+                  src={`${CALENDLY_URL}?embed_type=Inline&hide_landing_page_details=1&hide_gdpr_banner=1&background_color=FAFAF8&text_color=0F1F3D&primary_color=F5A623`}
+                  width="100%"
+                  height="580"
+                  frameBorder="0"
+                  title="Book a Free Strategy Call"
+                  style={{ border: "none", borderRadius: "1rem" }}
+                />
               </div>
             </Reveal>
           </div>
@@ -1089,7 +977,7 @@ export default function Home() {
               <p className="font-body text-sm leading-relaxed mb-4" style={{ color: "rgba(255,255,255,0.5)", maxWidth: "280px" }}>
                 We help trades, health professionals, and service businesses implement AI that saves time and grows revenue.
               </p>
-              <a href="#book" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
             </div>
 
             {/* Services */}

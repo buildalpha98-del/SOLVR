@@ -18,6 +18,7 @@ import {
 import { notifyOwner } from "./_core/notification";
 import { invokeLLM } from "./_core/llm";
 import { notificationsRouter } from "./routers/notifications";
+import { stripeRouter } from "./stripe";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1195,6 +1196,7 @@ export const appRouter = router({
   tasks: tasksRouter,
   ai: aiRouter,
   notifications: notificationsRouter,
+  stripe: stripeRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -88,7 +88,7 @@ function Nav() {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <a href="/#book" className="btn-primary hidden md:inline-flex text-sm py-2 px-5">Book a Free Call</a>
+          <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary hidden md:inline-flex text-sm py-2 px-5">Book a Free Call</a>
           <button className="md:hidden p-2" style={{ background: "none", border: "none", color: "#FAFAF8" }} onClick={() => setMobileOpen(!mobileOpen)}>
             <div className="w-5 h-0.5 bg-current mb-1" /><div className="w-5 h-0.5 bg-current mb-1" /><div className="w-5 h-0.5 bg-current" />
           </button>
@@ -99,7 +99,7 @@ function Nav() {
           <div className="container py-4 flex flex-col gap-4">
             <Link href="/" onClick={() => setMobileOpen(false)} className="font-body text-sm" style={{ color: "rgba(255,255,255,0.8)", textDecoration: "none" }}>← Back to Home</Link>
             <a href="/#sectors" onClick={() => setMobileOpen(false)} className="font-body text-sm" style={{ color: "rgba(255,255,255,0.8)", textDecoration: "none" }}>All Industries</a>
-            <a href="/#book" onClick={() => setMobileOpen(false)} className="btn-primary text-center text-sm">Book a Free Call</a>
+            <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" onClick={() => setMobileOpen(false)} className="btn-primary text-center text-sm">Book a Free Call</a>
           </div>
         </div>
       )}
@@ -175,7 +175,7 @@ function UseCaseCard({ uc, index }: { uc: UseCase; index: number }) {
           {expanded ? "Show less" : "See how it works"}
           <span style={{ transform: expanded ? "rotate(180deg)" : "rotate(0)", display: "inline-block", transition: "transform 0.3s" }}>↓</span>
         </button>
-        <a href="/#book" className="btn-primary text-sm py-2 px-4">Book Now →</a>
+        <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-4">Book Now →</a>
       </div>
     </div>
   );
@@ -237,7 +237,7 @@ export default function SectorPage({ data }: { data: SectorData }) {
             </Reveal>
             <Reveal delay={240}>
               <div className="flex flex-wrap gap-4 mb-10">
-                <a href="/#book" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
+                <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
                 <a href="#use-cases" className="btn-outline text-base px-7 py-3.5">See Use Cases</a>
               </div>
             </Reveal>
@@ -390,7 +390,7 @@ export default function SectorPage({ data }: { data: SectorData }) {
                 Book a free 30-minute strategy call. We'll show you exactly which AI tools will deliver the fastest ROI for your {data.title.toLowerCase().replace(/s$/, "")} business.
               </p>
               <div className="flex flex-wrap gap-4 justify-center">
-                <a href="/#book" className="btn-primary text-base px-8 py-3.5">Book My Free Strategy Call →</a>
+                <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary text-base px-8 py-3.5">Book My Free Strategy Call →</a>
                 <Link href="/#sectors" className="btn-outline text-base px-8 py-3.5">View Other Industries</Link>
               </div>
             </div>
@@ -411,7 +411,7 @@ export default function SectorPage({ data }: { data: SectorData }) {
               <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
             </div>
           </div>
-          <a href="/#book" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
+          <a href="https://calendly.com/hello-solvr/30min" target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
         </div>
       </footer>
     </div>

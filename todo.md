@@ -40,3 +40,13 @@
 - [x] Upload official Solvr logos to CDN
 - [x] Update website to use correct official logos
 - [x] Regenerate all 6 Instagram posts with correct branding
+- [x] Add ABN 47 262 120 626 to Privacy Policy contact section
+- [x] Extract diamond circuit icon from dark logo as standalone iconography
+- [x] Generate icon variants (dark bg, transparent, light bg) at multiple sizes
+- [x] Update website favicon and nav to use diamond circuit icon
+- [ ] Regenerate all 6 Instagram posts with diamond circuit icon
+- [x] Wire Calendly URL (VITE_CALENDLY_URL) across all booking CTAs site-wide
+- [x] Stripe payment integration for voice agent plans (Starter + Professional)
+- [x] Stripe webhook handler at /api/stripe/webhook
+- [x] Voice agent success page (/voice-agent/success) with session verification
+- [x] 49 passing vitest tests (4 new Stripe tests)

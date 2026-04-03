@@ -14,6 +14,7 @@ import HealthClinics from "./pages/sectors/HealthClinics";
 import Physiotherapists from "./pages/sectors/Physiotherapists";
 import AiAudit from "./pages/AiAudit";
 import VoiceAgent from "./pages/VoiceAgent";
+import VoiceAgentSuccess from "./pages/VoiceAgentSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/industries/physiotherapists" component={Physiotherapists} />
       <Route path="/ai-audit" component={AiAudit} />
       <Route path="/voice-agent" component={VoiceAgent} />
+      <Route path="/voice-agent/success" component={VoiceAgentSuccess} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
 

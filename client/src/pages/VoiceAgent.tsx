@@ -5,6 +5,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+
+// ─── Config ─────────────────────────────────────────────────────────────────
+const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 function useReveal(threshold = 0.12) {
@@ -253,11 +258,33 @@ const testimonials = [
   },
 ];
 
-// ─── Pricing Section Component ──────────────────────────────────────────────
+// ─── Pricing Section Component ──────────────────────────────────────────────────────────────────
 function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(false);
   const [missedCalls, setMissedCalls] = useState(3);
   const [avgJobValue, setAvgJobValue] = useState(800);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const createCheckout = trpc.stripe.createCheckout.useMutation();
+
+  async function handleCheckout(planName: string) {
+    const plan = planName.toLowerCase() as "starter" | "professional";
+    const billingCycle = isAnnual ? "annual" : "monthly";
+    setCheckoutLoading(planName);
+    try {
+      const { url } = await createCheckout.mutateAsync({
+        plan,
+        billingCycle,
+        origin: window.location.origin,
+      });
+      toast.success("Redirecting to checkout…", { description: "Opening Stripe in a new tab." });
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error(err);
+      toast.error("Checkout failed", { description: "Please try again or contact us." });
+    } finally {
+      setCheckoutLoading(null);
+    }
+  }
 
   const annualPrices: Record<string, { monthly: number; annual: number }> = {
     Starter: { monthly: 247, annual: Math.round((247 * 10) / 12) },
@@ -425,17 +452,32 @@ function PricingSection() {
                     </div>
                   </div>
                   <div className="p-6 pt-0">
-                    <a
-                      href="/#book"
-                      className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
-                      style={{
-                        background: plan.highlight ? "#0F1F3D" : "#F5A623",
-                        color: plan.highlight ? "#FAFAF8" : "#0F1F3D",
-                        textDecoration: "none",
-                      }}
-                    >
-                      {plan.cta} →
-                    </a>
+                    {plan.name === "Enterprise" ? (
+                      <a
+                        href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
+                        className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all"
+                        style={{
+                          background: plan.highlight ? "#0F1F3D" : "#F5A623",
+                          color: plan.highlight ? "#FAFAF8" : "#0F1F3D",
+                          textDecoration: "none",
+                        }}
+                      >
+                        {plan.cta} →
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleCheckout(plan.name)}
+                        disabled={checkoutLoading === plan.name}
+                        className="block w-full text-center font-display font-bold text-sm py-3 px-4 rounded-lg transition-all cursor-pointer disabled:opacity-70"
+                        style={{
+                          background: plan.highlight ? "#0F1F3D" : "#F5A623",
+                          color: plan.highlight ? "#FAFAF8" : "#0F1F3D",
+                          border: "none",
+                        }}
+                      >
+                        {checkoutLoading === plan.name ? "Opening checkout…" : `${plan.cta} →`}
+                      </button>
+                    )}
                   </div>
                 </div>
               </Reveal>
@@ -1140,7 +1182,7 @@ export default function VoiceAgent() {
                 >
                   Everything you need to know about the AI voice agent.
                 </p>
-                <a href="/#book" className="btn-primary">
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary">
                   Still have questions? Talk to us →
                 </a>
               </div>
@@ -1183,7 +1225,7 @@ export default function VoiceAgent() {
                 >
                   ▶ Try a Live Call Now
                 </a>
-                <a href="/#book" className="btn-outline text-base px-8 py-3.5">
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-outline text-base px-8 py-3.5">
                   Book a Strategy Call
                 </a>
               </div>
@@ -1222,7 +1264,7 @@ export default function VoiceAgent() {
                 We help trades, health professionals, and service businesses
                 implement AI that saves time and grows revenue.
               </p>
-              <a href="/#book" className="btn-primary text-sm py-2 px-5">
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-5">
                 Book a Free Call
               </a>
             </div>

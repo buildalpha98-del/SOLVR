@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
 
 const BANNER_KEY = "solvr_banner_dismissed_v1";
+const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
 
 export default function AnnouncementBanner() {
   const [visible, setVisible] = useState(false);
@@ -43,8 +43,10 @@ export default function AnnouncementBanner() {
         <span style={{ fontSize: "0.85rem", fontFamily: "DM Sans, sans-serif", fontWeight: 600, color: "#0F1F3D" }}>
           ✦ Limited spots this month — Book your free AI Strategy Call before they fill up
         </span>
-        <Link
-          href="/ai-audit"
+        <a
+          href={CALENDLY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             fontSize: "0.78rem",
             fontFamily: "DM Sans, sans-serif",
@@ -57,8 +59,8 @@ export default function AnnouncementBanner() {
             whiteSpace: "nowrap",
           }}
         >
-          Take the Free AI Audit →
-        </Link>
+          Book a Free Call →
+        </a>
         <button
           onClick={dismiss}
           aria-label="Dismiss banner"

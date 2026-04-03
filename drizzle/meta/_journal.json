@@ -15,6 +15,13 @@
       "when": 1775163332414,
       "tag": "0001_silky_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1775259052888,
+      "tag": "0002_medical_power_pack",
+      "breakpoints": true
     }
   ]
 }

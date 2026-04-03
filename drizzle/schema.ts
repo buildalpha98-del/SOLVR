@@ -350,3 +350,34 @@ export const tasks = mysqlTable("tasks", {
 
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = typeof tasks.$inferInsert;
+
+// ─── VOICE AGENT SUBSCRIPTIONS ───────────────────────────────────────────────
+
+/**
+ * Voice Agent subscriptions — tracks Stripe checkout sessions and subscription IDs.
+ * We store only minimal Stripe identifiers; all billing details live in Stripe.
+ */
+export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Email of the subscriber */
+  email: varchar("email", { length: 320 }).notNull(),
+  /** Name provided at checkout */
+  name: text("name"),
+  /** Plan selected */
+  plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
+  /** Billing cycle */
+  billingCycle: mysqlEnum("billingCycle", ["monthly", "annual"]).default("monthly").notNull(),
+  /** Stripe Customer ID */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
+  /** Stripe Subscription ID (set after subscription created via webhook) */
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
+  /** Stripe Checkout Session ID */
+  stripeSessionId: varchar("stripeSessionId", { length: 128 }),
+  /** Subscription status */
+  status: mysqlEnum("status", ["trialing", "active", "cancelled", "past_due", "incomplete"]).default("trialing").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferSelect;
+export type InsertVoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferInsert;
