@@ -8,6 +8,7 @@ import { Link } from "wouter";
 
 export default function Privacy() {
   const effectiveDate = "3 April 2026";
+  const abn = "47 262 120 626";
   const email = "hello@solvr.com.au";
   const website = "solvr.com.au";
 
@@ -136,6 +137,9 @@ export default function Privacy() {
             <p>
               For any privacy-related questions, requests, or complaints, please contact us at:{" "}
               <a href={`mailto:${email}`} className="text-[#F5A623] hover:underline">{email}</a>
+            </p>
+            <p className="mt-3">
+              <strong>Solvr</strong> · ABN {abn} · {website}
             </p>
           </section>
 
