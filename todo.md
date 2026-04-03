@@ -30,3 +30,8 @@
 - [x] Update voice agent pricing tiers with competitive market rates
 - [x] Add annual/monthly billing toggle to voice agent pricing (2 months free on annual)
 - [x] Add "Compare to hiring a receptionist" cost calculator widget
+- [x] Set VITE_VAPI_PUBLIC_KEY secret
+- [x] Connect hello@solvr.com.au to booking form notifications
+- [x] Create Terms of Service page (/terms)
+- [x] Create Privacy Policy page (/privacy)
+- [x] Prepare LinkedIn company page content

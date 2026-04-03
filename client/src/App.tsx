@@ -14,6 +14,8 @@ import HealthClinics from "./pages/sectors/HealthClinics";
 import Physiotherapists from "./pages/sectors/Physiotherapists";
 import AiAudit from "./pages/AiAudit";
 import VoiceAgent from "./pages/VoiceAgent";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
@@ -41,6 +43,8 @@ function Router() {
       <Route path="/industries/physiotherapists" component={Physiotherapists} />
       <Route path="/ai-audit" component={AiAudit} />
       <Route path="/voice-agent" component={VoiceAgent} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/privacy" component={Privacy} />
 
       {/* ── Voice agent demo (shareable with prospects) ───────────────────── */}
       <Route path="/demo" component={Demo} />
