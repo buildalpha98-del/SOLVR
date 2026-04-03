@@ -50,3 +50,8 @@
 - [x] Stripe webhook handler at /api/stripe/webhook
 - [x] Voice agent success page (/voice-agent/success) with session verification
 - [x] 49 passing vitest tests (4 new Stripe tests)
+- [ ] Fix voice agent pricing to match handover doc (add setup fees, update Enterprise to $997/mo)
+- [ ] Add setup fees to Stripe checkout (one-time + recurring)
+- [ ] Add "Convert Lead to Client" button on Leads page
+- [ ] Add MRR tracking chart to Console Dashboard
+- [ ] Build Vapi webhook receiver endpoint (store transcripts in CRM)
