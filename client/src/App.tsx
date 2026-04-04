@@ -33,6 +33,13 @@ import ConsoleAIAssistant from "./pages/ConsoleAIAssistant";
 import PromptBuilder from "./pages/PromptBuilder";
 import OnboardingChecklist from "./pages/OnboardingChecklist";
 
+// ── Client Portal ─────────────────────────────────────────────────────────────
+import PortalLogin from "./pages/portal/PortalLogin";
+import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalCalls from "./pages/portal/PortalCalls";
+import PortalJobs from "./pages/portal/PortalJobs";
+import PortalCalendar from "./pages/portal/PortalCalendar";
+
 function Router() {
   return (
     <Switch>
@@ -76,6 +83,13 @@ function Router() {
       <Route path="/console/onboarding" component={AdminOnboarding} />
       <Route path="/console/leads" component={AdminLeads} />
       <Route path="/console/prompt-builder" component={PromptBuilder} />
+
+      {/* ── Client Portal (magic-link auth) ─────────────────────────────── */}
+      <Route path="/portal" component={PortalLogin} />
+      <Route path="/portal/dashboard" component={PortalDashboard} />
+      <Route path="/portal/calls" component={PortalCalls} />
+      <Route path="/portal/jobs" component={PortalJobs} />
+      <Route path="/portal/calendar" component={PortalCalendar} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

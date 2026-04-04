@@ -460,3 +460,93 @@ export const onboardingChecklists = mysqlTable("onboarding_checklists", {
 
 export type OnboardingChecklist = typeof onboardingChecklists.$inferSelect;
 export type InsertOnboardingChecklist = typeof onboardingChecklists.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENT PORTAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Magic-link session tokens for portal client auth.
+ * Each client gets a long-lived access token (never expires unless revoked).
+ * A session cookie is issued on first visit (7-day rolling expiry).
+ */
+export const portalSessions = mysqlTable("portal_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** The magic link token (UUID, sent in go-live email) */
+  accessToken: varchar("accessToken", { length: 128 }).notNull().unique(),
+  /** Short-lived session token stored in cookie */
+  sessionToken: varchar("sessionToken", { length: 128 }),
+  sessionExpiresAt: timestamp("sessionExpiresAt"),
+  lastAccessedAt: timestamp("lastAccessedAt"),
+  isRevoked: boolean("isRevoked").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PortalSession = typeof portalSessions.$inferSelect;
+export type InsertPortalSession = typeof portalSessions.$inferInsert;
+
+/**
+ * Jobs extracted from calls by AI — the core of the pipeline board.
+ * Each job is linked to the CRM interaction (call) that created it.
+ */
+export const portalJobs = mysqlTable("portal_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to crmInteractions.id (the call that created this job) */
+  interactionId: int("interactionId"),
+  /** Caller's name (extracted from transcript, may be null) */
+  callerName: varchar("callerName", { length: 255 }),
+  /** Caller's phone number */
+  callerPhone: varchar("callerPhone", { length: 50 }),
+  /** AI-extracted job type (e.g. "Hot water repair", "Blocked drain") */
+  jobType: varchar("jobType", { length: 255 }).notNull(),
+  /** Brief description of the job from the call */
+  description: text("description"),
+  /** Address or suburb mentioned */
+  location: varchar("location", { length: 255 }),
+  /** Pipeline stage */
+  stage: mysqlEnum("stage", ["new_lead", "quoted", "booked", "completed", "lost"]).default("new_lead").notNull(),
+  /** Estimated job value (set by client when quoting) */
+  estimatedValue: int("estimatedValue"),
+  /** Actual job value (set by client when marking complete) */
+  actualValue: int("actualValue"),
+  /** Preferred date/time mentioned by caller */
+  preferredDate: varchar("preferredDate", { length: 255 }),
+  /** Notes added by the client */
+  notes: text("notes"),
+  /** Whether a calendar event has been created for this job */
+  hasCalendarEvent: boolean("hasCalendarEvent").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PortalJob = typeof portalJobs.$inferSelect;
+export type InsertPortalJob = typeof portalJobs.$inferInsert;
+
+/**
+ * Calendar events for the portal — booked jobs + manually added events.
+ */
+export const portalCalendarEvents = mysqlTable("portal_calendar_events", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to portalJobs.id (null for manually created events) */
+  jobId: int("jobId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  location: varchar("location", { length: 255 }),
+  /** Client name / caller name */
+  contactName: varchar("contactName", { length: 255 }),
+  contactPhone: varchar("contactPhone", { length: 50 }),
+  startAt: timestamp("startAt").notNull(),
+  endAt: timestamp("endAt"),
+  /** all-day event flag */
+  isAllDay: boolean("isAllDay").default(false).notNull(),
+  /** Color for calendar display */
+  color: varchar("color", { length: 32 }).default("amber").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PortalCalendarEvent = typeof portalCalendarEvents.$inferSelect;
+export type InsertPortalCalendarEvent = typeof portalCalendarEvents.$inferInsert;

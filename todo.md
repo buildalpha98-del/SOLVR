@@ -66,3 +66,14 @@
 - [x] Build public onboarding form page (/onboarding/welcome?token=xxx) with dictation-first UX
 - [x] Wire form submission to update checklist step 5 (form-completed) and store data in CRM
 - [x] 63 passing vitest tests (7 new onboarding token tests)
+
+## Client Portal (solvr.com.au/portal)
+- [x] Design full portal product architecture (features, UX, data model, monetisation tiers)
+- [x] Build portal database schema (portalJobs, portalCalendarEvents, portalInsights)
+- [x] Build tRPC portal procedures (call stats, job pipeline, revenue estimates, calendar)
+- [x] Build portal shell (auth via token/magic link, layout, nav, branding)
+- [x] Build Dashboard tab (call volume chart, job pipeline KPIs, revenue estimates, AI weekly insight)
+- [x] Build Calls tab (transcript list, summaries, job type tags, search/filter)
+- [x] Build Jobs tab (Kanban pipeline board with potential revenue per job)
+- [x] Build Calendar tab (upcoming jobs view linked to calls)
+- [x] 63 vitest tests passing, 0 TypeScript errors

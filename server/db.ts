@@ -449,3 +449,113 @@ export async function getChecklistByToken(token: string): Promise<OnboardingChec
     .where(eq(onboardingChecklists.formToken, token)).limit(1);
   return result.length > 0 ? result[0] : null;
 }
+
+// ── Portal ────────────────────────────────────────────────────────────────────
+import {
+  portalSessions, PortalSession, InsertPortalSession,
+  portalJobs, PortalJob, InsertPortalJob,
+  portalCalendarEvents, PortalCalendarEvent, InsertPortalCalendarEvent,
+} from "../drizzle/schema";
+
+// ─ Sessions ──────────────────────────────────────────────────────────────────
+export async function createPortalSession(data: InsertPortalSession): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(portalSessions).values(data);
+}
+
+export async function getPortalSessionByAccessToken(token: string): Promise<PortalSession | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalSessions)
+    .where(and(eq(portalSessions.accessToken, token), eq(portalSessions.isRevoked, false)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getPortalSessionBySessionToken(token: string): Promise<PortalSession | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalSessions)
+    .where(and(eq(portalSessions.sessionToken, token), eq(portalSessions.isRevoked, false)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updatePortalSession(id: number, data: Partial<InsertPortalSession>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(portalSessions).set(data).where(eq(portalSessions.id, id));
+}
+
+export async function getPortalSessionByClientId(clientId: number): Promise<PortalSession | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalSessions)
+    .where(and(eq(portalSessions.clientId, clientId), eq(portalSessions.isRevoked, false)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+// ─ Jobs ───────────────────────────────────────────────────────────────────────
+export async function listPortalJobs(clientId: number): Promise<PortalJob[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId))
+    .orderBy(desc(portalJobs.createdAt));
+}
+
+export async function getPortalJob(id: number): Promise<PortalJob | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalJobs).where(eq(portalJobs.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createPortalJob(data: InsertPortalJob): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(portalJobs).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function updatePortalJob(id: number, data: Partial<InsertPortalJob>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(portalJobs).set(data).where(eq(portalJobs.id, id));
+}
+
+export async function deletePortalJob(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(portalJobs).where(eq(portalJobs.id, id));
+}
+
+// ─ Calendar Events ────────────────────────────────────────────────────────────
+export async function listPortalCalendarEvents(clientId: number): Promise<PortalCalendarEvent[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(portalCalendarEvents)
+    .where(eq(portalCalendarEvents.clientId, clientId))
+    .orderBy(portalCalendarEvents.startAt);
+}
+
+export async function createPortalCalendarEvent(data: InsertPortalCalendarEvent): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(portalCalendarEvents).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function updatePortalCalendarEvent(id: number, data: Partial<InsertPortalCalendarEvent>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(portalCalendarEvents).set(data).where(eq(portalCalendarEvents.id, id));
+}
+
+export async function deletePortalCalendarEvent(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(portalCalendarEvents).where(eq(portalCalendarEvents.id, id));
+}

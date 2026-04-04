@@ -21,6 +21,7 @@ import { invokeLLM } from "./_core/llm";
 import { notificationsRouter } from "./routers/notifications";
 import { stripeRouter } from "./stripe";
 import { checklistRouter } from "./routers/checklist";
+import { portalRouter } from "./routers/portal";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1384,6 +1385,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   stripe: stripeRouter,
   checklist: checklistRouter,
+  portal: portalRouter,
 });
 
 export type AppRouter = typeof appRouter;
