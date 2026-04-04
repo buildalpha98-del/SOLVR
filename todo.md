@@ -101,4 +101,4 @@
 - [x] Build referral code system (/ref/[code] URLs, referrer dashboard, admin payout view)
 - [x] Console sidebar updated with all nav items including Referrals
 - [x] 79 vitest tests passing, 0 TypeScript errors
-- [ ] Populate Google Calendar with 6-month GTM action plan
+- [x] Populate Google Calendar with 6-month GTM action plan (53 events: launch, outreach, content, reviews, referral payouts, 100-subscriber milestone)
