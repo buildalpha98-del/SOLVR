@@ -20,6 +20,15 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 function KpiCard({
   icon: Icon,
@@ -76,6 +85,7 @@ export default function ConsoleDashboard() {
   const { data: tasks } = trpc.tasks.list.useQuery({ status: "todo" });
   const { data: deals } = trpc.pipeline.list.useQuery();
   const { data: clients } = trpc.crm.listClients.useQuery();
+  const { data: mrrHistory } = trpc.crm.getMrrHistory.useQuery();
 
   const generateBriefing = trpc.ai.dailyBriefing.useMutation({
     onSuccess: () => {
@@ -256,6 +266,85 @@ export default function ConsoleDashboard() {
             </Card>
           </div>
         </div>
+
+        {/* MRR Trend Chart */}
+        <Card className="bg-[#0d1f38] border-white/10">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
+                <DollarSign size={14} className="text-green-400" />
+                MRR Trend — Last 6 Months
+              </CardTitle>
+              {mrrHistory && mrrHistory.length > 0 && (
+                <div className="text-right">
+                  <div className="text-green-400 text-sm font-bold">
+                    ${(mrrHistory[mrrHistory.length - 1].mrr).toLocaleString("en-AU")}
+                  </div>
+                  <div className="text-white/30 text-[10px]">current MRR</div>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!mrrHistory || mrrHistory.every(m => m.mrr === 0) ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <DollarSign size={28} className="text-green-400/20 mb-3" />
+                <p className="text-white/40 text-sm mb-1">No MRR data yet</p>
+                <p className="text-white/25 text-xs">Add active clients with MRR values in the CRM to see your revenue trend.</p>
+                <Link href="/console/crm">
+                  <Button size="sm" className="mt-3 bg-amber-400 hover:bg-amber-300 text-[#060e1a] text-xs h-7">
+                    Go to CRM
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={mrrHistory} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="mrrGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => `$${v}`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#0a1628",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        color: "white",
+                      }}
+                      formatter={(value: number) => [`$${value.toLocaleString("en-AU")}`, "MRR"]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="mrr"
+                      stroke="#4ade80"
+                      strokeWidth={2}
+                      fill="url(#mrrGradient)"
+                      dot={{ fill: "#4ade80", r: 3, strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: "#4ade80" }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Bottom row */}
         <div className="grid lg:grid-cols-2 gap-4">

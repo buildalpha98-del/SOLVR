@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
-  insertStrategyCallLead, listStrategyCallLeads,
+  insertStrategyCallLead, listStrategyCallLeads, getStrategyCallLeadById, updateStrategyCallLead,
   insertSavedPrompt, listSavedPrompts, getSavedPromptById, updateSavedPrompt, deleteSavedPrompt,
   insertClientOnboarding, listClientOnboardings, getClientOnboardingById, updateClientOnboarding,
   insertCrmClient, listCrmClients, getCrmClientById, updateCrmClient, deleteCrmClient,
@@ -54,6 +54,49 @@ const strategyCallRouter = router({
   listLeads: protectedProcedure.query(async () => {
     return listStrategyCallLeads();
   }),
+  convertLeadToClient: protectedProcedure
+    .input(z.object({
+      leadId: z.number(),
+      businessName: z.string().min(1),
+      tradeType: z.string().optional(),
+      serviceArea: z.string().optional(),
+      stage: z.enum(["lead", "qualified", "onboarding", "active", "churned", "paused"]).default("qualified"),
+      package: z.enum(["setup-only", "setup-monthly", "full-managed"]).optional(),
+      mrr: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const lead = await getStrategyCallLeadById(input.leadId);
+      if (!lead) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
+      if (lead.crmClientId) throw new TRPCError({ code: "CONFLICT", message: "Lead already converted to client" });
+      const result = await insertCrmClient({
+        contactName: lead.name,
+        contactEmail: lead.email,
+        contactPhone: lead.phone ?? null,
+        businessName: input.businessName || lead.businessName || lead.name,
+        tradeType: input.tradeType ?? null,
+        serviceArea: input.serviceArea ?? null,
+        website: null,
+        stage: input.stage,
+        package: input.package ?? null,
+        mrr: input.mrr ?? 0,
+        source: "demo",
+        summary: `Converted from strategy call lead. Demo persona: ${lead.demoPersona || "\u2014"}. Preferred time: ${lead.preferredTime || "\u2014"}.`,
+        vapiAgentId: null,
+        isActive: true,
+      });
+      const crmId = (result as { insertId?: number }).insertId;
+      if (crmId) {
+        await insertCrmInteraction({
+          clientId: crmId,
+          type: "system",
+          title: "Converted from strategy call lead",
+          body: `Lead ID: ${lead.id}\nDemo persona: ${lead.demoPersona || "\u2014"}\nPreferred time: ${lead.preferredTime || "\u2014"}`,
+          isPinned: false,
+        });
+        await updateStrategyCallLead(input.leadId, { crmClientId: crmId });
+      }
+      return { success: true, crmClientId: crmId };
+    }),
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -518,10 +561,33 @@ const crmRouter = router({
       await removeTagFromClient(input.clientId, input.tagId);
       return { success: true };
     }),
+  getMrrHistory: protectedProcedure.query(async () => {
+    const clients = await listCrmClients();
+    // Build last 6 months of MRR snapshots from client data
+    const now = new Date();
+    const months: { month: string; mrr: number; clients: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+      const activeInMonth = clients.filter(c => {
+        const created = new Date(c.createdAt);
+        const isActive = c.stage === "active" || c.stage === "onboarding";
+        const wasCreatedByThen = created <= monthEnd;
+        const notChurnedYet = c.stage !== "churned" || (c.updatedAt && new Date(c.updatedAt) > monthEnd);
+        return isActive && wasCreatedByThen && notChurnedYet;
+      });
+      const mrr = activeInMonth.reduce((sum, c) => sum + (c.mrr || 0), 0);
+      months.push({
+        month: d.toLocaleString("en-AU", { month: "short", year: "2-digit" }),
+        mrr,
+        clients: activeInMonth.length,
+      });
+    }
+    return months;
+  }),
 });
-
 // ─────────────────────────────────────────────────────────────────────────────
-// SALES PIPELINE
+// SALES PIPELINEE
 // ─────────────────────────────────────────────────────────────────────────────
 const pipelineRouter = router({
   list: protectedProcedure.query(async () => listPipelineDeals()),

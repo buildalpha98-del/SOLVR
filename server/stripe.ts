@@ -59,11 +59,10 @@ export const stripeRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const planConfig = VOICE_AGENT_PLANS[input.plan as PlanKey];
+        const planConfig = VOICE_AGENT_PLANS[input.plan as PlanKey];
       const priceConfig = input.billingCycle === "annual" ? planConfig.annual : planConfig.monthly;
-
-      // Build the line item with inline price data
-      const lineItem = {
+      // Recurring subscription line item
+      const subscriptionLineItem = {
         price_data: {
           currency: priceConfig.currency,
           product_data: {
@@ -78,10 +77,21 @@ export const stripeRouter = router({
         },
         quantity: 1,
       };
-
+      // One-time setup fee line item
+      const setupFeeLineItem = {
+        price_data: {
+          currency: planConfig.setupFee.currency,
+          product_data: {
+            name: planConfig.setupFee.name,
+            description: planConfig.setupFee.description,
+          },
+          unit_amount: planConfig.setupFee.amount,
+        },
+        quantity: 1,
+      };
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
-        line_items: [lineItem],
+        line_items: [subscriptionLineItem, setupFeeLineItem],
         success_url: `${input.origin}/voice-agent/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${input.origin}/voice-agent#pricing`,
         ...(input.email ? { customer_email: input.email } : {}),

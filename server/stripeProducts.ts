@@ -1,12 +1,23 @@
 /**
  * Solvr Voice Agent — Stripe product definitions.
  * Prices are in AUD cents. Stripe will create products/prices on first checkout.
+ *
+ * Pricing per handover doc:
+ *   Starter:      $497 setup + $247/mo
+ *   Professional: $997 setup + $497/mo
+ *   Enterprise:   $1,497 setup + $997/mo (custom — no Stripe checkout)
  */
 
 export const VOICE_AGENT_PLANS = {
   starter: {
     name: "Solvr AI Receptionist — Starter",
-    description: "Up to 150 calls/month, 24/7 AI call answering, calendar booking, SMS & email notifications. 14-day free trial.",
+    description: "AI Receptionist, 1 phone number, SMS confirmation, owner notification, basic job logging.",
+    setupFee: {
+      amount: 49700, // $497 AUD in cents
+      currency: "aud",
+      name: "Solvr AI Receptionist — Starter Setup",
+      description: "One-time setup fee: phone number provisioning, AI training, calendar integration, and testing.",
+    },
     monthly: {
       amount: 24700, // $247 AUD in cents
       currency: "aud",
@@ -22,7 +33,13 @@ export const VOICE_AGENT_PLANS = {
   },
   professional: {
     name: "Solvr AI Receptionist — Professional",
-    description: "Up to 500 calls/month, advanced job qualification, CRM sync, custom voice, call recording & analytics. 14-day free trial.",
+    description: "Everything in Starter + CRM integration (ServiceM8/Tradify), call transcript delivery, monthly prompt tuning.",
+    setupFee: {
+      amount: 99700, // $997 AUD in cents
+      currency: "aud",
+      name: "Solvr AI Receptionist — Professional Setup",
+      description: "One-time setup fee: full CRM integration, custom voice & tone, advanced workflow configuration.",
+    },
     monthly: {
       amount: 49700, // $497 AUD in cents
       currency: "aud",

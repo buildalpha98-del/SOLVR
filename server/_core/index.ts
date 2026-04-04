@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe";
+import { handleVapiWebhook } from "../vapiWebhook";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,6 +34,10 @@ async function startServer() {
   const server = createServer(app);
   // Stripe webhook MUST use raw body — register BEFORE json middleware
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+
+  // Vapi webhook — receives call events (transcripts, summaries)
+  // Must include json middleware inline since it's registered before the global parser
+  app.post("/api/vapi/webhook", express.json({ limit: "10mb" }), handleVapiWebhook);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

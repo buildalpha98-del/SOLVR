@@ -2,13 +2,17 @@
  * Admin Leads Dashboard — /admin
  * Protected: redirects to login if not authenticated.
  * Lists all strategy call leads submitted via the demo booking modal.
+ * Includes "Convert to Client" action to create a CRM record from a lead.
  */
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
+import { toast } from "sonner";
 import {
   Loader2, LogOut, Phone, Mail, Building2, Clock, Calendar,
-  Users, TrendingUp, ChevronRight, RefreshCw, Download, Wand2, BarChart3
+  Users, TrendingUp, ChevronRight, RefreshCw, Download, Wand2, BarChart3,
+  UserPlus, CheckCircle2, X,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -42,18 +46,212 @@ function StatCard({ label, value, icon: Icon, accent = false }: {
   );
 }
 
-function LeadRow({ lead, index }: {
-  lead: {
-    id: number;
-    name: string;
-    email: string;
-    phone: string | null;
-    businessName: string | null;
-    preferredTime: string | null;
-    demoPersona: string | null;
-    createdAt: Date;
-  };
+type Lead = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  businessName: string | null;
+  preferredTime: string | null;
+  demoPersona: string | null;
+  crmClientId: number | null;
+  createdAt: Date;
+};
+
+function ConvertModal({
+  lead,
+  onClose,
+  onSuccess,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onSuccess: (crmId: number) => void;
+}) {
+  const [businessName, setBusinessName] = useState(lead.businessName || "");
+  const [tradeType, setTradeType] = useState("");
+  const [serviceArea, setServiceArea] = useState("");
+  const [stage, setStage] = useState<"lead" | "qualified" | "onboarding">("qualified");
+  const [pkg, setPkg] = useState<"" | "setup-only" | "setup-monthly" | "full-managed">("");
+  const [mrr, setMrr] = useState("");
+
+  const utils = trpc.useUtils();
+  const convertMutation = trpc.strategyCall.convertLeadToClient.useMutation({
+    onSuccess: (data) => {
+      toast.success("Lead converted to CRM client!", {
+        description: `${lead.name} is now in your CRM.`,
+      });
+      utils.strategyCall.listLeads.invalidate();
+      onSuccess(data.crmClientId!);
+    },
+    onError: (err) => {
+      toast.error("Conversion failed", { description: err.message });
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!businessName.trim()) {
+      toast.error("Business name is required");
+      return;
+    }
+    convertMutation.mutate({
+      leadId: lead.id,
+      businessName: businessName.trim(),
+      tradeType: tradeType.trim() || undefined,
+      serviceArea: serviceArea.trim() || undefined,
+      stage,
+      package: pkg || undefined,
+      mrr: mrr ? Number(mrr) : undefined,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
+      <div className="bg-[#0D1E35] border border-white/10 rounded-xl w-full max-w-md shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div>
+            <div className="font-mono text-[10px] text-[#F5A623] uppercase tracking-widest mb-0.5">Convert Lead</div>
+            <h2 className="font-display text-base font-bold text-white">{lead.name}</h2>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1.5">
+              Business Name <span className="text-[#F5A623]">*</span>
+            </label>
+            <input
+              type="text"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder={lead.businessName || "e.g. Smith Plumbing"}
+              className="w-full bg-[#0A1628] border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F5A623]/50"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1.5">Trade / Industry</label>
+              <input
+                type="text"
+                value={tradeType}
+                onChange={(e) => setTradeType(e.target.value)}
+                placeholder="e.g. Plumber"
+                className="w-full bg-[#0A1628] border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F5A623]/50"
+              />
+            </div>
+            <div>
+              <label className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1.5">Service Area</label>
+              <input
+                type="text"
+                value={serviceArea}
+                onChange={(e) => setServiceArea(e.target.value)}
+                placeholder="e.g. Sydney CBD"
+                className="w-full bg-[#0A1628] border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F5A623]/50"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1.5">CRM Stage</label>
+              <select
+                value={stage}
+                onChange={(e) => setStage(e.target.value as typeof stage)}
+                className="w-full bg-[#0A1628] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5A623]/50"
+              >
+                <option value="lead">Lead</option>
+                <option value="qualified">Qualified</option>
+                <option value="onboarding">Onboarding</option>
+              </select>
+            </div>
+            <div>
+              <label className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1.5">Package</label>
+              <select
+                value={pkg}
+                onChange={(e) => setPkg(e.target.value as typeof pkg)}
+                className="w-full bg-[#0A1628] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#F5A623]/50"
+              >
+                <option value="">— None —</option>
+                <option value="setup-only">Setup Only</option>
+                <option value="setup-monthly">Setup + Monthly</option>
+                <option value="full-managed">Full Managed</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="font-mono text-[10px] text-slate-400 uppercase tracking-widest block mb-1.5">MRR (AUD)</label>
+            <input
+              type="number"
+              value={mrr}
+              onChange={(e) => setMrr(e.target.value)}
+              placeholder="e.g. 497"
+              min="0"
+              className="w-full bg-[#0A1628] border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#F5A623]/50"
+            />
+          </div>
+
+          {/* Pre-filled info */}
+          <div className="bg-[#0A1628] rounded-lg p-3 border border-white/5">
+            <div className="font-mono text-[9px] text-slate-500 uppercase tracking-widest mb-2">Pre-filled from lead</div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Mail size={10} className="text-slate-600" /> {lead.email}
+              </div>
+              {lead.phone && (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Phone size={10} className="text-slate-600" /> {lead.phone}
+                </div>
+              )}
+              {lead.demoPersona && (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Users size={10} className="text-slate-600" /> Demo: {lead.demoPersona}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 text-sm font-semibold text-slate-400 border border-white/10 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={convertMutation.isPending}
+              className="flex-1 py-2.5 text-sm font-bold bg-[#F5A623] text-[#0A1628] rounded-lg hover:bg-[#E8A020] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {convertMutation.isPending ? (
+                <><Loader2 size={14} className="animate-spin" /> Converting…</>
+              ) : (
+                <><UserPlus size={14} /> Convert to Client</>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LeadRow({
+  lead,
+  index,
+  onConvert,
+}: {
+  lead: Lead;
   index: number;
+  onConvert: (lead: Lead) => void;
 }) {
   return (
     <tr className={`border-b border-white/5 hover:bg-white/3 transition-colors ${index % 2 === 0 ? "" : "bg-white/[0.02]"}`}>
@@ -114,13 +312,29 @@ function LeadRow({ lead, index }: {
           {formatDate(lead.createdAt)}
         </div>
       </td>
+      <td className="px-4 py-3">
+        {lead.crmClientId ? (
+          <Link
+            href={`/admin/crm`}
+            className="inline-flex items-center gap-1 text-xs text-emerald-400 border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 rounded hover:bg-emerald-400/20 transition-colors"
+          >
+            <CheckCircle2 size={10} /> In CRM
+          </Link>
+        ) : (
+          <button
+            onClick={() => onConvert(lead)}
+            className="inline-flex items-center gap-1 text-xs text-[#F5A623] border border-[#F5A623]/30 bg-[#F5A623]/10 px-2 py-1 rounded hover:bg-[#F5A623]/20 transition-colors"
+          >
+            <UserPlus size={10} /> Convert
+          </button>
+        )}
+      </td>
     </tr>
   );
 }
 
-function exportCsv(leads: ReturnType<typeof useLeads>["data"]) {
-  if (!leads) return;
-  const headers = ["ID", "Name", "Email", "Phone", "Business", "Preferred Time", "Demo Persona", "Submitted At"];
+function exportCsv(leads: Lead[]) {
+  const headers = ["ID", "Name", "Email", "Phone", "Business", "Preferred Time", "Demo Persona", "CRM ID", "Submitted At"];
   const rows = leads.map((l) => [
     l.id,
     l.name,
@@ -129,6 +343,7 @@ function exportCsv(leads: ReturnType<typeof useLeads>["data"]) {
     l.businessName ?? "",
     l.preferredTime ?? "",
     l.demoPersona ?? "",
+    l.crmClientId ?? "",
     formatDate(l.createdAt),
   ]);
   const csv = [headers, ...rows].map((r) => r.map(String).map((v) => `"${v.replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -141,17 +356,13 @@ function exportCsv(leads: ReturnType<typeof useLeads>["data"]) {
   URL.revokeObjectURL(url);
 }
 
-function useLeads() {
-  return trpc.strategyCall.listLeads.useQuery(undefined, {
-    refetchInterval: 30_000, // auto-refresh every 30s
-  });
-}
-
 export default function AdminLeads() {
   const { user, loading: authLoading } = useAuth({ redirectOnUnauthenticated: true });
-  const { data: leads, isLoading: leadsLoading, refetch, isFetching } = useLeads();
+  const { data: leads, isLoading: leadsLoading, refetch, isFetching } = trpc.strategyCall.listLeads.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const [convertTarget, setConvertTarget] = useState<Lead | null>(null);
 
-  // Show loading while auth resolves
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#0A1628] flex items-center justify-center">
@@ -160,7 +371,6 @@ export default function AdminLeads() {
     );
   }
 
-  // Not logged in — useAuth will redirect, but show a fallback
   if (!user) {
     return (
       <div className="min-h-screen bg-[#0A1628] flex items-center justify-center">
@@ -183,13 +393,21 @@ export default function AdminLeads() {
     const now = new Date();
     return d.toDateString() === now.toDateString();
   }).length ?? 0;
+  const convertedLeads = leads?.filter((l) => l.crmClientId).length ?? 0;
   const uniquePersonas = new Set(leads?.map((l) => l.demoPersona).filter(Boolean)).size;
 
   return (
     <div className="min-h-screen bg-[#0A1628] text-white">
+      {convertTarget && (
+        <ConvertModal
+          lead={convertTarget}
+          onClose={() => setConvertTarget(null)}
+          onSuccess={() => setConvertTarget(null)}
+        />
+      )}
 
       {/* Nav */}
-      <nav className="border-b border-white/10 bg-[#0A1628]/95 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-white/10 bg-[#0A1628]/95 backdrop-blur-sm sticky top-0 z-40">
         <div className="container flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-1.5">
@@ -232,18 +450,18 @@ export default function AdminLeads() {
       </nav>
 
       <div className="container py-8">
-
         {/* Header */}
         <div className="mb-8">
           <div className="font-mono text-[10px] text-[#F5A623] uppercase tracking-widest mb-2">Admin Dashboard</div>
           <h1 className="font-display text-3xl font-bold uppercase tracking-tight mb-1">Strategy Call Leads</h1>
-          <p className="text-slate-400 text-sm">All leads submitted via the demo booking form.</p>
+          <p className="text-slate-400 text-sm">All leads submitted via the demo booking form. Convert qualified leads to CRM clients.</p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <StatCard label="Total Leads" value={totalLeads} icon={Users} accent />
           <StatCard label="Today" value={todayLeads} icon={Calendar} />
+          <StatCard label="Converted" value={convertedLeads} icon={CheckCircle2} />
           <StatCard label="Demo Personas" value={uniquePersonas} icon={TrendingUp} />
         </div>
 
@@ -297,7 +515,7 @@ export default function AdminLeads() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-white/10 bg-[#0A1628]">
-                    {["Name", "Contact", "Business", "Preferred Time", "Demo Persona", "Submitted"].map((h) => (
+                    {["Name", "Contact", "Business", "Preferred Time", "Demo Persona", "Submitted", "Action"].map((h) => (
                       <th key={h} className="px-4 py-3 font-mono text-[9px] text-slate-500 uppercase tracking-widest">
                         {h}
                       </th>
@@ -306,7 +524,12 @@ export default function AdminLeads() {
                 </thead>
                 <tbody className="bg-[#0D1E35]">
                   {[...leads].reverse().map((lead, i) => (
-                    <LeadRow key={lead.id} lead={lead} index={i} />
+                    <LeadRow
+                      key={lead.id}
+                      lead={lead}
+                      index={i}
+                      onConvert={setConvertTarget}
+                    />
                   ))}
                 </tbody>
               </table>

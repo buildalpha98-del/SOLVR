@@ -158,14 +158,15 @@ const pricing = [
     name: "Starter",
     price: "$247",
     period: "/month",
+    setupFee: "$497 setup",
     desc: "Perfect for solo tradies wanting to stop missing calls without the big price tag.",
     features: [
-      "Up to 150 calls/month",
+      "AI Receptionist, 1 phone number",
       "24/7 AI call answering",
       "Basic job qualification",
       "Calendar booking integration",
-      "SMS & email notifications",
-      "No setup fee",
+      "SMS & email notifications to owner",
+      "Basic job logging",
       "14-day free trial",
     ],
     cta: "Start Free Trial",
@@ -175,15 +176,15 @@ const pricing = [
     name: "Professional",
     price: "$497",
     period: "/month",
+    setupFee: "$997 setup",
     desc: "For growing businesses that need CRM integration and advanced call handling.",
     features: [
-      "Up to 500 calls/month",
-      "Advanced job qualification logic",
-      "CRM sync (ServiceM8, Tradify, Simpro)",
+      "Everything in Starter",
+      "CRM integration (ServiceM8, Tradify)",
+      "Call transcript delivery",
+      "Monthly prompt tuning session",
       "Custom Aussie voice & tone",
-      "Call recording & analytics dashboard",
       "Priority phone & email support",
-      "No setup fee",
       "14-day free trial",
     ],
     cta: "Start Free Trial",
@@ -191,16 +192,17 @@ const pricing = [
   },
   {
     name: "Enterprise",
-    price: "Custom",
-    period: "",
-    desc: "For multi-site operations, franchises, and businesses with complex workflows.",
+    price: "$997",
+    period: "/month",
+    setupFee: "$1,497 setup",
+    desc: "For multi-site operations, franchises, and businesses with complex automation needs.",
     features: [
-      "Unlimited calls",
-      "Multi-location & team support",
-      "Custom CRM & JMS integrations",
+      "Everything in Professional",
+      "n8n automation workflows",
+      "Custom integrations (any JMS)",
+      "Weekly performance reports",
       "Dedicated account manager",
-      "SLA uptime guarantee",
-      "White-label option available",
+      "Priority support & SLA guarantee",
     ],
     cta: "Book a Strategy Call",
     highlight: false,
@@ -289,6 +291,7 @@ function PricingSection() {
   const annualPrices: Record<string, { monthly: number; annual: number }> = {
     Starter: { monthly: 247, annual: Math.round((247 * 10) / 12) },
     Professional: { monthly: 497, annual: Math.round((497 * 10) / 12) },
+    Enterprise: { monthly: 997, annual: Math.round((997 * 10) / 12) },
   };
 
   const missedRevPerMonth = missedCalls * avgJobValue * 30 * 0.3;
@@ -310,7 +313,7 @@ function PricingSection() {
               className="font-body text-lg max-w-xl mx-auto mb-8"
               style={{ color: "rgba(250,250,248,0.65)" }}
             >
-              No setup fees. No lock-in contracts. 14-day free trial on all plans.
+              One-time setup fee. No lock-in contracts. 14-day free trial on Starter &amp; Professional.
             </p>
 
             {/* Billing toggle */}
@@ -412,6 +415,18 @@ function PricingSection() {
                         </span>
                       )}
                     </div>
+                    {"setupFee" in plan && plan.setupFee && (
+                      <div
+                        className="font-body text-xs mb-1"
+                        style={{
+                          color: plan.highlight
+                            ? "rgba(15,31,61,0.55)"
+                            : "rgba(255,255,255,0.4)",
+                        }}
+                      >
+                        + {plan.setupFee} (one-time)
+                      </div>
+                    )}
                     {isAnnual && priceInfo && (
                       <div
                         className="font-body text-xs mb-3"

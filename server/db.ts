@@ -72,6 +72,19 @@ export async function listStrategyCallLeads() {
   return db.select().from(strategyCallLeads).orderBy(desc(strategyCallLeads.createdAt));
 }
 
+export async function getStrategyCallLeadById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(strategyCallLeads).where(eq(strategyCallLeads.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateStrategyCallLead(id: number, data: Partial<InsertStrategyCallLead>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(strategyCallLeads).set(data).where(eq(strategyCallLeads.id, id));
+}
+
 // ── Saved Prompts ─────────────────────────────────────────────────────────────
 export async function insertSavedPrompt(prompt: InsertSavedPrompt) {
   const db = await getDb();
