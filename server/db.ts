@@ -441,3 +441,11 @@ export async function updateChecklist(clientId: number, data: Partial<InsertOnbo
   if (!db) throw new Error("Database not available");
   return db.update(onboardingChecklists).set(data).where(eq(onboardingChecklists.clientId, clientId));
 }
+
+export async function getChecklistByToken(token: string): Promise<OnboardingChecklist | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(onboardingChecklists)
+    .where(eq(onboardingChecklists.formToken, token)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}

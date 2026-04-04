@@ -14,6 +14,7 @@ import {
   insertAiInsight, getLatestInsight, listInsightsByEntity,
   insertTask, listTasks, updateTask, deleteTask,
   getConsoleStats,
+  getChecklistByToken, updateChecklist,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { invokeLLM } from "./_core/llm";
@@ -367,6 +368,124 @@ const onboardingRouter = router({
         status: input.status,
         ...(input.savedPromptId !== undefined ? { savedPromptId: input.savedPromptId } : {}),
       });
+      return { success: true };
+    }),
+
+  /**
+   * Public: Validate a form token and return pre-filled client data.
+   * Used by the public onboarding form page.
+   */
+  getByToken: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const checklist = await getChecklistByToken(input.token);
+      if (!checklist) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or expired form link" });
+      const client = await getCrmClientById(checklist.clientId);
+      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      // Don't expose internal IDs — return only what the form needs
+      return {
+        contactName: client.contactName,
+        contactEmail: client.contactEmail,
+        contactPhone: client.contactPhone ?? "",
+        businessName: client.businessName,
+        tradeType: client.tradeType ?? "",
+        serviceArea: client.serviceArea ?? "",
+        alreadyCompleted: checklist.formCompletedStatus === "done",
+      };
+    }),
+
+  /**
+   * Public: Submit the onboarding form via a signed token.
+   * Stores the data, marks checklist step 5 as done, and notifies owner.
+   */
+  submitWithToken: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      contactName: z.string().min(1),
+      contactEmail: z.string().email(),
+      contactPhone: z.string().optional(),
+      businessName: z.string().min(1),
+      tradeType: z.string().min(1),
+      services: z.string().min(1),
+      serviceArea: z.string().min(1),
+      hours: z.string().min(1),
+      emergencyFee: z.string().optional(),
+      existingPhone: z.string().optional(),
+      jobManagementTool: z.string().optional(),
+      faqs: z.string().optional(),
+      callHandling: z.string().optional(),
+      bookingSystem: z.string().optional(),
+      tonePreference: z.string().optional(),
+      additionalNotes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const checklist = await getChecklistByToken(input.token);
+      if (!checklist) throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or expired form link" });
+      if (checklist.formCompletedStatus === "done") {
+        throw new TRPCError({ code: "CONFLICT", message: "This form has already been submitted" });
+      }
+      const clientId = checklist.clientId;
+
+      // Update CRM client with the new data
+      await updateCrmClient(clientId, {
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone ?? null,
+        businessName: input.businessName,
+        tradeType: input.tradeType,
+        serviceArea: input.serviceArea,
+      });
+
+      // Create onboarding record
+      const onboardingResult = await insertClientOnboarding({
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone ?? null,
+        businessName: input.businessName,
+        tradeType: input.tradeType,
+        services: input.services,
+        serviceArea: input.serviceArea,
+        hours: input.hours,
+        emergencyFee: input.emergencyFee ?? null,
+        existingPhone: input.existingPhone ?? null,
+        jobManagementTool: input.jobManagementTool ?? null,
+        additionalNotes: [
+          input.faqs ? `FAQs: ${input.faqs}` : "",
+          input.callHandling ? `Call handling: ${input.callHandling}` : "",
+          input.bookingSystem ? `Booking system: ${input.bookingSystem}` : "",
+          input.tonePreference ? `Tone: ${input.tonePreference}` : "",
+          input.additionalNotes || "",
+        ].filter(Boolean).join("\n"),
+        package: "setup-monthly",
+        status: "intake-received",
+        crmClientId: clientId,
+      });
+      const onboardingId = (onboardingResult as { insertId?: number }).insertId ?? null;
+      if (onboardingId) {
+        await updateCrmClient(clientId, { onboardingId });
+      }
+
+      // Log as CRM interaction
+      await insertCrmInteraction({
+        clientId,
+        type: "system",
+        title: "Onboarding form completed by client",
+        body: `Services: ${input.services}\nHours: ${input.hours}\nService area: ${input.serviceArea}${input.faqs ? `\nFAQs: ${input.faqs}` : ""}${input.callHandling ? `\nCall handling: ${input.callHandling}` : ""}${input.bookingSystem ? `\nBooking system: ${input.bookingSystem}` : ""}${input.tonePreference ? `\nTone: ${input.tonePreference}` : ""}${input.additionalNotes ? `\nNotes: ${input.additionalNotes}` : ""}`,
+        isPinned: true,
+      });
+
+      // Mark checklist step 5 as done
+      await updateChecklist(clientId, {
+        formCompletedStatus: "done",
+        formCompletedAt: new Date(),
+      });
+
+      // Notify owner
+      await notifyOwner({
+        title: `📋 Onboarding form completed — ${input.businessName}`,
+        content: `${input.contactName} (${input.businessName}) has submitted their onboarding form.\n\nLog in to the Console to build their Vapi prompt.`,
+      });
+
       return { success: true };
     }),
 });

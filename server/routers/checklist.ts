@@ -19,6 +19,7 @@ import { TRPCError } from "@trpc/server";
 import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
+import { sendWelcomeEmailToClient, sendOnboardingFormToClient, sendGoLiveEmailToClient } from "../gmail";
 import crypto from "crypto";
 
 // ─── Helper: generate a signed onboarding token ──────────────────────────────
@@ -32,7 +33,7 @@ function generateFormToken(clientId: number): string {
 // ─── Helper: build onboarding form URL ───────────────────────────────────────
 
 function buildFormUrl(origin: string, token: string): string {
-  return `${origin}/onboarding?token=${token}`;
+  return `${origin}/onboarding/welcome?token=${token}`;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -176,13 +177,20 @@ Email: ${client.contactEmail}`,
         welcomeEmailContent: emailContent,
       });
 
-      // Notify owner with the drafted email to review/send
+      // Send the welcome email directly via Gmail
+      const gmailResult = await sendWelcomeEmailToClient(
+        client.contactEmail,
+        client.contactName,
+        emailContent
+      );
+
+      // Also notify owner (with send status)
       await notifyOwner({
-        title: `Welcome email ready — ${client.contactName} (${client.businessName})`,
-        content: `Review and send this welcome email to ${client.contactEmail}:\n\n---\n\n${emailContent}`,
+        title: `Welcome email sent — ${client.contactName} (${client.businessName})`,
+        content: `Email sent to ${client.contactEmail} (Gmail ID: ${gmailResult.messageId || 'unknown'}):\n\n---\n\n${emailContent}`,
       });
 
-      return { success: true, emailContent };
+      return { success: true, emailContent, gmailSent: gmailResult.success, gmailMessageId: gmailResult.messageId };
     }),
 
   /**
@@ -239,13 +247,21 @@ Form URL: ${formUrl}`,
         isPinned: false,
       });
 
-      // Notify owner
+      // Send the onboarding form email directly via Gmail
+      const gmailResult = await sendOnboardingFormToClient(
+        client.contactEmail,
+        client.contactName,
+        emailContent,
+        formUrl
+      );
+
+      // Also notify owner
       await notifyOwner({
-        title: `Onboarding form ready to send — ${client.contactName}`,
-        content: `Send this to ${client.contactEmail}:\n\n---\n\n${emailContent}\n\n---\n\n**Direct form link:** ${formUrl}`,
+        title: `Onboarding form sent — ${client.contactName}`,
+        content: `Form email sent to ${client.contactEmail} (Gmail ID: ${gmailResult.messageId || 'unknown'}).\n\n**Form URL:** ${formUrl}`,
       });
 
-      return { success: true, formUrl, token, emailContent };
+      return { success: true, formUrl, token, emailContent, gmailSent: gmailResult.success, gmailMessageId: gmailResult.messageId };
     }),
 
   /**
@@ -389,12 +405,19 @@ Trade/Industry: ${client.tradeType || "service business"}`,
         goLiveEmailContent: emailContent,
       });
 
+      // Send the go-live email directly via Gmail
+      const gmailResult = await sendGoLiveEmailToClient(
+        client.contactEmail,
+        client.contactName,
+        emailContent
+      );
+
       // Notify owner
       await notifyOwner({
         title: `🚀 Client live — ${client.contactName} (${client.businessName})`,
-        content: `${client.businessName} is now live! Send this to ${client.contactEmail}:\n\n---\n\n${emailContent}`,
+        content: `Go-live email sent to ${client.contactEmail} (Gmail ID: ${gmailResult.messageId || 'unknown'}).\n\n${client.businessName} is now active!`,
       });
 
-      return { success: true, emailContent };
+      return { success: true, emailContent, gmailSent: gmailResult.success, gmailMessageId: gmailResult.messageId };
     }),
 });

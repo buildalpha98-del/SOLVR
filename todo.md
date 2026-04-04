@@ -62,3 +62,7 @@
 - [x] Wire automations: welcome email, onboarding form send, prompt generation, go-live notification
 - [x] Add Checklist button to CRM Client Detail header
 - [x] Write vitest tests for checklist procedures (7 new tests, 56 total passing)
+- [x] Check Gmail MCP connection and wire direct email sending into checklist automations
+- [x] Build public onboarding form page (/onboarding/welcome?token=xxx) with dictation-first UX
+- [x] Wire form submission to update checklist step 5 (form-completed) and store data in CRM
+- [x] 63 passing vitest tests (7 new onboarding token tests)

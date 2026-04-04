@@ -21,6 +21,7 @@ import Privacy from "./pages/Privacy";
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
 import Onboarding from "./pages/Onboarding";
+import ClientOnboardingForm from "./pages/ClientOnboardingForm";
 import AdminLeads from "./pages/AdminLeads";
 import AdminOnboarding from "./pages/AdminOnboarding";
 import CrmDashboard from "./pages/CrmDashboard";
@@ -54,6 +55,8 @@ function Router() {
 
       {/* ── Client onboarding intake form (public) ────────────────────────── */}
       <Route path="/onboarding" component={Onboarding} />
+      {/* Token-based onboarding form sent to clients after signup */}
+      <Route path="/onboarding/welcome" component={ClientOnboardingForm} />
 
       {/* ── Admin tools (protected by Manus login) ────────────────────────── */}
       <Route path="/admin" component={AdminLeads} />
