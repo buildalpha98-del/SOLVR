@@ -93,3 +93,12 @@
 - [x] Onboarding form polish — improved progress indicator, better empty state
 - [x] VAPI_API_KEY secret added and validated
 - [x] 79 vitest tests passing, 0 TypeScript errors
+
+## Pre-Launch Finalisation (Apr 4)
+- [x] Update pricing: Starter $197/mo (no setup fee), Professional $397/mo (no setup fee)
+- [x] Update Stripe products to match new pricing
+- [x] Add "Founding Member" badge and scarcity messaging to pricing page
+- [x] Build referral code system (/ref/[code] URLs, referrer dashboard, admin payout view)
+- [x] Console sidebar updated with all nav items including Referrals
+- [x] 79 vitest tests passing, 0 TypeScript errors
+- [ ] Populate Google Calendar with 6-month GTM action plan

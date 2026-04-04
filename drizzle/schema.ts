@@ -550,3 +550,42 @@ export const portalCalendarEvents = mysqlTable("portal_calendar_events", {
 });
 export type PortalCalendarEvent = typeof portalCalendarEvents.$inferSelect;
 export type InsertPortalCalendarEvent = typeof portalCalendarEvents.$inferInsert;
+
+/**
+ * Referral partners — people who refer clients to Solvr in exchange for a commission.
+ * Each partner gets a unique ref code that generates a /ref/[code] URL.
+ */
+export const referralPartners = mysqlTable("referral_partners", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  refCode: varchar("refCode", { length: 32 }).notNull().unique(),
+  commissionPct: int("commissionPct").default(20).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ReferralPartner = typeof referralPartners.$inferSelect;
+export type InsertReferralPartner = typeof referralPartners.$inferInsert;
+
+/**
+ * Referral conversions — tracks when a referred visitor converts to a paying subscriber.
+ */
+export const referralConversions = mysqlTable("referral_conversions", {
+  id: int("id").autoincrement().primaryKey(),
+  partnerId: int("partnerId").notNull(),
+  stripeSessionId: varchar("stripeSessionId", { length: 255 }),
+  subscriberEmail: varchar("subscriberEmail", { length: 320 }).notNull(),
+  subscriberName: varchar("subscriberName", { length: 255 }),
+  plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
+  monthlyAmountCents: int("monthlyAmountCents").notNull(),
+  commissionAmountCents: int("commissionAmountCents").notNull(),
+  status: mysqlEnum("status", ["active", "cancelled", "pending"]).default("active").notNull(),
+  lastPaidMonth: varchar("lastPaidMonth", { length: 7 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ReferralConversion = typeof referralConversions.$inferSelect;
+export type InsertReferralConversion = typeof referralConversions.$inferInsert;

@@ -2,57 +2,75 @@
  * Solvr Voice Agent — Stripe product definitions.
  * Prices are in AUD cents. Stripe will create products/prices on first checkout.
  *
- * Pricing per handover doc:
- *   Starter:      $497 setup + $247/mo
- *   Professional: $997 setup + $497/mo
- *   Enterprise:   $1,497 setup + $997/mo (custom — no Stripe checkout)
+ * Founding Member Launch Pricing (no setup fees):
+ *   Starter:      $197/mo (founding rate — locked in for life)
+ *   Professional: $397/mo (founding rate — locked in for life)
+ *   Enterprise:   Custom — no Stripe checkout
+ *
+ * Post-launch pricing (once 20+ subscribers):
+ *   Starter:      $247/mo
+ *   Professional: $497/mo
  */
 
-export const VOICE_AGENT_PLANS = {
+export interface SetupFeeConfig {
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+}
+
+export interface PlanConfig {
+  name: string;
+  description: string;
+  setupFee: SetupFeeConfig | null;
+  monthly: {
+    amount: number;
+    currency: string;
+    interval: "month";
+  };
+  annual: {
+    amount: number;
+    currency: string;
+    interval: "month";
+    intervalCount: number;
+  };
+}
+
+export const VOICE_AGENT_PLANS: Record<string, PlanConfig> = {
   starter: {
-    name: "Solvr AI Receptionist — Starter",
-    description: "AI Receptionist, 1 phone number, SMS confirmation, owner notification, basic job logging.",
-    setupFee: {
-      amount: 49700, // $497 AUD in cents
-      currency: "aud",
-      name: "Solvr AI Receptionist — Starter Setup",
-      description: "One-time setup fee: phone number provisioning, AI training, calendar integration, and testing.",
-    },
+    name: "Solvr AI Receptionist — Starter (Founding Member)",
+    description: "AI Receptionist, 1 phone number, SMS confirmation, owner notification, basic job logging. Founding member rate — locked in for life.",
+    setupFee: null, // No setup fee for founding members
     monthly: {
-      amount: 24700, // $247 AUD in cents
+      amount: 19700, // $197 AUD in cents
       currency: "aud",
-      interval: "month" as const,
+      interval: "month",
     },
     annual: {
-      amount: Math.round((247 * 10) / 12) * 100, // 2 months free, per-month price in cents
+      amount: Math.round((197 * 10) / 12) * 100, // 2 months free, per-month price in cents
       currency: "aud",
-      interval: "month" as const,
+      interval: "month",
       intervalCount: 1,
-      // Billed as annual: 247 * 10 = $2470/yr
+      // Billed as annual: 197 * 10 = $1970/yr
     },
   },
   professional: {
-    name: "Solvr AI Receptionist — Professional",
-    description: "Everything in Starter + CRM integration (ServiceM8/Tradify), call transcript delivery, monthly prompt tuning.",
-    setupFee: {
-      amount: 99700, // $997 AUD in cents
-      currency: "aud",
-      name: "Solvr AI Receptionist — Professional Setup",
-      description: "One-time setup fee: full CRM integration, custom voice & tone, advanced workflow configuration.",
-    },
+    name: "Solvr AI Receptionist — Professional (Founding Member)",
+    description: "Everything in Starter + CRM integration, call transcript delivery, monthly prompt tuning, client portal. Founding member rate — locked in for life.",
+    setupFee: null, // No setup fee for founding members
     monthly: {
-      amount: 49700, // $497 AUD in cents
+      amount: 39700, // $397 AUD in cents
       currency: "aud",
-      interval: "month" as const,
+      interval: "month",
     },
     annual: {
-      amount: Math.round((497 * 10) / 12) * 100, // 2 months free, per-month price in cents
+      amount: Math.round((397 * 10) / 12) * 100, // 2 months free, per-month price in cents
       currency: "aud",
-      interval: "month" as const,
+      interval: "month",
       intervalCount: 1,
     },
   },
-} as const;
+};
 
 export type PlanKey = keyof typeof VOICE_AGENT_PLANS;
 export type BillingCycle = "monthly" | "annual";

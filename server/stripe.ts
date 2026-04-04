@@ -22,8 +22,8 @@ async function createSubscriptionRecord(data: {
   await db.insert(voiceAgentSubscriptions).values({
     email: data.email,
     name: data.name,
-    plan: data.plan,
-    billingCycle: data.billingCycle,
+    plan: data.plan as "starter" | "professional",
+    billingCycle: data.billingCycle as "monthly" | "annual",
     stripeSessionId: data.stripeSessionId,
     status: "trialing",
   });
@@ -77,8 +77,8 @@ export const stripeRouter = router({
         },
         quantity: 1,
       };
-      // One-time setup fee line item
-      const setupFeeLineItem = {
+      // One-time setup fee line item (only if plan has a setup fee)
+      const setupFeeLineItem = planConfig.setupFee ? {
         price_data: {
           currency: planConfig.setupFee.currency,
           product_data: {
@@ -88,10 +88,12 @@ export const stripeRouter = router({
           unit_amount: planConfig.setupFee.amount,
         },
         quantity: 1,
-      };
+      } : null;
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
-        line_items: [subscriptionLineItem, setupFeeLineItem],
+        line_items: setupFeeLineItem
+          ? [subscriptionLineItem, setupFeeLineItem]
+          : [subscriptionLineItem],
         success_url: `${input.origin}/voice-agent/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${input.origin}/voice-agent#pricing`,
         ...(input.email ? { customer_email: input.email } : {}),

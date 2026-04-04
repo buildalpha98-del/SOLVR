@@ -36,6 +36,13 @@
       "when": 1775285073959,
       "tag": "0004_regular_jimmy_woo",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1775291587213,
+      "tag": "0005_rich_gamora",
+      "breakpoints": true
     }
   ]
 }

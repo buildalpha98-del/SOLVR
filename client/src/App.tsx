@@ -33,6 +33,10 @@ import ConsoleAIAssistant from "./pages/ConsoleAIAssistant";
 import PromptBuilder from "./pages/PromptBuilder";
 import OnboardingChecklist from "./pages/OnboardingChecklist";
 
+// ── Referral Programme ───────────────────────────────────────────────────────
+import ReferralLanding from "./pages/ReferralLanding";
+import ConsoleReferrals from "./pages/ConsoleReferrals";
+
 // ── Client Portal ─────────────────────────────────────────────────────────────
 import PortalLogin from "./pages/portal/PortalLogin";
 import PortalDashboard from "./pages/portal/PortalDashboard";
@@ -83,6 +87,10 @@ function Router() {
       <Route path="/console/onboarding" component={AdminOnboarding} />
       <Route path="/console/leads" component={AdminLeads} />
       <Route path="/console/prompt-builder" component={PromptBuilder} />
+      <Route path="/console/referrals" component={ConsoleReferrals} />
+
+      {/* ── Referral landing pages ────────────────────────────────────────── */}
+      <Route path="/ref/:code" component={ReferralLanding} />
 
       {/* ── Client Portal (magic-link auth) ─────────────────────────────── */}
       <Route path="/portal" component={PortalLogin} />

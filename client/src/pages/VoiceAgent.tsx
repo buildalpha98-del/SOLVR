@@ -156,10 +156,11 @@ const howItWorks = [
 const pricing = [
   {
     name: "Starter",
-    price: "$247",
+    price: "$197",
     period: "/month",
-    setupFee: "$497 setup",
-    desc: "Perfect for solo tradies wanting to stop missing calls without the big price tag.",
+    setupFee: null as string | null,
+    badge: "Founding Member Rate" as string | null,
+    desc: "Perfect for solo tradies wanting to stop missing calls. Founding member rate — locked in for life.",
     features: [
       "AI Receptionist, 1 phone number",
       "24/7 AI call answering",
@@ -167,17 +168,19 @@ const pricing = [
       "Calendar booking integration",
       "SMS & email notifications to owner",
       "Basic job logging",
-      "14-day free trial",
+      "Client portal access",
+      "No setup fee — go live in 48 hrs",
     ],
     cta: "Start Free Trial",
     highlight: false,
   },
   {
     name: "Professional",
-    price: "$497",
+    price: "$397",
     period: "/month",
-    setupFee: "$997 setup",
-    desc: "For growing businesses that need CRM integration and advanced call handling.",
+    setupFee: null as string | null,
+    badge: "Most Popular" as string | null,
+    desc: "For growing businesses that need CRM integration and advanced call handling. Founding member rate — locked in for life.",
     features: [
       "Everything in Starter",
       "CRM integration (ServiceM8, Tradify)",
@@ -185,16 +188,17 @@ const pricing = [
       "Monthly prompt tuning session",
       "Custom Aussie voice & tone",
       "Priority phone & email support",
-      "14-day free trial",
+      "No setup fee — go live in 48 hrs",
     ],
     cta: "Start Free Trial",
     highlight: true,
   },
   {
     name: "Enterprise",
-    price: "$997",
-    period: "/month",
-    setupFee: "$1,497 setup",
+    price: "Custom",
+    period: "",
+    setupFee: null as string | null,
+    badge: null as string | null,
     desc: "For multi-site operations, franchises, and businesses with complex automation needs.",
     features: [
       "Everything in Professional",
@@ -289,9 +293,8 @@ function PricingSection() {
   }
 
   const annualPrices: Record<string, { monthly: number; annual: number }> = {
-    Starter: { monthly: 247, annual: Math.round((247 * 10) / 12) },
-    Professional: { monthly: 497, annual: Math.round((497 * 10) / 12) },
-    Enterprise: { monthly: 997, annual: Math.round((997 * 10) / 12) },
+    Starter: { monthly: 197, annual: Math.round((197 * 10) / 12) },
+    Professional: { monthly: 397, annual: Math.round((397 * 10) / 12) },
   };
 
   const missedRevPerMonth = missedCalls * avgJobValue * 30 * 0.3;
@@ -313,7 +316,7 @@ function PricingSection() {
               className="font-body text-lg max-w-xl mx-auto mb-8"
               style={{ color: "rgba(250,250,248,0.65)" }}
             >
-              One-time setup fee. No lock-in contracts. 14-day free trial on Starter &amp; Professional.
+              No setup fee. No lock-in contracts. 14-day free trial. Founding member rates locked in for life.
             </p>
 
             {/* Billing toggle */}
@@ -381,12 +384,15 @@ function PricingSection() {
                   }}
                 >
                   <div className="p-6 flex-1">
-                    {plan.highlight && (
+                    {plan.badge && (
                       <div
                         className="text-xs font-body font-bold px-3 py-1 rounded-full inline-block mb-3"
-                        style={{ background: "rgba(15,31,61,0.15)", color: "#0F1F3D" }}
+                        style={{
+                          background: plan.highlight ? "rgba(15,31,61,0.15)" : "rgba(245,166,35,0.15)",
+                          color: plan.highlight ? "#0F1F3D" : "#F5A623",
+                        }}
                       >
-                        MOST POPULAR
+                        {plan.badge.toUpperCase()}
                       </div>
                     )}
                     <h3

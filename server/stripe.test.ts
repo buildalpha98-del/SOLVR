@@ -60,8 +60,8 @@ describe("stripeRouter", () => {
       const { VOICE_AGENT_PLANS } = await import("./stripeProducts");
       expect(VOICE_AGENT_PLANS).toHaveProperty("starter");
       expect(VOICE_AGENT_PLANS).toHaveProperty("professional");
-      expect(VOICE_AGENT_PLANS.starter.monthly.amount).toBe(24700); // $247.00 in cents
-      expect(VOICE_AGENT_PLANS.professional.monthly.amount).toBe(49700); // $497.00 in cents
+      expect(VOICE_AGENT_PLANS.starter.monthly.amount).toBe(19700); // $197.00 in cents
+      expect(VOICE_AGENT_PLANS.professional.monthly.amount).toBe(39700); // $397.00 in cents
     });
 
     it("annual plan amount is less than monthly * 12", async () => {
