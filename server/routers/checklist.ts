@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient } from "../db";
+import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient, createPortalSession } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
 import { sendWelcomeEmailToClient, sendOnboardingFormToClient, sendGoLiveEmailToClient } from "../gmail";
@@ -356,10 +356,16 @@ Website: ${client.website || "Not provided"}`,
   goLive: protectedProcedure
     .input(z.object({
       clientId: z.number(),
+      origin: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const client = await getCrmClientById(input.clientId);
       if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      // Generate portal access link
+      const accessToken = crypto.randomUUID();
+      await createPortalSession({ clientId: input.clientId, accessToken });
+      const origin = input.origin || "https://solvr.com.au";
+      const portalUrl = `${origin}/portal/login?token=${accessToken}`;
 
       // Draft go-live email via LLM
       const llmResponse = await invokeLLM({
@@ -379,7 +385,8 @@ Sign off as "Jayden | Solvr".`,
             content: `Write the go-live email for:
 Name: ${client.contactName}
 Business: ${client.businessName}
-Trade/Industry: ${client.tradeType || "service business"}`,
+Trade/Industry: ${client.tradeType || "service business"}
+Portal URL: ${portalUrl}`,
           },
         ],
       });
@@ -418,6 +425,6 @@ Trade/Industry: ${client.tradeType || "service business"}`,
         content: `Go-live email sent to ${client.contactEmail} (Gmail ID: ${gmailResult.messageId || 'unknown'}).\n\n${client.businessName} is now active!`,
       });
 
-      return { success: true, emailContent, gmailSent: gmailResult.success, gmailMessageId: gmailResult.messageId };
+      return { success: true, emailContent, portalUrl, gmailSent: gmailResult.success, gmailMessageId: gmailResult.messageId };
     }),
 });

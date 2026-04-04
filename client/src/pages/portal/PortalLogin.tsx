@@ -18,7 +18,7 @@ export default function PortalLogin() {
   const loginMutation = trpc.portal.login.useMutation({
     onSuccess: () => {
       setStatus("success");
-      setTimeout(() => navigate("/portal"), 1200);
+      setTimeout(() => navigate("/portal/dashboard"), 1200);
     },
     onError: (err) => {
       setStatus("error");

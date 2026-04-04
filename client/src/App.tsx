@@ -86,6 +86,7 @@ function Router() {
 
       {/* ── Client Portal (magic-link auth) ─────────────────────────────── */}
       <Route path="/portal" component={PortalLogin} />
+      <Route path="/portal/login" component={PortalLogin} />
       <Route path="/portal/dashboard" component={PortalDashboard} />
       <Route path="/portal/calls" component={PortalCalls} />
       <Route path="/portal/jobs" component={PortalJobs} />

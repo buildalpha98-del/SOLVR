@@ -684,7 +684,7 @@ export default function OnboardingChecklist() {
               completedAt={(checklist as unknown as ChecklistData).clientLiveAt}
               actionLabel="Go Live!"
               actionIcon={<Rocket className="w-3 h-3" />}
-              onAction={() => goLive.mutate({ clientId })}
+              onAction={() => goLive.mutate({ clientId, origin: window.location.origin })}
               actionLoading={goLive.isPending}
               skippable
               onSkip={() => updateStep.mutate({ clientId, step: "clientLive", status: "skipped" })}

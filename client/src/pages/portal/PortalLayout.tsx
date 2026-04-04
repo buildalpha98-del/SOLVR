@@ -28,7 +28,7 @@ type NavTab = {
 };
 
 const ALL_TABS: NavTab[] = [
-  { key: "dashboard", label: "Dashboard", href: "/portal", icon: <LayoutDashboard className="w-4 h-4" />, feature: "dashboard" },
+  { key: "dashboard", label: "Dashboard", href: "/portal/dashboard", icon: <LayoutDashboard className="w-4 h-4" />, feature: "dashboard" },
   { key: "calls", label: "Calls", href: "/portal/calls", icon: <Phone className="w-4 h-4" />, feature: "calls" },
   { key: "jobs", label: "Jobs", href: "/portal/jobs", icon: <Briefcase className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "calendar", label: "Calendar", href: "/portal/calendar", icon: <Calendar className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
@@ -50,12 +50,12 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
   });
 
   const logoutMutation = trpc.portal.logout.useMutation({
-    onSuccess: () => navigate("/portal/login"),
+    onSuccess: () => navigate("/portal"),
   });
 
   useEffect(() => {
     if (!isLoading && !me) {
-      navigate("/portal/login");
+      navigate("/portal");
     }
   }, [me, isLoading, navigate]);
 

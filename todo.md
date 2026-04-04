@@ -77,3 +77,10 @@
 - [x] Build Jobs tab (Kanban pipeline board with potential revenue per job)
 - [x] Build Calendar tab (upcoming jobs view linked to calls)
 - [x] 63 vitest tests passing, 0 TypeScript errors
+
+## Bug Fixes (Apr 4)
+- [x] Portal login redirect loop: PortalLogin now navigates to /portal/dashboard after success
+- [x] Portal /portal/login route missing from App.tsx: added route
+- [x] PortalLayout Dashboard href was /portal (PortalLogin): fixed to /portal/dashboard
+- [x] goLive procedure now generates portal access token and includes portal URL in go-live email
+- [x] 78 vitest tests passing, 0 TypeScript errors
