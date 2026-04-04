@@ -30,6 +30,7 @@ import ConsolePipeline from "./pages/ConsolePipeline";
 import ConsoleTasks from "./pages/ConsoleTasks";
 import ConsoleAIAssistant from "./pages/ConsoleAIAssistant";
 import PromptBuilder from "./pages/PromptBuilder";
+import OnboardingChecklist from "./pages/OnboardingChecklist";
 
 function Router() {
   return (
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/console/ai" component={ConsoleAIAssistant} />
       <Route path="/console/crm" component={CrmDashboard} />
       <Route path="/console/crm/:id" component={CrmClientDetail} />
+      <Route path="/console/crm/:id/checklist" component={OnboardingChecklist} />
       <Route path="/console/onboarding" component={AdminOnboarding} />
       <Route path="/console/leads" component={AdminLeads} />
       <Route path="/console/prompt-builder" component={PromptBuilder} />

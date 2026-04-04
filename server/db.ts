@@ -413,3 +413,31 @@ export async function getConsoleStats() {
     }).length,
   };
 }
+
+// ── Onboarding Checklists ─────────────────────────────────────────────────────
+import {
+  onboardingChecklists, OnboardingChecklist, InsertOnboardingChecklist,
+} from "../drizzle/schema";
+
+export async function getOrCreateChecklist(clientId: number): Promise<OnboardingChecklist> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(onboardingChecklists)
+    .where(eq(onboardingChecklists.clientId, clientId)).limit(1);
+  if (existing.length > 0) return existing[0];
+  // Create a fresh checklist — mark crmCreated as done since the client already exists
+  await db.insert(onboardingChecklists).values({
+    clientId,
+    crmCreatedStatus: "done",
+    crmCreatedAt: new Date(),
+  });
+  const created = await db.select().from(onboardingChecklists)
+    .where(eq(onboardingChecklists.clientId, clientId)).limit(1);
+  return created[0];
+}
+
+export async function updateChecklist(clientId: number, data: Partial<InsertOnboardingChecklist>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(onboardingChecklists).set(data).where(eq(onboardingChecklists.clientId, clientId));
+}

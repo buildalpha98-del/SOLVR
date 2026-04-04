@@ -13,7 +13,7 @@ import {
   Phone, Mail, Globe, MapPin, Zap, MessageSquare, PhoneCall,
   MailIcon, Video, Calendar, Headphones, Settings, Pin, PinOff,
   LogOut, Wand2, Users, DollarSign, Building2, Save, X, Check,
-  ExternalLink,
+  ExternalLink, ClipboardList,
 } from "lucide-react";
 
 type Stage = "lead" | "qualified" | "onboarding" | "active" | "churned" | "paused";
@@ -223,6 +223,11 @@ export default function CrmClientDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link href={`/console/crm/${clientId}/checklist`}>
+              <a className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 transition-colors text-sm font-medium">
+                <ClipboardList size={12} /> Checklist
+              </a>
+            </Link>
             {!editMode ? (
               <button onClick={() => { setEditMode(true); setEditForm({ contactName: c.contactName, contactEmail: c.contactEmail, contactPhone: c.contactPhone || "", businessName: c.businessName, tradeType: c.tradeType || "", serviceArea: c.serviceArea || "", website: c.website || "", summary: c.summary || "", vapiAgentId: c.vapiAgentId || "" }); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors text-sm">
                 <Edit3 size={12} /> Edit

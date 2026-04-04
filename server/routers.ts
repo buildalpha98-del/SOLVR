@@ -19,6 +19,7 @@ import { notifyOwner } from "./_core/notification";
 import { invokeLLM } from "./_core/llm";
 import { notificationsRouter } from "./routers/notifications";
 import { stripeRouter } from "./stripe";
+import { checklistRouter } from "./routers/checklist";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1263,6 +1264,7 @@ export const appRouter = router({
   ai: aiRouter,
   notifications: notificationsRouter,
   stripe: stripeRouter,
+  checklist: checklistRouter,
 });
 
 export type AppRouter = typeof appRouter;

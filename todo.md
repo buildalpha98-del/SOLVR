@@ -55,3 +55,10 @@
 - [x] Add "Convert Lead to Client" button on Leads page
 - [x] Add MRR tracking chart to Console Dashboard
 - [x] Build Vapi webhook receiver endpoint (store transcripts in CRM)
+- [x] Design onboarding checklist data model (steps, statuses, automation log)
+- [x] Add onboardingChecklist table to schema (29 columns, one row per client)
+- [x] Build tRPC procedures: get, updateStep, sendWelcomeEmail, sendOnboardingForm, generatePrompt, goLive
+- [x] Build Console per-client Onboarding Checklist page (/console/crm/:id/checklist)
+- [x] Wire automations: welcome email, onboarding form send, prompt generation, go-live notification
+- [x] Add Checklist button to CRM Client Detail header
+- [x] Write vitest tests for checklist procedures (7 new tests, 56 total passing)

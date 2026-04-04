@@ -381,3 +381,82 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
 
 export type VoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferSelect;
 export type InsertVoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferInsert;
+
+// ─── ONBOARDING CHECKLISTS ────────────────────────────────────────────────────
+/**
+ * Per-client onboarding checklist — tracks the 9-step delivery process.
+ * One row per CRM client. Steps auto-advance via webhooks or manual triggers.
+ *
+ * Step statuses: "pending" | "in-progress" | "done" | "skipped"
+ *
+ * Automated steps (fire without manual action):
+ *   - paymentConfirmed: set by Stripe webhook
+ *   - crmCreated: set when CRM client is created
+ *   - formCompleted: set when client submits the onboarding form
+ *
+ * One-click steps (triggered via Console button):
+ *   - welcomeEmailSent: sends welcome email via LLM + stores CRM interaction
+ *   - formSent: generates signed onboarding URL + sends email
+ *   - promptBuilt: triggers AI prompt generation from onboarding data
+ *   - clientLive: sends go-live email + sets CRM stage to active
+ *
+ * Manual steps (you do these outside the app):
+ *   - vapiConfigured: you paste the Vapi assistant ID into the CRM
+ *   - testCallCompleted: you tick this after calling the number yourself
+ */
+export const onboardingChecklists = mysqlTable("onboarding_checklists", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to CRM client */
+  clientId: int("clientId").notNull().unique(),
+
+  // ── Step 1: Payment confirmed ──────────────────────────────────────────────
+  paymentConfirmedStatus: mysqlEnum("paymentConfirmedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  paymentConfirmedAt: timestamp("paymentConfirmedAt"),
+  paymentConfirmedNote: text("paymentConfirmedNote"),
+
+  // ── Step 2: CRM client created ─────────────────────────────────────────────
+  crmCreatedStatus: mysqlEnum("crmCreatedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  crmCreatedAt: timestamp("crmCreatedAt"),
+
+  // ── Step 3: Welcome email sent ─────────────────────────────────────────────
+  welcomeEmailStatus: mysqlEnum("welcomeEmailStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  welcomeEmailSentAt: timestamp("welcomeEmailSentAt"),
+  welcomeEmailContent: text("welcomeEmailContent"),
+
+  // ── Step 4: Onboarding form sent ───────────────────────────────────────────
+  formSentStatus: mysqlEnum("formSentStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  formSentAt: timestamp("formSentAt"),
+  /** Signed token for the onboarding form URL */
+  formToken: varchar("formToken", { length: 128 }),
+
+  // ── Step 5: Onboarding form completed ─────────────────────────────────────
+  formCompletedStatus: mysqlEnum("formCompletedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  formCompletedAt: timestamp("formCompletedAt"),
+
+  // ── Step 6: Prompt built ───────────────────────────────────────────────────
+  promptBuiltStatus: mysqlEnum("promptBuiltStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  promptBuiltAt: timestamp("promptBuiltAt"),
+  /** ID of the saved prompt record */
+  savedPromptId: int("savedPromptId"),
+
+  // ── Step 7: Vapi agent configured ─────────────────────────────────────────
+  vapiConfiguredStatus: mysqlEnum("vapiConfiguredStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  vapiConfiguredAt: timestamp("vapiConfiguredAt"),
+  vapiAgentId: varchar("vapiAgentId", { length: 255 }),
+
+  // ── Step 8: Test call completed ────────────────────────────────────────────
+  testCallStatus: mysqlEnum("testCallStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  testCallAt: timestamp("testCallAt"),
+  testCallNote: text("testCallNote"),
+
+  // ── Step 9: Client live ────────────────────────────────────────────────────
+  clientLiveStatus: mysqlEnum("clientLiveStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
+  clientLiveAt: timestamp("clientLiveAt"),
+  goLiveEmailContent: text("goLiveEmailContent"),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type OnboardingChecklist = typeof onboardingChecklists.$inferSelect;
+export type InsertOnboardingChecklist = typeof onboardingChecklists.$inferInsert;
