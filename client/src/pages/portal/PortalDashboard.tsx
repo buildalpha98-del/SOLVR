@@ -5,6 +5,7 @@
  * - KPI cards: total calls, calls this month, active jobs, won revenue
  * - Call volume chart (last 14 days)
  * - Pipeline revenue estimate
+ * - AI Weekly Insight (full-managed plan) — live LLM-generated summary
  * - Upgrade prompt for locked features
  */
 import PortalLayout from "./PortalLayout";
@@ -12,9 +13,10 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
+import { Streamdown } from "streamdown";
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -81,6 +83,19 @@ export default function PortalDashboard() {
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const features = me?.features ?? [];
+  const hasInsights = features.includes("ai-insights");
+
+  // AI Weekly Insight — only fetched for full-managed clients
+  const {
+    data: insightData,
+    isLoading: insightLoading,
+    refetch: refetchInsight,
+    isFetching: insightFetching,
+  } = trpc.portal.getWeeklyInsight.useQuery(undefined, {
+    enabled: hasInsights,
+    staleTime: 30 * 60 * 1000, // Cache 30 min — LLM call is expensive
+    retry: 1,
+  });
 
   return (
     <PortalLayout activeTab="dashboard">
@@ -228,11 +243,52 @@ export default function PortalDashboard() {
               </div>
             )}
 
-            {/* AI Insights teaser */}
-            {!features.includes("ai-insights") ? (
+            {/* AI Weekly Insight */}
+            {hasInsights ? (
+              <div
+                className="rounded-xl p-5"
+                style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.18)" }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
+                    <h2 className="text-sm font-semibold text-white">AI Weekly Insight</h2>
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                      style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                    >
+                      Full Managed
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => refetchInsight()}
+                    disabled={insightFetching}
+                    className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+                    style={{ color: "rgba(255,255,255,0.4)" }}
+                    title="Refresh insight"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${insightFetching ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+                {insightLoading || insightFetching ? (
+                  <div className="flex items-center gap-2 py-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">Generating your weekly insight…</span>
+                  </div>
+                ) : insightData?.insight ? (
+                  <div className="text-sm leading-relaxed prose-sm" style={{ color: "rgba(255,255,255,0.78)" }}>
+                    <Streamdown>{insightData.insight}</Streamdown>
+                  </div>
+                ) : (
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    No insight available yet — your AI receptionist needs a few calls to generate meaningful analysis.
+                  </p>
+                )}
+              </div>
+            ) : (
               <div
                 className="rounded-xl p-5 flex items-start gap-4"
-                style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}
+                style={{ background: "rgba(245,166,35,0.04)", border: "1px solid rgba(245,166,35,0.12)" }}
               >
                 <Sparkles className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: "#F5A623" }} />
                 <div>
@@ -249,7 +305,7 @@ export default function PortalDashboard() {
                   </a>
                 </div>
               </div>
-            ) : null}
+            )}
           </>
         ) : (
           <div className="text-center py-20" style={{ color: "rgba(255,255,255,0.4)" }}>

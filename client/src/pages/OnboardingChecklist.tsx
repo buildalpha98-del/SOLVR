@@ -356,6 +356,14 @@ export default function OnboardingChecklist() {
     onError: (e) => toast.error(e.message),
   });
 
+  const provisionVapiAgent = trpc.checklist.provisionVapiAgent.useMutation({
+    onSuccess: (data) => {
+      utils.checklist.get.invalidate({ clientId });
+      toast.success(`Vapi assistant created! ID: ${data.assistantId}`);
+    },
+    onError: (e) => toast.error(`Vapi provisioning failed: ${e.message}`),
+  });
+
   // Auth guard
   if (authLoading) {
     return (
@@ -611,8 +619,8 @@ export default function OnboardingChecklist() {
             <StepCard
               stepNumber={7}
               title="Vapi Agent Configured"
-              description="Create the Vapi assistant, paste in the generated system prompt and first message, and copy the Vapi assistant ID back here."
-              automationType="manual"
+              description="Auto-provision a Vapi assistant directly from the generated prompt — no manual copy-paste required. Requires the VAPI_API_KEY secret to be set. Or enter an existing agent ID manually."
+              automationType="one-click"
               status={(checklist as unknown as ChecklistData).vapiConfiguredStatus}
               completedAt={(checklist as unknown as ChecklistData).vapiConfiguredAt}
               skippable
@@ -636,15 +644,30 @@ export default function OnboardingChecklist() {
                   </Button>
                 </div>
               ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setVapiModalOpen(true)}
-                  className="h-8 text-xs gap-1.5 border-slate-600 text-slate-400 hover:text-slate-200 mt-1"
-                >
-                  <Radio className="w-3 h-3" />
-                  Enter Vapi Agent ID
-                </Button>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <Button
+                    size="sm"
+                    onClick={() => provisionVapiAgent.mutate({ clientId })}
+                    disabled={provisionVapiAgent.isPending || (checklist as unknown as ChecklistData).promptBuiltStatus !== "done"}
+                    className="h-8 text-xs gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold"
+                    title={(checklist as unknown as ChecklistData).promptBuiltStatus !== "done" ? "Generate the Vapi prompt first (Step 6)" : ""}
+                  >
+                    {provisionVapiAgent.isPending ? (
+                      <><Loader2 className="w-3 h-3 animate-spin" /> Creating assistant…</>
+                    ) : (
+                      <><Radio className="w-3 h-3" /> Auto-Provision Vapi Agent</>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setVapiModalOpen(true)}
+                    className="h-8 text-xs gap-1.5 border-slate-600 text-slate-400 hover:text-slate-200"
+                  >
+                    <Copy className="w-3 h-3" />
+                    Enter ID manually
+                  </Button>
+                </div>
               )}
             </StepCard>
 

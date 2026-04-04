@@ -84,3 +84,12 @@
 - [x] PortalLayout Dashboard href was /portal (PortalLogin): fixed to /portal/dashboard
 - [x] goLive procedure now generates portal access token and includes portal URL in go-live email
 - [x] 78 vitest tests passing, 0 TypeScript errors
+
+## Pre-Publish Improvements (8.5 target)
+- [x] Portal AI Weekly Insight — LLM-generated summary card on Dashboard (busiest job type, conversion rate, top opportunity)
+- [x] "Convert Call to Job" button on Portal Calls tab — one-tap to pre-fill a new job from call data
+- [x] Vapi assistant auto-provisioning — create Vapi assistant via API from generated prompt (remove manual paste step)
+- [x] Onboarding form progress bar — visual step indicator with step names and % complete
+- [x] Onboarding form polish — improved progress indicator, better empty state
+- [x] VAPI_API_KEY secret added and validated
+- [x] 79 vitest tests passing, 0 TypeScript errors

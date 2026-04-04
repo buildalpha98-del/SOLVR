@@ -1,12 +1,13 @@
 /**
  * Portal Calls — transcript list with summaries, job type tags, and search.
- * Available on all plans.
+ * Available on all plans. Includes "Convert to Job" one-tap action.
  */
 import { useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { Phone, Search, ChevronDown, ChevronUp, Clock, MessageSquare } from "lucide-react";
+import { Phone, Search, ChevronDown, ChevronUp, Clock, MessageSquare, Briefcase, CheckCircle2 } from "lucide-react";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 // Job type tag colours
 const JOB_TYPE_COLORS: Record<string, string> = {
@@ -26,21 +27,28 @@ function getTagColor(jobType: string): string {
   return "#F5A623";
 }
 
-function CallCard({ call }: { call: {
-  id: number;
-  title: string;
-  body: string | null;
-  createdAt: Date;
-  type: string;
-} }) {
+function CallCard({
+  call,
+  canCreateJobs,
+}: {
+  call: {
+    id: number;
+    title: string;
+    body: string | null;
+    createdAt: Date;
+    type: string;
+  };
+  canCreateJobs: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [jobCreated, setJobCreated] = useState(false);
 
   // Extract job type from title (format: "Call: Hot water repair — John Smith")
   const titleParts = call.title.replace(/^Call:\s*/i, "").split("—");
   const jobType = titleParts[0]?.trim() ?? call.title;
   const callerName = titleParts[1]?.trim();
 
-  // Extract a summary from the body (first 2 sentences or first 200 chars)
+  // Extract a summary from the body (first 200 chars, strip booking block)
   const summary = call.body
     ? call.body.replace(/BOOKING_CONFIRMED:[\s\S]*$/, "").trim().slice(0, 220)
     : null;
@@ -49,6 +57,30 @@ function CallCard({ call }: { call: {
   const hasBooking = call.body?.includes("BOOKING_CONFIRMED:") ?? false;
 
   const tagColor = getTagColor(jobType);
+
+  const utils = trpc.useUtils();
+  const createJob = trpc.portal.createJob.useMutation({
+    onSuccess: () => {
+      setJobCreated(true);
+      toast.success(`Job created: ${jobType}`, {
+        description: callerName ? `From call with ${callerName}` : "Added to your pipeline.",
+      });
+      utils.portal.listJobs.invalidate();
+    },
+    onError: (err) => {
+      toast.error("Couldn't create job", { description: err.message });
+    },
+  });
+
+  const handleConvertToJob = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (jobCreated || createJob.isPending) return;
+    createJob.mutate({
+      jobType,
+      description: summary ?? undefined,
+      callerName: callerName ?? undefined,
+    });
+  };
 
   return (
     <div
@@ -85,6 +117,14 @@ function CallCard({ call }: { call: {
                     style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}
                   >
                     Booked ✓
+                  </span>
+                )}
+                {jobCreated && (
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-semibold flex items-center gap-1"
+                    style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8" }}
+                  >
+                    <CheckCircle2 className="w-3 h-3" /> Job added
                   </span>
                 )}
               </div>
@@ -130,6 +170,7 @@ function CallCard({ call }: { call: {
           >
             {call.body?.replace(/BOOKING_CONFIRMED:[\s\S]*$/, "").trim() ?? "No transcript available."}
           </pre>
+
           {hasBooking && (
             <div
               className="mt-3 p-3 rounded-lg"
@@ -147,6 +188,42 @@ function CallCard({ call }: { call: {
                   }
                 })()}
               </pre>
+            </div>
+          )}
+
+          {/* Convert to Job button — only visible for plans with jobs feature */}
+          {canCreateJobs && !jobCreated && (
+            <button
+              onClick={handleConvertToJob}
+              disabled={createJob.isPending}
+              className="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+              style={{
+                background: "rgba(245,166,35,0.1)",
+                border: "1px solid rgba(245,166,35,0.25)",
+                color: "#F5A623",
+                cursor: createJob.isPending ? "not-allowed" : "pointer",
+                opacity: createJob.isPending ? 0.6 : 1,
+              }}
+            >
+              {createJob.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Briefcase className="w-3.5 h-3.5" />
+              )}
+              {createJob.isPending ? "Adding to pipeline…" : "Convert to Job"}
+            </button>
+          )}
+          {canCreateJobs && jobCreated && (
+            <div
+              className="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold"
+              style={{
+                background: "rgba(99,102,241,0.08)",
+                border: "1px solid rgba(99,102,241,0.2)",
+                color: "#818cf8",
+              }}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Added to your job pipeline
             </div>
           )}
         </div>
@@ -170,6 +247,9 @@ export default function PortalCalls() {
     { search: debouncedSearch || undefined, limit: 50, offset: 0 },
     { staleTime: 60 * 1000 }
   );
+
+  const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const canCreateJobs = me?.features?.includes("jobs") ?? false;
 
   return (
     <PortalLayout activeTab="calls">
@@ -221,7 +301,7 @@ export default function PortalCalls() {
         ) : (
           <div className="space-y-3">
             {data?.calls.map(call => (
-              <CallCard key={call.id} call={call} />
+              <CallCard key={call.id} call={call} canCreateJobs={canCreateJobs} />
             ))}
           </div>
         )}

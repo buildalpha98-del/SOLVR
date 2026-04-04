@@ -16,10 +16,11 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient, createPortalSession } from "../db";
+import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient, createPortalSession, listCrmInteractionsByClient } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
 import { sendWelcomeEmailToClient, sendOnboardingFormToClient, sendGoLiveEmailToClient } from "../gmail";
+import { createVapiAssistant } from "../vapi";
 import crypto from "crypto";
 
 // ─── Helper: generate a signed onboarding token ──────────────────────────────
@@ -349,6 +350,60 @@ Website: ${client.website || "Not provided"}`,
       return { success: true, systemPrompt: parsed.systemPrompt, firstMessage: parsed.firstMessage };
     }),
 
+  /**
+   * Automation: Auto-provision a Vapi assistant from the generated prompt.
+   * Calls the Vapi API to create the assistant, stores the assistant ID,
+   * and marks the vapiConfigured step as done — eliminating the manual paste step.
+   */
+  provisionVapiAgent: protectedProcedure
+    .input(z.object({ clientId: z.number() }))
+    .mutation(async ({ input }) => {
+      const client = await getCrmClientById(input.clientId);
+      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      // Retrieve the generated prompt from the most recent pinned CRM interaction
+      const interactions = await listCrmInteractionsByClient(input.clientId);
+      const promptInteraction = interactions.find(
+        (i) => i.type === "system" && i.title.startsWith("AI prompt generated")
+      );
+      if (!promptInteraction) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No generated prompt found. Run \"Generate Vapi Prompt\" first.",
+        });
+      }
+      // Extract system prompt and first message from the stored body
+      const body = promptInteraction.body ?? "";
+      const promptMatch = body.match(/```\n([\s\S]*?)\n```/);
+      const firstMsgMatch = body.match(/\*\*First Message:\*\*\n([\s\S]*)$/);
+      const systemPrompt = promptMatch?.[1]?.trim() ?? "";
+      const firstMessage = firstMsgMatch?.[1]?.trim() ?? `G'day! You've reached ${client.businessName}. How can I help you today?`;
+      if (!systemPrompt) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Could not extract system prompt from stored interaction. Re-generate the prompt.",
+        });
+      }
+      // Create the Vapi assistant
+      const assistant = await createVapiAssistant({
+        name: `${client.businessName} — AI Receptionist`,
+        systemPrompt,
+        firstMessage,
+      });
+      // Store the assistant ID on the client and mark step done
+      await updateCrmClient(input.clientId, { vapiAgentId: assistant.id });
+      await updateChecklist(input.clientId, {
+        vapiConfiguredStatus: "done",
+        vapiConfiguredAt: new Date(),
+        vapiAgentId: assistant.id,
+      });
+      await insertCrmInteraction({
+        clientId: input.clientId,
+        type: "system",
+        title: `Vapi assistant auto-provisioned — ${client.businessName}`,
+        body: `Assistant ID: \`${assistant.id}\`\nCreated via Vapi API. No manual configuration required.`,
+      });
+      return { success: true, assistantId: assistant.id };
+    }),
   /**
    * Automation: Send go-live notification.
    * Drafts a go-live email, stores it, sets client stage to active.

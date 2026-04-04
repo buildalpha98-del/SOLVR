@@ -285,15 +285,43 @@ export default function ClientOnboardingForm() {
         </div>
 
         {/* Progress bar */}
-        <div className="flex gap-1.5 mb-8">
-          {STEPS.map((s, i) => (
-            <div
-              key={s.id}
-              className={`h-1.5 flex-1 rounded-full transition-all ${
-                i < step ? "bg-amber-400" : i === step ? "bg-amber-400/60" : "bg-white/10"
-              }`}
-            />
-          ))}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-white/70 text-xs font-semibold">{currentStep.label}</span>
+            <span className="text-amber-400 text-xs font-semibold">{Math.round((step / STEPS.length) * 100)}% complete</span>
+          </div>
+          <div className="flex gap-1.5 mb-2">
+            {STEPS.map((s, i) => (
+              <div
+                key={s.id}
+                className={`h-2 flex-1 rounded-full transition-all duration-300 ${
+                  i < step ? "bg-amber-400" : i === step ? "bg-amber-400/60" : "bg-white/10"
+                }`}
+              />
+            ))}
+          </div>
+          <div className="flex">
+            {STEPS.map((s, i) => (
+              <div
+                key={s.id}
+                className="flex-1 flex flex-col items-center"
+              >
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+                  i < step
+                    ? "bg-amber-400 border-amber-400"
+                    : i === step
+                    ? "bg-transparent border-amber-400"
+                    : "bg-transparent border-white/20"
+                }`}>
+                  {i < step && <span className="text-[8px] text-[#0F1F3D] font-bold">✓</span>}
+                  {i === step && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 block" />}
+                </div>
+                <span className={`text-[9px] mt-1 font-medium text-center leading-tight ${
+                  i <= step ? "text-amber-300/80" : "text-white/20"
+                }`}>{s.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Step card */}
