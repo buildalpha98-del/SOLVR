@@ -480,6 +480,8 @@ export const portalSessions = mysqlTable("portal_sessions", {
   sessionToken: varchar("sessionToken", { length: 128 }),
   sessionExpiresAt: timestamp("sessionExpiresAt"),
   lastAccessedAt: timestamp("lastAccessedAt"),
+  /** When the portal access email was last sent to the client */
+  lastEmailSentAt: timestamp("lastEmailSentAt"),
   isRevoked: boolean("isRevoked").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

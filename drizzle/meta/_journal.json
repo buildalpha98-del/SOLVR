@@ -43,6 +43,13 @@
       "when": 1775291587213,
       "tag": "0005_rich_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775473244745,
+      "tag": "0006_supreme_redwing",
+      "breakpoints": true
     }
   ]
 }

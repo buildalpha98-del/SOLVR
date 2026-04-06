@@ -2,9 +2,12 @@
  * Console Portal Clients — Admin page for managing client portal access.
  *
  * Features:
+ * - Add New Client (creates CRM record + portal session in one step)
  * - Table of all active CRM clients with portal status
  * - Generate magic link (copy to clipboard)
- * - Send magic link via email
+ * - Send magic link via Gmail compose
+ * - Bulk send to selected clients
+ * - Email sent timestamp column
  * - Revoke portal access
  * - Status badges: No Access / Link Sent / Active Session
  */
@@ -35,7 +38,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Link2,
@@ -49,6 +61,8 @@ import {
   Clock,
   Wifi,
   WifiOff,
+  UserPlus,
+  SendHorizonal,
 } from "lucide-react";
 
 type Client = {
@@ -67,9 +81,16 @@ type Client = {
     hasAccess: boolean;
     accessToken: string | null;
     lastAccessedAt: Date | null;
+    lastEmailSentAt: Date | null;
     sessionActive: boolean;
     portalCreatedAt: Date | null;
   };
+};
+
+const packageLabels: Record<string, string> = {
+  "setup-only": "Setup Only",
+  "setup-monthly": "Starter",
+  "full-managed": "Professional",
 };
 
 function PortalStatusBadge({ portal }: { portal: Client["portal"] }) {
@@ -110,6 +131,24 @@ function formatRelativeTime(date: Date | null): string {
   return `${days}d ago`;
 }
 
+function buildGmailUrl(client: Client, magicLink: string): string {
+  const isResend = client.portal.hasAccess;
+  const subject = encodeURIComponent(
+    isResend
+      ? `Your Solvr portal access — ${client.businessName}`
+      : `Welcome to your Solvr dashboard — ${client.businessName}`
+  );
+  const body = encodeURIComponent(
+    `Hi ${client.contactName},\n\n` +
+    (isResend
+      ? `Here's your updated access link to your Solvr client portal.`
+      : `Your AI Receptionist is live and your client portal is ready.`) +
+    `\n\nClick the link below to access your dashboard:\n${magicLink}\n\nThis link is unique to you — please don't share it. It gives you access to:\n• Live call logs from your AI Receptionist\n• Job pipeline and booking status\n• Performance metrics and revenue tracking\n• Calendar and upcoming appointments\n\nIf you have any questions, reply to this email or call us on 0400 000 000.\n\nStop doing admin. Start doing work.\n— The Solvr Team\nsolvr.com.au`
+  );
+  const to = encodeURIComponent(client.contactEmail ?? "");
+  return `https://mail.google.com/mail/?view=cm&to=${to}&su=${subject}&body=${body}`;
+}
+
 export default function ConsolePortalClients() {
   const utils = trpc.useUtils();
 
@@ -120,31 +159,32 @@ export default function ConsolePortalClients() {
   });
 
   const sendLink = trpc.adminPortal.generateMagicLink.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       utils.adminPortal.listClients.invalidate();
-      // Open Gmail compose with pre-filled email body
-      if (selectedClient) {
-        const isResend = selectedClient.portal.hasAccess;
-        const subject = encodeURIComponent(
-          isResend
-            ? `Your Solvr portal access — ${selectedClient.businessName}`
-            : `Welcome to your Solvr dashboard — ${selectedClient.businessName}`
-        );
-        const body = encodeURIComponent(
-          `Hi ${selectedClient.contactName},\n\n` +
-          (isResend
-            ? `Here's your updated access link to your Solvr client portal.`
-            : `Your AI Receptionist is live and your client portal is ready.`) +
-          `\n\nClick the link below to access your dashboard:\n${data.magicLink}\n\nThis link is unique to you — please don't share it. It gives you access to:\n• Live call logs from your AI Receptionist\n• Job pipeline and booking status\n• Performance metrics and revenue tracking\n• Calendar and upcoming appointments\n\nIf you have any questions, reply to this email or call us on 0400 000 000.\n\nStop doing admin. Start doing work.\n— The Solvr Team\nsolvr.com.au`
-        );
-        const to = encodeURIComponent(selectedClient.contactEmail ?? "");
-        window.open(`https://mail.google.com/mail/?view=cm&to=${to}&su=${subject}&body=${body}`, "_blank");
+      const client = (clients ?? []).find((c: Client) => c.id === variables.clientId);
+      if (client) {
+        window.open(buildGmailUrl(client, data.magicLink), "_blank");
         toast.success("Gmail compose opened — review and send.");
       }
       setSendDialogOpen(false);
     },
-    onError: (err) => {
+    onError: (err: { message: string }) => {
       toast.error(`Failed to generate link: ${err.message}`);
+    },
+  });
+
+  const createClient = trpc.adminPortal.createClientWithPortal.useMutation({
+    onSuccess: (data) => {
+      utils.adminPortal.listClients.invalidate();
+      setAddDialogOpen(false);
+      resetNewClient();
+      setGeneratedLink(data.magicLink);
+      setSelectedClient(null);
+      setLinkDialogOpen(true);
+      toast.success("Client created — portal access link ready.");
+    },
+    onError: (err: { message: string }) => {
+      toast.error(err.message);
     },
   });
 
@@ -161,8 +201,24 @@ export default function ConsolePortalClients() {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkSending, setBulkSending] = useState(false);
+
+  const emptyNewClient = {
+    contactName: "",
+    contactEmail: "",
+    contactPhone: "",
+    businessName: "",
+    tradeType: "",
+    packageType: "setup-monthly" as "setup-only" | "setup-monthly" | "full-managed",
+  };
+  const [newClient, setNewClient] = useState(emptyNewClient);
+  function resetNewClient() {
+    setNewClient(emptyNewClient);
+  }
 
   const baseUrl = window.location.origin;
 
@@ -174,6 +230,17 @@ export default function ConsolePortalClients() {
       (c.contactEmail?.toLowerCase().includes(q) ?? false)
     );
   });
+
+  const clientsWithoutAccess = (clients ?? []).filter((c: Client) => !c.portal.hasAccess);
+
+  const stats = clients
+    ? [
+        { label: "Total Clients", value: clients.length, color: "text-foreground" },
+        { label: "Portal Access", value: clients.filter((c: Client) => c.portal.hasAccess).length, color: "text-amber-400" },
+        { label: "Active Sessions", value: clients.filter((c: Client) => c.portal.sessionActive).length, color: "text-emerald-400" },
+        { label: "No Access", value: clientsWithoutAccess.length, color: "text-muted-foreground" },
+      ]
+    : [];
 
   async function handleGenerateLink(client: Client) {
     setSelectedClient(client);
@@ -200,61 +267,101 @@ export default function ConsolePortalClients() {
     setRevokeDialogOpen(true);
   }
 
-  const packageLabels: Record<string, string> = {
-    "setup-only": "Setup Only",
-    "setup-monthly": "Starter",
-    "full-managed": "Professional",
-  };
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredClients.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredClients.map((c: Client) => c.id)));
+    }
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkSend() {
+    const targets = (clients ?? []).filter((c: Client) => selectedIds.has(c.id));
+    if (targets.length === 0) return;
+    setBulkSending(true);
+    let sent = 0;
+    for (const client of targets) {
+      try {
+        const result = await generateLink.mutateAsync({ clientId: client.id, baseUrl });
+        window.open(buildGmailUrl(client, result.magicLink), "_blank");
+        sent++;
+        await new Promise((r) => setTimeout(r, 700));
+      } catch {
+        toast.error(`Failed for ${client.businessName}`);
+      }
+    }
+    setBulkSending(false);
+    setSelectedIds(new Set());
+    utils.adminPortal.listClients.invalidate();
+    toast.success(`${sent} Gmail compose windows opened.`);
+  }
 
   return (
     <DashboardLayout>
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Users className="w-6 h-6 text-amber-400" />
               Client Portal Access
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Generate and send magic links to give clients access to their Solvr portal.
+              Manage client portal access — generate magic links, send onboarding emails, and track logins.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+            {clientsWithoutAccess.length > 0 && selectedIds.size === 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(new Set(clientsWithoutAccess.map((c: Client) => c.id)))}
+                className="gap-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              >
+                <SendHorizonal className="w-4 h-4" />
+                Select {clientsWithoutAccess.length} without access
+              </Button>
+            )}
+            {selectedIds.size > 0 && (
+              <Button
+                size="sm"
+                onClick={handleBulkSend}
+                disabled={bulkSending}
+                className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
+              >
+                <SendHorizonal className="w-4 h-4" />
+                {bulkSending ? "Sending..." : `Send to ${selectedIds.size} clients`}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => setAddDialogOpen(true)}
+              className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add Client
+            </Button>
+          </div>
         </div>
 
-        {/* Stats bar */}
-        {clients && (
-          <div className="grid grid-cols-3 gap-4">
-              {([
-              {
-                label: "Total Clients",
-                value: clients.length,
-                color: "text-foreground",
-              },
-              {
-                label: "Portal Access Granted",
-                value: clients.filter((c: Client) => c.portal.hasAccess).length,
-                color: "text-amber-400",
-              },
-              {
-                label: "Active Sessions",
-                value: clients.filter((c: Client) => c.portal.sessionActive).length,
-                color: "text-emerald-400",
-              },
-            ] as { label: string; value: number; color: string }[]).map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-lg border border-border bg-card p-4"
-              >
+        {/* Stats */}
+        {!isLoading && stats.length > 0 && (
+          <div className="grid grid-cols-4 gap-4">
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-lg border border-border bg-card p-4">
                 <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
                 <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
               </div>
@@ -275,30 +382,46 @@ export default function ConsolePortalClients() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filteredClients.length > 0 && selectedIds.size === filteredClients.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Business</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Portal Status</TableHead>
                 <TableHead>Last Accessed</TableHead>
+                <TableHead>Email Sent</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                     Loading clients...
                   </TableCell>
                 </TableRow>
               ) : filteredClients.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    {searchQuery ? "No clients match your search." : "No active clients found."}
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    {searchQuery ? "No clients match your search." : "No active clients found. Add your first client above."}
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredClients.map((client: Client) => (
-                  <TableRow key={client.id} className="hover:bg-muted/20">
+                  <TableRow
+                    key={client.id}
+                    className={`hover:bg-muted/20 ${selectedIds.has(client.id) ? "bg-amber-500/5" : ""}`}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(client.id)}
+                        onCheckedChange={() => toggleSelect(client.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="font-medium">{client.businessName}</div>
                       <div className="text-xs text-muted-foreground">{client.tradeType ?? "—"}</div>
@@ -327,9 +450,14 @@ export default function ConsolePortalClients() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Mail className="w-3 h-3" />
+                        {formatRelativeTime(client.portal.lastEmailSentAt)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
                         <TooltipProvider>
-                          {/* Generate link */}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -344,8 +472,6 @@ export default function ConsolePortalClients() {
                             </TooltipTrigger>
                             <TooltipContent>Generate magic link</TooltipContent>
                           </Tooltip>
-
-                          {/* Send email */}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -358,14 +484,8 @@ export default function ConsolePortalClients() {
                                 <Mail className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              {client.contactEmail
-                                ? "Send portal access email"
-                                : "No email on file"}
-                            </TooltipContent>
+                            <TooltipContent>Send access email</TooltipContent>
                           </Tooltip>
-
-                          {/* Revoke */}
                           {client.portal.hasAccess && (
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -392,63 +512,156 @@ export default function ConsolePortalClients() {
         </div>
       </div>
 
-      {/* Generate Link Dialog */}
+      {/* Add Client Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-amber-400" />
+              Add New Client
+            </DialogTitle>
+            <DialogDescription>
+              Creates a CRM record and generates a portal access link in one step.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="businessName">Business Name *</Label>
+                <Input
+                  id="businessName"
+                  placeholder="Thompson Plumbing"
+                  value={newClient.businessName}
+                  onChange={(e) => setNewClient({ ...newClient, businessName: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tradeType">Trade / Industry</Label>
+                <Input
+                  id="tradeType"
+                  placeholder="Plumber"
+                  value={newClient.tradeType}
+                  onChange={(e) => setNewClient({ ...newClient, tradeType: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="contactName">Contact Name *</Label>
+              <Input
+                id="contactName"
+                placeholder="Jake Thompson"
+                value={newClient.contactName}
+                onChange={(e) => setNewClient({ ...newClient, contactName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="contactEmail">Email Address *</Label>
+              <Input
+                id="contactEmail"
+                type="email"
+                placeholder="jake@thompsonplumbing.com.au"
+                value={newClient.contactEmail}
+                onChange={(e) => setNewClient({ ...newClient, contactEmail: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="contactPhone">Phone</Label>
+              <Input
+                id="contactPhone"
+                placeholder="0412 000 000"
+                value={newClient.contactPhone}
+                onChange={(e) => setNewClient({ ...newClient, contactPhone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="packageType">Package</Label>
+              <Select
+                value={newClient.packageType}
+                onValueChange={(v) =>
+                  setNewClient({ ...newClient, packageType: v as typeof newClient.packageType })
+                }
+              >
+                <SelectTrigger id="packageType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="setup-only">Setup Only</SelectItem>
+                  <SelectItem value="setup-monthly">Starter ($247/mo)</SelectItem>
+                  <SelectItem value="full-managed">Professional ($447/mo)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddDialogOpen(false); resetNewClient(); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newClient.contactName || !newClient.contactEmail || !newClient.businessName) {
+                  toast.error("Business name, contact name, and email are required.");
+                  return;
+                }
+                createClient.mutate({
+                  ...newClient,
+                  contactPhone: newClient.contactPhone || undefined,
+                  tradeType: newClient.tradeType || undefined,
+                  baseUrl,
+                });
+              }}
+              disabled={createClient.isPending}
+              className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
+            >
+              <UserPlus className="w-4 h-4" />
+              {createClient.isPending ? "Creating..." : "Create & Generate Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generated Link Dialog */}
       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Link2 className="w-5 h-5 text-amber-400" />
-              Magic Link Generated
+              Portal Access Link
             </DialogTitle>
             <DialogDescription>
-              Share this link with <strong>{selectedClient?.contactName}</strong> at{" "}
-              <strong>{selectedClient?.businessName}</strong>. It grants direct access to their
-              portal — no password required.
+              {selectedClient
+                ? `Magic link for ${selectedClient.contactName} at ${selectedClient.businessName}.`
+                : "Client created — magic link generated below."}
+              {" "}This link is single-use per session.
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-3">
             <div className="flex gap-2">
-              <Input
-                value={generatedLink ?? ""}
-                readOnly
-                className="font-mono text-xs"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleCopyLink}
-                className="shrink-0"
-              >
-                {copied ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
+              <Input value={generatedLink ?? ""} readOnly className="font-mono text-xs" />
+              <Button variant="outline" size="icon" onClick={handleCopyLink} className="shrink-0">
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              This link is single-use per session. Once the client logs in, a 7-day session cookie
-              is set. Generating a new link invalidates the previous one.
+              Once the client logs in, a 7-day session cookie is set. Generating a new link invalidates the previous one.
             </p>
           </div>
-
           <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => {
-                if (selectedClient) handleSendEmail(selectedClient);
+                if (selectedClient && generatedLink) {
+                  window.open(buildGmailUrl(selectedClient, generatedLink), "_blank");
+                  toast.success("Gmail compose opened.");
+                }
                 setLinkDialogOpen(false);
               }}
               className="gap-2"
             >
               <Mail className="w-4 h-4" />
-              Send via Email
+              Send via Gmail
             </Button>
             <Button
-              onClick={() => {
-                if (generatedLink) window.open(generatedLink, "_blank");
-              }}
+              onClick={() => { if (generatedLink) window.open(generatedLink, "_blank"); }}
               className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
             >
               <ExternalLink className="w-4 h-4" />
@@ -467,12 +680,10 @@ export default function ConsolePortalClients() {
               Send Portal Access Email
             </DialogTitle>
             <DialogDescription>
-              This will generate a fresh magic link and send it to{" "}
-              <strong>{selectedClient?.contactEmail}</strong>. Any existing link will be
-              invalidated.
+              Generates a fresh magic link and opens Gmail compose pre-filled for{" "}
+              <strong>{selectedClient?.contactEmail}</strong>. Any existing link will be invalidated.
             </DialogDescription>
           </DialogHeader>
-
           <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">To</span>
@@ -480,31 +691,31 @@ export default function ConsolePortalClients() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subject</span>
-              <span>
+              <span className="text-right max-w-[260px] truncate">
                 {selectedClient?.portal.hasAccess
                   ? `Your Solvr portal access — ${selectedClient?.businessName}`
                   : `Welcome to your Solvr dashboard — ${selectedClient?.businessName}`}
               </span>
             </div>
+            {selectedClient?.portal.lastEmailSentAt && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last sent</span>
+                <span className="text-amber-400">{formatRelativeTime(selectedClient.portal.lastEmailSentAt)}</span>
+              </div>
+            )}
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={() => {
                 if (!selectedClient) return;
-                sendLink.mutate({
-                  clientId: selectedClient.id,
-                  baseUrl,
-                });
+                sendLink.mutate({ clientId: selectedClient.id, baseUrl });
               }}
               disabled={sendLink.isPending}
               className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
             >
               <Mail className="w-4 h-4" />
-              {sendLink.isPending ? "Sending..." : "Send Email"}
+              {sendLink.isPending ? "Generating..." : "Open Gmail Compose"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -524,9 +735,7 @@ export default function ConsolePortalClients() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRevokeDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setRevokeDialogOpen(false)}>Cancel</Button>
             <Button
               variant="destructive"
               onClick={() => {
