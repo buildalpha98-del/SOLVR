@@ -36,6 +36,7 @@ import OnboardingChecklist from "./pages/OnboardingChecklist";
 // ── Referral Programme ───────────────────────────────────────────────────────
 import ReferralLanding from "./pages/ReferralLanding";
 import ConsoleReferrals from "./pages/ConsoleReferrals";
+import ConsolePortalClients from "./pages/ConsolePortalClients";
 
 // ── Client Portal ─────────────────────────────────────────────────────────────
 import PortalLogin from "./pages/portal/PortalLogin";
@@ -88,6 +89,7 @@ function Router() {
       <Route path="/console/leads" component={AdminLeads} />
       <Route path="/console/prompt-builder" component={PromptBuilder} />
       <Route path="/console/referrals" component={ConsoleReferrals} />
+      <Route path="/console/portal-clients" component={ConsolePortalClients} />
 
       {/* ── Referral landing pages ────────────────────────────────────────── */}
       <Route path="/ref/:code" component={ReferralLanding} />

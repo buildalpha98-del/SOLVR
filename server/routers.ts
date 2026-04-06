@@ -23,6 +23,7 @@ import { stripeRouter } from "./stripe";
 import { checklistRouter } from "./routers/checklist";
 import { portalRouter } from "./routers/portal";
 import { referralRouter } from "./routers/referral";
+import { adminPortalRouter } from "./routers/adminPortal";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1388,6 +1389,7 @@ export const appRouter = router({
   checklist: checklistRouter,
   portal: portalRouter,
   referral: referralRouter,
+  adminPortal: adminPortalRouter,
 });
 
 export type AppRouter = typeof appRouter;
