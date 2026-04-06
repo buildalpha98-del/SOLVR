@@ -39,7 +39,7 @@ import { getSessionCookieOptions } from "../_core/cookies";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ─── Plan feature matrix ──────────────────────────────────────────────────────
 type SolvrPlan = "setup-only" | "setup-monthly" | "full-managed";

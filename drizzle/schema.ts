@@ -468,7 +468,7 @@ export type InsertOnboardingChecklist = typeof onboardingChecklists.$inferInsert
 /**
  * Magic-link session tokens for portal client auth.
  * Each client gets a long-lived access token (never expires unless revoked).
- * A session cookie is issued on first visit (7-day rolling expiry).
+ * A session cookie is issued on first visit (30-day rolling expiry).
  */
 export const portalSessions = mysqlTable("portal_sessions", {
   id: int("id").autoincrement().primaryKey(),

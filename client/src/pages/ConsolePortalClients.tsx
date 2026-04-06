@@ -722,7 +722,7 @@ export default function ConsolePortalClients() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Once the client logs in, a 7-day session cookie is set. Generating a new link invalidates the previous one.
+              Once the client logs in, a 30-day session cookie is set. Generating a new link invalidates the previous one.
             </p>
           </div>
           <DialogFooter className="gap-2">
