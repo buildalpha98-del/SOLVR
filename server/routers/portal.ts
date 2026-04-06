@@ -111,12 +111,8 @@ export const portalRouter = router({
         lastAccessedAt: new Date(),
       });
 
-<<<<<<< Updated upstream
       // Set session cookie using shared cookie options (sameSite: none, secure: true on HTTPS)
       // sameSite: none is required because the tRPC mutation is a cross-origin POST
-=======
-      // Set session cookie using shared helper that correctly detects HTTPS behind the Manus proxy
->>>>>>> Stashed changes
       const cookieOpts = getSessionCookieOptions(ctx.req as unknown as import('express').Request);
       ctx.res.cookie(PORTAL_COOKIE, sessionToken, {
         ...cookieOpts,
