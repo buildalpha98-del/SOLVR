@@ -131,7 +131,7 @@ function makeCtx(sessionToken?: string) {
   const cookies: Record<string, string> = {};
   if (sessionToken) cookies["solvr_portal_session"] = sessionToken;
   return {
-    req: { cookies } as unknown as import("express").Request,
+    req: { cookies, headers: {}, protocol: "http" } as unknown as import("express").Request,
     res: { cookie: vi.fn(), clearCookie: vi.fn() } as unknown as import("express").Response,
     user: null,
   };

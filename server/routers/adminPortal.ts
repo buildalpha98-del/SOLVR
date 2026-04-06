@@ -113,6 +113,7 @@ export const adminPortalRouter = router({
         clientId: portalSessions.clientId,
         accessToken: portalSessions.accessToken,
         sessionToken: portalSessions.sessionToken,
+        sessionExpiresAt: portalSessions.sessionExpiresAt,
         lastAccessedAt: portalSessions.lastAccessedAt,
         lastEmailSentAt: portalSessions.lastEmailSentAt,
         isRevoked: portalSessions.isRevoked,
@@ -134,6 +135,7 @@ export const adminPortalRouter = router({
               lastAccessedAt: session.lastAccessedAt,
               lastEmailSentAt: session.lastEmailSentAt,
               sessionActive: !!session.sessionToken,
+              sessionExpiresAt: session.sessionExpiresAt,
               portalCreatedAt: session.createdAt,
             }
           : {
@@ -142,6 +144,7 @@ export const adminPortalRouter = router({
               lastAccessedAt: null,
               lastEmailSentAt: null,
               sessionActive: false,
+              sessionExpiresAt: null,
               portalCreatedAt: null,
             },
       };

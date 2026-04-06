@@ -5,7 +5,8 @@
 import { useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { Plus, DollarSign, X, Loader2, Lock, ArrowRight } from "lucide-react";
+import { Plus, DollarSign, X, Loader2, Lock } from "lucide-react";
+import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 
 type JobStage = "new_lead" | "quoted" | "booked" | "completed" | "lost";
@@ -246,13 +247,7 @@ export default function PortalJobs() {
           <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
             Track every lead from first call to completed job. See your pipeline value, drag jobs between stages, and know exactly what's in the works.
           </p>
-          <a
-            href="mailto:hello@solvr.com.au?subject=Upgrade to Setup Monthly"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-          >
-            Upgrade Your Plan <ArrowRight className="w-4 h-4" />
-          </a>
+          <UpgradeButton plan="professional" label="Upgrade Your Plan" size="lg" />
         </div>
       </PortalLayout>
     );

@@ -473,6 +473,72 @@ export const portalRouter = router({
       return { insight: typeof content === "string" ? content : "Insight not available yet." };
     }),
 
+  // ─── Upgrade ────────────────────────────────────────────────────────────────
+
+  /**
+   * Create a Stripe checkout session for a portal client to upgrade their plan.
+   * Called from the client portal upgrade CTAs.
+   */
+  createUpgradeCheckout: publicProcedure
+    .input(
+      z.object({
+        plan: z.enum(["starter", "professional"]),
+        billingCycle: z.enum(["monthly", "annual"]),
+        origin: z.string().url(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = result;
+
+      // Dynamic import to avoid Stripe initialisation errors when key is absent
+      const stripeModule = await import("stripe").catch(() => null);
+      if (!stripeModule) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe not available." });
+      const stripeKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe not configured." });
+      const Stripe = stripeModule.default;
+      const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+
+      const { VOICE_AGENT_PLANS } = await import("../stripeProducts");
+      const planConfig = VOICE_AGENT_PLANS[input.plan];
+      if (!planConfig) throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid plan." });
+      const priceConfig = input.billingCycle === "annual" ? planConfig.annual : planConfig.monthly;
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        line_items: [{
+          price_data: {
+            currency: priceConfig.currency,
+            product_data: { name: planConfig.name, description: planConfig.description },
+            unit_amount: priceConfig.amount,
+            recurring: { interval: priceConfig.interval },
+          },
+          quantity: 1,
+        }],
+        success_url: `${input.origin}/portal/dashboard?upgraded=1`,
+        cancel_url: `${input.origin}/portal/dashboard`,
+        customer_email: client.contactEmail ?? undefined,
+        subscription_data: {
+          metadata: {
+            plan: input.plan,
+            billingCycle: input.billingCycle,
+            clientId: String(client.id),
+            clientName: client.contactName ?? "",
+          },
+        },
+        metadata: {
+          plan: input.plan,
+          billingCycle: input.billingCycle,
+          clientId: String(client.id),
+          customerEmail: client.contactEmail ?? "",
+        },
+        allow_promotion_codes: true,
+      });
+
+      return { url: session.url! };
+    }),
+
   // ─── Admin: generate portal access link ────────────────────────────────────
 
   /**

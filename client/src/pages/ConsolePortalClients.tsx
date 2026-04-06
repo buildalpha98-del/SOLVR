@@ -3,7 +3,9 @@
  *
  * Features:
  * - Add New Client (creates CRM record + portal session in one step)
+ *   - Auto-send toggle: if checked, opens Gmail compose immediately after creation
  * - Table of all active CRM clients with portal status
+ * - Expiry warning badge: amber "Expires in Xd" for sessions expiring within 48 hours
  * - Generate magic link (copy to clipboard)
  * - Send magic link via Gmail compose
  * - Bulk send to selected clients
@@ -63,6 +65,7 @@ import {
   WifiOff,
   UserPlus,
   SendHorizonal,
+  AlertTriangle,
 } from "lucide-react";
 
 type Client = {
@@ -83,6 +86,7 @@ type Client = {
     lastAccessedAt: Date | null;
     lastEmailSentAt: Date | null;
     sessionActive: boolean;
+    sessionExpiresAt: Date | null;
     portalCreatedAt: Date | null;
   };
 };
@@ -92,6 +96,13 @@ const packageLabels: Record<string, string> = {
   "setup-monthly": "Starter",
   "full-managed": "Professional",
 };
+
+/** Returns hours until expiry, or null if no expiry */
+function hoursUntilExpiry(expiresAt: Date | null): number | null {
+  if (!expiresAt) return null;
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  return diff > 0 ? diff / 3600000 : 0;
+}
 
 function PortalStatusBadge({ portal }: { portal: Client["portal"] }) {
   if (!portal.hasAccess) {
@@ -103,6 +114,23 @@ function PortalStatusBadge({ portal }: { portal: Client["portal"] }) {
     );
   }
   if (portal.sessionActive) {
+    const hours = hoursUntilExpiry(portal.sessionExpiresAt);
+    // Show expiry warning if session expires within 48 hours
+    if (hours !== null && hours <= 48) {
+      const days = Math.ceil(hours / 24);
+      return (
+        <div className="flex flex-col gap-1">
+          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 gap-1">
+            <Wifi className="w-3 h-3" />
+            Active Session
+          </Badge>
+          <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30 gap-1 text-[10px]">
+            <AlertTriangle className="w-2.5 h-2.5" />
+            {hours <= 0 ? "Expired" : days <= 1 ? "Expires today" : `Expires in ${days}d`}
+          </Badge>
+        </div>
+      );
+    }
     return (
       <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 gap-1">
         <Wifi className="w-3 h-3" />
@@ -174,14 +202,45 @@ export default function ConsolePortalClients() {
   });
 
   const createClient = trpc.adminPortal.createClientWithPortal.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       utils.adminPortal.listClients.invalidate();
       setAddDialogOpen(false);
+
+      // If auto-send is checked, open Gmail compose immediately
+      if (autoSendEmail) {
+        // Build a temporary client object for the Gmail URL builder
+        const tempClient: Client = {
+          id: data.clientId,
+          contactName: variables.contactName,
+          contactEmail: variables.contactEmail,
+          contactPhone: variables.contactPhone ?? null,
+          businessName: variables.businessName,
+          tradeType: variables.tradeType ?? null,
+          stage: "active",
+          package: variables.packageType ?? null,
+          mrr: null,
+          isActive: true,
+          createdAt: new Date(),
+          portal: {
+            hasAccess: false, // brand new client
+            accessToken: data.accessToken,
+            lastAccessedAt: null,
+            lastEmailSentAt: null,
+            sessionActive: false,
+            sessionExpiresAt: null,
+            portalCreatedAt: new Date(),
+          },
+        };
+        window.open(buildGmailUrl(tempClient, data.magicLink), "_blank");
+        toast.success("Client created — Gmail compose opened.");
+      } else {
+        setGeneratedLink(data.magicLink);
+        setSelectedClient(null);
+        setLinkDialogOpen(true);
+        toast.success("Client created — portal access link ready.");
+      }
+
       resetNewClient();
-      setGeneratedLink(data.magicLink);
-      setSelectedClient(null);
-      setLinkDialogOpen(true);
-      toast.success("Client created — portal access link ready.");
     },
     onError: (err: { message: string }) => {
       toast.error(err.message);
@@ -206,6 +265,7 @@ export default function ConsolePortalClients() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkSending, setBulkSending] = useState(false);
+  const [autoSendEmail, setAutoSendEmail] = useState(true);
 
   const emptyNewClient = {
     contactName: "",
@@ -586,10 +646,26 @@ export default function ConsolePortalClients() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="setup-only">Setup Only</SelectItem>
-                  <SelectItem value="setup-monthly">Starter ($247/mo)</SelectItem>
-                  <SelectItem value="full-managed">Professional ($447/mo)</SelectItem>
+                  <SelectItem value="setup-monthly">Starter ($197/mo)</SelectItem>
+                  <SelectItem value="full-managed">Professional ($397/mo)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            {/* Auto-send toggle */}
+            <div className="flex items-center gap-3 pt-1 rounded-lg border border-border bg-muted/20 p-3">
+              <Checkbox
+                id="autoSend"
+                checked={autoSendEmail}
+                onCheckedChange={(v) => setAutoSendEmail(!!v)}
+              />
+              <div>
+                <Label htmlFor="autoSend" className="cursor-pointer font-medium text-sm">
+                  Send email immediately
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Opens Gmail compose pre-filled with the portal access link after creation.
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -613,7 +689,11 @@ export default function ConsolePortalClients() {
               className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
             >
               <UserPlus className="w-4 h-4" />
-              {createClient.isPending ? "Creating..." : "Create & Generate Link"}
+              {createClient.isPending
+                ? "Creating..."
+                : autoSendEmail
+                  ? "Create & Send Email"
+                  : "Create & Generate Link"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -17,6 +17,7 @@ import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, R
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
+import { UpgradeButton } from "@/components/portal/UpgradeButton";
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -65,13 +66,9 @@ function UpgradeCard({ feature, plan }: { feature: string; plan: string }) {
       <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
         Upgrade your plan to unlock this feature.
       </p>
-      <a
-        href="mailto:hello@solvr.com.au?subject=Upgrade my plan"
-        className="text-xs font-semibold flex items-center gap-1 mt-1"
-        style={{ color: "#F5A623" }}
-      >
-        Talk to us <ArrowRight className="w-3 h-3" />
-      </a>
+      <div className="mt-1">
+        <UpgradeButton plan="professional" label="Upgrade Now" size="sm" />
+      </div>
     </div>
   );
 }
@@ -296,13 +293,9 @@ export default function PortalDashboard() {
                   <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>
                     Get a personalised weekly business analysis — call patterns, job pipeline health, revenue opportunities, and one actionable recommendation. Available on the Full Managed plan.
                   </p>
-                  <a
-                    href="mailto:hello@solvr.com.au?subject=Upgrade to Full Managed"
-                    className="text-xs font-semibold flex items-center gap-1 mt-3"
-                    style={{ color: "#F5A623" }}
-                  >
-                    Upgrade to Full Managed <ArrowRight className="w-3 h-3" />
-                  </a>
+                  <div className="mt-3">
+                    <UpgradeButton plan="professional" label="Upgrade to Full Managed" size="sm" />
+                  </div>
                 </div>
               </div>
             )}

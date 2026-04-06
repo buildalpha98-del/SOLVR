@@ -5,7 +5,8 @@
 import { useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, Plus, X, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2 } from "lucide-react";
+import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -187,13 +188,7 @@ export default function PortalCalendar() {
           <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
             See all your booked jobs in a monthly calendar view. Add manual events, track follow-ups, and never miss a job.
           </p>
-          <a
-            href="mailto:hello@solvr.com.au?subject=Upgrade to Full Managed"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-          >
-            Upgrade to Professional <ArrowRight className="w-4 h-4" />
-          </a>
+          <UpgradeButton plan="professional" label="Upgrade to Professional" size="lg" />
         </div>
       </PortalLayout>
     );
