@@ -32,6 +32,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Trust the Manus reverse proxy so Set-Cookie headers work correctly in production
+  // Without this, Express doesn't recognise the request as HTTPS and secure cookies fail
+  app.set('trust proxy', 1);
   // Stripe webhook MUST use raw body — register BEFORE json middleware
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 

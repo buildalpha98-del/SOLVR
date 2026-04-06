@@ -34,6 +34,7 @@ import {
   deletePortalCalendarEvent,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
+import { parse as parseCookieHeader } from "cookie";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -62,8 +63,16 @@ function requireFeature(plan: SolvrPlan, feature: string) {
 }
 
 // ─── Portal auth helper ───────────────────────────────────────────────────────
-async function getPortalClient(req: { cookies?: Record<string, string> }) {
-  const sessionToken = req.cookies?.[PORTAL_COOKIE];
+async function getPortalClient(req: { cookies?: Record<string, string>; headers?: Record<string, string | string[] | undefined> }) {
+  // Parse cookies from raw header — req.cookies is not populated without cookie-parser middleware
+  let sessionToken: string | undefined;
+  const rawHeader = (req.headers as Record<string, string | undefined>)?.cookie;
+  if (rawHeader) {
+    const parsed = parseCookieHeader(rawHeader);
+    sessionToken = parsed[PORTAL_COOKIE];
+  } else {
+    sessionToken = req.cookies?.[PORTAL_COOKIE];
+  }
   if (!sessionToken) return null;
   const session = await getPortalSessionBySessionToken(sessionToken);
   if (!session) return null;
@@ -102,12 +111,17 @@ export const portalRouter = router({
       });
 
       // Set session cookie
+      // Detect HTTPS from x-forwarded-proto (Manus reverse proxy) rather than NODE_ENV
+      // This ensures the Secure flag matches the actual protocol the browser sees
+      const forwardedProto = String((ctx.req.headers as Record<string, string | undefined>)['x-forwarded-proto'] ?? '');
+      const isHttps = forwardedProto.includes('https') || (ctx.req as { secure?: boolean }).secure === true;
+      console.log('[Portal] Cookie debug — isHttps:', isHttps, 'x-forwarded-proto:', forwardedProto, 'NODE_ENV:', process.env.NODE_ENV);
       ctx.res.cookie(PORTAL_COOKIE, sessionToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: isHttps,
+        sameSite: 'lax',
         expires: expiresAt,
-        path: "/",
+        path: '/',
       });
 
       return {

@@ -1,0 +1,13 @@
+import { createConnection } from "mysql2/promise";
+import * as dotenv from "dotenv";
+dotenv.config();
+const db = await createConnection(process.env.DATABASE_URL);
+await db.execute("DELETE FROM portal_calendar_events WHERE clientId = 30003");
+await db.execute("DELETE FROM portal_sessions WHERE clientId = 30003");
+await db.execute("DELETE FROM portal_jobs WHERE clientId = 30003");
+await db.execute("DELETE FROM crm_interactions WHERE clientId = 30003");
+await db.execute("DELETE FROM onboarding_checklists WHERE clientId = 30003");
+await db.execute("DELETE FROM client_products WHERE clientId = 30003");
+await db.execute("DELETE FROM crm_clients WHERE id = 30003");
+console.log("Cleaned up duplicate (ID 30003). Keeping ID 30002.");
+await db.end();

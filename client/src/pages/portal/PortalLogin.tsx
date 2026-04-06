@@ -1,24 +1,27 @@
 /**
  * Portal Login — magic-link exchange page.
  * Clients land here via /portal/login?token=xxx from their go-live email.
- * Exchanges the access token for a session cookie, then redirects to /portal.
+ * Exchanges the access token for a session cookie, then redirects to /portal/dashboard.
+ *
+ * Uses a hard redirect (window.location.href) instead of wouter navigate so the
+ * browser performs a full page load — this ensures the Set-Cookie header from the
+ * login mutation is committed before the dashboard's portal.me query fires.
  */
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 
 const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
 export default function PortalLogin() {
-  const [, navigate] = useLocation();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMsg, setErrorMsg] = useState("");
 
   const loginMutation = trpc.portal.login.useMutation({
     onSuccess: () => {
       setStatus("success");
-      setTimeout(() => navigate("/portal/dashboard"), 1200);
+      // Hard redirect — ensures the browser sends the new session cookie on the next request
+      setTimeout(() => { window.location.href = "/portal/dashboard"; }, 1200);
     },
     onError: (err) => {
       setStatus("error");
