@@ -35,6 +35,7 @@ import {
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { parse as parseCookieHeader } from "cookie";
+import { getSessionCookieOptions } from "../_core/cookies";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -110,18 +111,12 @@ export const portalRouter = router({
         lastAccessedAt: new Date(),
       });
 
-      // Set session cookie
-      // Detect HTTPS from x-forwarded-proto (Manus reverse proxy) rather than NODE_ENV
-      // This ensures the Secure flag matches the actual protocol the browser sees
-      const forwardedProto = String((ctx.req.headers as Record<string, string | undefined>)['x-forwarded-proto'] ?? '');
-      const isHttps = forwardedProto.includes('https') || (ctx.req as { secure?: boolean }).secure === true;
-      console.log('[Portal] Cookie debug — isHttps:', isHttps, 'x-forwarded-proto:', forwardedProto, 'NODE_ENV:', process.env.NODE_ENV);
+      // Set session cookie using shared cookie options (sameSite: none, secure: true on HTTPS)
+      // sameSite: none is required because the tRPC mutation is a cross-origin POST
+      const cookieOpts = getSessionCookieOptions(ctx.req as unknown as import('express').Request);
       ctx.res.cookie(PORTAL_COOKIE, sessionToken, {
-        httpOnly: true,
-        secure: isHttps,
-        sameSite: 'lax',
+        ...cookieOpts,
         expires: expiresAt,
-        path: '/',
       });
 
       return {
