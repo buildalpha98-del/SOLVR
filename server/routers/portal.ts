@@ -548,6 +548,69 @@ export const portalRouter = router({
       return { url: session.url! };
     }),
 
+  // ─── Quote Engine Add-on checkout ──────────────────────────────────────────
+
+  /**
+   * Create a Stripe Checkout Session for the Quote Engine add-on.
+   * On payment success, the webhook activates the quote-engine product for this client.
+   */
+  createQuoteEngineCheckout: publicProcedure
+    .input(
+      z.object({
+        billingCycle: z.enum(["monthly", "annual"]).default("monthly"),
+        origin: z.string().url(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = result;
+
+      const stripeModule = await import("stripe").catch(() => null);
+      if (!stripeModule) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe not available." });
+      const stripeKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe not configured." });
+      const Stripe = stripeModule.default;
+      const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+
+      const { QUOTE_ENGINE_ADDON } = await import("../stripeProducts");
+      const priceConfig = input.billingCycle === "annual" ? QUOTE_ENGINE_ADDON.annual : QUOTE_ENGINE_ADDON.monthly;
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        line_items: [{
+          price_data: {
+            currency: priceConfig.currency,
+            product_data: {
+              name: QUOTE_ENGINE_ADDON.name,
+              description: QUOTE_ENGINE_ADDON.description,
+            },
+            unit_amount: priceConfig.amount,
+            recurring: { interval: priceConfig.interval },
+          },
+          quantity: 1,
+        }],
+        success_url: `${input.origin}/portal/quotes?activated=1`,
+        cancel_url: `${input.origin}/portal/quotes`,
+        customer_email: client.contactEmail ?? undefined,
+        subscription_data: {
+          metadata: {
+            product: "quote-engine",
+            clientId: String(client.id),
+            clientName: client.contactName ?? "",
+          },
+        },
+        metadata: {
+          product: "quote-engine",
+          clientId: String(client.id),
+          customerEmail: client.contactEmail ?? "",
+        },
+        allow_promotion_codes: true,
+      });
+
+      return { url: session.url! };
+    }),
+
   // ─── Admin: generate portal access link ────────────────────────────────────
 
   /**

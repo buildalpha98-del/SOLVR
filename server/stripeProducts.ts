@@ -74,3 +74,23 @@ export const VOICE_AGENT_PLANS: Record<string, PlanConfig> = {
 
 export type PlanKey = keyof typeof VOICE_AGENT_PLANS;
 export type BillingCycle = "monthly" | "annual";
+
+/**
+ * Quote Engine Add-on — $97/mo AUD (founding rate).
+ * Activates the Voice-to-Quote Engine product for a portal client.
+ */
+export const QUOTE_ENGINE_ADDON = {
+  name: "Solvr Quote Engine — Add-on (Founding Member)",
+  description: "Voice-to-Quote Engine: record a voice note, get a professional PDF quote in seconds. Founding member rate — locked in for life.",
+  monthly: {
+    amount: 9700, // $97 AUD in cents
+    currency: "aud",
+    interval: "month" as const,
+  },
+  annual: {
+    amount: Math.round((97 * 10) / 12) * 100, // 2 months free
+    currency: "aud",
+    interval: "month" as const,
+    intervalCount: 1,
+  },
+};

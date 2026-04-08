@@ -6,9 +6,10 @@
  * - New Quote wizard: Voice recording OR manual entry
  * - Quick send flow from the list
  */
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -106,8 +107,22 @@ export default function PortalQuotes() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
 
+  // Handle ?activated=1 return from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("activated") === "1") {
+      toast.success("Quote Engine activated! You can now create quotes.", { duration: 6000 });
+      // Clean up the URL param
+      const url = new URL(window.location.href);
+      url.searchParams.delete("activated");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
+
   // Data
-  const { data: quotes, isLoading } = trpc.quotes.list.useQuery();
+  const { data: quotes, isLoading, error: quotesError } = trpc.quotes.list.useQuery(undefined, {
+    retry: false,
+  });
 
   // Mutations
   const processVoiceMutation = trpc.quotes.processVoiceRecording.useMutation();
@@ -234,8 +249,26 @@ export default function PortalQuotes() {
         </div>
       </div>
 
+      {/* ── Feature gate: show upgrade CTA if client doesn't have quote-engine ── */}
+      {quotesError && (quotesError as { data?: { code?: string } }).data?.code === "FORBIDDEN" ? (
+        <div
+          className="rounded-xl border p-12 text-center"
+          style={{ borderColor: "rgba(245,166,35,0.2)", background: "rgba(245,166,35,0.04)" }}
+        >
+          <FileText className="w-12 h-12 mx-auto mb-4" style={{ color: "#F5A623" }} />
+          <h3 className="text-xl font-bold text-white mb-2">Unlock the Quote Engine</h3>
+          <p className="text-sm mb-2 max-w-md mx-auto" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Turn voice notes into professional PDF quotes in seconds. Send, track, and convert jobs — all from your portal.
+          </p>
+          <p className="text-xs mb-6" style={{ color: "rgba(255,255,255,0.35)" }}>
+            $97/mo AUD · Founding member rate · Cancel anytime
+          </p>
+          <QuoteEngineUpgradeButton size="lg" />
+        </div>
+      ) : null}
+
       {/* ── Quote list ─────────────────────────────────────────────────── */}
-      {isLoading ? (
+      {!quotesError && isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
         </div>
@@ -260,7 +293,7 @@ export default function PortalQuotes() {
         </div>
       ) : (
         <div className="space-y-2">
-          {quotes.map((q) => (
+          {(quotes ?? []).map((q: NonNullable<typeof quotes>[number]) => (
             <div
               key={q.id}
               className="rounded-xl border p-4 flex items-center gap-4 group"

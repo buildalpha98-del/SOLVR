@@ -528,7 +528,7 @@ export const quotesRouter = router({
       const client = await getCrmClientById(clientId);
       if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
 
-      const acceptUrl = `${process.env.VITE_APP_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`;
+      const acceptUrl = `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`;
       const greeting = input.recipientName ? `Hi ${input.recipientName},` : "Hi there,";
       const customMsg = input.customMessage
         ? `<p style="color:#374151;font-size:15px;line-height:1.6;">${input.customMessage}</p>`

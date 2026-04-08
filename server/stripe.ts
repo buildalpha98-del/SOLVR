@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { voiceAgentSubscriptions } from "../drizzle/schema";
+import { voiceAgentSubscriptions, clientProducts } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq } from "drizzle-orm";
 
@@ -209,6 +209,44 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
+
+        // Handle Quote Engine add-on activation
+        if (session.metadata?.product === "quote-engine" && session.metadata?.clientId) {
+          const clientId = parseInt(session.metadata.clientId, 10);
+          if (!isNaN(clientId)) {
+            const db = await getDb();
+            if (db) {
+              // Check if quote-engine product already exists for this client
+              const existing = await db
+                .select()
+                .from(clientProducts)
+                .where(eq(clientProducts.clientId, clientId))
+                .then(rows => rows.find(r => r.productType === "quote-engine"));
+
+              if (existing) {
+                // Reactivate if paused/cancelled
+                await db
+                  .update(clientProducts)
+                  .set({ status: "live", updatedAt: new Date(), liveAt: new Date() })
+                  .where(eq(clientProducts.id, existing.id));
+              } else {
+                // Create new product record
+                await db.insert(clientProducts).values({
+                  clientId,
+                  productType: "quote-engine",
+                  status: "live",
+                  monthlyValue: 9700,
+                  notes: `Activated via Stripe checkout session ${session.id}`,
+                  liveAt: new Date(),
+                });
+              }
+              console.log(`[Webhook] Quote Engine activated for client ${clientId}`);
+            }
+          }
+          break;
+        }
+
+        // Handle voice agent subscription
         if (session.customer) {
           await updateSubscriptionBySession(session.id, {
             stripeCustomerId: session.customer as string,
