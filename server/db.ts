@@ -559,3 +559,135 @@ export async function deletePortalCalendarEvent(id: number): Promise<void> {
   if (!db) throw new Error("Database not available");
   await db.delete(portalCalendarEvents).where(eq(portalCalendarEvents.id, id));
 }
+
+// ── Voice-to-Quote Engine ─────────────────────────────────────────────────────
+import {
+  quotes, quoteLineItems, quotePhotos, quoteVoiceRecordings,
+  Quote, InsertQuote, QuoteLineItem, InsertQuoteLineItem,
+  QuotePhoto, InsertQuotePhoto, QuoteVoiceRecording, InsertQuoteVoiceRecording,
+} from "../drizzle/schema";
+
+// ─ Voice Recordings ───────────────────────────────────────────────────────────
+export async function insertQuoteVoiceRecording(data: InsertQuoteVoiceRecording): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(quoteVoiceRecordings).values(data);
+}
+
+export async function getQuoteVoiceRecordingById(id: string): Promise<QuoteVoiceRecording | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(quoteVoiceRecordings).where(eq(quoteVoiceRecordings.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateQuoteVoiceRecording(id: string, data: Partial<InsertQuoteVoiceRecording>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(quoteVoiceRecordings).set(data).where(eq(quoteVoiceRecordings.id, id));
+}
+
+// ─ Quotes ─────────────────────────────────────────────────────────────────────
+export async function insertQuote(data: InsertQuote): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(quotes).values(data);
+}
+
+export async function getQuoteById(id: string): Promise<Quote | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(quotes).where(eq(quotes.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getQuoteByToken(token: string): Promise<Quote | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(quotes).where(eq(quotes.customerToken, token)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function listQuotesByClient(clientId: number): Promise<Quote[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(quotes).where(eq(quotes.clientId, clientId)).orderBy(desc(quotes.createdAt));
+}
+
+export async function updateQuote(id: string, data: Partial<InsertQuote>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(quotes).set(data).where(eq(quotes.id, id));
+}
+
+export async function deleteQuote(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(quotes).where(eq(quotes.id, id));
+}
+
+/** Returns the next sequential quote number for a client, formatted as Q-XXXXX */
+export async function getNextQuoteNumber(clientId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(quotes).where(eq(quotes.clientId, clientId));
+  const next = existing.length + 1;
+  return `Q-${String(next).padStart(5, "0")}`;
+}
+
+// ─ Quote Line Items ───────────────────────────────────────────────────────────
+export async function insertQuoteLineItems(items: InsertQuoteLineItem[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (items.length === 0) return;
+  await db.insert(quoteLineItems).values(items);
+}
+
+export async function listQuoteLineItems(quoteId: string): Promise<QuoteLineItem[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(quoteLineItems)
+    .where(eq(quoteLineItems.quoteId, quoteId))
+    .orderBy(quoteLineItems.sortOrder);
+}
+
+export async function deleteQuoteLineItems(quoteId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(quoteLineItems).where(eq(quoteLineItems.quoteId, quoteId));
+}
+
+// ─ Quote Photos ───────────────────────────────────────────────────────────────
+export async function insertQuotePhotos(photos: InsertQuotePhoto[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (photos.length === 0) return;
+  await db.insert(quotePhotos).values(photos);
+}
+
+export async function listQuotePhotos(quoteId: string): Promise<QuotePhoto[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(quotePhotos)
+    .where(eq(quotePhotos.quoteId, quoteId))
+    .orderBy(quotePhotos.sortOrder);
+}
+
+export async function updateQuotePhoto(id: string, data: Partial<InsertQuotePhoto>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(quotePhotos).set(data).where(eq(quotePhotos.id, id));
+}
+
+export async function deleteQuotePhoto(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(quotePhotos).where(eq(quotePhotos.id, id));
+}
+
+/** All quotes across all clients — for admin console */
+export async function listAllQuotes(): Promise<Quote[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(quotes).orderBy(desc(quotes.createdAt));
+}

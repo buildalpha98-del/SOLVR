@@ -1,0 +1,230 @@
+/**
+ * publicQuotes.ts — Unauthenticated procedures for the customer-facing quote page.
+ * Accessed via /quote/[token] — no portal session required.
+ */
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { router, publicProcedure } from "../_core/trpc";
+import {
+  getQuoteByToken,
+  getQuoteById,
+  listQuoteLineItems,
+  listQuotePhotos,
+  updateQuote,
+  getCrmClientById,
+  createPortalJob,
+  updatePortalJob,
+} from "../db";
+import { sendEmail } from "../_core/email";
+import { randomUUID } from "crypto";
+
+export const publicQuotesRouter = router({
+  /**
+   * Get quote details for the customer-facing page.
+   * Only returns data safe to show to the customer (no internal fields).
+   */
+  getByToken: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const quote = await getQuoteByToken(input.token);
+      if (!quote) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
+      }
+      if (quote.status === "expired") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This quote has expired" });
+      }
+      if (quote.status === "cancelled") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This quote has been cancelled" });
+      }
+
+      // Check expiry
+      if (quote.validUntil) {
+        const expiry = new Date(quote.validUntil);
+        expiry.setHours(23, 59, 59, 999);
+        if (expiry < new Date()) {
+          await updateQuote(quote.id, { status: "expired" });
+          throw new TRPCError({ code: "FORBIDDEN", message: "This quote has expired" });
+        }
+      }
+
+      const client = await getCrmClientById(quote.clientId);
+      const [lineItems, photos] = await Promise.all([
+        listQuoteLineItems(quote.id),
+        listQuotePhotos(quote.id),
+      ]);
+
+      return {
+        quote: {
+          id: quote.id,
+          quoteNumber: quote.quoteNumber,
+          status: quote.status,
+          jobTitle: quote.jobTitle,
+          jobDescription: quote.jobDescription,
+          customerName: quote.customerName,
+          customerAddress: quote.customerAddress,
+          subtotal: quote.subtotal,
+          gstRate: quote.gstRate,
+          gstAmount: quote.gstAmount,
+          totalAmount: quote.totalAmount,
+          paymentTerms: quote.paymentTerms,
+          validUntil: quote.validUntil,
+          notes: quote.notes,
+          reportContent: quote.reportContent,
+          respondedAt: quote.respondedAt,
+          customerNote: quote.customerNote,
+          pdfUrl: quote.pdfUrl,
+        },
+        lineItems,
+        photos: photos.map((p) => ({
+          id: p.id,
+          imageUrl: p.imageUrl,
+          caption: p.caption,
+          aiDescription: p.aiDescription,
+          sortOrder: p.sortOrder,
+        })),
+        businessName: client?.businessName ?? "",
+        logoUrl: client?.quoteBrandLogoUrl ?? null,
+        brandColour: client?.quoteBrandPrimaryColor ?? "#F5A623",
+        abn: client?.quoteAbn ?? null,
+      };
+    }),
+
+  /**
+   * Customer accepts the quote.
+   * Creates a portal job and notifies the tradie.
+   */
+  accept: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        customerNote: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const quote = await getQuoteByToken(input.token);
+      if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
+      if (quote.status !== "sent" && quote.status !== "draft") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Quote cannot be accepted (status: ${quote.status})`,
+        });
+      }
+
+      // Check expiry
+      if (quote.validUntil) {
+        const expiry = new Date(quote.validUntil);
+        expiry.setHours(23, 59, 59, 999);
+        if (expiry < new Date()) {
+          await updateQuote(quote.id, { status: "expired" });
+          throw new TRPCError({ code: "FORBIDDEN", message: "This quote has expired" });
+        }
+      }
+
+      const client = await getCrmClientById(quote.clientId);
+
+      // Mark quote as accepted
+      await updateQuote(quote.id, {
+        status: "accepted",
+        respondedAt: new Date(),
+        customerNote: input.customerNote ?? null,
+      });
+
+      // Create a portal job from the accepted quote
+      const jobResult = await createPortalJob({
+        clientId: quote.clientId,
+        jobType: quote.jobTitle,
+        description: quote.jobDescription ?? undefined,
+        callerName: quote.customerName ?? undefined,
+        stage: "booked",
+        quotedAmount: quote.totalAmount ?? undefined,
+        sourceQuoteId: quote.id,
+        location: quote.customerAddress ?? undefined,
+      } as any);
+
+      const jobId = (jobResult as unknown as { insertId: bigint }).insertId
+        ? Number((jobResult as unknown as { insertId: bigint }).insertId)
+        : null;
+
+      if (jobId) {
+        await updateQuote(quote.id, { convertedJobId: jobId });
+      }
+
+      // Notify the tradie by email
+      if (client) {
+        const notifyEmail = client.quoteReplyToEmail ?? client.contactEmail;
+        if (notifyEmail) {
+          await sendEmail({
+            to: notifyEmail,
+            subject: `✅ Quote ${quote.quoteNumber} Accepted — ${quote.jobTitle}`,
+            html: `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#16A34A;">Quote Accepted</h2>
+  <p><strong>${quote.customerName ?? "Your customer"}</strong> has accepted quote <strong>${quote.quoteNumber}</strong>.</p>
+  <p><strong>Job:</strong> ${quote.jobTitle}</p>
+  <p><strong>Total:</strong> $${parseFloat(quote.totalAmount ?? "0").toLocaleString("en-AU", { minimumFractionDigits: 2 })} incl. GST</p>
+  ${input.customerNote ? `<p><strong>Customer note:</strong> ${input.customerNote}</p>` : ""}
+  <p style="color:#6B7280;font-size:13px;">A new job has been created in your portal dashboard.</p>
+  <p style="color:#9CA3AF;font-size:12px;margin-top:24px;">Powered by Solvr · solvr.com.au</p>
+</div>`,
+            fromName: "Solvr",
+            replyTo: quote.customerEmail ?? undefined,
+          });
+        }
+      }
+
+      return { success: true, jobId };
+    }),
+
+  /**
+   * Customer declines the quote.
+   */
+  decline: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        reason: z.enum(["price", "timing", "scope", "found_someone_else", "other"]).optional(),
+        customerNote: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const quote = await getQuoteByToken(input.token);
+      if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
+      if (quote.status !== "sent" && quote.status !== "draft") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Quote cannot be declined (status: ${quote.status})`,
+        });
+      }
+
+      await updateQuote(quote.id, {
+        status: "declined",
+        respondedAt: new Date(),
+        declineReason: input.reason ?? null,
+        customerNote: input.customerNote ?? null,
+      });
+
+      // Notify the tradie
+      const client = await getCrmClientById(quote.clientId);
+      if (client) {
+        const notifyEmail = client.quoteReplyToEmail ?? client.contactEmail;
+        if (notifyEmail) {
+          await sendEmail({
+            to: notifyEmail,
+            subject: `Quote ${quote.quoteNumber} Declined — ${quote.jobTitle}`,
+            html: `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#DC2626;">Quote Declined</h2>
+  <p><strong>${quote.customerName ?? "Your customer"}</strong> has declined quote <strong>${quote.quoteNumber}</strong>.</p>
+  <p><strong>Job:</strong> ${quote.jobTitle}</p>
+  ${input.reason ? `<p><strong>Reason:</strong> ${input.reason.replace(/_/g, " ")}</p>` : ""}
+  ${input.customerNote ? `<p><strong>Note:</strong> ${input.customerNote}</p>` : ""}
+  <p style="color:#9CA3AF;font-size:12px;margin-top:24px;">Powered by Solvr · solvr.com.au</p>
+</div>`,
+            fromName: "Solvr",
+          });
+        }
+      }
+
+      return { success: true };
+    }),
+});

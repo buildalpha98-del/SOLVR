@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe";
 import { handleVapiWebhook } from "../vapiWebhook";
+import { audioUploadRouter } from "../audioUpload";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -41,6 +42,9 @@ async function startServer() {
   // Vapi webhook — receives call events (transcripts, summaries)
   // Must include json middleware inline since it's registered before the global parser
   app.post("/api/vapi/webhook", express.json({ limit: "10mb" }), handleVapiWebhook);
+
+  // Audio upload for Voice-to-Quote (multipart/form-data) — register BEFORE json middleware
+  app.use("/api/audio", audioUploadRouter);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

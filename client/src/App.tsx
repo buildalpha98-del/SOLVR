@@ -37,6 +37,7 @@ import OnboardingChecklist from "./pages/OnboardingChecklist";
 import ReferralLanding from "./pages/ReferralLanding";
 import ConsoleReferrals from "./pages/ConsoleReferrals";
 import ConsolePortalClients from "./pages/ConsolePortalClients";
+import ConsoleQuotes from "./pages/ConsoleQuotes";
 
 // ── Client Portal ─────────────────────────────────────────────────────────────
 import PortalLogin from "./pages/portal/PortalLogin";
@@ -44,6 +45,12 @@ import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCalls from "./pages/portal/PortalCalls";
 import PortalJobs from "./pages/portal/PortalJobs";
 import PortalCalendar from "./pages/portal/PortalCalendar";
+import PortalQuotes from "./pages/portal/PortalQuotes";
+import PortalQuoteDetail from "./pages/portal/PortalQuoteDetail";
+import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
+
+// ── Public quote acceptance page ──────────────────────────────────────────────
+import PublicQuote from "./pages/PublicQuote";
 
 function Router() {
   return (
@@ -90,6 +97,7 @@ function Router() {
       <Route path="/console/prompt-builder" component={PromptBuilder} />
       <Route path="/console/referrals" component={ConsoleReferrals} />
       <Route path="/console/portal-clients" component={ConsolePortalClients} />
+      <Route path="/console/quotes" component={ConsoleQuotes} />
 
       {/* ── Referral landing pages ────────────────────────────────────────── */}
       <Route path="/ref/:code" component={ReferralLanding} />
@@ -101,6 +109,12 @@ function Router() {
       <Route path="/portal/calls" component={PortalCalls} />
       <Route path="/portal/jobs" component={PortalJobs} />
       <Route path="/portal/calendar" component={PortalCalendar} />
+      <Route path="/portal/quotes" component={PortalQuotes} />
+      <Route path="/portal/quotes/settings" component={PortalQuoteSettings} />
+      <Route path="/portal/quotes/:id" component={PortalQuoteDetail} />
+
+      {/* ── Public quote acceptance page ──────────────────────────────── */}
+      <Route path="/quote/:token" component={PublicQuote} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

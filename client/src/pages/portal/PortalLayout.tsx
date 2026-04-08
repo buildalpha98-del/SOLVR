@@ -12,7 +12,7 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, ChevronDown, Menu, X
+  Lock, LogOut, ChevronDown, Menu, X, FileText
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -32,6 +32,7 @@ const ALL_TABS: NavTab[] = [
   { key: "calls", label: "Calls", href: "/portal/calls", icon: <Phone className="w-4 h-4" />, feature: "calls" },
   { key: "jobs", label: "Jobs", href: "/portal/jobs", icon: <Briefcase className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "calendar", label: "Calendar", href: "/portal/calendar", icon: <Calendar className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
+  { key: "quotes", label: "Quotes", href: "/portal/quotes", icon: <FileText className="w-4 h-4" />, feature: "quote-engine", badge: "Pro" },
   { key: "insights", label: "AI Insights", href: "/portal/insights", icon: <Sparkles className="w-4 h-4" />, feature: "ai-insights", badge: "Managed" },
 ];
 

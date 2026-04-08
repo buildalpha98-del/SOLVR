@@ -50,6 +50,20 @@
       "when": 1775473244745,
       "tag": "0006_supreme_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1775682651099,
+      "tag": "0007_tiny_abomination",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1775685058747,
+      "tag": "0008_peaceful_bruce_banner",
+      "breakpoints": true
     }
   ]
 }

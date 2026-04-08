@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal, date, json } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -123,11 +123,31 @@ export const crmClients = mysqlTable("crm_clients", {
   aiBrief: text("aiBrief"),
   /** When the AI brief was last generated */
   aiBriefUpdatedAt: timestamp("aiBriefUpdatedAt"),
+  // ── Quote branding (used on PDF quotes sent to customers) ─────────────────
+  /** Business logo URL (S3) for quote PDF header */
+  quoteBrandLogoUrl: varchar("quoteBrandLogoUrl", { length: 512 }),
+  /** Primary brand colour hex (e.g. #1E3A5F) */
+  quoteBrandPrimaryColor: varchar("quoteBrandPrimaryColor", { length: 16 }),
+  /** Secondary brand colour hex (e.g. #F59E0B) */
+  quoteBrandSecondaryColor: varchar("quoteBrandSecondaryColor", { length: 16 }),
+  /** Font preference: professional | modern | classic */
+  quoteBrandFont: varchar("quoteBrandFont", { length: 32 }),
+  /** GST rate for this client (default 10) */
+  quoteGstRate: decimal("quoteGstRate", { precision: 5, scale: 2 }).default("10.00"),
+  /** Default payment terms text */
+  quotePaymentTerms: varchar("quotePaymentTerms", { length: 255 }),
+  /** Default quote validity in days */
+  quoteValidityDays: int("quoteValidityDays").default(30),
+  /** Client's email for quote reply-to */
+  quoteReplyToEmail: varchar("quoteReplyToEmail", { length: 320 }),
+  /** ABN / ACN displayed on quote PDFs */
+  quoteAbn: varchar("quoteAbn", { length: 50 }),
+  /** Default notes / terms appended to every quote */
+  quoteDefaultNotes: text("quoteDefaultNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
-export type CrmClient = typeof crmClients.$inferSelect;
+export type CrmClient = typeof crmClients.$inferSelect;;
 export type InsertCrmClient = typeof crmClients.$inferInsert;
 
 /**
@@ -245,6 +265,7 @@ export const clientProducts = mysqlTable("client_products", {
     "automation",         // n8n workflow automation
     "training",           // Team training workshop
     "seo",                // SEO / content
+    "quote-engine",       // Voice-to-Quote Engine
     "other",
   ]).notNull(),
   /** Current status */
@@ -520,6 +541,10 @@ export const portalJobs = mysqlTable("portal_jobs", {
   notes: text("notes"),
   /** Whether a calendar event has been created for this job */
   hasCalendarEvent: boolean("hasCalendarEvent").default(false).notNull(),
+  /** Quoted amount in AUD (set when a quote is accepted and converts to a job) */
+  quotedAmount: decimal("quotedAmount", { precision: 10, scale: 2 }),
+  /** FK to quotes.id — set when this job was created from an accepted quote */
+  sourceQuoteId: varchar("sourceQuoteId", { length: 36 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -591,3 +616,136 @@ export const referralConversions = mysqlTable("referral_conversions", {
 });
 export type ReferralConversion = typeof referralConversions.$inferSelect;
 export type InsertReferralConversion = typeof referralConversions.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOICE-TO-QUOTE ENGINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Voice recordings submitted for quote extraction.
+ * Tracks the full processing pipeline: upload → transcribe → extract → complete.
+ */
+export const quoteVoiceRecordings = mysqlTable("quote_voice_recordings", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** S3 URL of the uploaded audio file */
+  audioUrl: varchar("audioUrl", { length: 512 }).notNull(),
+  /** Duration in seconds */
+  durationSeconds: int("durationSeconds"),
+  /** Processing pipeline status */
+  processingStatus: mysqlEnum("processingStatus", [
+    "pending", "transcribing", "extracting", "complete", "failed",
+  ]).default("pending").notNull(),
+  /** Raw Whisper transcript */
+  transcript: text("transcript"),
+  /** AI-extracted structured data (JSON) */
+  extractedJson: json("extractedJson"),
+  /** Error message if processing failed */
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type QuoteVoiceRecording = typeof quoteVoiceRecordings.$inferSelect;
+export type InsertQuoteVoiceRecording = typeof quoteVoiceRecordings.$inferInsert;
+
+/**
+ * Quotes — the core entity of the Voice-to-Quote Engine.
+ * One quote per job, linked to the voice recording that created it.
+ */
+export const quotes = mysqlTable("quotes", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Per-client sequential number, formatted as Q-XXXXX */
+  quoteNumber: varchar("quoteNumber", { length: 16 }).notNull(),
+  /** Quote lifecycle status */
+  status: mysqlEnum("status", [
+    "draft", "sent", "accepted", "declined", "expired", "cancelled",
+  ]).default("draft").notNull(),
+  // ── Customer details ──────────────────────────────────────────────────────
+  customerName: varchar("customerName", { length: 255 }),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  customerAddress: varchar("customerAddress", { length: 512 }),
+  // ── Job details ───────────────────────────────────────────────────────────
+  jobTitle: varchar("jobTitle", { length: 255 }).notNull(),
+  jobDescription: text("jobDescription"),
+  // ── Financials ────────────────────────────────────────────────────────────
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }),
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("10.00").notNull(),
+  gstAmount: decimal("gstAmount", { precision: 10, scale: 2 }),
+  totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }),
+  // ── Terms ─────────────────────────────────────────────────────────────────
+  paymentTerms: varchar("paymentTerms", { length: 255 }),
+  validityDays: int("validityDays").default(30).notNull(),
+  validUntil: date("validUntil"),
+  notes: text("notes"),
+  // ── Customer response ─────────────────────────────────────────────────────
+  /** 64-char hex token for the public customer acceptance URL */
+  customerToken: varchar("customerToken", { length: 128 }).notNull().unique(),
+  customerNote: text("customerNote"),
+  declineReason: varchar("declineReason", { length: 50 }),
+  respondedAt: timestamp("respondedAt"),
+  // ── AI report ─────────────────────────────────────────────────────────────
+  /** Structured AI-generated report content (JSON) */
+  reportContent: json("reportContent"),
+  reportGeneratedAt: timestamp("reportGeneratedAt"),
+  // ── Links ─────────────────────────────────────────────────────────────────
+  /** FK to quoteVoiceRecordings.id */
+  voiceRecordingId: varchar("voiceRecordingId", { length: 36 }),
+  /** FK to portalJobs.id — set when accepted quote converts to a job */
+  convertedJobId: int("convertedJobId"),
+  // ── PDF ───────────────────────────────────────────────────────────────────
+  /** S3 URL of the generated PDF */
+  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  /** S3 key of the generated PDF */
+  pdfKey: varchar("pdfKey", { length: 512 }),
+  // ── Timestamps ────────────────────────────────────────────────────────────
+  sentAt: timestamp("sentAt"),
+  issuedAt: timestamp("issuedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Quote = typeof quotes.$inferSelect;
+export type InsertQuote = typeof quotes.$inferInsert;
+
+/**
+ * Quote line items — individual line items on a quote.
+ */
+export const quoteLineItems = mysqlTable("quote_line_items", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to quotes.id */
+  quoteId: varchar("quoteId", { length: 36 }).notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  description: varchar("description", { length: 500 }).notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).default("1.00").notNull(),
+  unit: varchar("unit", { length: 20 }).default("each"),
+  /** Price per unit — null means TBD */
+  unitPrice: decimal("unitPrice", { precision: 10, scale: 2 }),
+  /** quantity × unitPrice — null if unitPrice is null */
+  lineTotal: decimal("lineTotal", { precision: 10, scale: 2 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type QuoteLineItem = typeof quoteLineItems.$inferSelect;
+export type InsertQuoteLineItem = typeof quoteLineItems.$inferInsert;
+
+/**
+ * Quote photos — site photos uploaded alongside a voice recording.
+ */
+export const quotePhotos = mysqlTable("quote_photos", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to quotes.id */
+  quoteId: varchar("quoteId", { length: 36 }).notNull(),
+  /** S3 URL of the full-resolution photo */
+  imageUrl: varchar("imageUrl", { length: 512 }).notNull(),
+  /** S3 URL of the resized thumbnail */
+  thumbnailUrl: varchar("thumbnailUrl", { length: 512 }),
+  caption: varchar("caption", { length: 255 }),
+  /** AI-generated description from vision model */
+  aiDescription: text("aiDescription"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type QuotePhoto = typeof quotePhotos.$inferSelect;
+export type InsertQuotePhoto = typeof quotePhotos.$inferInsert;

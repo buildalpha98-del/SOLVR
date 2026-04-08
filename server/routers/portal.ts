@@ -146,6 +146,15 @@ export const portalRouter = router({
         plan,
         features: PLAN_FEATURES[plan] ?? [],
         featureMatrix: PLAN_FEATURES,
+        // Quote branding fields
+        logoUrl: client.quoteBrandLogoUrl ?? null,
+        brandColour: client.quoteBrandPrimaryColor ?? "#F5A623",
+        abn: client.quoteAbn ?? null,
+        paymentTerms: client.quotePaymentTerms ?? null,
+        defaultNotes: client.quoteDefaultNotes ?? null,
+        gstRate: client.quoteGstRate ?? "10.00",
+        replyToEmail: client.quoteReplyToEmail ?? null,
+        validityDays: client.quoteValidityDays ?? 30,
       };
     }),
 
