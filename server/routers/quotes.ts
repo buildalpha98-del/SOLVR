@@ -5,7 +5,8 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, publicProcedure } from "../_core/trpc";
+import { getPortalClient } from "../_core/portalAuth";
 import { requireFeature } from "../_core/featureGate";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { extractQuoteData } from "../_core/quoteExtraction";
@@ -74,9 +75,10 @@ export const quotesRouter = router({
   /**
    * List all quotes for the authenticated portal client.
    */
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const clientId = (ctx.user as any).portalClientId as number | undefined;
-    if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+  list: publicProcedure.query(async ({ ctx }) => {
+    const portalAuth = await getPortalClient(ctx.req);
+    if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+    const clientId = portalAuth.client.id;
     await requireFeature(clientId, "quote-engine");
     return listQuotesByClient(clientId);
   }),
@@ -84,11 +86,12 @@ export const quotesRouter = router({
   /**
    * Get a single quote with its line items and photos.
    */
-  get: protectedProcedure
+  get: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
       const quote = await getQuoteById(input.id);
@@ -105,7 +108,7 @@ export const quotesRouter = router({
   /**
    * Create a draft quote manually (no voice recording).
    */
-  createDraft: protectedProcedure
+  createDraft: publicProcedure
     .input(
       z.object({
         jobTitle: z.string().min(1).max(255),
@@ -126,12 +129,12 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
-      const client = await getCrmClientById(clientId);
-      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      const client = portalAuth.client;
 
       const gstRate = client.quoteGstRate ?? "10.00";
       const validityDays = client.quoteValidityDays ?? 30;
@@ -186,7 +189,7 @@ export const quotesRouter = router({
    * Process a voice recording: transcribe → extract → create draft quote.
    * The audio file must already be uploaded to S3 and the URL passed in.
    */
-  processVoiceRecording: protectedProcedure
+  processVoiceRecording: publicProcedure
     .input(
       z.object({
         audioUrl: z.string().url(),
@@ -194,12 +197,12 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
-      const client = await getCrmClientById(clientId);
-      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      const client = portalAuth.client;
 
       const recordingId = randomUUID();
       await insertQuoteVoiceRecording({
@@ -293,7 +296,7 @@ export const quotesRouter = router({
   /**
    * Update a draft quote's details and line items.
    */
-  update: protectedProcedure
+  update: publicProcedure
     .input(
       z.object({
         id: z.string(),
@@ -319,8 +322,9 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
 
       const quote = await getQuoteById(input.id);
       if (!quote || quote.clientId !== clientId) {
@@ -330,8 +334,7 @@ export const quotesRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft quotes can be edited" });
       }
 
-      const client = await getCrmClientById(clientId);
-      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      const client = portalAuth.client;
 
       const gstRate = client.quoteGstRate ?? "10.00";
 
@@ -382,11 +385,12 @@ export const quotesRouter = router({
   /**
    * Generate the AI report for a quote.
    */
-  generateReport: protectedProcedure
+  generateReport: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
       const quote = await getQuoteById(input.id);
@@ -394,8 +398,7 @@ export const quotesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
 
-      const client = await getCrmClientById(clientId);
-      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      const client = portalAuth.client;
 
       const [lineItems, photos, recording] = await Promise.all([
         listQuoteLineItems(input.id),
@@ -429,11 +432,12 @@ export const quotesRouter = router({
   /**
    * Generate PDF and return the S3 URL.
    */
-  generatePdf: protectedProcedure
+  generatePdf: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
       const quote = await getQuoteById(input.id);
@@ -441,8 +445,7 @@ export const quotesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
 
-      const client = await getCrmClientById(clientId);
-      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      const client = portalAuth.client;
 
       const [lineItems, photos] = await Promise.all([
         listQuoteLineItems(input.id),
@@ -505,7 +508,7 @@ export const quotesRouter = router({
   /**
    * Send the quote to the customer via email.
    */
-  send: protectedProcedure
+  send: publicProcedure
     .input(
       z.object({
         id: z.string(),
@@ -516,8 +519,9 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
       const quote = await getQuoteById(input.id);
@@ -525,8 +529,7 @@ export const quotesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
 
-      const client = await getCrmClientById(clientId);
-      if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
+      const client = portalAuth.client;
 
       const acceptUrl = `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`;
       const greeting = input.recipientName ? `Hi ${input.recipientName},` : "Hi there,";
@@ -594,11 +597,12 @@ export const quotesRouter = router({
   /**
    * Delete a draft quote.
    */
-  delete: protectedProcedure
+  delete: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
 
       const quote = await getQuoteById(input.id);
       if (!quote || quote.clientId !== clientId) {
@@ -616,7 +620,7 @@ export const quotesRouter = router({
   /**
    * Upload a photo (base64 data URL) and attach it to a quote.
    */
-  addPhoto: protectedProcedure
+  addPhoto: publicProcedure
     .input(
       z.object({
         quoteId: z.string(),
@@ -626,8 +630,9 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
 
       const quote = await getQuoteById(input.quoteId);
       if (!quote || quote.clientId !== clientId) {
@@ -663,11 +668,12 @@ export const quotesRouter = router({
   /**
    * Analyse all unanalysed photos on a quote using vision AI.
    */
-  analysePhotos: protectedProcedure
+  analysePhotos: publicProcedure
     .input(z.object({ quoteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
       const quote = await getQuoteById(input.quoteId);
@@ -694,11 +700,12 @@ export const quotesRouter = router({
   /**
    * Delete a photo from a quote.
    */
-  deletePhoto: protectedProcedure
+  deletePhoto: publicProcedure
     .input(z.object({ photoId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
       await deleteQuotePhoto(input.photoId);
       return { success: true };
     }),
@@ -706,9 +713,10 @@ export const quotesRouter = router({
   /**
    * Get branding settings for the authenticated client.
    */
-  getBranding: protectedProcedure.query(async ({ ctx }) => {
-    const clientId = (ctx.user as any).portalClientId as number | undefined;
-    if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+  getBranding: publicProcedure.query(async ({ ctx }) => {
+    const portalAuth = await getPortalClient(ctx.req);
+    if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+    const clientId = portalAuth.client.id;
     const client = await getCrmClientById(clientId);
     if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
     return {
@@ -726,7 +734,7 @@ export const quotesRouter = router({
   /**
    * Update branding settings.
    */
-  updateBranding: protectedProcedure
+  updateBranding: publicProcedure
     .input(
       z.object({
         logoDataUrl: z.string().optional(),
@@ -740,8 +748,9 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const clientId = (ctx.user as any).portalClientId as number | undefined;
-      if (!clientId) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
 
       const updateData: Record<string, unknown> = {};
 

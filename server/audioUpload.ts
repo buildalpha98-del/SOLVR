@@ -49,7 +49,7 @@ const upload = multer({
 const router = Router();
 
 router.post(
-  "/api/portal/upload-audio",
+  "/portal/upload-audio",
   upload.single("file"),
   async (req: Request, res: Response) => {
     try {

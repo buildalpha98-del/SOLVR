@@ -32,6 +32,7 @@ import {
   createPortalCalendarEvent,
   updatePortalCalendarEvent,
   deletePortalCalendarEvent,
+  listClientProducts,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { parse as parseCookieHeader } from "cookie";
@@ -138,13 +139,19 @@ export const portalRouter = router({
       if (!result) return null;
       const { client } = result;
       const plan = (client.package ?? "setup-monthly") as SolvrPlan;
+      // Merge plan features with active add-on products (e.g. quote-engine)
+      const addOnProducts = await listClientProducts(client.id);
+      const activeAddOns = addOnProducts
+        .filter((p) => p.status === "live")
+        .map((p) => p.productType as string);
+      const allFeatures = Array.from(new Set([...(PLAN_FEATURES[plan] ?? []), ...activeAddOns]));
       return {
         clientId: client.id,
         businessName: client.businessName,
         contactName: client.contactName,
         tradeType: client.tradeType,
         plan,
-        features: PLAN_FEATURES[plan] ?? [],
+        features: allFeatures,
         featureMatrix: PLAN_FEATURES,
         // Quote branding fields
         logoUrl: client.quoteBrandLogoUrl ?? null,

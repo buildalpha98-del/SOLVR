@@ -124,6 +124,11 @@ vi.mock("./db", () => ({
   getOnboardingToken: vi.fn().mockResolvedValue(null),
   createOnboardingToken: vi.fn().mockResolvedValue({ insertId: 1 }),
   markOnboardingTokenUsed: vi.fn().mockResolvedValue({}),
+  // Client products (add-ons like quote-engine)
+  listClientProducts: vi.fn().mockResolvedValue([]),
+  insertClientProduct: vi.fn().mockResolvedValue({ insertId: 1 }),
+  updateClientProduct: vi.fn().mockResolvedValue({}),
+  deleteClientProduct: vi.fn().mockResolvedValue({}),
 }));
 
 // Helper to build a caller context with a session cookie
