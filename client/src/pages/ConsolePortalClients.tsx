@@ -51,6 +51,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Link2,
   Mail,
@@ -67,6 +68,7 @@ import {
   SendHorizonal,
   AlertTriangle,
   KeyRound,
+  FileUser,
 } from "lucide-react";
 
 type Client = {
@@ -264,6 +266,57 @@ export default function ConsolePortalClients() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [setPasswordDialogOpen, setSetPasswordDialogOpen] = useState(false);
   const [setPasswordValue, setSetPasswordValue] = useState("");
+
+  // ── Profile modal ──────────────────────────────────────────────────────────
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [profileClientId, setProfileClientId] = useState<number | null>(null);
+  const [profileDraft, setProfileDraft] = useState<Record<string, string>>({}); // field → value
+
+  const { data: profileData, isLoading: profileLoading } = trpc.adminPortal.adminGetClientProfile.useQuery(
+    { clientId: profileClientId! },
+    { enabled: profileClientId !== null && profileDialogOpen }
+  );
+
+  const updateProfile = trpc.adminPortal.adminUpdateClientProfile.useMutation({
+    onSuccess: () => {
+      toast.success("Profile updated.");
+      setProfileDialogOpen(false);
+      setProfileDraft({});
+    },
+    onError: (err: { message: string }) => {
+      toast.error(`Failed to update: ${err.message}`);
+    },
+  });
+
+  function openProfileModal(client: Client) {
+    setProfileClientId(client.id);
+    setProfileDraft({});
+    setProfileDialogOpen(true);
+  }
+
+  function profileField(key: string, fallback?: string | null): string {
+    if (key in profileDraft) return profileDraft[key];
+    const val = profileData?.profile?.[key as keyof typeof profileData.profile];
+    return val != null ? String(val) : (fallback ?? "");
+  }
+
+  function setProfileField(key: string, value: string) {
+    setProfileDraft(prev => ({ ...prev, [key]: value }));
+  }
+
+  function handleSaveProfile() {
+    if (!profileClientId) return;
+    const payload: Record<string, string | number | null> = { clientId: profileClientId };
+    for (const [k, v] of Object.entries(profileDraft)) {
+      const numFields = ["yearsInBusiness", "teamSize", "validityDays"];
+      if (numFields.includes(k)) {
+        payload[k] = v === "" ? null : Number(v);
+      } else {
+        payload[k] = v;
+      }
+    }
+    updateProfile.mutate(payload as Parameters<typeof updateProfile.mutate>[0]);
+  }
 
   const adminSetPassword = trpc.adminPortal.adminSetPassword.useMutation({
     onSuccess: () => {
@@ -588,6 +641,19 @@ export default function ConsolePortalClients() {
                             </TooltipTrigger>
                             <TooltipContent>Set portal password</TooltipContent>
                           </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-400 hover:text-blue-300"
+                                onClick={() => openProfileModal(client)}
+                              >
+                                <FileUser className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View / Edit Memory File</TooltipContent>
+                          </Tooltip>
                         </TooltipProvider>
                       </div>
                     </TableCell>
@@ -905,6 +971,162 @@ export default function ConsolePortalClients() {
               disabled={revokeAccess.isPending}
             >
               {revokeAccess.isPending ? "Revoking..." : "Revoke Access"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View / Edit Memory File Dialog */}
+      <Dialog open={profileDialogOpen} onOpenChange={(open) => { setProfileDialogOpen(open); if (!open) setProfileDraft({}); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileUser className="w-5 h-5 text-blue-400" />
+              Memory File — {(clients ?? []).find((c: Client) => c.id === profileClientId)?.businessName ?? "Client"}
+            </DialogTitle>
+            <DialogDescription>
+              Edit the AI memory file for this client. Changes are reflected immediately in the voice agent and quote extraction.
+            </DialogDescription>
+          </DialogHeader>
+
+          {profileLoading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading profile…</div>
+          ) : (
+            <div className="space-y-5 py-2">
+              {/* Section 1: Business Basics */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Business Basics</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Trading Name</Label>
+                    <Input value={profileField("tradingName")} onChange={e => setProfileField("tradingName", e.target.value)} placeholder="Thompson Plumbing" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>ABN</Label>
+                    <Input value={profileField("abn")} onChange={e => setProfileField("abn", e.target.value)} placeholder="12 345 678 901" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Phone</Label>
+                    <Input value={profileField("phone")} onChange={e => setProfileField("phone", e.target.value)} placeholder="0412 345 678" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input value={profileField("email")} onChange={e => setProfileField("email", e.target.value)} placeholder="info@business.com.au" />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label>Address</Label>
+                    <Input value={profileField("address")} onChange={e => setProfileField("address", e.target.value)} placeholder="123 Main St, Sydney NSW 2000" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Website</Label>
+                    <Input value={profileField("website")} onChange={e => setProfileField("website", e.target.value)} placeholder="https://business.com.au" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Service Area</Label>
+                    <Input value={profileField("serviceArea")} onChange={e => setProfileField("serviceArea", e.target.value)} placeholder="Sydney metro, up to 50km" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Pricing */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Pricing</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Call-out Fee ($)</Label>
+                    <Input type="number" value={profileField("callOutFee")} onChange={e => setProfileField("callOutFee", e.target.value)} placeholder="120" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Hourly Rate ($)</Label>
+                    <Input type="number" value={profileField("hourlyRate")} onChange={e => setProfileField("hourlyRate", e.target.value)} placeholder="150" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Minimum Charge ($)</Label>
+                    <Input type="number" value={profileField("minimumCharge")} onChange={e => setProfileField("minimumCharge", e.target.value)} placeholder="200" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Payment Terms</Label>
+                    <Input value={profileField("paymentTerms")} onChange={e => setProfileField("paymentTerms", e.target.value)} placeholder="14 days" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: AI Context */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">AI Context (Memory)</p>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>AI Context Notes</Label>
+                    <Textarea
+                      rows={3}
+                      value={profileField("aiContext")}
+                      onChange={e => setProfileField("aiContext", e.target.value)}
+                      placeholder="Key things the AI should know about this business…"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Booking Instructions</Label>
+                    <Textarea
+                      rows={2}
+                      value={profileField("bookingInstructions")}
+                      onChange={e => setProfileField("bookingInstructions", e.target.value)}
+                      placeholder="How customers book: ServiceM8, Tradify, phone…"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Escalation Instructions</Label>
+                    <Textarea
+                      rows={2}
+                      value={profileField("escalationInstructions")}
+                      onChange={e => setProfileField("escalationInstructions", e.target.value)}
+                      placeholder="When to transfer to owner vs take a message…"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Competitor Notes</Label>
+                    <Textarea
+                      rows={2}
+                      value={profileField("competitorNotes")}
+                      onChange={e => setProfileField("competitorNotes", e.target.value)}
+                      placeholder="What makes this business different…"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Quote Defaults */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Quote Defaults</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Validity (days)</Label>
+                    <Input type="number" value={profileField("validityDays")} onChange={e => setProfileField("validityDays", e.target.value)} placeholder="30" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tagline</Label>
+                    <Input value={profileField("tagline")} onChange={e => setProfileField("tagline", e.target.value)} placeholder="Quality work, guaranteed." />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label>Default Quote Notes</Label>
+                    <Textarea
+                      rows={2}
+                      value={profileField("defaultNotes")}
+                      onChange={e => setProfileField("defaultNotes", e.target.value)}
+                      placeholder="Standard terms, warranty info, etc."
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => { setProfileDialogOpen(false); setProfileDraft({}); }}>Cancel</Button>
+            <Button
+              onClick={handleSaveProfile}
+              disabled={updateProfile.isPending || Object.keys(profileDraft).length === 0}
+            >
+              {updateProfile.isPending ? "Saving…" : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
