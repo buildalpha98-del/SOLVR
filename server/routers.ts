@@ -26,6 +26,7 @@ import { referralRouter } from "./routers/referral";
 import { adminPortalRouter } from "./routers/adminPortal";
 import { quotesRouter } from "./routers/quotes";
 import { publicQuotesRouter } from "./routers/publicQuotes";
+import { portalInvoiceChasingRouter, adminInvoiceChasingRouter } from "./routers/invoiceChasing";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1394,6 +1395,8 @@ export const appRouter = router({
   adminPortal: adminPortalRouter,
   quotes: quotesRouter,
   publicQuotes: publicQuotesRouter,
+  invoiceChasing: portalInvoiceChasingRouter,
+  adminInvoiceChasing: adminInvoiceChasingRouter,
 });
 
 export type AppRouter = typeof appRouter;

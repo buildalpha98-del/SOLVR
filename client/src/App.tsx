@@ -53,6 +53,7 @@ import PortalQuoteDetail from "./pages/portal/PortalQuoteDetail";
 import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
 import PortalSettings from "./pages/portal/PortalSettings";
 import PortalOnboarding from "./pages/portal/PortalOnboarding";
+import PortalInvoices from "./pages/portal/PortalInvoices";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
@@ -122,6 +123,7 @@ function Router() {
       <Route path="/portal/quotes/:id" component={PortalQuoteDetail} />
       <Route path="/portal/onboarding" component={PortalOnboarding} />
       <Route path="/portal/settings" component={PortalSettings} />
+      <Route path="/portal/invoices" component={PortalInvoices} />
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />

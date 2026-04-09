@@ -147,3 +147,12 @@
 - [x] /services page created with detailed engagement breakdowns (4 services, process, deliverables, timeline)
 - [x] /voice-agent page updated: Products comparison section, comparison table, updated nav with Services link
 - [x] 99 vitest tests passing, tsc --noEmit exits clean
+
+## AI Invoice Chasing (Apr 2026)
+- [ ] invoiceChases table: schema + migration
+- [ ] Invoice chasing cron job (day 1, 7, 14 email sequences + day 21 escalation)
+- [ ] tRPC procedures: listInvoiceChases, createInvoiceChase, markInvoicePaid, snoozeChase, cancelChase
+- [ ] Portal Invoice Chasing page (client-facing)
+- [ ] Console Invoice Chasing overview (admin)
+- [ ] Website Products section updated with Invoice Chasing
+- [ ] Handoff doc updated with new procedures

@@ -12,6 +12,7 @@ import { handleVapiWebhook } from "../vapiWebhook";
 import { audioUploadRouter } from "../audioUpload";
 import { registerMonthlyCallReportCron } from "../cron/monthlyCallReport";
 import { registerSessionExpiryWarningCron } from "../cron/sessionExpiryWarning";
+import { scheduleInvoiceChasingCron } from "../cron/invoiceChasing";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -79,6 +80,7 @@ async function startServer() {
   // Register cron jobs
   registerMonthlyCallReportCron();
   registerSessionExpiryWarningCron();
+  scheduleInvoiceChasingCron();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

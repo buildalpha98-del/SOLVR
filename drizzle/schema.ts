@@ -763,7 +763,81 @@ export const quotePhotos = mysqlTable("quote_photos", {
 export type QuotePhoto = typeof quotePhotos.$inferSelect;
 export type InsertQuotePhoto = typeof quotePhotos.$inferInsert;
 
-// ─── Client Profiles (Memory File) ──────────────────────────────────────────
+// ─── Invoice Chases ─────────────────────────────────────────────────────────
+/**
+ * AI Invoice Chasing — tracks automated follow-up sequences for unpaid invoices.
+ * One row per invoice being chased. Linked to a quote (or standalone for manual invoices).
+ *
+ * Chase sequence:
+ *   Day 1  → Friendly reminder email
+ *   Day 7  → Follow-up email (polite urgency)
+ *   Day 14 → Final notice email
+ *   Day 21 → Escalation flag set (owner notified to call)
+ */
+export const invoiceChases = mysqlTable("invoice_chases", {
+  id: varchar("id", { length: 36 }).primaryKey(), // UUID — passed explicitly on insert
+  /** FK to crmClients.id — which Solvr client owns this chase */
+  clientId: int("clientId").notNull(),
+  /** FK to quotes.id — the accepted quote this invoice relates to (null for manual) */
+  quoteId: varchar("quoteId", { length: 36 }),
+  /** FK to portalJobs.id — the job this invoice relates to (null if quote-only) */
+  jobId: int("jobId"),
+
+  // ── Invoice details ──────────────────────────────────────────────────────
+  /** Human-readable invoice number (e.g. INV-0042) */
+  invoiceNumber: varchar("invoiceNumber", { length: 32 }).notNull(),
+  /** Customer's name */
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  /** Customer's email — where chase emails are sent */
+  customerEmail: varchar("customerEmail", { length: 320 }).notNull(),
+  /** Customer's phone (optional, shown in escalation view) */
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  /** Brief description of the job / invoice */
+  description: varchar("description", { length: 512 }),
+  /** Total amount due in AUD (inc. GST) */
+  amountDue: decimal("amountDue", { precision: 10, scale: 2 }).notNull(),
+  /** Date the invoice was issued */
+  issuedAt: date("issuedAt").notNull(),
+  /** Payment due date (calculated from issuedAt + paymentTerms) */
+  dueDate: date("dueDate").notNull(),
+
+  // ── Chase status ─────────────────────────────────────────────────────────
+  /** Overall chase status */
+  status: mysqlEnum("status", [
+    "active",      // Chase sequence running
+    "paid",        // Marked as paid — sequence stops
+    "snoozed",     // Temporarily paused (snoozeUntil set)
+    "cancelled",   // Manually cancelled
+    "escalated",   // Day 21 reached — owner must call
+  ]).default("active").notNull(),
+
+  // ── Sequence tracking ────────────────────────────────────────────────────
+  /** How many chase emails have been sent (0–3) */
+  chaseCount: int("chaseCount").default(0).notNull(),
+  /** When the last chase email was sent */
+  lastChasedAt: timestamp("lastChasedAt"),
+  /** When the next chase email is scheduled (null = sequence complete or stopped) */
+  nextChaseAt: timestamp("nextChaseAt"),
+
+  // ── Snooze ───────────────────────────────────────────────────────────────
+  /** If snoozed, resume chasing after this date */
+  snoozeUntil: timestamp("snoozeUntil"),
+
+  // ── Resolution ───────────────────────────────────────────────────────────
+  /** When the invoice was marked as paid */
+  paidAt: timestamp("paidAt"),
+  /** Amount actually received (may differ from amountDue) */
+  amountReceived: decimal("amountReceived", { precision: 10, scale: 2 }),
+  /** Notes added by the Solvr client (e.g. "customer promised to pay Friday") */
+  notes: text("notes"),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InvoiceChase = typeof invoiceChases.$inferSelect;
+export type InsertInvoiceChase = typeof invoiceChases.$inferInsert;
+
+// ─── Client Profiles (Memory File) ───────────────────────────────────────────
 /**
  * Unified business profile for each CRM client — the "memory file".
  * Populated during onboarding, editable in Portal Settings.
