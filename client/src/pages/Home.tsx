@@ -421,6 +421,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Link href="/voice-agent" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.08)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623", textDecoration: "none" }}>▶ Voice Agent</Link>
             <Link href="/ai-audit" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623", textDecoration: "none" }}>Free AI Audit ✦</Link>
+            <Link href="/portal" className="hidden md:inline-flex font-body text-sm font-medium px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>Client Login</Link>
             <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
             {/* Discreet admin link — only visible on hover, not prominent to clients */}
             <Link href="/console" className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all opacity-30 hover:opacity-100" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "none" }} title="Admin Console">
@@ -448,6 +449,7 @@ export default function Home() {
                 </a>
               ))}
               <Link href="/voice-agent" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.1)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623" }}>▶ Voice Agent</Link>
+              <Link href="/portal" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-medium px-4 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}>Client Login</Link>
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
             </div>
           </div>
