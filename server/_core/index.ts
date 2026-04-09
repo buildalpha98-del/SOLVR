@@ -44,7 +44,8 @@ async function startServer() {
   app.post("/api/vapi/webhook", express.json({ limit: "10mb" }), handleVapiWebhook);
 
   // Audio upload for Voice-to-Quote (multipart/form-data) — register BEFORE json middleware
-  app.use("/api/audio", audioUploadRouter);
+  // Mount at /api so the full path becomes /api/portal/upload-audio (matching the frontend fetch call)
+  app.use("/api", audioUploadRouter);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

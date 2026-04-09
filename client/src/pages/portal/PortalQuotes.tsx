@@ -165,8 +165,13 @@ export default function PortalQuotes() {
         body: formData,
         credentials: "include",
       });
-      if (!uploadRes.ok) throw new Error("Upload failed");
-      const { url: audioUrl } = await uploadRes.json() as { url: string };
+      if (!uploadRes.ok) {
+        const errBody = await uploadRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(errBody.error ?? `Upload failed (${uploadRes.status})`);
+      }
+      const uploadData = await uploadRes.json() as { url?: string };
+      const audioUrl = uploadData.url;
+      if (!audioUrl) throw new Error("Upload succeeded but no URL was returned — please try again.");
       setUploadingAudio(false);
       setProcessingVoice(true);
 
