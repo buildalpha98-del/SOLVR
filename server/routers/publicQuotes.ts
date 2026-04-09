@@ -14,8 +14,14 @@ import {
   getCrmClientById,
   createPortalJob,
   updatePortalJob,
+  createPortalCalendarEvent,
+  getPortalSessionByClientId,
 } from "../db";
 import { sendEmail } from "../_core/email";
+import { sendExpoPush } from "../expoPush";
+import { getDb } from "../db";
+import { crmClients } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export const publicQuotesRouter = router({
@@ -145,10 +151,60 @@ export const publicQuotesRouter = router({
         ? Number((jobResult as unknown as { insertId: bigint }).insertId)
         : null;
 
-      if (jobId) {
+       if (jobId) {
         await updateQuote(quote.id, { convertedJobId: jobId });
-      }
 
+        // ── Create a calendar event for the accepted quote ──────────────────
+        // Default to 7 days from now at 9am if no preferred date was captured
+        const _db = await getDb();
+        if (!_db) throw new Error("Database not available");
+        const jobRows = await _db
+          .select()
+          .from((await import("../../drizzle/schema")).portalJobs)
+          .where(eq((await import("../../drizzle/schema")).portalJobs.id, jobId))
+          .limit(1);
+        const job = jobRows[0];
+        const startAt = new Date();
+        startAt.setDate(startAt.getDate() + 7);
+        startAt.setHours(9, 0, 0, 0);
+        const endAt = new Date(startAt.getTime() + 60 * 60 * 1000); // +1 hour
+
+        await createPortalCalendarEvent({
+          clientId: quote.clientId,
+          jobId,
+          title: `📋 ${quote.jobTitle} — ${quote.customerName ?? "Customer"}`,
+          description: `Quote ${quote.quoteNumber} accepted. Value: $${parseFloat(quote.totalAmount ?? "0").toLocaleString("en-AU", { minimumFractionDigits: 2 })} incl. GST${input.customerNote ? `\nCustomer note: ${input.customerNote}` : ""}`,
+          location: quote.customerAddress ?? undefined,
+          contactName: quote.customerName ?? undefined,
+          contactPhone: quote.customerPhone ?? undefined,
+          startAt,
+          endAt,
+          color: "green",
+        });
+
+        // ── Send push notification to the client's mobile app ───────────────
+        const portalSession = await getPortalSessionByClientId(quote.clientId);
+        if (portalSession) {
+          const db = await getDb();
+          if (!db) throw new Error("Database not available");
+          const clientRows = await db
+            .select({ pushToken: (await import("../../drizzle/schema")).crmClients.pushToken })
+            .from((await import("../../drizzle/schema")).crmClients)
+            .where(eq((await import("../../drizzle/schema")).crmClients.id, quote.clientId))
+            .limit(1);
+          const pushToken = clientRows[0]?.pushToken;
+          if (pushToken) {
+            await sendExpoPush({
+              to: pushToken,
+              title: "✅ Quote Accepted!",
+              body: `${quote.customerName ?? "Your customer"} accepted quote ${quote.quoteNumber} — $${parseFloat(quote.totalAmount ?? "0").toFixed(2)}. A calendar event has been created.`,
+              data: { screen: "Calendar", jobId },
+              sound: "default",
+              priority: "high",
+            });
+          }
+        }
+      }
       // Notify the tradie by email
       if (client) {
         const notifyEmail = client.quoteReplyToEmail ?? client.contactEmail;

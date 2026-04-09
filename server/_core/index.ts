@@ -10,6 +10,8 @@ import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe";
 import { handleVapiWebhook } from "../vapiWebhook";
 import { audioUploadRouter } from "../audioUpload";
+import { registerMonthlyCallReportCron } from "../cron/monthlyCallReport";
+import { registerSessionExpiryWarningCron } from "../cron/sessionExpiryWarning";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -73,6 +75,10 @@ async function startServer() {
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+
+  // Register cron jobs
+  registerMonthlyCallReportCron();
+  registerSessionExpiryWarningCron();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

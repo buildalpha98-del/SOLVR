@@ -755,16 +755,17 @@ export default function VoiceAgent() {
           <div className="hidden md:flex items-center gap-7">
             {[
               ["/", "Home"],
+              ["/services", "Services"],
               ["/#sectors", "Industries"],
-              ["/#services", "Services"],
-              ["/voice-agent", "Voice Agent"],
+              ["/voice-agent", "Products"],
+              ["/portal", "Client Login"],
             ].map(([href, label]) => (
               <a
                 key={href}
                 href={href}
                 className="font-body text-sm font-medium transition-colors hover:text-amber-400"
                 style={{
-                  color: "rgba(255,255,255,0.75)",
+                  color: label === "Products" ? "#F5A623" : "rgba(255,255,255,0.75)",
                   textDecoration: "none",
                 }}
               >
@@ -814,11 +815,12 @@ export default function VoiceAgent() {
           >
             <div className="container py-4 flex flex-col gap-4">
               {[
-                ["/", "Home"],
-                ["/#sectors", "Industries"],
-                ["/#services", "Services"],
-                ["/voice-agent", "Voice Agent"],
-              ].map(([href, label]) => (
+                     ["/", "Home"],
+              ["/services", "Services"],
+              ["/#sectors", "Industries"],
+              ["/voice-agent", "Products"],
+              ["/portal", "Client Login"],
+            ].map(([href, label]) => (
                 <a
                   key={href}
                   href={href}
@@ -944,6 +946,171 @@ export default function VoiceAgent() {
               </div>
             </Reveal>
           </div>
+        </div>
+      </section>
+
+      {/* ── PRODUCTS COMPARISON ── */}
+      <section style={{ background: "#F9F9F7", padding: "5rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-12">
+              <span className="section-label mb-3 block">Our Products</span>
+              <h2
+                className="font-display text-4xl font-bold mb-4"
+                style={{ color: "#0F1F3D" }}
+              >
+                Two products. One platform.
+              </h2>
+              <p
+                className="font-body text-lg max-w-2xl mx-auto"
+                style={{ color: "#718096" }}
+              >
+                The AI Receptionist answers your calls. The Voice-to-Quote Engine turns them into revenue. Together, they handle everything from first ring to signed quote.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* AI Receptionist */}
+            <Reveal delay={0}>
+              <div
+                className="rounded-2xl overflow-hidden h-full"
+                style={{
+                  background: "#0F1F3D",
+                  border: "2px solid #F5A623",
+                }}
+              >
+                <div style={{ padding: "32px 32px 24px" }}>
+                  <div className="text-4xl mb-4">📞</div>
+                  <div
+                    className="font-body text-xs font-bold uppercase tracking-widest mb-2"
+                    style={{ color: "#F5A623" }}
+                  >
+                    Product 1
+                  </div>
+                  <h3
+                    className="font-display text-2xl font-bold mb-3"
+                    style={{ color: "#FAFAF8" }}
+                  >
+                    AI Receptionist
+                  </h3>
+                  <p
+                    className="font-body text-sm leading-relaxed mb-6"
+                    style={{ color: "rgba(250,250,248,0.75)" }}
+                  >
+                    A 24/7 AI voice agent that answers every call, qualifies the job, and books it into your calendar — even while you're on the tools.
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      "Answers calls 24/7 — never goes to voicemail",
+                      "Qualifies job type, location, and urgency",
+                      "Books directly into your calendar",
+                      "Sends instant SMS confirmation to the customer",
+                      "Transfers to you for complex enquiries",
+                    ].map((f) => (
+                      <div key={f} className="flex items-start gap-2 text-sm font-body" style={{ color: "rgba(250,250,248,0.8)" }}>
+                        <span style={{ color: "#F5A623", flexShrink: 0 }}>✓</span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding: "0 32px 32px" }}>
+                  <a href="#pricing" className="btn-primary block text-center" style={{ textDecoration: "none" }}>
+                    See Pricing →
+                  </a>
+                </div>
+              </div>
+            </Reveal>
+
+            {/* Voice-to-Quote Engine */}
+            <Reveal delay={80}>
+              <div
+                className="rounded-2xl overflow-hidden h-full"
+                style={{
+                  background: "#fff",
+                  border: "1px solid #E5E7EB",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div style={{ padding: "32px 32px 24px" }}>
+                  <div className="text-4xl mb-4">🎙️</div>
+                  <div
+                    className="font-body text-xs font-bold uppercase tracking-widest mb-2"
+                    style={{ color: "#0F1F3D" }}
+                  >
+                    Product 2
+                  </div>
+                  <h3
+                    className="font-display text-2xl font-bold mb-3"
+                    style={{ color: "#0F1F3D" }}
+                  >
+                    Voice-to-Quote Engine
+                  </h3>
+                  <p
+                    className="font-body text-sm leading-relaxed mb-6"
+                    style={{ color: "#6B7280" }}
+                  >
+                    Record a voice note on-site and get a professional, branded quote ready to send in under 60 seconds. No typing, no back-office delays.
+                  </p>
+                  <div className="space-y-2">
+                    {[
+                      "Record a voice note from anywhere",
+                      "AI extracts job details, materials, and pricing",
+                      "Generates a branded PDF quote instantly",
+                      "Customer signs and accepts online",
+                      "Auto-creates a calendar event on acceptance",
+                    ].map((f) => (
+                      <div key={f} className="flex items-start gap-2 text-sm font-body" style={{ color: "#374151" }}>
+                        <span style={{ color: "#F5A623", flexShrink: 0 }}>✓</span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding: "0 32px 32px" }}>
+                  <a href="#pricing" className="block text-center font-display font-bold text-sm py-3 px-4 rounded-lg" style={{ background: "#0F1F3D", color: "#FAFAF8", textDecoration: "none" }}>
+                    See Pricing →
+                  </a>
+                </div>
+              </div>
+            </Reveal>
+          </div>
+
+          {/* Comparison table */}
+          <Reveal delay={160}>
+            <div className="max-w-4xl mx-auto mt-10 overflow-x-auto">
+              <table className="w-full" style={{ borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid #E5E7EB" }}>
+                    <th className="font-body text-sm font-bold text-left py-3 px-4" style={{ color: "#9CA3AF", width: "40%" }}>Feature</th>
+                    <th className="font-body text-sm font-bold text-center py-3 px-4" style={{ color: "#F5A623" }}>AI Receptionist</th>
+                    <th className="font-body text-sm font-bold text-center py-3 px-4" style={{ color: "#0F1F3D" }}>Voice-to-Quote</th>
+                    <th className="font-body text-sm font-bold text-center py-3 px-4" style={{ color: "#16A34A" }}>Full Managed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["24/7 call answering", true, false, true],
+                    ["Job qualification & booking", true, false, true],
+                    ["Voice-to-quote generation", false, true, true],
+                    ["Branded PDF quotes", false, true, true],
+                    ["Online quote acceptance", false, true, true],
+                    ["Calendar event on acceptance", false, true, true],
+                    ["Push notifications (mobile app)", false, true, true],
+                    ["Monthly performance report", false, false, true],
+                  ].map(([label, rec, quote, full], i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #F3F4F6", background: i % 2 === 0 ? "#FAFAF8" : "#fff" }}>
+                      <td className="font-body text-sm py-3 px-4" style={{ color: "#374151" }}>{label as string}</td>
+                      <td className="text-center py-3 px-4">{rec ? <span style={{ color: "#16A34A", fontSize: "1.1rem" }}>✓</span> : <span style={{ color: "#D1D5DB" }}>—</span>}</td>
+                      <td className="text-center py-3 px-4">{quote ? <span style={{ color: "#16A34A", fontSize: "1.1rem" }}>✓</span> : <span style={{ color: "#D1D5DB" }}>—</span>}</td>
+                      <td className="text-center py-3 px-4">{full ? <span style={{ color: "#16A34A", fontSize: "1.1rem" }}>✓</span> : <span style={{ color: "#D1D5DB" }}>—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Reveal>
         </div>
       </section>
 

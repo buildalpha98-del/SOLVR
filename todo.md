@@ -131,3 +131,19 @@
 - [ ] Console onboarding management (view/edit client memory file from Console)
 - [ ] End-to-end smoke test of full onboarding → voice agent → voice-to-quote flow
 - [ ] Test Stripe upgrade flow (remove quote-engine, verify upgrade CTA, checkout, webhook)
+
+## Backend Features & Website Updates (Apr 9)
+- [x] Add pushToken column to crm_clients + pnpm db:push migration
+- [x] portal.registerPushToken + portal.unregisterPushToken procedures
+- [x] Expo push notifications in Vapi webhook (call-ended event fires push to client device)
+- [x] Monthly call report cron job (1st of month, 9am AEST) — emails each client call/job/revenue summary
+- [x] Quote-accepted webhook creates calendar event + fires push notification to client
+- [x] Session expiry warning cron job (daily 9am AEST) — emails clients 48hr before portal session expires
+- [x] Shared expoPush.ts helper extracted for reuse across cron jobs and webhooks
+- [x] Website copy rewrite — new consultancy positioning, Products section, Coming Soon strip
+- [x] Hero restored: "Stop Doing Admin. Start Doing Work." eyebrow + "Your Admin, Solved by AI." headline
+- [x] Client Login button added to main site nav (desktop + mobile)
+- [x] Client Login + portal links added to site footer (Client Access column)
+- [x] /services page created with detailed engagement breakdowns (4 services, process, deliverables, timeline)
+- [x] /voice-agent page updated: Products comparison section, comparison table, updated nav with Services link
+- [x] 99 vitest tests passing, tsc --noEmit exits clean

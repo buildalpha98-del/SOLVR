@@ -544,17 +544,17 @@ export default function Home() {
         <div className="container relative z-10 pt-24 pb-16">
           <div className="max-w-3xl">
             <Reveal>
-              <span className="section-label mb-4 block">Australia's AI Integration Consultancy</span>
+              <span className="section-label mb-4 block">Stop Doing Admin. Start Doing Work.</span>
             </Reveal>
             <Reveal delay={80}>
               <h1 className="font-display font-extrabold leading-none mb-6" style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)", color: "#FAFAF8" }}>
-                AI that works<br />
-                <span className="text-gradient">in your business.</span>
+                Your Admin,<br />
+                <span className="text-gradient">Solved by AI.</span>
               </h1>
             </Reveal>
             <Reveal delay={160}>
               <p className="font-body text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "rgba(250,250,248,0.8)" }}>
-                Solvr builds, deploys, and supports AI for Australian trades, health professionals, and service businesses. Two flagship products. A full suite of integration services. Real results in weeks.
+                Solvr is Australia's AI integration consultancy — we build, deploy, and support AI for trades, health professionals, and service businesses. Two flagship products. A full suite of services. Real results in weeks.
               </p>
             </Reveal>
             <Reveal delay={240}>
