@@ -230,6 +230,27 @@ export const adminPortalRouter = router({
     }),
 
   /**
+   * Admin: Set or reset a client's portal password.
+   * Used from the Console Portal Clients page.
+   */
+  adminSetPassword: protectedProcedure
+    .input(z.object({
+      clientId: z.number().int().positive(),
+      newPassword: z.string().min(8, "Password must be at least 8 characters"),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const bcrypt = await import("bcryptjs");
+      const hash = await bcrypt.hash(input.newPassword, 12);
+      await db
+        .update(crmClients)
+        .set({ portalPasswordHash: hash })
+        .where(eq(crmClients.id, input.clientId));
+      return { success: true };
+    }),
+
+  /**
    * Get the portal status for a single client.
    */
   getPortalStatus: protectedProcedure

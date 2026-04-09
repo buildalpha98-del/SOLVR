@@ -775,7 +775,7 @@ export default function VoiceAgent() {
 
           <div className="flex items-center gap-3">
             <a
-              href="https://solvrvoice-2kmsccza.manus.space/demo"
+              href="/demo"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all"
@@ -833,7 +833,7 @@ export default function VoiceAgent() {
                 </a>
               ))}
               <a
-                href="https://solvrvoice-2kmsccza.manus.space/demo"
+                href="/demo"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMobileMenuOpen(false)}
@@ -911,7 +911,7 @@ export default function VoiceAgent() {
             <Reveal delay={240}>
               <div className="flex flex-wrap gap-4 mb-8">
                 <a
-                  href="https://solvrvoice-2kmsccza.manus.space/demo"
+                  href="/demo"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary text-base px-7 py-3.5"
@@ -1083,7 +1083,7 @@ export default function VoiceAgent() {
           <Reveal delay={200}>
             <div className="text-center">
               <a
-                href="https://solvrvoice-2kmsccza.manus.space/demo"
+                href="/demo"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-primary text-base px-8 py-3.5"
@@ -1239,7 +1239,7 @@ export default function VoiceAgent() {
               </p>
               <div className="flex flex-wrap gap-4 justify-center">
                 <a
-                  href="https://solvrvoice-2kmsccza.manus.space/demo"
+                  href="/demo"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-primary text-base px-8 py-3.5"

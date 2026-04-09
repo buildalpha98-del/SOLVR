@@ -66,6 +66,7 @@ import {
   UserPlus,
   SendHorizonal,
   AlertTriangle,
+  KeyRound,
 } from "lucide-react";
 
 type Client = {
@@ -261,6 +262,19 @@ export default function ConsolePortalClients() {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [setPasswordDialogOpen, setSetPasswordDialogOpen] = useState(false);
+  const [setPasswordValue, setSetPasswordValue] = useState("");
+
+  const adminSetPassword = trpc.adminPortal.adminSetPassword.useMutation({
+    onSuccess: () => {
+      toast.success("Password set successfully. Client can now log in with email + password.");
+      setSetPasswordDialogOpen(false);
+      setSetPasswordValue("");
+    },
+    onError: (err: { message: string }) => {
+      toast.error(`Failed to set password: ${err.message}`);
+    },
+  });
   const [copied, setCopied] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -561,6 +575,19 @@ export default function ConsolePortalClients() {
                               <TooltipContent>Revoke access</TooltipContent>
                             </Tooltip>
                           )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => { setSelectedClient(client); setSetPasswordValue(""); setSetPasswordDialogOpen(true); }}
+                              >
+                                <KeyRound className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Set portal password</TooltipContent>
+                          </Tooltip>
                         </TooltipProvider>
                       </div>
                     </TableCell>
@@ -796,6 +823,59 @@ export default function ConsolePortalClients() {
             >
               <Mail className="w-4 h-4" />
               {sendLink.isPending ? "Generating..." : "Open Gmail Compose"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set Password Dialog */}
+      <Dialog open={setPasswordDialogOpen} onOpenChange={setSetPasswordDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-amber-400" />
+              Set Portal Password
+            </DialogTitle>
+            <DialogDescription>
+              Set a password for <strong>{selectedClient?.contactName}</strong> at{" "}
+              <strong>{selectedClient?.businessName}</strong>. They will log in with their email and this password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                placeholder="Min. 8 characters"
+                value={setPasswordValue}
+                onChange={(e) => setSetPasswordValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && selectedClient && setPasswordValue.length >= 8) {
+                    adminSetPassword.mutate({ clientId: selectedClient.id, newPassword: setPasswordValue });
+                  }
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The client's email is <strong>{selectedClient?.contactEmail}</strong>. They can change their password from the portal settings.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSetPasswordDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!selectedClient || setPasswordValue.length < 8) {
+                  toast.error("Password must be at least 8 characters.");
+                  return;
+                }
+                adminSetPassword.mutate({ clientId: selectedClient.id, newPassword: setPasswordValue });
+              }}
+              disabled={adminSetPassword.isPending || setPasswordValue.length < 8}
+              className="gap-2 bg-amber-500 hover:bg-amber-600 text-black"
+            >
+              <KeyRound className="w-4 h-4" />
+              {adminSetPassword.isPending ? "Setting..." : "Set Password"}
             </Button>
           </DialogFooter>
         </DialogContent>

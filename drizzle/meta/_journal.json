@@ -64,6 +64,13 @@
       "when": 1775685058747,
       "tag": "0008_peaceful_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1775715992344,
+      "tag": "0009_hard_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

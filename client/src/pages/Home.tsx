@@ -869,7 +869,7 @@ export default function Home() {
                   Learn More & Try Demo →
                 </Link>
                 <a
-                  href="https://solvrvoice-2kmsccza.manus.space/demo"
+                  href="/demo"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-body text-sm"

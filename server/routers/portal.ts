@@ -13,14 +13,17 @@
  * added as new procedures here, gated by a `clientProducts` row for that product.
  */
 import { z } from "zod";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import * as bcrypt from "bcryptjs";
 import {
   getCrmClientById,
+  updateCrmClient,
   listCrmInteractionsByClient,
   getPortalSessionByAccessToken,
   getPortalSessionBySessionToken,
+  getPortalSessionByClientId,
   createPortalSession,
   updatePortalSession,
   listPortalJobs,
@@ -35,6 +38,7 @@ import {
   listClientProducts,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
+import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
 
@@ -84,12 +88,11 @@ async function getPortalClient(req: { cookies?: Record<string, string>; headers?
   return { session, client };
 }
 
-// ─── Router ───────────────────────────────────────────────────────────────────
+// // ─── Router ───────────────────────────────────────────────────────────────────
 export const portalRouter = router({
-
   /**
-   * Exchange a magic-link access token for a session cookie.
-   * Called when the client clicks the link in their go-live email.
+   * Legacy magic-link login — kept for backward compatibility.
+   * Clients who still have a magic link in their email can still use it.
    */
   login: publicProcedure
     .input(z.object({ token: z.string() }))
@@ -102,8 +105,6 @@ export const portalRouter = router({
       if (!client) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Client not found." });
       }
-
-      // Issue a new session token
       const sessionToken = randomUUID();
       const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
       await updatePortalSession(session.id, {
@@ -111,24 +112,200 @@ export const portalRouter = router({
         sessionExpiresAt: expiresAt,
         lastAccessedAt: new Date(),
       });
-
-      // Set session cookie using shared cookie options (sameSite: none, secure: true on HTTPS)
-      // sameSite: none is required because the tRPC mutation is a cross-origin POST
       const cookieOpts = getSessionCookieOptions(ctx.req as unknown as import('express').Request);
-      ctx.res.cookie(PORTAL_COOKIE, sessionToken, {
-        ...cookieOpts,
-        expires: expiresAt,
-      });
-
-      return {
-        success: true,
-        clientId: client.id,
-        businessName: client.businessName,
-        plan: (client.package ?? "setup-monthly") as SolvrPlan,
-        features: PLAN_FEATURES[(client.package ?? "setup-monthly") as SolvrPlan] ?? [],
-      };
+      ctx.res.cookie(PORTAL_COOKIE, sessionToken, { ...cookieOpts, expires: expiresAt });
+      return { success: true };
     }),
 
+  /**
+   * Password-based login.
+   * Looks up the client by email, verifies the bcrypt password hash,
+   * and issues a 30-day session cookie.
+   */
+  passwordLogin: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Find client by email (case-insensitive)
+      const { getDb } = await import("../db");
+      const drizzleDb = await getDb();
+      if (!drizzleDb) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { crmClients } = await import("../../drizzle/schema");
+      const { sql } = await import("drizzle-orm");
+      const [client] = await drizzleDb
+        .select()
+        .from(crmClients)
+        .where(sql`LOWER(${crmClients.contactEmail}) = LOWER(${input.email})`)
+        .limit(1);
+
+      // Use a generic error to prevent email enumeration
+      const INVALID_MSG = "Incorrect email or password.";
+
+      if (!client) {
+        // Constant-time dummy compare to prevent timing attacks
+        await bcrypt.compare(input.password, "$2a$12$dummyhashfortimingnobodyknows");
+        throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_MSG });
+      }
+
+      if (!client.portalPasswordHash) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "No password set for this account. Please contact Solvr support to set up your login.",
+        });
+      }
+
+      const valid = await bcrypt.compare(input.password, client.portalPasswordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: INVALID_MSG });
+      }
+
+      // Get or create a portal session for this client
+      let session = await getPortalSessionByClientId(client.id);
+      if (!session) {
+        // Create a placeholder session row (accessToken not used for password auth)
+        await createPortalSession({
+          clientId: client.id,
+          accessToken: randomBytes(32).toString("hex"),
+        });
+        session = await getPortalSessionByClientId(client.id);
+      }
+      if (!session) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Session error" });
+
+      const sessionToken = randomUUID();
+      const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+      await updatePortalSession(session.id, {
+        sessionToken,
+        sessionExpiresAt: expiresAt,
+        lastAccessedAt: new Date(),
+        isRevoked: false,
+      });
+
+      const cookieOpts = getSessionCookieOptions(ctx.req as unknown as import('express').Request);
+      ctx.res.cookie(PORTAL_COOKIE, sessionToken, { ...cookieOpts, expires: expiresAt });
+      return { success: true };
+    }),
+
+  /**
+   * Forgot password — sends a password reset email with a 1-hour token.
+   * Always returns success to prevent email enumeration.
+   */
+  forgotPassword: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const drizzleDb = await getDb();
+      if (!drizzleDb) return { success: true };
+      const { crmClients } = await import("../../drizzle/schema");
+      const { sql } = await import("drizzle-orm");
+      const [client] = await drizzleDb
+        .select()
+        .from(crmClients)
+        .where(sql`LOWER(${crmClients.contactEmail}) = LOWER(${input.email})`)
+        .limit(1);
+
+      if (!client) return { success: true }; // Silent — don't reveal if email exists
+
+      // Get or create portal session
+      let session = await getPortalSessionByClientId(client.id);
+      if (!session) {
+        await createPortalSession({ clientId: client.id, accessToken: randomBytes(32).toString("hex") });
+        session = await getPortalSessionByClientId(client.id);
+      }
+      if (!session) return { success: true };
+
+      const resetToken = randomBytes(32).toString("hex");
+      const resetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await updatePortalSession(session.id, {
+        passwordResetToken: resetToken,
+        passwordResetExpiresAt: resetExpiry,
+      });
+
+      // Determine base URL from request origin header
+      const origin = (ctx.req as unknown as import('express').Request).headers?.origin ?? "https://solvr.com.au";
+      const resetLink = `${origin}/portal/reset-password?token=${resetToken}`;
+
+      await sendEmail({
+        to: client.contactEmail,
+        subject: "Reset your Solvr Portal password",
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp" alt="Solvr" style="height:36px;margin-bottom:24px;" />
+            <h2 style="color:#0F1F3D;margin-bottom:8px;">Reset your password</h2>
+            <p style="color:#4a5568;">Hi ${client.contactName},</p>
+            <p style="color:#4a5568;">Click the button below to reset your Solvr Portal password. This link expires in 1 hour.</p>
+            <a href="${resetLink}" style="display:inline-block;margin:24px 0;padding:14px 28px;background:#F5A623;color:#0F1F3D;font-weight:700;text-decoration:none;border-radius:6px;">Reset Password</a>
+            <p style="color:#718096;font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Reset password — validates the reset token and sets a new bcrypt password hash.
+   */
+  resetPassword: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      newPassword: z.string().min(8, "Password must be at least 8 characters"),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const drizzleDb = await getDb();
+      if (!drizzleDb) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { portalSessions } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [session] = await drizzleDb
+        .select()
+        .from(portalSessions)
+        .where(eq(portalSessions.passwordResetToken, input.token))
+        .limit(1);
+
+      if (!session) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired reset link." });
+      }
+      if (!session.passwordResetExpiresAt || new Date(session.passwordResetExpiresAt) < new Date()) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "This reset link has expired. Please request a new one." });
+      }
+
+      const hash = await bcrypt.hash(input.newPassword, 12);
+      await updateCrmClient(session.clientId, { portalPasswordHash: hash });
+      await updatePortalSession(session.id, {
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Change password — for logged-in clients who want to update their password.
+   */
+  changePassword: publicProcedure
+    .input(z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(8, "Password must be at least 8 characters"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalAuth = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+      const { client } = portalAuth;
+
+      if (!client.portalPasswordHash) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No password set. Please use the forgot password flow." });
+      }
+      const valid = await bcrypt.compare(input.currentPassword, client.portalPasswordHash);
+      if (!valid) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Current password is incorrect." });
+      }
+      const hash = await bcrypt.hash(input.newPassword, 12);
+      await updateCrmClient(client.id, { portalPasswordHash: hash });
+       return { success: true };
+    }),
   /**
    * Get the current portal session state.
    * Returns null if not authenticated — client redirects to /portal/login.

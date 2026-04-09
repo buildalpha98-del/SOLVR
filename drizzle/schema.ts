@@ -144,6 +144,8 @@ export const crmClients = mysqlTable("crm_clients", {
   quoteAbn: varchar("quoteAbn", { length: 50 }),
   /** Default notes / terms appended to every quote */
   quoteDefaultNotes: text("quoteDefaultNotes"),
+  /** bcrypt hash of the client's portal password (null = password not set yet) */
+  portalPasswordHash: varchar("portalPasswordHash", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -504,6 +506,9 @@ export const portalSessions = mysqlTable("portal_sessions", {
   /** When the portal access email was last sent to the client */
   lastEmailSentAt: timestamp("lastEmailSentAt"),
   isRevoked: boolean("isRevoked").default(false).notNull(),
+  /** Token for password reset emails (hex, 1-hour expiry) */
+  passwordResetToken: varchar("passwordResetToken", { length: 128 }),
+  passwordResetExpiresAt: timestamp("passwordResetExpiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type PortalSession = typeof portalSessions.$inferSelect;

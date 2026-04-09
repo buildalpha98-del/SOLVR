@@ -41,6 +41,8 @@ import ConsoleQuotes from "./pages/ConsoleQuotes";
 
 // ── Client Portal ─────────────────────────────────────────────────────────────
 import PortalLogin from "./pages/portal/PortalLogin";
+import PortalForgotPassword from "./pages/portal/PortalForgotPassword";
+import PortalResetPassword from "./pages/portal/PortalResetPassword";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCalls from "./pages/portal/PortalCalls";
 import PortalJobs from "./pages/portal/PortalJobs";
@@ -102,9 +104,11 @@ function Router() {
       {/* ── Referral landing pages ────────────────────────────────────────── */}
       <Route path="/ref/:code" component={ReferralLanding} />
 
-      {/* ── Client Portal (magic-link auth) ─────────────────────────────── */}
+      {/* ── Client Portal (password auth) ──────────────────────────────── */}
       <Route path="/portal" component={PortalLogin} />
       <Route path="/portal/login" component={PortalLogin} />
+      <Route path="/portal/forgot-password" component={PortalForgotPassword} />
+      <Route path="/portal/reset-password" component={PortalResetPassword} />
       <Route path="/portal/dashboard" component={PortalDashboard} />
       <Route path="/portal/calls" component={PortalCalls} />
       <Route path="/portal/jobs" component={PortalJobs} />

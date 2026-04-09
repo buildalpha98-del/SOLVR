@@ -149,11 +149,10 @@ describe("portal router", () => {
   });
 
   describe("login", () => {
-    it("returns success and client info for a valid access token", async () => {
+    it("returns success for a valid access token", async () => {
       const caller = appRouter.createCaller(makeCtx());
       const result = await caller.portal.login({ token: "test-access-token-abc123" });
       expect(result.success).toBe(true);
-      expect(result.businessName).toBe("Jake's Plumbing");
     });
 
     it("throws UNAUTHORIZED for an invalid access token", async () => {
