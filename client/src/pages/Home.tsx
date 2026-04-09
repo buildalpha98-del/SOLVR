@@ -34,7 +34,7 @@ const sectors = [
     statLabel: "of legal professionals now use AI",
     timeSaved: "10–15 hrs/week",
     useCases: [
-      { title: "Contract Review & Drafting", desc: "Claude reviews contracts for risk, flags unusual clauses, and drafts first-pass agreements in minutes.", impact: "High" },
+      { title: "Contract Review & Drafting", desc: "AI reviews contracts for risk, flags unusual clauses, and drafts first-pass agreements in minutes.", impact: "High" },
       { title: "Legal Research Automation", desc: "Search case law, statutes, and precedents in seconds. AI summarises findings and identifies applicable authorities.", impact: "High" },
       { title: "Client Intake & Communication", desc: "AI handles initial queries, collects intake information, and drafts plain-language matter summaries for clients.", impact: "High" },
       { title: "Time Recording & Billing", desc: "Capture billable time from emails, documents, and calendar entries automatically. Reduce write-offs.", impact: "Medium" },
@@ -53,12 +53,12 @@ const sectors = [
     statLabel: "saved per quote with AI assistance",
     timeSaved: "5–8 hrs/week",
     useCases: [
-      { title: "AI-Assisted Quoting", desc: "Convert site notes into structured, professional quotes in minutes. First detailed quote wins the job.", impact: "High" },
+      { title: "Voice-to-Quote", desc: "Record a 60-second voice note on-site. AI extracts every line item and generates a branded PDF quote in under 30 seconds.", impact: "High" },
       { title: "Automated Invoicing", desc: "Generate and send invoices automatically on job completion. Match materials to price lists instantly.", impact: "High" },
-      { title: "Customer Follow-Up", desc: "Automated 3-touch follow-up sequences after quotes. Lifts conversion rates without manual effort.", impact: "Medium" },
+      { title: "AI Receptionist", desc: "Never miss a job enquiry. Your AI answers calls 24/7, qualifies the job, and sends you an instant summary.", impact: "High" },
       { title: "Review & Reputation Management", desc: "AI drafts responses to Google reviews and generates social content from job photos.", impact: "Medium" },
     ],
-    tools: ["Claude", "ServiceM8", "Tradify", "Zapier"],
+    tools: ["Solvr AI Receptionist", "Solvr Voice-to-Quote", "ServiceM8", "Zapier"],
   },
   {
     id: "carpenters",
@@ -72,12 +72,12 @@ const sectors = [
     statLabel: "faster project proposals",
     timeSaved: "4–7 hrs/week",
     useCases: [
-      { title: "Materials Estimation", desc: "Convert project briefs into detailed materials lists with quantities, waste factors, and supplier pricing.", impact: "High" },
+      { title: "Voice-to-Quote", desc: "Convert site notes into structured, professional quotes in minutes. First detailed quote wins the job.", impact: "High" },
       { title: "Client Proposal Writing", desc: "Transform rough notes into polished proposals with clear scope, inclusions, exclusions, and timelines.", impact: "High" },
       { title: "Site Diary & Documentation", desc: "Auto-generate site diaries, variation orders, and handover docs from voice notes taken on-site.", impact: "Medium" },
       { title: "Portfolio & Marketing Content", desc: "Generate case studies, Instagram captions, and website copy from completed job photos.", impact: "Low" },
     ],
-    tools: ["Claude", "Buildxact", "Notion AI", "Canva AI"],
+    tools: ["Solvr Voice-to-Quote", "Buildxact", "Notion AI", "Canva AI"],
   },
   {
     id: "builders",
@@ -96,7 +96,7 @@ const sectors = [
       { title: "Safety & Compliance Docs", desc: "Generate SWMS, site induction materials, and compliance checklists from project parameters.", impact: "High" },
       { title: "Progress Reporting", desc: "Convert site notes and photos into professional client progress reports in minutes.", impact: "Medium" },
     ],
-    tools: ["Claude", "Procore AI", "Buildxact", "Hammertech"],
+    tools: ["Solvr AI Receptionist", "Procore AI", "Buildxact", "Hammertech"],
   },
   {
     id: "health",
@@ -112,10 +112,10 @@ const sectors = [
     useCases: [
       { title: "Clinical Note Generation", desc: "AI drafts chart-ready notes from voice dictation. Clinicians review and approve — cutting doc time by 50–70%.", impact: "High" },
       { title: "Patient Messaging & Triage", desc: "Summarise long patient messages, flag urgency, and draft initial responses. Reduce inbox burden.", impact: "High" },
-      { title: "Appointment Scheduling", desc: "Automated booking, reminders, and cancellations via SMS/email. Reduces no-shows by up to 30%.", impact: "High" },
+      { title: "AI Receptionist", desc: "Automated booking, reminders, and cancellations via your AI receptionist. Reduces no-shows by up to 30%.", impact: "High" },
       { title: "Prior Authorisation", desc: "AI pre-fills insurance authorisation forms and tracks submission status. Hours reduced to minutes.", impact: "Medium" },
     ],
-    tools: ["Claude", "Nuance DAX", "Healthie", "Curogram"],
+    tools: ["Solvr AI Receptionist", "Nuance DAX", "Healthie", "Curogram"],
   },
   {
     id: "physio",
@@ -134,50 +134,118 @@ const sectors = [
       { title: "Patient Progress Reports", desc: "Create professional outcome reports for GPs, insurers, and patients from session data.", impact: "Medium" },
       { title: "Rebooking & Recall Sequences", desc: "Automated SMS/email sequences for rebooking, discharge follow-up, and recall campaigns.", impact: "Medium" },
     ],
-    tools: ["Claude", "Cliniko AI", "Nookal", "Halaxy"],
+    tools: ["Solvr AI Receptionist", "Cliniko AI", "Nookal", "Halaxy"],
+  },
+];
+
+const products = [
+  {
+    id: "voice-agent",
+    badge: "Flagship Product",
+    badgeColor: "#F5A623",
+    icon: "📞",
+    title: "AI Receptionist",
+    tagline: "Never miss a job. Never hire a receptionist.",
+    desc: "Your AI receptionist answers every call 24/7, qualifies the job, captures caller details, and sends you an instant summary — even when you're on the tools, in a meeting, or asleep.",
+    features: [
+      "Answers calls in your business name, 24/7",
+      "Qualifies job type, urgency, and location",
+      "Sends you an instant SMS + email summary",
+      "Logs every call to your CRM automatically",
+      "Fully customised to your trade and services",
+      "Live client portal with call history & insights",
+    ],
+    price: "From $197/mo",
+    cta: "See Plans & Pricing",
+    href: "/voice-agent",
+    accentColor: "#F5A623",
+    stat: { value: "24/7", label: "Call coverage" },
+  },
+  {
+    id: "quote-engine",
+    badge: "New Product",
+    badgeColor: "#3B82F6",
+    icon: "🎙️",
+    title: "Voice-to-Quote Engine",
+    tagline: "Record a voice note. Get a professional quote.",
+    desc: "On-site, record a 60-second voice note describing the job. Our AI transcribes it, extracts every line item, and generates a branded PDF quote ready to send — in under 30 seconds.",
+    features: [
+      "Record voice notes directly from the mobile app",
+      "AI extracts materials, labour, and line items",
+      "Generates a branded PDF quote instantly",
+      "Send quotes to customers via email in one tap",
+      "Customers can accept quotes online",
+      "All quotes tracked in your client portal",
+    ],
+    price: "$97/mo add-on",
+    cta: "Add to Your Plan",
+    href: "/voice-agent",
+    accentColor: "#3B82F6",
+    stat: { value: "30s", label: "Quote generation time" },
   },
 ];
 
 const services = [
   {
     icon: "🔍",
-    title: "AI Readiness Audit",
+    title: "AI Readiness Assessment",
     price: "$497",
     duration: "2-hour deep dive",
-    desc: "We analyse your current workflows, identify the top 3 AI opportunities, and deliver a prioritised implementation roadmap with estimated ROI.",
+    desc: "We map your current workflows, identify your top 3 AI opportunities, and hand you a prioritised roadmap with realistic ROI estimates — before you spend a dollar on tools.",
     includes: ["Workflow analysis session", "Top 3 AI opportunities report", "Tool recommendations", "ROI estimate", "90-day implementation plan"],
-    cta: "Book Your Audit",
+    cta: "Book Your Assessment",
     highlight: false,
   },
   {
     icon: "⚡",
-    title: "AI Implementation Package",
+    title: "AI Integration Service",
     price: "From $2,500",
     duration: "4-week engagement",
-    desc: "We set up, configure, and integrate 2–3 AI tools directly into your existing workflows. Your team is trained and ready to go.",
-    includes: ["Everything in Audit", "Tool setup & configuration", "Workflow integration", "Team training (2 sessions)", "30-day support period"],
+    desc: "We build, configure, and integrate AI directly into your existing systems. You don't touch a line of code — you just start saving time from week one.",
+    includes: ["Everything in Assessment", "Custom AI build & configuration", "Systems integration", "Team onboarding (2 sessions)", "30-day support period"],
     cta: "Book a Strategy Call",
     highlight: true,
   },
   {
     icon: "🎓",
-    title: "AI Training Workshop",
+    title: "Team Information Session",
     price: "$1,200",
     duration: "Half-day session",
-    desc: "Hands-on workshop for your team covering Claude, ChatGPT, and automation tools. Practical exercises tailored to your industry.",
-    includes: ["Half-day workshop (4 hrs)", "Industry-specific exercises", "Prompt library handout", "Recording & resources", "Follow-up Q&A session"],
-    cta: "Book a Workshop",
+    desc: "Get your whole team on the same page. A practical, jargon-free session covering what AI can and can't do, how to use it safely, and where to start in your business.",
+    includes: ["Half-day session (4 hrs)", "Industry-specific examples", "Prompt library handout", "Recording & resources", "Follow-up Q&A"],
+    cta: "Book a Session",
     highlight: false,
   },
   {
-    icon: "🔄",
-    title: "Monthly AI Support",
-    price: "From $500/mo",
-    duration: "Ongoing partnership",
-    desc: "Continuous optimisation, new use cases, and expert support as your business grows and AI tools evolve.",
-    includes: ["Monthly strategy call", "New use case identification", "Prompt & workflow updates", "Priority support", "Quarterly ROI review"],
-    cta: "Get Started",
+    icon: "🧑‍💼",
+    title: "1-on-1 AI Consultation",
+    price: "$350",
+    duration: "90-minute session",
+    desc: "A focused session with one of our AI specialists. Bring your biggest challenge — we'll show you exactly how to solve it with AI, live on screen.",
+    includes: ["90-minute strategy session", "Live tool demonstrations", "Custom prompt templates", "Implementation checklist", "30-day email support"],
+    cta: "Book a Consultation",
     highlight: false,
+  },
+];
+
+const comingSoon = [
+  {
+    icon: "💸",
+    title: "AI Invoice Chasing",
+    desc: "Automatically follow up overdue invoices with personalised, professional messages. Set your rules once — the AI handles the rest.",
+    eta: "Coming Q3 2026",
+  },
+  {
+    icon: "📲",
+    title: "Automated Job Updates",
+    desc: "Keep customers informed at every stage. AI sends automated updates when a job is booked, on the way, and completed — no manual messages needed.",
+    eta: "Coming Q3 2026",
+  },
+  {
+    icon: "🔬",
+    title: "Deep-Dive Research",
+    desc: "Ask any business question and get a comprehensive, sourced report in minutes. Competitor analysis, market sizing, pricing benchmarks — on demand.",
+    eta: "Coming Q4 2026",
   },
 ];
 
@@ -201,27 +269,27 @@ const adoptionData = [
 const faqs = [
   {
     q: "Do I need any technical knowledge to get started?",
-    a: "None at all. We handle all the technical setup and configuration. Our job is to make AI simple for you — you just need to know your business, and we'll handle the rest.",
+    a: "None at all. We handle every part of the technical setup. Your job is to know your business — our job is to make AI work inside it. Most clients are up and running within two weeks without touching a single line of code.",
+  },
+  {
+    q: "What's the difference between your products and your services?",
+    a: "Our products — the AI Receptionist and Voice-to-Quote Engine — are software tools your business uses every day on a monthly subscription. Our services — assessments, integrations, team sessions, and consultations — are one-off or project-based engagements where we come in and do the work with you. Many clients start with a service to get set up, then run the products independently.",
   },
   {
     q: "How long does it take to see results?",
-    a: "Most clients see measurable time savings within the first week of implementation. Typically, businesses recover their investment within 60–90 days through time savings alone.",
+    a: "Most clients see measurable time savings within the first week. The AI Receptionist starts answering calls from day one. The Voice-to-Quote Engine typically cuts quoting time by 80% from the first job. For broader AI integration projects, most clients recover their investment within 60–90 days.",
   },
   {
     q: "Will AI replace my staff?",
-    a: "No — and that's not what we're here to do. AI handles the repetitive, low-value admin tasks so your team can focus on the high-value work that actually grows your business. Think of it as giving everyone a highly capable assistant.",
-  },
-  {
-    q: "Which AI tools do you use?",
-    a: "We primarily work with Claude (Anthropic) and ChatGPT (OpenAI) for business tasks, combined with automation platforms like Zapier and Make. We also integrate industry-specific tools like Clio (legal), ServiceM8 (trades), and Cliniko (health).",
+    a: "No — and that's not what we're here to do. AI takes over the repetitive, low-value admin so your team can focus on the work that actually grows your business. Think of it as giving everyone a highly capable assistant that never calls in sick.",
   },
   {
     q: "Is my business data safe?",
-    a: "Yes. We use enterprise-grade AI tools with strong data privacy policies. We never use your confidential business data to train AI models, and we help you set up appropriate data handling policies.",
+    a: "Yes. We use enterprise-grade AI tools with strong data privacy policies. We never use your confidential business data to train AI models, and we help you set up appropriate data handling policies from day one.",
   },
   {
-    q: "What if it doesn't work for my business?",
-    a: "We start with an Audit to identify genuine opportunities before committing to implementation. If we don't believe AI will deliver meaningful ROI for your specific situation, we'll tell you honestly.",
+    q: "Can I start with just one product or service?",
+    a: "Absolutely. Most clients start with either the AI Readiness Assessment (to understand where AI will have the biggest impact) or jump straight into the AI Receptionist if they're losing jobs to missed calls. There's no minimum commitment — start where it makes sense for your business.",
   },
 ];
 
@@ -390,7 +458,7 @@ export default function Home() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-   return (
+  return (
     <div className="min-h-screen" style={{ background: "#FAFAF8" }}>
 
       {/* ── Navigation ── */}
@@ -411,7 +479,7 @@ export default function Home() {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-7">
-            {[["#how-we-help", "How We Help"], ["#sectors", "Sectors"], ["#services", "Services"], ["#results", "Results"], ["#faq", "FAQ"]].map(([href, label]) => (
+            {[["#products", "Products"], ["#services", "Services"], ["#sectors", "Industries"], ["#results", "Results"], ["#faq", "FAQ"]].map(([href, label]) => (
               <a key={href} href={href} className="font-body text-sm font-medium transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none" }}>
                 {label}
               </a>
@@ -419,11 +487,10 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/voice-agent" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.08)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623", textDecoration: "none" }}>▶ Voice Agent</Link>
             <Link href="/ai-audit" className="hidden md:inline-flex font-body text-sm font-semibold px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623", textDecoration: "none" }}>Free AI Audit ✦</Link>
             <Link href="/portal" className="hidden md:inline-flex font-body text-sm font-medium px-4 py-2 rounded-lg transition-all" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>Client Login</Link>
             <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary hidden md:inline-flex">Book a Free Call</a>
-            {/* Discreet admin link — only visible on hover, not prominent to clients */}
+            {/* Discreet admin link */}
             <Link href="/console" className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all opacity-30 hover:opacity-100" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "none" }} title="Admin Console">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </Link>
@@ -443,13 +510,13 @@ export default function Home() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t" style={{ background: "rgba(15,31,61,0.98)", borderColor: "rgba(255,255,255,0.1)" }}>
             <div className="container py-4 flex flex-col gap-4">
-              {[["#how-we-help", "How We Help"], ["#sectors", "Sectors"], ["#services", "Services"], ["#results", "Results"], ["#faq", "FAQ"]].map(([href, label]) => (
+              {[["#products", "Products"], ["#services", "Services"], ["#sectors", "Industries"], ["#results", "Results"], ["#faq", "FAQ"]].map(([href, label]) => (
                 <a key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="font-body text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>
                   {label}
                 </a>
               ))}
-              <Link href="/voice-agent" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.1)", border: "1px dashed rgba(245,166,35,0.5)", color: "#F5A623" }}>▶ Voice Agent</Link>
               <Link href="/portal" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-medium px-4 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}>Client Login</Link>
+              <Link href="/ai-audit" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623" }}>Free AI Audit ✦</Link>
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
             </div>
           </div>
@@ -477,23 +544,23 @@ export default function Home() {
         <div className="container relative z-10 pt-24 pb-16">
           <div className="max-w-3xl">
             <Reveal>
-              <span className="section-label mb-4 block">Stop Doing Admin. Start Doing Work.</span>
+              <span className="section-label mb-4 block">Australia's AI Integration Consultancy</span>
             </Reveal>
             <Reveal delay={80}>
               <h1 className="font-display font-extrabold leading-none mb-6" style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)", color: "#FAFAF8" }}>
-                Your Admin,<br />
-                <span className="text-gradient">Solved by AI.</span>
+                AI that works<br />
+                <span className="text-gradient">in your business.</span>
               </h1>
             </Reveal>
             <Reveal delay={160}>
               <p className="font-body text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "rgba(250,250,248,0.8)" }}>
-                Solvr helps trades, health professionals, and service businesses implement AI tools that eliminate admin, win more jobs, and get home on time — without needing a tech team.
+                Solvr builds, deploys, and supports AI for Australian trades, health professionals, and service businesses. Two flagship products. A full suite of integration services. Real results in weeks.
               </p>
             </Reveal>
             <Reveal delay={240}>
               <div className="flex flex-wrap gap-4 mb-8">
-                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-base px-7 py-3.5">Book a Free Strategy Call →</a>
-                <a href="#sectors" className="btn-outline text-base px-7 py-3.5">See Your Industry</a>
+                <a href="#products" className="btn-primary text-base px-7 py-3.5">See Our Products →</a>
+                <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-outline text-base px-7 py-3.5">Book a Free Strategy Call</a>
               </div>
               <div className="mb-12">
                 <Link href="/ai-audit"
@@ -502,7 +569,7 @@ export default function Home() {
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "rgba(245,166,35,0.2)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "rgba(245,166,35,0.12)"; }}>
                   <span>✦</span>
-                  <span>Take the Free AI Audit — find out exactly which tools will save you the most time</span>
+                  <span>Take the Free AI Audit — find out exactly where AI will save you the most time</span>
                   <span>→</span>
                 </Link>
               </div>
@@ -512,9 +579,9 @@ export default function Home() {
             <Reveal delay={320}>
               <div className="flex flex-wrap gap-6">
                 {[
-                  { icon: "⚡", text: "Results in 2 weeks" },
+                  { icon: "⚡", text: "Live in 2 weeks" },
                   { icon: "🔒", text: "No tech skills needed" },
-                  { icon: "✅", text: "Money-back guarantee" },
+                  { icon: "🇦🇺", text: "Australian-built & supported" },
                 ].map((t, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm font-body" style={{ color: "rgba(255,255,255,0.7)" }}>
                     <span>{t.icon}</span>
@@ -539,21 +606,21 @@ export default function Home() {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <Reveal>
               <div>
-                <span className="section-label mb-4 block">The Problem</span>
+                <span className="section-label mb-4 block">The Reality</span>
                 <h2 className="font-display text-4xl font-bold mb-6" style={{ color: "#FAFAF8" }}>
                   Your competitors are already using AI. Are you?
                 </h2>
                 <p className="font-body text-lg leading-relaxed mb-6" style={{ color: "rgba(250,250,248,0.75)" }}>
-                  57% of small businesses are now investing in AI — and the ones that aren't are falling behind on quoting speed, admin efficiency, and customer response times.
+                  57% of Australian small businesses are now investing in AI — and the ones that aren't are falling behind on response times, quoting speed, and admin efficiency.
                 </p>
                 <p className="font-body text-lg leading-relaxed mb-8" style={{ color: "rgba(250,250,248,0.75)" }}>
-                  The problem isn't that AI doesn't work for your industry. It's that nobody has shown you <em style={{ color: "#F5A623" }}>exactly how</em> to use it in your specific workflow.
+                  The problem isn't that AI doesn't work for your industry. It's that nobody has shown you <em style={{ color: "#F5A623" }}>exactly how</em> to deploy it in your specific workflow — until now.
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { pain: "Hours lost on quotes & invoices", fix: "Done in minutes with AI" },
-                    { pain: "Chasing clients for follow-up", fix: "Automated sequences" },
-                    { pain: "Drowning in documentation", fix: "Voice-to-doc in seconds" },
+                    { pain: "Missed calls = lost jobs", fix: "AI answers 24/7" },
+                    { pain: "Hours lost writing quotes", fix: "Voice-to-quote in 30s" },
+                    { pain: "Chasing overdue invoices", fix: "Automated follow-up" },
                     { pain: "Inconsistent customer comms", fix: "Professional every time" },
                   ].map((item, i) => (
                     <div key={i} className="p-4 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
@@ -578,12 +645,12 @@ export default function Home() {
         <div className="container">
           <Reveal>
             <div className="text-center mb-14">
-              <span className="section-label mb-3 block">Our Process</span>
+              <span className="section-label mb-3 block">Our Approach</span>
               <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#0F1F3D" }}>
-                Three steps to AI that actually works
+                Products that run. Services that build.
               </h2>
               <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "#718096" }}>
-                No jargon. No 6-month projects. Just practical AI implementation that delivers results in weeks.
+                We're not just consultants who talk about AI. We build software products your business runs on, and we provide the services to make sure AI actually sticks.
               </p>
             </div>
           </Reveal>
@@ -593,25 +660,25 @@ export default function Home() {
               {
                 step: "01",
                 icon: "🔍",
-                title: "Audit",
+                title: "Assess",
                 subtitle: "Understand your workflows",
-                desc: "We spend 2 hours with you mapping your current processes, identifying the biggest time drains, and pinpointing exactly where AI will deliver the fastest ROI.",
+                desc: "We spend 2 hours mapping your current processes, identifying the biggest time drains, and pinpointing exactly where AI will deliver the fastest ROI — before you spend a dollar.",
                 color: "#F5A623",
               },
               {
                 step: "02",
                 icon: "⚡",
-                title: "Implement",
+                title: "Build & Deploy",
                 subtitle: "Set up and integrate",
-                desc: "We configure the right AI tools for your business, integrate them with your existing software, and build the prompts and workflows your team will actually use.",
+                desc: "We configure the right AI tools for your business — whether that's our own products or third-party integrations — and wire them directly into your existing systems.",
                 color: "#0F1F3D",
               },
               {
                 step: "03",
                 icon: "📈",
-                title: "Support",
+                title: "Support & Scale",
                 subtitle: "Grow and optimise",
-                desc: "We train your team, measure results, and continuously improve your AI setup as your business grows and new opportunities emerge.",
+                desc: "We train your team, measure results, and continuously improve your AI setup as your business grows. You're never left to figure it out alone.",
                 color: "#1E3A5F",
               },
             ].map((step, i) => (
@@ -641,6 +708,114 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── PRODUCTS ── */}
+      <section id="products" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Our Products</span>
+              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
+                Built by us. Run by you. Every day.
+              </h2>
+              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "rgba(250,250,248,0.65)" }}>
+                Two flagship AI products purpose-built for Australian trades and service businesses. Subscription-based, fully supported, live in under two weeks.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid lg:grid-cols-2 gap-8">
+            {products.map((product, i) => (
+              <Reveal key={product.id} delay={i * 120}>
+                <div
+                  className="rounded-2xl overflow-hidden h-full flex flex-col"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: `1px solid ${product.accentColor}30`,
+                    boxShadow: `0 0 40px ${product.accentColor}10`,
+                  }}
+                >
+                  {/* Product header */}
+                  <div className="p-8 pb-6">
+                    <div className="flex items-start justify-between mb-5">
+                      <span className="text-4xl">{product.icon}</span>
+                      <span
+                        className="font-body text-xs font-bold px-3 py-1 rounded-full"
+                        style={{ background: `${product.badgeColor}20`, color: product.badgeColor, border: `1px solid ${product.badgeColor}40` }}
+                      >
+                        {product.badge}
+                      </span>
+                    </div>
+                    <h3 className="font-display text-2xl font-bold mb-1" style={{ color: "#FAFAF8" }}>{product.title}</h3>
+                    <p className="font-body text-sm font-semibold mb-4" style={{ color: product.accentColor }}>{product.tagline}</p>
+                    <p className="font-body text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.7)" }}>{product.desc}</p>
+
+                    {/* Stat callout */}
+                    <div
+                      className="inline-flex items-center gap-3 px-4 py-3 rounded-xl mb-6"
+                      style={{ background: `${product.accentColor}15`, border: `1px solid ${product.accentColor}30` }}
+                    >
+                      <span className="font-display text-3xl font-extrabold" style={{ color: product.accentColor }}>{product.stat.value}</span>
+                      <span className="font-body text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{product.stat.label}</span>
+                    </div>
+
+                    {/* Feature list */}
+                    <div className="space-y-2">
+                      {product.features.map((f, j) => (
+                        <div key={j} className="flex items-center gap-2 text-sm font-body">
+                          <span style={{ color: product.accentColor }}>✓</span>
+                          <span style={{ color: "rgba(255,255,255,0.75)" }}>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Product footer */}
+                  <div className="p-8 pt-0 mt-auto">
+                    <div className="flex items-center justify-between pt-6" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      <div>
+                        <div className="font-display text-2xl font-extrabold" style={{ color: product.accentColor }}>{product.price}</div>
+                        <div className="font-body text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>per month, cancel anytime</div>
+                      </div>
+                      <Link
+                        href={product.href}
+                        className="font-display font-bold text-sm py-3 px-6 rounded-xl transition-all"
+                        style={{ background: product.accentColor, color: product.id === "voice-agent" ? "#0F1F3D" : "#FAFAF8", textDecoration: "none" }}
+                      >
+                        {product.cta} →
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          {/* Coming Soon strip */}
+          <Reveal delay={200}>
+            <div className="mt-12 rounded-2xl p-8" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.12)" }}>
+              <div className="flex items-center gap-3 mb-6">
+                <span className="font-body text-xs font-bold px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                  Coming Soon
+                </span>
+                <span className="font-body text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>More products in development</span>
+              </div>
+              <div className="grid md:grid-cols-3 gap-6">
+                {comingSoon.map((item, i) => (
+                  <div key={i} className="flex gap-4">
+                    <span className="text-2xl flex-shrink-0">{item.icon}</span>
+                    <div>
+                      <div className="font-display font-bold text-sm mb-1" style={{ color: "rgba(255,255,255,0.6)" }}>{item.title}</div>
+                      <p className="font-body text-xs leading-relaxed mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>{item.desc}</p>
+                      <span className="font-body text-xs font-semibold" style={{ color: "#F5A623", opacity: 0.6 }}>{item.eta}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ── AI AUDIT PROMO BANNER ── */}
       <section style={{ background: "#F5A623", padding: "3rem 0" }}>
         <div className="container">
@@ -662,47 +837,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── SECTORS ── */}
-      <section id="sectors" style={{ background: "#F0F4FF", padding: "6rem 0" }}>
+      {/* ── SERVICES ── */}
+      <section id="services" style={{ background: "#FAFAF8", padding: "6rem 0" }}>
         <div className="container">
           <Reveal>
             <div className="text-center mb-14">
-              <span className="section-label mb-3 block">Industries We Serve</span>
+              <span className="section-label mb-3 block">Our Services</span>
               <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#0F1F3D" }}>
-                Built for your industry, not just "business"
+                Expert support at every stage
               </h2>
               <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "#718096" }}>
-                We don't offer generic AI advice. Every implementation is tailored to your specific trade, tools, and workflows.
-              </p>
-            </div>
-          </Reveal>
-
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {sectors.map((sector) => (
-              <SectorCard key={sector.id} sector={sector} />
-            ))}
-          </div>
-
-          <Reveal delay={100}>
-            <div className="text-center mt-10">
-              <p className="font-body text-sm mb-4" style={{ color: "#718096" }}>Don't see your industry? We work with most service businesses.</p>
-              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-outline-dark text-sm px-6 py-2.5">Talk to us about your business →</a>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ── SERVICES ── */}
-      <section id="services" style={{ background: "#0F1F3D", padding: "6rem 0" }}>
-        <div className="container">
-          <Reveal>
-            <div className="text-center mb-14">
-              <span className="section-label mb-3 block">What We Offer</span>
-              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
-                Services designed around your needs
-              </h2>
-              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "rgba(250,250,248,0.65)" }}>
-                From a quick audit to full implementation and ongoing support — we meet you where you are.
+                Whether you need a quick assessment, a full integration build, or a session to get your team across AI — we've got an engagement that fits.
               </p>
             </div>
           </Reveal>
@@ -713,30 +858,30 @@ export default function Home() {
                 <div
                   className="h-full flex flex-col rounded-xl overflow-hidden"
                   style={{
-                    background: svc.highlight ? "#F5A623" : "rgba(255,255,255,0.05)",
-                    border: svc.highlight ? "none" : "1px solid rgba(255,255,255,0.08)",
+                    background: svc.highlight ? "#F5A623" : "rgba(15,31,61,0.04)",
+                    border: svc.highlight ? "none" : "1px solid rgba(15,31,61,0.1)",
                     boxShadow: svc.highlight ? "0 8px 40px rgba(245,166,35,0.35)" : "none",
                   }}
                 >
                   <div className="p-6 flex-1">
                     <div className="text-3xl mb-4">{svc.icon}</div>
-                    <h3 className="font-display text-xl font-bold mb-1" style={{ color: svc.highlight ? "#0F1F3D" : "#FAFAF8" }}>
+                    <h3 className="font-display text-xl font-bold mb-1" style={{ color: svc.highlight ? "#0F1F3D" : "#0F1F3D" }}>
                       {svc.title}
                     </h3>
                     <div className="font-display text-2xl font-extrabold mb-1" style={{ color: svc.highlight ? "#0F1F3D" : "#F5A623" }}>
                       {svc.price}
                     </div>
-                    <div className="font-body text-xs mb-4" style={{ color: svc.highlight ? "rgba(15,31,61,0.7)" : "rgba(255,255,255,0.5)" }}>
+                    <div className="font-body text-xs mb-4" style={{ color: svc.highlight ? "rgba(15,31,61,0.7)" : "#718096" }}>
                       {svc.duration}
                     </div>
-                    <p className="font-body text-sm leading-relaxed mb-5" style={{ color: svc.highlight ? "rgba(15,31,61,0.8)" : "rgba(255,255,255,0.7)" }}>
+                    <p className="font-body text-sm leading-relaxed mb-5" style={{ color: svc.highlight ? "rgba(15,31,61,0.8)" : "#4A5568" }}>
                       {svc.desc}
                     </p>
                     <div className="space-y-2">
                       {svc.includes.map((item, j) => (
                         <div key={j} className="flex items-center gap-2 text-sm font-body">
                           <span style={{ color: svc.highlight ? "#0F1F3D" : "#F5A623" }}>✓</span>
-                          <span style={{ color: svc.highlight ? "rgba(15,31,61,0.85)" : "rgba(255,255,255,0.75)" }}>{item}</span>
+                          <span style={{ color: svc.highlight ? "rgba(15,31,61,0.85)" : "#4A5568" }}>{item}</span>
                         </div>
                       ))}
                     </div>
@@ -758,6 +903,36 @@ export default function Home() {
               </Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ── SECTORS ── */}
+      <section id="sectors" style={{ background: "#F0F4FF", padding: "6rem 0" }}>
+        <div className="container">
+          <Reveal>
+            <div className="text-center mb-14">
+              <span className="section-label mb-3 block">Industries We Serve</span>
+              <h2 className="font-display text-4xl md:text-5xl font-bold mb-4" style={{ color: "#0F1F3D" }}>
+                Built for your industry, not just "business"
+              </h2>
+              <p className="font-body text-lg max-w-xl mx-auto" style={{ color: "#718096" }}>
+                We don't offer generic AI advice. Every product deployment and service engagement is tailored to your specific trade, tools, and workflows.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {sectors.map((sector) => (
+              <SectorCard key={sector.id} sector={sector} />
+            ))}
+          </div>
+
+          <Reveal delay={100}>
+            <div className="text-center mt-10">
+              <p className="font-body text-sm mb-4" style={{ color: "#718096" }}>Don't see your industry? We work with most service businesses.</p>
+              <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-outline-dark text-sm px-6 py-2.5">Talk to us about your business →</a>
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -813,22 +988,22 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-5 mt-10">
             {[
               {
-                quote: "Solvr saved our practice 12 hours a week on clinical notes alone. The ROI was clear within the first month.",
-                name: "Dr. Sarah Chen",
-                role: "GP, Inner West Medical Centre",
-                icon: "🏥",
-              },
-              {
-                quote: "I was sceptical AI could help a plumbing business. Now I send professional quotes in 5 minutes and my conversion rate has doubled.",
-                name: "Mark Thompson",
-                role: "Owner, Thompson Plumbing",
+                quote: "The AI Receptionist paid for itself in the first week. I stopped losing jobs to missed calls and my calendar filled up.",
+                name: "Brad Hennessy",
+                role: "Owner, Hennessy Plumbing",
                 icon: "🔧",
               },
               {
-                quote: "Our lawyers are spending 40% less time on research and drafting. We've taken on 30% more clients without hiring.",
-                name: "James Whitfield",
-                role: "Principal, Whitfield & Associates",
-                icon: "⚖️",
+                quote: "Voice-to-Quote is a game changer. I record a note on-site and the quote is ready before I've driven back to the van.",
+                name: "Chris Moretti",
+                role: "Director, Moretti Building Group",
+                icon: "🏗️",
+              },
+              {
+                quote: "Solvr's team session got our whole practice using AI in a single afternoon. The ROI was clear within the first month.",
+                name: "Dr. Sarah Chen",
+                role: "GP, Inner West Medical Centre",
+                icon: "🏥",
               },
             ].map((t, i) => (
               <Reveal key={i} delay={i * 80}>
@@ -856,10 +1031,10 @@ export default function Home() {
               <div className="flex-1">
                 <span className="section-label mb-3 block" style={{ color: "#F5A623" }}>Live Demo</span>
                 <h2 className="font-display text-3xl md:text-4xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
-                  Hear the AI answer a call — right now.
+                  Hear the AI Receptionist answer a call — right now.
                 </h2>
                 <p className="font-body text-lg leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
-                  Our "Never Miss a Job" voice agent answers calls, qualifies the job, and books it in — 24/7, even when you're on the tools. Try a live call in under 60 seconds.
+                  Our AI Receptionist answers calls, qualifies the job, and sends you an instant summary — 24/7, even when you're on the tools. Try a live call in under 60 seconds.
                 </p>
               </div>
               <div className="flex flex-col items-center gap-4 shrink-0">
@@ -868,7 +1043,7 @@ export default function Home() {
                   className="btn-primary text-base px-8 py-4"
                   style={{ fontSize: "1rem" }}
                 >
-                  Learn More & Try Demo →
+                  See Plans & Try Demo →
                 </Link>
                 <a
                   href="/demo"
@@ -919,12 +1094,12 @@ export default function Home() {
             {/* Left: Value prop */}
             <Reveal>
               <div>
-                <span className="section-label mb-3 block">Book Now</span>
+                <span className="section-label mb-3 block">Get Started</span>
                 <h2 className="font-display text-4xl font-bold mb-4" style={{ color: "#FAFAF8" }}>
-                  Ready to <span className="text-gradient">Solve</span> your admin?
+                  Ready to put AI to work?
                 </h2>
                 <p className="font-body text-lg leading-relaxed mb-8" style={{ color: "rgba(250,250,248,0.75)" }}>
-                  Book a free 30-minute strategy call. We'll identify your top AI opportunities and give you a clear picture of what's possible — no obligation, no sales pitch.
+                  Book a free 30-minute strategy call. We'll identify your top AI opportunities, show you which of our products fit your business, and give you a clear picture of what's possible — no obligation, no sales pitch.
                 </p>
                 <div className="space-y-4 mb-8">
                   {[
@@ -944,7 +1119,7 @@ export default function Home() {
                 </div>
                 <div className="p-5 rounded-xl" style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.2)" }}>
                   <p className="font-body text-sm" style={{ color: "rgba(250,250,248,0.8)" }}>
-                    <span style={{ color: "#F5A623", fontWeight: 700 }}>Money-back guarantee:</span> If you complete our AI Implementation Package and don't save at least 5 hours per week within 30 days, we'll refund your investment in full.
+                    <span style={{ color: "#F5A623", fontWeight: 700 }}>Money-back guarantee:</span> If you complete our AI Integration Service and don't save at least 5 hours per week within 30 days, we'll refund your investment in full.
                   </p>
                 </div>
               </div>
@@ -974,30 +1149,30 @@ export default function Home() {
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-3">
-          <img src={LOGO_MARK} alt="Solvr" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
+                <img src={LOGO_MARK} alt="Solvr" className="h-8 object-contain" style={{ maxWidth: "160px" }} />
               </div>
               <p className="font-body text-sm leading-relaxed mb-4" style={{ color: "rgba(255,255,255,0.5)", maxWidth: "280px" }}>
-                We help trades, health professionals, and service businesses implement AI that saves time and grows revenue.
+                Australia's AI integration consultancy. We build AI products and services that save time, win more jobs, and grow revenue for trades and service businesses.
               </p>
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm py-2 px-5">Book a Free Call</a>
+            </div>
+
+            {/* Products */}
+            <div>
+              <div className="font-display font-bold text-sm mb-4" style={{ color: "#FAFAF8" }}>Products</div>
+              <div className="space-y-2">
+                <Link href="/voice-agent" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>AI Receptionist</Link>
+                <Link href="/voice-agent" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Voice-to-Quote Engine</Link>
+                <Link href="/ai-audit" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Free AI Audit</Link>
+              </div>
             </div>
 
             {/* Services */}
             <div>
               <div className="font-display font-bold text-sm mb-4" style={{ color: "#FAFAF8" }}>Services</div>
               <div className="space-y-2">
-                {["AI Readiness Audit", "Implementation Package", "Team Training Workshop", "Monthly AI Support"].map((s) => (
+                {["AI Readiness Assessment", "AI Integration Service", "Team Information Session", "1-on-1 Consultation"].map((s) => (
                   <a key={s} href="#services" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>{s}</a>
-                ))}
-              </div>
-            </div>
-
-            {/* Industries */}
-            <div>
-              <div className="font-display font-bold text-sm mb-4" style={{ color: "#FAFAF8" }}>Industries</div>
-              <div className="space-y-2">
-                {["Law Firms", "Plumbers", "Carpenters", "Builders", "Health Clinics", "Physiotherapists"].map((s) => (
-                  <a key={s} href="#sectors" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>{s}</a>
                 ))}
               </div>
             </div>
@@ -1008,15 +1183,15 @@ export default function Home() {
               <div className="space-y-2">
                 <Link href="/portal" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Client Login</Link>
                 <Link href="/portal/forgot-password" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Forgot Password</Link>
-                <Link href="/voice-agent" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Voice Agent</Link>
-                <Link href="/ai-audit" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Free AI Audit</Link>
+                <a href="#sectors" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Industries</a>
+                <a href="#book" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Book a Call</a>
               </div>
             </div>
           </div>
 
           <div className="border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-4" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              © {new Date().getFullYear()} Solvr. All rights reserved.
+              © {new Date().getFullYear()} Solvr. ABN 47 262 120 626. All rights reserved.
             </p>
             <div className="flex gap-5 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
