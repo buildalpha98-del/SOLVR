@@ -193,7 +193,7 @@ export const quotesRouter = router({
     .input(
       z.object({
         audioUrl: z.string().url(),
-        durationSeconds: z.number().int().positive().max(300).optional(),
+        durationSeconds: z.number().int().nonnegative().max(300).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -288,7 +288,7 @@ export const quotesRouter = router({
         });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to process voice recording",
+          message: err instanceof Error ? err.message : "Failed to process voice recording",
         });
       }
     }),

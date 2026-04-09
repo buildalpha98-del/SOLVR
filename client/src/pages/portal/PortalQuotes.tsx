@@ -58,9 +58,19 @@ function fmtDate(val: Date | string | null | undefined) {
 }
 
 // ── Voice recorder hook ────────────────────────────────────────────────────────
+// Detect the best supported audio MIME type (iOS Safari only supports audio/mp4)
+function getSupportedMimeType(): string {
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  for (const type of candidates) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return ""; // Let the browser pick
+}
+
 function useVoiceRecorder() {
   const [recording, setRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioMimeType, setAudioMimeType] = useState<string>("audio/webm");
   const [durationSeconds, setDurationSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -69,21 +79,25 @@ function useVoiceRecorder() {
   const start = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const mimeType = getSupportedMimeType();
+      const mrOptions = mimeType ? { mimeType } : {};
+      const mr = new MediaRecorder(stream, mrOptions);
+      const actualMimeType = mr.mimeType || mimeType || "audio/webm";
       mediaRecorderRef.current = mr;
       chunksRef.current = [];
       setDurationSeconds(0);
+      setAudioMimeType(actualMimeType);
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: actualMimeType });
         setAudioBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
       };
       mr.start(250);
       setRecording(true);
       timerRef.current = setInterval(() => setDurationSeconds((d) => d + 1), 1000);
-    } catch {
-      toast.error("Microphone access denied");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Microphone access denied");
     }
   }, []);
 
@@ -99,7 +113,7 @@ function useVoiceRecorder() {
     setRecording(false);
   }, []);
 
-  return { recording, audioBlob, durationSeconds, start, stop, reset };
+  return { recording, audioBlob, audioMimeType, durationSeconds, start, stop, reset };
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -158,8 +172,18 @@ export default function PortalQuotes() {
     setUploadingAudio(true);
     try {
       // Upload audio to S3 via the portal upload endpoint
+      // Use the correct file extension for the detected MIME type (iOS uses audio/mp4)
+      const mimeToExt: Record<string, string> = {
+        "audio/webm": "webm",
+        "audio/webm;codecs=opus": "webm",
+        "audio/mp4": "mp4",
+        "audio/ogg": "ogg",
+        "audio/ogg;codecs=opus": "ogg",
+        "audio/mpeg": "mp3",
+      };
+      const ext = mimeToExt[voice.audioMimeType] ?? "webm";
       const formData = new FormData();
-      formData.append("file", voice.audioBlob, `quote-recording-${Date.now()}.webm`);
+      formData.append("file", voice.audioBlob, `quote-recording-${Date.now()}.${ext}`);
       const uploadRes = await fetch("/api/portal/upload-audio", {
         method: "POST",
         body: formData,
