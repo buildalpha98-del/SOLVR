@@ -102,3 +102,32 @@
 - [x] Console sidebar updated with all nav items including Referrals
 - [x] 79 vitest tests passing, 0 TypeScript errors
 - [x] Populate Google Calendar with 6-month GTM action plan (53 events: launch, outreach, content, reviews, referral payouts, 100-subscriber milestone)
+
+## Client Onboarding System (A-to-Z)
+- [x] Deep systems audit — map current flow, identify gaps, design onboarding architecture
+- [x] Schema: add client_profiles table (40-column memory file — services, pricing, service areas, callout fees, specialisations, FAQs, AI context)
+- [x] Schema: onboardingCompleted + onboardingCompletedAt tracked in client_profiles table
+- [x] Dedicated portal login landing page at /portal with branded split-layout and email+password login
+- [x] Multi-step onboarding wizard — Step 1: Business Basics (trading name, ABN, phone, address, service area)
+- [x] Multi-step onboarding wizard — Step 2: Services & Pricing (trade type, specialisations, avg job price, callout fee, common jobs)
+- [x] Multi-step onboarding wizard — Step 3: Branding & Identity (logo upload, brand colours, reply-to email)
+- [x] Multi-step onboarding wizard — Step 4: Review & Activate (summary, confirm, mark onboarding complete)
+- [x] Business Profile / Memory File view in portal settings (editable post-onboarding)
+- [x] Wire memory file into AI voice agent prompt builder (checklist.ts generatePrompt)
+- [x] Wire memory file into voice-to-quote extraction context (quotes router processVoiceRecording)
+- [x] Skip onboarding wizard — passwordLogin returns onboardingCompleted, login redirects accordingly
+- [x] Progress indicator on onboarding wizard (step X of 4)
+- [x] Auto-save draft on each step so traders don't lose progress
+## TypeScript & PDF Fixes (Apr 9)
+- [x] Fix z.record(z.unknown()) → z.record(z.string(), z.unknown()) for Zod v4 compatibility
+- [x] Fix client.email → client.contactEmail in getOnboardingProfile
+- [x] Add abn, phone, address fields to QuoteProposalPdfInput branding type
+- [x] Render ABN, phone, address in Quote PDF header bar and footer
+- [x] 93 vitest tests passing, tsc --noEmit exits clean
+
+## Remaining Work
+- [ ] Session expiry warning banner (amber, dismissible, 3 days before expiry)
+- [ ] Notification Preferences section in portal settings (toggle email alerts)
+- [ ] Console onboarding management (view/edit client memory file from Console)
+- [ ] End-to-end smoke test of full onboarding → voice agent → voice-to-quote flow
+- [ ] Test Stripe upgrade flow (remove quote-engine, verify upgrade CTA, checkout, webhook)

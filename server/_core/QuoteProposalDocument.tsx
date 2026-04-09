@@ -376,6 +376,9 @@ export interface QuoteProposalPdfInput {
   }[];
   branding: {
     businessName: string;
+    abn: string;
+    phone: string;
+    address: string;
     logoBuffer: Buffer | null;
     primaryColor: string;
     secondaryColor: string;
@@ -408,6 +411,15 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
           <Text style={styles.quoteNumber}>{quote.quoteNumber}</Text>
         </View>
       </View>
+
+      {/* Business details bar */}
+      {(branding.abn || branding.phone || branding.address) && (
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, paddingVertical: 4, paddingHorizontal: 24, backgroundColor: "#F9FAFB" }}>
+          {branding.abn ? <Text style={{ fontSize: 8, color: "#6B7280" }}>ABN {branding.abn}</Text> : null}
+          {branding.phone ? <Text style={{ fontSize: 8, color: "#6B7280" }}>{branding.phone}</Text> : null}
+          {branding.address ? <Text style={{ fontSize: 8, color: "#6B7280" }}>{branding.address}</Text> : null}
+        </View>
+      )}
 
       {/* Accent bar */}
       <View style={[styles.accentBar, { backgroundColor: accent }]} />
@@ -505,7 +517,7 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
 
       {/* Footer */}
       <View style={styles.footer} fixed>
-        <Text style={styles.footerText}>{quote.quoteNumber} · {branding.businessName}</Text>
+        <Text style={styles.footerText}>{quote.quoteNumber} · {branding.businessName}{branding.abn ? ` · ABN ${branding.abn}` : ""}</Text>
         <Text style={styles.footerText}>Powered by Solvr</Text>
       </View>
     </Page>

@@ -5,6 +5,7 @@ import {
   clientOnboardings, savedPrompts, strategyCallLeads, users,
   InsertCrmClient, InsertCrmInteraction, InsertCrmTag, InsertClientTag,
   crmClients, crmInteractions, crmTags, clientTags,
+  clientProfiles, type InsertClientProfile, type ClientProfile,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -690,4 +691,87 @@ export async function listAllQuotes(): Promise<Quote[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.select().from(quotes).orderBy(desc(quotes.createdAt));
+}
+
+// ─── Client Profiles (Memory File) ──────────────────────────────────────────
+
+/** Get or create a client profile for a CRM client */
+export async function getOrCreateClientProfile(clientId: number): Promise<ClientProfile> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select().from(clientProfiles).where(eq(clientProfiles.clientId, clientId)).limit(1);
+  if (existing.length > 0) return existing[0];
+  const [result] = await db.insert(clientProfiles).values({ clientId });
+  const created = await db.select().from(clientProfiles).where(eq(clientProfiles.id, result.insertId)).limit(1);
+  return created[0];
+}
+
+/** Get client profile by clientId (returns null if not found) */
+export async function getClientProfile(clientId: number): Promise<ClientProfile | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(clientProfiles).where(eq(clientProfiles.clientId, clientId)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** Update client profile fields */
+export async function updateClientProfile(clientId: number, data: Partial<InsertClientProfile>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(clientProfiles).set(data).where(eq(clientProfiles.clientId, clientId));
+}
+
+/**
+ * Build the AI context string from a client profile — the "memory file" that
+ * gets injected into voice agent prompts and quote extraction.
+ */
+export function buildMemoryContext(profile: ClientProfile, businessName: string): string {
+  const lines: string[] = [];
+  lines.push(`Business: ${profile.tradingName || businessName}`);
+  if (profile.industryType) lines.push(`Industry: ${profile.industryType}`);
+  if (profile.abn) lines.push(`ABN: ${profile.abn}`);
+  if (profile.phone) lines.push(`Phone: ${profile.phone}`);
+  if (profile.address) lines.push(`Address: ${profile.address}`);
+  if (profile.website) lines.push(`Website: ${profile.website}`);
+  if (profile.teamSize) lines.push(`Team size: ${profile.teamSize} ${profile.teamSize === 1 ? "(sole trader)" : "people"}`);
+  if (profile.yearsInBusiness) lines.push(`Years in business: ${profile.yearsInBusiness}`);
+
+  if (profile.servicesOffered && Array.isArray(profile.servicesOffered) && profile.servicesOffered.length > 0) {
+    lines.push(`\nServices offered:`);
+    for (const s of profile.servicesOffered) {
+      const price = s.typicalPrice ? ` — typically $${s.typicalPrice}/${s.unit}` : "";
+      lines.push(`  • ${s.name}: ${s.description}${price}`);
+    }
+  }
+
+  const pricing: string[] = [];
+  if (profile.callOutFee) pricing.push(`Call-out fee: $${profile.callOutFee}`);
+  if (profile.hourlyRate) pricing.push(`Hourly rate: $${profile.hourlyRate}`);
+  if (profile.minimumCharge) pricing.push(`Minimum charge: $${profile.minimumCharge}`);
+  if (profile.afterHoursMultiplier) pricing.push(`After-hours multiplier: ${profile.afterHoursMultiplier}x`);
+  if (profile.emergencyAvailable) pricing.push(`Emergency available: Yes${profile.emergencyFee ? ` ($${profile.emergencyFee} fee)` : ""}`);
+  if (pricing.length > 0) {
+    lines.push(`\nPricing:`);
+    pricing.forEach(p => lines.push(`  • ${p}`));
+  }
+
+  if (profile.serviceArea) lines.push(`\nService area: ${profile.serviceArea}`);
+  if (profile.operatingHours) {
+    const h = profile.operatingHours;
+    lines.push(`Operating hours: Mon-Fri ${h.monFri}, Sat ${h.sat}, Sun ${h.sun}, Public Holidays ${h.publicHolidays}`);
+  }
+
+  if (profile.bookingInstructions) lines.push(`\nBooking instructions: ${profile.bookingInstructions}`);
+  if (profile.escalationInstructions) lines.push(`Escalation: ${profile.escalationInstructions}`);
+  if (profile.commonFaqs && Array.isArray(profile.commonFaqs) && profile.commonFaqs.length > 0) {
+    lines.push(`\nCommon FAQs:`);
+    for (const faq of profile.commonFaqs) {
+      lines.push(`  Q: ${faq.question}`);
+      lines.push(`  A: ${faq.answer}`);
+    }
+  }
+  if (profile.competitorNotes) lines.push(`\nWhat makes us different: ${profile.competitorNotes}`);
+  if (profile.aiContext) lines.push(`\nAdditional context: ${profile.aiContext}`);
+
+  return lines.join("\n");
 }

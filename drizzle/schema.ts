@@ -142,6 +142,12 @@ export const crmClients = mysqlTable("crm_clients", {
   quoteReplyToEmail: varchar("quoteReplyToEmail", { length: 320 }),
   /** ABN / ACN displayed on quote PDFs */
   quoteAbn: varchar("quoteAbn", { length: 50 }),
+  /** Trading name displayed on quote PDFs (may differ from CRM businessName) */
+  quoteTradingName: varchar("quoteTradingName", { length: 255 }),
+  /** Business phone displayed on quote PDFs */
+  quotePhone: varchar("quotePhone", { length: 50 }),
+  /** Business address displayed on quote PDFs */
+  quoteAddress: varchar("quoteAddress", { length: 512 }),
   /** Default notes / terms appended to every quote */
   quoteDefaultNotes: text("quoteDefaultNotes"),
   /** bcrypt hash of the client's portal password (null = password not set yet) */
@@ -754,3 +760,93 @@ export const quotePhotos = mysqlTable("quote_photos", {
 });
 export type QuotePhoto = typeof quotePhotos.$inferSelect;
 export type InsertQuotePhoto = typeof quotePhotos.$inferInsert;
+
+// ─── Client Profiles (Memory File) ──────────────────────────────────────────
+/**
+ * Unified business profile for each CRM client — the "memory file".
+ * Populated during onboarding, editable in Portal Settings.
+ * Every AI system (voice agent, quote extraction, prompt builder) reads from here.
+ * One row per CRM client (1:1 relationship).
+ */
+export const clientProfiles = mysqlTable("client_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crm_clients.id — unique constraint ensures 1:1 */
+  clientId: int("clientId").notNull().unique(),
+
+  // ── Section 1: Business Basics ─────────────────────────────────────────────
+  tradingName: varchar("tradingName", { length: 255 }),
+  abn: varchar("abn", { length: 50 }),
+  phone: varchar("phone", { length: 50 }),
+  address: varchar("address", { length: 512 }),
+  email: varchar("email", { length: 320 }),
+  website: varchar("website", { length: 512 }),
+  industryType: mysqlEnum("industryType", [
+    "plumber", "electrician", "carpenter", "builder", "gardener", "painter",
+    "roofer", "hvac", "locksmith", "pest_control", "cleaner",
+    "lawyer", "accountant", "physio", "dentist", "health_clinic",
+    "real_estate", "other",
+  ]),
+  yearsInBusiness: int("yearsInBusiness"),
+  teamSize: int("teamSize"),
+
+  // ── Section 2: Services & Pricing ──────────────────────────────────────────
+  /** JSON array: [{ name, description, typicalPrice, unit }] */
+  servicesOffered: json("servicesOffered").$type<Array<{
+    name: string;
+    description: string;
+    typicalPrice: number | null;
+    unit: string;
+  }>>(),
+  callOutFee: decimal("callOutFee", { precision: 10, scale: 2 }),
+  hourlyRate: decimal("hourlyRate", { precision: 10, scale: 2 }),
+  minimumCharge: decimal("minimumCharge", { precision: 10, scale: 2 }),
+  afterHoursMultiplier: decimal("afterHoursMultiplier", { precision: 4, scale: 2 }),
+  serviceArea: text("serviceArea"),
+  /** JSON: { monFri: "7am-5pm", sat: "8am-12pm", sun: "Closed", publicHolidays: "Emergency only" } */
+  operatingHours: json("operatingHours").$type<{
+    monFri: string;
+    sat: string;
+    sun: string;
+    publicHolidays: string;
+  }>(),
+  emergencyAvailable: boolean("emergencyAvailable").default(false),
+  emergencyFee: decimal("emergencyFee", { precision: 10, scale: 2 }),
+
+  // ── Section 3: Branding & Identity ─────────────────────────────────────────
+  logoUrl: varchar("logoUrl", { length: 512 }),
+  primaryColor: varchar("primaryColor", { length: 16 }),
+  secondaryColor: varchar("secondaryColor", { length: 16 }),
+  brandFont: mysqlEnum("brandFont", ["professional", "modern", "classic"]),
+  tagline: varchar("tagline", { length: 255 }),
+  toneOfVoice: mysqlEnum("toneOfVoice", ["professional", "friendly", "casual", "formal"]),
+
+  // ── Section 4: AI Context (the "memory") ───────────────────────────────────
+  /** Free-form notes the AI should know about this business */
+  aiContext: text("aiContext"),
+  /** JSON array: [{ question, answer }] */
+  commonFaqs: json("commonFaqs").$type<Array<{ question: string; answer: string }>>(),
+  /** What makes this business different from competitors */
+  competitorNotes: text("competitorNotes"),
+  /** How customers book: ServiceM8, Tradify, phone, etc. */
+  bookingInstructions: text("bookingInstructions"),
+  /** When to transfer to owner vs take a message */
+  escalationInstructions: text("escalationInstructions"),
+
+  // ── Section 5: Quote Defaults ──────────────────────────────────────────────
+  gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("10.00"),
+  paymentTerms: varchar("paymentTerms", { length: 255 }),
+  validityDays: int("validityDays").default(30),
+  defaultNotes: text("defaultNotes"),
+
+  // ── Meta ────────────────────────────────────────────────────────────────────
+  /** Has the client completed the onboarding wizard? */
+  onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
+  onboardingCompletedAt: timestamp("onboardingCompletedAt"),
+  /** Which step the client is currently on (0-indexed, null = not started) */
+  onboardingStep: int("onboardingStep"),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ClientProfile = typeof clientProfiles.$inferSelect;
+export type InsertClientProfile = typeof clientProfiles.$inferInsert;

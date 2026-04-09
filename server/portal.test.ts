@@ -129,6 +129,11 @@ vi.mock("./db", () => ({
   insertClientProduct: vi.fn().mockResolvedValue({ insertId: 1 }),
   updateClientProduct: vi.fn().mockResolvedValue({}),
   deleteClientProduct: vi.fn().mockResolvedValue({}),
+  // Client profiles (memory file)
+  getClientProfile: vi.fn().mockResolvedValue(null),
+  getOrCreateClientProfile: vi.fn().mockResolvedValue({ id: 1, clientId: 1, onboardingCompleted: false }),
+  updateClientProfile: vi.fn().mockResolvedValue({}),
+  buildMemoryContext: vi.fn().mockReturnValue(""),
 }));
 
 // Helper to build a caller context with a session cookie

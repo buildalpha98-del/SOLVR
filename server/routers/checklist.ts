@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient, createPortalSession, listCrmInteractionsByClient } from "../db";
+import { getOrCreateChecklist, updateChecklist, getCrmClientById, insertCrmInteraction, updateCrmClient, createPortalSession, listCrmInteractionsByClient, getClientProfile, buildMemoryContext } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
 import { sendWelcomeEmailToClient, sendOnboardingFormToClient, sendGoLiveEmailToClient } from "../gmail";
@@ -296,14 +296,19 @@ Format your response as JSON with two fields: "systemPrompt" and "firstMessage".
           },
           {
             role: "user",
-            content: `Build a Vapi system prompt for:
+            content: await (async () => {
+              const profile = await getClientProfile(client.id);
+              const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : "";
+              return `Build a Vapi system prompt for:
 Business: ${client.businessName}
 Contact: ${client.contactName}
 Trade/Industry: ${client.tradeType || "service business"}
 Services: ${client.summary || "General services"}
 Service Area: ${client.serviceArea || "Local area"}
 Phone: ${client.contactPhone || "Not provided"}
-Website: ${client.website || "Not provided"}`,
+Website: ${client.website || "Not provided"}
+${memoryContext ? `\n--- FULL BUSINESS PROFILE (Memory File) ---\n${memoryContext}\n--- END MEMORY FILE ---\n\nUse ALL of the above information to build a comprehensive, accurate prompt. Include specific services, pricing, hours, FAQs, and escalation rules from the memory file.` : ""}`;
+            })(),
           },
         ],
         response_format: {

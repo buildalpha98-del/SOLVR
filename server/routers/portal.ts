@@ -36,6 +36,10 @@ import {
   updatePortalCalendarEvent,
   deletePortalCalendarEvent,
   listClientProducts,
+  getClientProfile,
+  getOrCreateClientProfile,
+  updateClientProfile,
+  buildMemoryContext,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { sendEmail } from "../_core/email";
@@ -114,7 +118,8 @@ export const portalRouter = router({
       });
       const cookieOpts = getSessionCookieOptions(ctx.req as unknown as import('express').Request);
       ctx.res.cookie(PORTAL_COOKIE, sessionToken, { ...cookieOpts, expires: expiresAt });
-      return { success: true };
+      const mlProfile = await getClientProfile(client.id);
+      return { success: true, onboardingCompleted: mlProfile?.onboardingCompleted ?? false };
     }),
 
   /**
@@ -184,7 +189,8 @@ export const portalRouter = router({
 
       const cookieOpts = getSessionCookieOptions(ctx.req as unknown as import('express').Request);
       ctx.res.cookie(PORTAL_COOKIE, sessionToken, { ...cookieOpts, expires: expiresAt });
-      return { success: true };
+      const pwProfile = await getClientProfile(client.id);
+      return { success: true, onboardingCompleted: pwProfile?.onboardingCompleted ?? false };
     }),
 
   /**
@@ -316,6 +322,9 @@ export const portalRouter = router({
       if (!result) return null;
       const { client } = result;
       const plan = (client.package ?? "setup-monthly") as SolvrPlan;
+      // Check onboarding status
+      const profile = await getClientProfile(client.id);
+      const onboardingCompleted = profile?.onboardingCompleted ?? false;
       // Merge plan features with active add-on products (e.g. quote-engine)
       const addOnProducts = await listClientProducts(client.id);
       const activeAddOns = addOnProducts
@@ -339,6 +348,7 @@ export const portalRouter = router({
         gstRate: client.quoteGstRate ?? "10.00",
         replyToEmail: client.quoteReplyToEmail ?? null,
         validityDays: client.quoteValidityDays ?? 30,
+        onboardingCompleted,
       };
     }),
 
@@ -819,5 +829,222 @@ export const portalRouter = router({
       const portalUrl = `${origin}/portal/login?token=${accessToken}`;
 
       return { portalUrl, accessToken };
+    }),
+
+  // ─── Business Profile (Settings page) ────────────────────────────────────────
+
+  /**
+   * Get the client's business profile fields used on quote PDFs.
+   */
+  getBusinessProfile: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      return {
+        tradingName: client.quoteTradingName ?? client.businessName ?? "",
+        abn: client.quoteAbn ?? "",
+        phone: client.quotePhone ?? client.contactPhone ?? "",
+        address: client.quoteAddress ?? "",
+        replyToEmail: client.quoteReplyToEmail ?? client.contactEmail ?? "",
+        paymentTerms: client.quotePaymentTerms ?? "Payment due within 14 days of invoice.",
+        gstRate: client.quoteGstRate ?? "10.00",
+        validityDays: client.quoteValidityDays ?? 30,
+        defaultNotes: client.quoteDefaultNotes ?? "",
+      };
+    }),
+
+  /**
+   * Update the client's business profile fields.
+   */
+  updateBusinessProfile: publicProcedure
+    .input(z.object({
+      tradingName: z.string().max(255).optional(),
+      abn: z.string().max(50).optional(),
+      phone: z.string().max(50).optional(),
+      address: z.string().max(512).optional(),
+      replyToEmail: z.string().email().max(320).optional(),
+      paymentTerms: z.string().max(255).optional(),
+      gstRate: z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).optional(),
+      validityDays: z.number().int().min(1).max(365).optional(),
+      defaultNotes: z.string().max(2000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      await updateCrmClient(client.id, {
+        ...(input.tradingName !== undefined && { quoteTradingName: input.tradingName }),
+        ...(input.abn !== undefined && { quoteAbn: input.abn }),
+        ...(input.phone !== undefined && { quotePhone: input.phone }),
+        ...(input.address !== undefined && { quoteAddress: input.address }),
+        ...(input.replyToEmail !== undefined && { quoteReplyToEmail: input.replyToEmail }),
+        ...(input.paymentTerms !== undefined && { quotePaymentTerms: input.paymentTerms }),
+        ...(input.gstRate !== undefined && { quoteGstRate: input.gstRate }),
+        ...(input.validityDays !== undefined && { quoteValidityDays: input.validityDays }),
+        ...(input.defaultNotes !== undefined && { quoteDefaultNotes: input.defaultNotes }),
+      });
+      return { success: true };
+    }),
+
+  // ─── Onboarding Wizard ──────────────────────────────────────────────────────
+
+  /**
+   * Get the client's full profile for the onboarding wizard.
+   * Creates a profile row if one doesn't exist yet.
+   */
+  getOnboardingProfile: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const profile = await getOrCreateClientProfile(client.id);
+      return {
+        profile,
+        businessName: client.businessName,
+        contactName: client.contactName,
+        contactEmail: client.contactEmail,
+        tradeType: client.tradeType,
+      };
+    }),
+
+  /**
+   * Save a single onboarding step — auto-saves as the client progresses.
+   * Accepts partial profile data so we can save incrementally.
+   */
+  saveOnboardingStep: publicProcedure
+    .input(z.object({
+      step: z.number().int().min(0).max(3),
+      data: z.record(z.string(), z.unknown()),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      // Ensure profile exists
+      await getOrCreateClientProfile(client.id);
+      // Save the step data + update the current step marker
+      const updateData: Record<string, unknown> = { ...input.data, onboardingStep: input.step };
+      await updateClientProfile(client.id, updateData as any);
+      return { success: true };
+    }),
+
+  /**
+   * Complete onboarding — marks the profile as done and syncs key fields
+   * back to the crm_clients row for quote/branding defaults.
+   */
+  completeOnboarding: publicProcedure
+    .mutation(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const profile = await getClientProfile(client.id);
+      if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found." });
+
+      // Mark onboarding complete
+      await updateClientProfile(client.id, {
+        onboardingCompleted: true,
+        onboardingCompletedAt: new Date(),
+      });
+
+      // Sync key fields back to crm_clients for quote/branding
+      const syncData: Record<string, unknown> = {};
+      if (profile.tradingName) syncData.quoteTradingName = profile.tradingName;
+      if (profile.abn) syncData.quoteAbn = profile.abn;
+      if (profile.phone) syncData.quotePhone = profile.phone;
+      if (profile.address) syncData.quoteAddress = profile.address;
+      if (profile.email) syncData.quoteReplyToEmail = profile.email;
+      if (profile.gstRate) syncData.quoteGstRate = profile.gstRate;
+      if (profile.paymentTerms) syncData.quotePaymentTerms = profile.paymentTerms;
+      if (profile.validityDays) syncData.quoteValidityDays = profile.validityDays;
+      if (profile.defaultNotes) syncData.quoteDefaultNotes = profile.defaultNotes;
+      if (profile.logoUrl) syncData.quoteBrandLogoUrl = profile.logoUrl;
+      if (profile.primaryColor) syncData.quoteBrandPrimaryColor = profile.primaryColor;
+      if (Object.keys(syncData).length > 0) {
+        await updateCrmClient(client.id, syncData as any);
+      }
+
+      return { success: true };
+    }),
+
+  /**
+   * Get the AI memory context string for this client — used by the voice agent
+   * prompt builder and quote extraction.
+   */
+  getFullProfile: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const profile = await getOrCreateClientProfile(client.id);
+      return { profile };
+    }),
+
+  updateFullProfile: publicProcedure
+    .input(z.object({
+      tradingName: z.string().max(255).optional(),
+      abn: z.string().max(50).optional(),
+      phone: z.string().max(50).optional(),
+      address: z.string().max(512).optional(),
+      email: z.string().max(320).optional(),
+      website: z.string().max(512).optional(),
+      industryType: z.string().optional(),
+      yearsInBusiness: z.number().int().min(0).max(200).optional().nullable(),
+      teamSize: z.number().int().min(0).max(10000).optional().nullable(),
+      servicesOffered: z.array(z.object({
+        name: z.string(),
+        description: z.string(),
+        typicalPrice: z.number().nullable(),
+        unit: z.string(),
+      })).optional(),
+      callOutFee: z.string().optional(),
+      hourlyRate: z.string().optional(),
+      minimumCharge: z.string().optional(),
+      afterHoursMultiplier: z.string().optional(),
+      serviceArea: z.string().max(2000).optional(),
+      operatingHours: z.object({
+        monFri: z.string(),
+        sat: z.string(),
+        sun: z.string(),
+        publicHolidays: z.string(),
+      }).optional(),
+      emergencyAvailable: z.boolean().optional(),
+      emergencyFee: z.string().optional(),
+      logoUrl: z.string().max(512).optional(),
+      primaryColor: z.string().max(16).optional(),
+      secondaryColor: z.string().max(16).optional(),
+      brandFont: z.string().optional(),
+      tagline: z.string().max(255).optional(),
+      toneOfVoice: z.string().optional(),
+      aiContext: z.string().max(5000).optional(),
+      commonFaqs: z.array(z.object({
+        question: z.string(),
+        answer: z.string(),
+      })).optional(),
+      competitorNotes: z.string().max(2000).optional(),
+      bookingInstructions: z.string().max(2000).optional(),
+      escalationInstructions: z.string().max(2000).optional(),
+      gstRate: z.string().optional(),
+      paymentTerms: z.string().max(255).optional(),
+      validityDays: z.number().int().min(1).max(365).optional(),
+      defaultNotes: z.string().max(2000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const profile = await getOrCreateClientProfile(client.id);
+      await updateClientProfile(profile.id, input as any);
+      return { success: true };
+    }),
+
+  getMemoryContext: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const profile = await getClientProfile(client.id);
+      if (!profile) return { context: "" };
+      return { context: buildMemoryContext(profile, client.businessName) };
     }),
 });

@@ -37,6 +37,8 @@ import {
   createPortalJob,
   updatePortalJob,
   updateCrmClient,
+  getClientProfile,
+  buildMemoryContext,
 } from "../db";
 import { randomUUID, randomBytes } from "crypto";
 import type { QuoteReportContent } from "../_core/reportGeneration";
@@ -226,7 +228,10 @@ export const quotesRouter = router({
         });
 
         // Step 2: Extract quote data
-        const extracted = await extractQuoteData(transcription.text, client.businessName);
+        // Fetch the client's memory file for richer extraction context
+        const profile = await getClientProfile(clientId);
+        const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : undefined;
+        const extracted = await extractQuoteData(transcription.text, client.businessName, memoryContext);
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "complete",
           extractedJson: extracted as any,
@@ -488,7 +493,10 @@ export const quotesRouter = router({
           aiDescription: p.aiDescription,
         })),
         branding: {
-          businessName: client.businessName,
+          businessName: client.quoteTradingName || client.businessName,
+          abn: client.quoteAbn ?? "",
+          phone: client.quotePhone ?? "",
+          address: client.quoteAddress ?? "",
           logoBuffer,
           primaryColor: client.quoteBrandPrimaryColor ?? "#1F2937",
           secondaryColor: client.quoteBrandSecondaryColor ?? "#2563EB",
@@ -532,6 +540,7 @@ export const quotesRouter = router({
       const client = portalAuth.client;
 
       const acceptUrl = `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`;
+      const displayName = client.quoteTradingName || client.businessName;
       const greeting = input.recipientName ? `Hi ${input.recipientName},` : "Hi there,";
       const customMsg = input.customMessage
         ? `<p style="color:#374151;font-size:15px;line-height:1.6;">${input.customMessage}</p>`
@@ -548,7 +557,7 @@ export const quotesRouter = router({
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F9FAFB;margin:0;padding:32px 0;">
   <div style="max-width:600px;margin:0 auto;background:#FFFFFF;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
     <div style="background:${client.quoteBrandPrimaryColor ?? "#1F2937"};padding:32px 40px;">
-      <h1 style="color:#FFFFFF;margin:0;font-size:22px;font-weight:700;">${client.businessName}</h1>
+      <h1 style="color:#FFFFFF;margin:0;font-size:22px;font-weight:700;">${displayName}</h1>
       <p style="color:rgba(255,255,255,0.7);margin:4px 0 0;font-size:14px;">Quote ${quote.quoteNumber}</p>
     </div>
     <div style="padding:32px 40px;">
@@ -569,7 +578,11 @@ export const quotesRouter = router({
       ${input.pdfUrl ? `<p style="text-align:center;margin:16px 0 0;"><a href="${input.pdfUrl}" style="color:#6B7280;font-size:13px;">Download PDF</a></p>` : ""}
     </div>
     <div style="background:#F9FAFB;padding:20px 40px;border-top:1px solid #E5E7EB;text-align:center;">
-      <p style="color:#9CA3AF;font-size:12px;margin:0;">Powered by <a href="https://solvr.com.au" style="color:#9CA3AF;">Solvr</a></p>
+      <p style="color:#6B7280;font-size:13px;font-weight:600;margin:0 0 4px;">${displayName}</p>
+      ${client.quotePhone ? `<p style="color:#9CA3AF;font-size:12px;margin:0 0 2px;">${client.quotePhone}</p>` : ""}
+      ${client.quoteAddress ? `<p style="color:#9CA3AF;font-size:12px;margin:0 0 2px;">${client.quoteAddress}</p>` : ""}
+      ${client.quoteAbn ? `<p style="color:#9CA3AF;font-size:12px;margin:0 0 8px;">ABN: ${client.quoteAbn}</p>` : ""}
+      <p style="color:#9CA3AF;font-size:11px;margin:0;">Powered by <a href="https://solvr.com.au" style="color:#9CA3AF;">Solvr</a></p>
     </div>
   </div>
 </body>
@@ -577,9 +590,9 @@ export const quotesRouter = router({
 
       await sendEmail({
         to: input.recipientEmail,
-        subject: `Quote ${quote.quoteNumber} from ${client.businessName} — ${quote.jobTitle}`,
+        subject: `Quote ${quote.quoteNumber} from ${displayName} — ${quote.jobTitle}`,
         html,
-        fromName: client.businessName,
+        fromName: displayName,
         replyTo: client.quoteReplyToEmail ?? undefined,
       });
 

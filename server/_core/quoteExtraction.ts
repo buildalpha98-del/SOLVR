@@ -80,13 +80,17 @@ const QUOTE_EXTRACTION_SCHEMA = {
 export async function extractQuoteData(
   transcript: string,
   clientBusinessName: string,
+  memoryContext?: string,
 ): Promise<QuoteExtraction> {
+  const userContent = memoryContext
+    ? `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---\n\n--- BUSINESS PROFILE (Memory File) ---\n${memoryContext}\n--- END MEMORY FILE ---\n\nUse the business profile to fill in default pricing, payment terms, and service details where the tradie didn't explicitly state them in the transcript. For example, if the tradie mentions "standard callout" and the memory file has a callout fee of $80, use $80 as the unit price. Extract the structured quote data. Return valid JSON only.`
+    : `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---\n\nExtract the structured quote data. Return valid JSON only.`;
   const response = await invokeLLM({
     messages: [
       { role: "system" as const, content: QUOTE_EXTRACTION_SYSTEM_PROMPT },
       {
         role: "user" as const,
-        content: `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---\n\nExtract the structured quote data. Return valid JSON only.`,
+        content: userContent,
       },
     ],
     response_format: {
