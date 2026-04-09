@@ -12,7 +12,7 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, ChevronDown, Menu, X, FileText
+  Lock, LogOut, Menu, X, FileText, Settings
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -38,11 +38,13 @@ const ALL_TABS: NavTab[] = [
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  activeTab: string;
+  activeTab?: string;
 }
 
 export default function PortalLayout({ children, activeTab }: PortalLayoutProps) {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  // Auto-detect active tab from current path if not passed explicitly
+  const resolvedActiveTab = activeTab ?? location.split("/")[2] ?? "dashboard";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: me, isLoading } = trpc.portal.me.useQuery(undefined, {
@@ -71,6 +73,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
   if (!me) return null;
 
   const features = me.features ?? [];
+  const currentTab = resolvedActiveTab;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#0B1629", color: "#F5F5F0" }}>
@@ -93,7 +96,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
           <nav className="hidden md:flex items-center gap-1">
             {ALL_TABS.map(tab => {
               const unlocked = features.includes(tab.feature);
-              const isActive = activeTab === tab.key;
+              const isActive = currentTab === tab.key;
               if (!unlocked) {
                 return (
                   <button
@@ -135,14 +138,23 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
             })}
           </nav>
 
-          {/* Right side — plan badge + logout */}
-          <div className="flex items-center gap-3">
+          {/* Right side — plan badge + settings + logout */}
+          <div className="flex items-center gap-2">
             <span
               className="hidden sm:block text-xs px-2 py-1 rounded-full font-semibold uppercase tracking-wide"
               style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
             >
               {me.plan === "full-managed" ? "Managed" : me.plan === "setup-monthly" ? "Monthly" : "Starter"}
             </span>
+            <Link href="/portal/settings">
+              <span
+                className="p-2 rounded-md transition-colors cursor-pointer flex items-center"
+                style={{ color: currentTab === "settings" ? "#F5A623" : "rgba(255,255,255,0.4)" }}
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </span>
+            </Link>
             <button
               onClick={() => logoutMutation.mutate()}
               className="p-2 rounded-md text-white/40 hover:text-white/70 transition-colors"
@@ -168,7 +180,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
           >
             {ALL_TABS.map(tab => {
               const unlocked = features.includes(tab.feature);
-              const isActive = activeTab === tab.key;
+              const isActive = currentTab === tab.key;
               if (!unlocked) {
                 return (
                   <div
@@ -205,6 +217,20 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
                 </Link>
               );
             })}
+            {/* Settings link in mobile menu */}
+            <Link href="/portal/settings">
+              <span
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer"
+                style={{
+                  background: currentTab === "settings" ? "rgba(245,166,35,0.12)" : "transparent",
+                  color: currentTab === "settings" ? "#F5A623" : "rgba(255,255,255,0.7)",
+                }}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </span>
+            </Link>
           </div>
         )}
       </header>

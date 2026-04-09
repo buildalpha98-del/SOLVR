@@ -50,6 +50,7 @@ import PortalCalendar from "./pages/portal/PortalCalendar";
 import PortalQuotes from "./pages/portal/PortalQuotes";
 import PortalQuoteDetail from "./pages/portal/PortalQuoteDetail";
 import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
+import PortalSettings from "./pages/portal/PortalSettings";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
@@ -116,6 +117,7 @@ function Router() {
       <Route path="/portal/quotes" component={PortalQuotes} />
       <Route path="/portal/quotes/settings" component={PortalQuoteSettings} />
       <Route path="/portal/quotes/:id" component={PortalQuoteDetail} />
+      <Route path="/portal/settings" component={PortalSettings} />
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />
