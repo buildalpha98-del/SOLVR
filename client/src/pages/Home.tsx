@@ -970,7 +970,7 @@ export default function Home() {
       {/* ── FOOTER ── */}
       <footer style={{ background: "#0A1628", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "3rem 0" }}>
         <div className="container">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
+          <div className="grid md:grid-cols-5 gap-8 mb-8">
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-3">
@@ -999,6 +999,17 @@ export default function Home() {
                 {["Law Firms", "Plumbers", "Carpenters", "Builders", "Health Clinics", "Physiotherapists"].map((s) => (
                   <a key={s} href="#sectors" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>{s}</a>
                 ))}
+              </div>
+            </div>
+
+            {/* Client Access */}
+            <div>
+              <div className="font-display font-bold text-sm mb-4" style={{ color: "#FAFAF8" }}>Client Access</div>
+              <div className="space-y-2">
+                <Link href="/portal" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Client Login</Link>
+                <Link href="/portal/forgot-password" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Forgot Password</Link>
+                <Link href="/voice-agent" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Voice Agent</Link>
+                <Link href="/ai-audit" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Free AI Audit</Link>
               </div>
             </div>
           </div>
