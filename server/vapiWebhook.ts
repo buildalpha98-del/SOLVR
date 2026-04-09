@@ -4,12 +4,13 @@
  *
  * Vapi sends POST requests to /api/vapi/webhook with a JSON body.
  * We handle the following event types:
- *   - call-ended: store transcript + summary as a CRM interaction
+ *   - end-of-call-report: store transcript + summary as a CRM interaction
+ *                         + send Expo push notification to client's mobile app
  *   - status-update: log call status changes (optional)
  *
  * To configure in Vapi:
  *   Dashboard → Assistants → [Your Agent] → Webhook URL
- *   Set to: https://your-domain.com/api/vapi/webhook
+ *   Set to: https://solvr.com.au/api/vapi/webhook
  *
  * Optionally set VAPI_WEBHOOK_SECRET env var to verify signatures.
  */
@@ -98,6 +99,52 @@ function formatTranscript(messages: VapiMessage[]): string {
     .join("\n");
 }
 
+// ─── Helper: send Expo push notification ─────────────────────────────────────
+//
+// Uses the Expo Push API (no SDK required — plain HTTP).
+// Docs: https://docs.expo.dev/push-notifications/sending-notifications/
+//
+// Token format: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+// Silently swallows errors so a push failure never breaks the webhook response.
+
+interface ExpoPushMessage {
+  to: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  sound?: "default" | null;
+  badge?: number;
+  priority?: "default" | "normal" | "high";
+}
+
+async function sendExpoPushNotification(message: ExpoPushMessage): Promise<void> {
+  try {
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(message),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[Expo Push] Non-OK response ${response.status}: ${text}`);
+    } else {
+      const result = await response.json() as { data?: { status: string; id?: string } };
+      if (result.data?.status === "error") {
+        console.warn(`[Expo Push] Push error: ${JSON.stringify(result.data)}`);
+      } else {
+        console.log(`[Expo Push] Notification sent — ID: ${result.data?.id ?? "unknown"}`);
+      }
+    }
+  } catch (err) {
+    // Never let a push failure break the webhook
+    console.error("[Expo Push] Failed to send notification:", err);
+  }
+}
+
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 export async function handleVapiWebhook(req: Request, res: Response) {
@@ -156,10 +203,13 @@ export async function handleVapiWebhook(req: Request, res: Response) {
 
       // Find matching CRM client by Vapi agent ID
       let clientId: number | null = null;
+      let clientPushToken: string | null = null;
+
       if (assistantId) {
         const client = await findClientByVapiAgentId(assistantId);
         if (client) {
           clientId = client.id;
+          clientPushToken = client.pushToken ?? null;
         }
       }
 
@@ -175,6 +225,33 @@ export async function handleVapiWebhook(req: Request, res: Response) {
             isPinned: false,
           });
           console.log(`[Vapi Webhook] Stored call interaction for client ID ${clientId}`);
+        }
+
+        // ── Send Expo push notification to the client's mobile app ──────────
+        if (clientPushToken) {
+          const durationLabel = durationSecs
+            ? ` (${Math.floor(durationSecs / 60)}m ${durationSecs % 60}s)`
+            : "";
+          const notifBody = summary
+            ? summary.length > 120
+              ? summary.substring(0, 117) + "..."
+              : summary
+            : `From ${callerName}${durationLabel}`;
+
+          await sendExpoPushNotification({
+            to: clientPushToken,
+            title: `📞 New call — ${callerName}`,
+            body: notifBody,
+            sound: "default",
+            priority: "high",
+            data: {
+              type: "new-call",
+              clientId,
+              callId,
+              callerName,
+              callerNumber,
+            },
+          });
         }
       } else {
         // No matching client — notify owner so they can manually link it

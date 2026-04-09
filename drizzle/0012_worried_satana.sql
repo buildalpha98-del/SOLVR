@@ -1,0 +1,1 @@
+ALTER TABLE `crm_clients` ADD `pushToken` varchar(512);

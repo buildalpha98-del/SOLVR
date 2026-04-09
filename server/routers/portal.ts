@@ -1047,4 +1047,33 @@ export const portalRouter = router({
       if (!profile) return { context: "" };
       return { context: buildMemoryContext(profile, client.businessName) };
     }),
+
+  /**
+   * Register an Expo push notification token for the mobile app.
+   * Called on every app launch after login to keep the token current.
+   * Silently overwrites any existing token for this client.
+   */
+  registerPushToken: publicProcedure
+    .input(z.object({
+      /** Expo push token — format: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx] */
+      token: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      await updateCrmClient(result.client.id, { pushToken: input.token });
+      return { success: true };
+    }),
+
+  /**
+   * Unregister the push token (called on logout from mobile app).
+   * Prevents notifications being sent to a logged-out device.
+   */
+  unregisterPushToken: publicProcedure
+    .mutation(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      await updateCrmClient(result.client.id, { pushToken: null });
+      return { success: true };
+    }),
 });

@@ -152,6 +152,8 @@ export const crmClients = mysqlTable("crm_clients", {
   quoteDefaultNotes: text("quoteDefaultNotes"),
   /** bcrypt hash of the client's portal password (null = password not set yet) */
   portalPasswordHash: varchar("portalPasswordHash", { length: 255 }),
+  /** Expo push notification token for the mobile app (null = not registered) */
+  pushToken: varchar("pushToken", { length: 512 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
