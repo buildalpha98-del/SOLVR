@@ -13,13 +13,14 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -97,6 +98,21 @@ export default function PortalDashboard() {
   });
 
   const { isSupported, isSubscribed, isLoading: pushLoading, subscribe, unsubscribe } = usePushNotifications();
+
+  // Referral programme
+  const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, { staleTime: Infinity });
+  const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
+  const [copied, setCopied] = useState(false);
+  const referralLink = referralCode?.referralCode
+    ? `${window.location.origin}/portal/login?ref=${referralCode.referralCode}`
+    : null;
+  const copyReferralLink = () => {
+    if (!referralLink) return;
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <PortalLayout activeTab="dashboard">
@@ -336,6 +352,61 @@ export default function PortalDashboard() {
             <p>No data yet — your AI receptionist will start logging calls here once it's live.</p>
           </div>
         )}
+
+        {/* Referral Programme Card */}
+        <div
+          className="rounded-xl p-5"
+          style={{ background: "rgba(245,166,35,0.07)", border: "1px solid rgba(245,166,35,0.2)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
+            <h2 className="text-sm font-semibold text-white">Refer a Tradie, Get 20% Off</h2>
+          </div>
+          <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Share your unique link. When a tradie you refer signs up and pays, you get 20% off your next month's subscription — automatically applied.
+          </p>
+
+          {/* Stats row */}
+          <div className="flex gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: "#F5A623" }}>{referralStats?.totalReferred ?? 0}</div>
+              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Referred</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-white">{referralStats?.totalConverted ?? 0}</div>
+              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Converted</div>
+            </div>
+            {(referralStats?.pendingDiscountPct ?? 0) > 0 && (
+              <div className="text-center">
+                <div className="text-xl font-bold text-green-400">{referralStats?.pendingDiscountPct}%</div>
+                <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Pending discount</div>
+              </div>
+            )}
+          </div>
+
+          {/* Copy link */}
+          {referralLink ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="flex-1 text-xs px-3 py-2 rounded-lg truncate"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
+              >
+                {referralLink}
+              </div>
+              <Button
+                size="sm"
+                onClick={copyReferralLink}
+                className="shrink-0 gap-1.5 text-xs"
+                style={{ background: copied ? "#22c55e" : "#F5A623", color: "#0F1F3D", border: "none" }}
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied!" : "Copy Link"}
+              </Button>
+            </div>
+          ) : (
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Generating your link...</div>
+          )}
+        </div>
       </div>
     </PortalLayout>
   );

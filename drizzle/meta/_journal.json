@@ -148,6 +148,13 @@
       "when": 1775834836233,
       "tag": "0020_first_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1775835785665,
+      "tag": "0021_naive_legion",
+      "breakpoints": true
     }
   ]
 }

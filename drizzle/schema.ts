@@ -154,6 +154,13 @@ export const crmClients = mysqlTable("crm_clients", {
   portalPasswordHash: varchar("portalPasswordHash", { length: 255 }),
   /** Expo push notification token for the mobile app (null = not registered) */
   pushToken: varchar("pushToken", { length: 512 }),
+  // Tradie referral programme
+  /** Unique referral code for this tradie to share (e.g. "JAYDEN20") */
+  referralCode: varchar("referralCode", { length: 32 }).unique(),
+  /** The crmClients.id of the tradie who referred this client (null = organic) */
+  referredByClientId: int("referredByClientId"),
+  /** Pending discount % to apply on next Stripe invoice (set to 20 when a referral converts) */
+  pendingDiscountPct: int("pendingDiscountPct").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1093,3 +1100,25 @@ export const pushSubscriptions = mysqlTable("push_subscriptions", {
 });
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+// Tradie Referral Programme
+/**
+ * Tracks tradie-to-tradie referrals.
+ * When a referred tradie signs up and pays, the referrer gets 20% off their next invoice.
+ */
+export const clientReferrals = mysqlTable("client_referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The tradie who shared their referral link */
+  referrerId: int("referrerId").notNull(),
+  /** The tradie who signed up via the referral link */
+  refereeId: int("refereeId").notNull(),
+  /** Status of the referral */
+  status: mysqlEnum("status", ["pending", "converted", "rewarded"]).default("pending").notNull(),
+  /** When the referee completed their first payment */
+  convertedAt: timestamp("convertedAt"),
+  /** When the 20% discount was applied to the referrer's invoice */
+  rewardedAt: timestamp("rewardedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ClientReferral = typeof clientReferrals.$inferSelect;
+export type InsertClientReferral = typeof clientReferrals.$inferInsert;
