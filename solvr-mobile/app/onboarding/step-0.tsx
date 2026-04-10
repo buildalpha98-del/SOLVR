@@ -36,18 +36,18 @@ export default function Step0BusinessBasics() {
 
   const loadExistingData = async () => {
     try {
-      const profile = await (trpc as any).portal.getOnboardingProfile.query();
-      if (profile) {
-        setTradingName(profile.tradingName ?? "");
-        setAbn(profile.abn ?? "");
-        setPhone(profile.phone ?? "");
-        setAddress(profile.address ?? "");
-        setEmail(profile.email ?? "");
-        setWebsite(profile.website ?? "");
-        setIndustryType(profile.industryType ?? "");
-        setYearsInBusiness(profile.yearsInBusiness?.toString() ?? "");
-        setTeamSize(profile.teamSize?.toString() ?? "");
-      }
+      // Backend returns { profile, businessName, contactName, contactEmail, tradeType }
+      const response = await (trpc as any).portal.getOnboardingProfile.query();
+      const profile = response?.profile ?? {};
+      setTradingName(profile.tradingName ?? "");
+      setAbn(profile.abn ?? "");
+      setPhone(profile.phone ?? "");
+      setAddress(profile.address ?? "");
+      setEmail(profile.email ?? "");
+      setWebsite(profile.website ?? "");
+      setIndustryType(profile.industryType ?? "");
+      setYearsInBusiness(profile.yearsInBusiness?.toString() ?? "");
+      setTeamSize(profile.teamSize?.toString() ?? "");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load profile";
       Alert.alert("Error", message);

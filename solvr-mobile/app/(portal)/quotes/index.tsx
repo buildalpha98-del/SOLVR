@@ -22,14 +22,29 @@ import { Card, Badge, EmptyState, SectionHeader } from "../../../components/ui";
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Mirrors drizzle/schema.ts → quotes (what backend `quotes.list` returns directly).
+ * NOTE: MySQL decimal columns are returned as STRINGS by Drizzle, not numbers.
+ */
 interface Quote {
   id: string;
-  title?: string;
-  jobTitle?: string;
-  customerName?: string;
-  status: string;
-  totalAmount?: number;
+  quoteNumber: string;
+  jobTitle: string;
+  jobDescription?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
+  status: "draft" | "sent" | "accepted" | "declined" | "expired" | "cancelled";
+  subtotal?: string | null;
+  gstRate: string;
+  gstAmount?: string | null;
+  totalAmount?: string | null;
+  paymentTerms?: string | null;
+  validUntil?: string | null;
+  notes?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 type RecordingState = "idle" | "recording" | "processing" | "done";
@@ -47,9 +62,11 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatCurrency(amount: number | undefined): string {
+function formatCurrency(amount: number | string | null | undefined): string {
   if (amount == null) return "$0.00";
-  return `$${amount.toLocaleString("en-AU", {
+  const n = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (!Number.isFinite(n)) return "$0.00";
+  return `$${n.toLocaleString("en-AU", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -223,8 +240,10 @@ function VoiceRecorder({ onQuoteCreated }: { onQuoteCreated: (id: string) => voi
         setElapsed(0);
         setMetering(-160);
         setStatusMessage("");
-        if (result?.id) {
-          onQuoteCreated(result.id);
+        // Backend returns { quoteId, quoteNumber, transcript, extracted } — NOT { id }
+        const newId = result?.quoteId ?? result?.id;
+        if (newId) {
+          onQuoteCreated(newId);
         }
       }, 800);
     } catch (err: any) {
@@ -363,7 +382,7 @@ function QuoteRow({ item, onPress }: { item: Quote; onPress: () => void }) {
         <Text style={styles.quoteDate}>{formatDate(item.createdAt)}</Text>
       </View>
       <Text style={styles.quoteTitle} numberOfLines={1}>
-        {item.title || item.jobTitle || "Untitled Quote"}
+        {item.jobTitle || "Untitled Quote"}
       </Text>
       {item.customerName ? (
         <Text style={styles.quoteCustomer} numberOfLines={1}>
@@ -392,22 +411,22 @@ export default function QuotesScreen() {
   const offsetRef = useRef(0);
 
   // ---- Fetch quotes ----
+  // Backend `quotes.list` takes NO input - returns all quotes for the client.
+  // Pagination is client-side until backend adds limit/offset support.
   const fetchQuotes = useCallback(
     async (offset: number, append: boolean) => {
       try {
-        const result = await (trpc as any).portal.quotes.list.query({
-          limit: PAGE_LIMIT,
-          offset,
-        });
-        const items: Quote[] = Array.isArray(result)
+        const result = await (trpc as any).portal.quotes.list.query();
+        const all: Quote[] = Array.isArray(result)
           ? result
           : result?.items ?? result?.quotes ?? [];
+        const items = all.slice(offset, offset + PAGE_LIMIT);
         if (append) {
           setQuotes((prev) => [...prev, ...items]);
         } else {
           setQuotes(items);
         }
-        setHasMore(items.length >= PAGE_LIMIT);
+        setHasMore(offset + items.length < all.length);
         offsetRef.current = offset + items.length;
       } catch {
         if (!append) setQuotes([]);

@@ -38,20 +38,31 @@ export default function Step1ServicesPricing() {
 
   const loadExistingData = async () => {
     try {
-      const profile = await (trpc as any).portal.getOnboardingProfile.query();
-      if (profile) {
-        if (profile.servicesOffered?.length) {
-          setServicesOffered(profile.servicesOffered);
-        }
-        setCallOutFee(profile.callOutFee?.toString() ?? "");
-        setHourlyRate(profile.hourlyRate?.toString() ?? "");
-        setMinimumCharge(profile.minimumCharge?.toString() ?? "");
-        setAfterHoursMultiplier(profile.afterHoursMultiplier?.toString() ?? "");
-        setServiceArea(profile.serviceArea ?? "");
-        setOperatingHours(profile.operatingHours ?? "");
-        setEmergencyAvailable(profile.emergencyAvailable ?? false);
-        setEmergencyFee(profile.emergencyFee?.toString() ?? "");
+      // Backend returns { profile, businessName, contactName, contactEmail, tradeType }
+      const response = await (trpc as any).portal.getOnboardingProfile.query();
+      const profile = response?.profile ?? {};
+      // servicesOffered is stored as Array<{name, description, typicalPrice, unit}> on the
+      // backend; mobile's current step-1 UI uses string[] so we map for backward compat.
+      if (Array.isArray(profile.servicesOffered) && profile.servicesOffered.length > 0) {
+        const svc = profile.servicesOffered;
+        const stringified: string[] = svc.map((s: unknown) =>
+          typeof s === "string" ? s : (s as { name?: string })?.name ?? ""
+        );
+        setServicesOffered(stringified);
       }
+      setCallOutFee(profile.callOutFee?.toString() ?? "");
+      setHourlyRate(profile.hourlyRate?.toString() ?? "");
+      setMinimumCharge(profile.minimumCharge?.toString() ?? "");
+      setAfterHoursMultiplier(profile.afterHoursMultiplier?.toString() ?? "");
+      setServiceArea(profile.serviceArea ?? "");
+      // operatingHours is {monFri, sat, sun, publicHolidays} on backend; mobile uses a string
+      if (profile.operatingHours && typeof profile.operatingHours === "object") {
+        setOperatingHours(profile.operatingHours.monFri ?? "");
+      } else if (typeof profile.operatingHours === "string") {
+        setOperatingHours(profile.operatingHours);
+      }
+      setEmergencyAvailable(profile.emergencyAvailable ?? false);
+      setEmergencyFee(profile.emergencyFee?.toString() ?? "");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load profile";
       Alert.alert("Error", message);

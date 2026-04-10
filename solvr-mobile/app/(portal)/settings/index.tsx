@@ -104,7 +104,9 @@ export default function SettingsScreen() {
 
     (async () => {
       try {
-        const profile = await (trpc as any).portal.getFullProfile.query();
+        // Backend returns { profile } - destructure it
+        const response = await (trpc as any).portal.getFullProfile.query();
+        const profile = response?.profile ?? response ?? {};
         if (cancelled) return;
         setTradingName(profile.tradingName || "");
         setBizPhone(profile.phone || "");
@@ -226,8 +228,8 @@ export default function SettingsScreen() {
   }, [logout, router]);
 
   // ---- App version ----
-  const appVersion =
-    Constants.expoConfig?.version || Constants.manifest?.version || "1.0.0";
+  // Constants.manifest is legacy and removed in newer expo-constants; expoConfig.version is the source of truth.
+  const appVersion = Constants.expoConfig?.version || "1.0.0";
 
   return (
     <SafeAreaView style={styles.safeArea}>

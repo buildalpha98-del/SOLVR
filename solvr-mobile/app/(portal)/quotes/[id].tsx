@@ -23,6 +23,10 @@ import { Button, Input, Card, Badge, SectionHeader } from "../../../components/u
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Local editable line item state — uses numbers for calculations.
+ * Backend stores quantity/unitPrice as decimal strings; we convert on load/save.
+ */
 interface LineItem {
   id: string;
   description: string;
@@ -30,17 +34,44 @@ interface LineItem {
   unitPrice: number;
 }
 
-interface QuoteData {
+/**
+ * Raw backend response from `portal.quotes.get.query({id})`:
+ *   { quote, lineItems, photos }
+ * where quote is a row from drizzle/schema.ts → quotes table and
+ * lineItems[*].quantity/unitPrice are decimal STRINGS.
+ */
+interface BackendLineItem {
+  id: string;
+  description: string;
+  quantity: string;
+  unit?: string | null;
+  unitPrice?: string | null;
+  lineTotal?: string | null;
+}
+
+interface BackendQuote {
   id: string;
   status: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  customerAddress: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
   jobTitle: string;
-  lineItems: LineItem[];
-  notes: string;
-  photos?: { id: string; url: string }[];
+  jobDescription?: string | null;
+  notes?: string | null;
+}
+
+interface BackendPhoto {
+  id: string;
+  imageUrl: string;
+  thumbnailUrl?: string | null;
+  caption?: string | null;
+}
+
+interface QuoteGetResponse {
+  quote: BackendQuote;
+  lineItems: BackendLineItem[];
+  photos: BackendPhoto[];
 }
 
 // ---------------------------------------------------------------------------
@@ -310,23 +341,30 @@ export default function QuoteEditorScreen() {
 
     (async () => {
       try {
-        const data: QuoteData = await (trpc as any).portal.quotes.get.query({ id });
+        const data: QuoteGetResponse = await (trpc as any).portal.quotes.get.query({ id });
         if (cancelled) return;
-        setStatus(data.status || "draft");
-        setCustomerName(data.customerName || "");
-        setCustomerEmail(data.customerEmail || "");
-        setCustomerPhone(data.customerPhone || "");
-        setCustomerAddress(data.customerAddress || "");
-        setJobTitle(data.jobTitle || "");
+        // Backend returns { quote, lineItems, photos } — not a flat object
+        const q = data.quote;
+        setStatus(q.status || "draft");
+        setCustomerName(q.customerName || "");
+        setCustomerEmail(q.customerEmail || "");
+        setCustomerPhone(q.customerPhone || "");
+        setCustomerAddress(q.customerAddress || "");
+        setJobTitle(q.jobTitle || "");
         setLineItems(
-          (data.lineItems || []).map((li) => ({
-            id: li.id || generateTempId(),
-            description: li.description || "",
-            quantity: li.quantity ?? 1,
-            unitPrice: li.unitPrice ?? 0,
-          }))
+          (data.lineItems || []).map((li) => {
+            // Decimal columns arrive as strings; coerce to numbers for local edit state
+            const qty = parseFloat(li.quantity ?? "0");
+            const price = li.unitPrice != null ? parseFloat(li.unitPrice) : 0;
+            return {
+              id: li.id || generateTempId(),
+              description: li.description || "",
+              quantity: Number.isFinite(qty) ? qty : 1,
+              unitPrice: Number.isFinite(price) ? price : 0,
+            };
+          })
         );
-        setNotes(data.notes || "");
+        setNotes(q.notes || "");
       } catch (err: any) {
         Alert.alert("Error", err?.message || "Failed to load quote.");
       } finally {
@@ -376,21 +414,24 @@ export default function QuoteEditorScreen() {
   const total = subtotal + gst;
 
   // ---- Build payload ----
+  // Backend `quotes.update` input expects lineItems[*].quantity/unitPrice as STRINGS
+  // (decimal columns), and does NOT accept a per-item id (it rebuilds line items).
   const buildPayload = useCallback(() => {
     return {
       id,
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerAddress,
-      jobTitle,
-      lineItems: lineItems.map((li) => ({
-        id: li.id.startsWith("temp_") ? undefined : li.id,
-        description: li.description,
-        quantity: li.quantity,
-        unitPrice: li.unitPrice,
-      })),
-      notes,
+      jobTitle: jobTitle || undefined,
+      customerName: customerName || undefined,
+      customerEmail: customerEmail || undefined,
+      customerPhone: customerPhone || undefined,
+      customerAddress: customerAddress || undefined,
+      notes: notes || undefined,
+      lineItems: lineItems
+        .filter((li) => li.description.trim().length > 0)
+        .map((li) => ({
+          description: li.description,
+          quantity: String(li.quantity),
+          unitPrice: li.unitPrice > 0 ? String(li.unitPrice) : null,
+        })),
     };
   }, [id, customerName, customerEmail, customerPhone, customerAddress, jobTitle, lineItems, notes]);
 
@@ -408,20 +449,37 @@ export default function QuoteEditorScreen() {
   }, [buildPayload]);
 
   // ---- Attach Photos ----
+  // Backend `quotes.addPhoto` expects { quoteId, imageDataUrl, caption?, mimeType? }
+  // where imageDataUrl is a base64 data URL (e.g. "data:image/jpeg;base64,...").
   const attachPhotos = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       });
 
       if (result.canceled || !result.assets?.length) return;
 
       for (const asset of result.assets) {
+        if (!asset.base64) {
+          // ImagePicker failed to produce base64; skip this asset rather than sending a broken payload
+          continue;
+        }
+        const mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" =
+          asset.mimeType === "image/png"
+            ? "image/png"
+            : asset.mimeType === "image/webp"
+              ? "image/webp"
+              : asset.mimeType === "image/heic"
+                ? "image/heic"
+                : "image/jpeg";
+        const imageDataUrl = `data:${mimeType};base64,${asset.base64}`;
         await (trpc as any).portal.quotes.addPhoto.mutate({
           quoteId: id,
-          uri: asset.uri,
+          imageDataUrl,
+          mimeType,
         });
       }
 

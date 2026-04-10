@@ -15,30 +15,35 @@ import { Button, Card } from "../../components/ui";
 import { trpc } from "../../lib/trpc";
 import { useAuth } from "../../lib/auth";
 
+// Shape matches drizzle/schema.ts → clientProfiles.
+// Backend decimals come back as STRINGS, JSON fields as objects/arrays.
 interface OnboardingProfile {
-  tradingName?: string;
-  abn?: string;
-  phone?: string;
-  address?: string;
-  email?: string;
-  website?: string;
-  industryType?: string;
-  yearsInBusiness?: number;
-  teamSize?: number;
-  servicesOffered?: string[];
-  callOutFee?: number;
-  hourlyRate?: number;
-  minimumCharge?: number;
-  afterHoursMultiplier?: number;
-  serviceArea?: string;
-  operatingHours?: string;
-  emergencyAvailable?: boolean;
-  emergencyFee?: number;
-  logoUrl?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
-  tagline?: string;
-  toneOfVoice?: string;
+  tradingName?: string | null;
+  abn?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  email?: string | null;
+  website?: string | null;
+  industryType?: string | null;
+  yearsInBusiness?: number | null;
+  teamSize?: number | null;
+  servicesOffered?:
+    | Array<{ name: string; description?: string; typicalPrice?: number | null; unit?: string }>
+    | string[]
+    | null;
+  callOutFee?: string | number | null;
+  hourlyRate?: string | number | null;
+  minimumCharge?: string | number | null;
+  afterHoursMultiplier?: string | number | null;
+  serviceArea?: string | null;
+  operatingHours?: { monFri?: string; sat?: string; sun?: string; publicHolidays?: string } | string | null;
+  emergencyAvailable?: boolean | null;
+  emergencyFee?: string | number | null;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  tagline?: string | null;
+  toneOfVoice?: string | null;
 }
 
 function SummaryRow({ label, value }: { label: string; value?: string | number | boolean | null }) {
@@ -65,8 +70,9 @@ export default function Step3ReviewActivate() {
 
   const loadProfile = async () => {
     try {
-      const data = await (trpc as any).portal.getOnboardingProfile.query();
-      setProfile(data ?? null);
+      // Backend returns { profile, businessName, contactName, contactEmail, tradeType }
+      const response = await (trpc as any).portal.getOnboardingProfile.query();
+      setProfile(response?.profile ?? null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load profile";
       Alert.alert("Error", message);
@@ -138,18 +144,28 @@ export default function Step3ReviewActivate() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Services</Text>
               <Text style={styles.summaryValue}>
-                {profile.servicesOffered.join(", ")}
+                {(profile.servicesOffered as Array<string | { name?: string }>)
+                  .map((s) => (typeof s === "string" ? s : s?.name ?? ""))
+                  .filter((s) => s.length > 0)
+                  .join(", ")}
               </Text>
             </View>
           )}
-          <SummaryRow label="Call-Out Fee" value={profile?.callOutFee ? `$${profile.callOutFee}` : undefined} />
-          <SummaryRow label="Hourly Rate" value={profile?.hourlyRate ? `$${profile.hourlyRate}` : undefined} />
-          <SummaryRow label="Minimum Charge" value={profile?.minimumCharge ? `$${profile.minimumCharge}` : undefined} />
-          <SummaryRow label="After-Hours Multiplier" value={profile?.afterHoursMultiplier ? `${profile.afterHoursMultiplier}x` : undefined} />
-          <SummaryRow label="Service Area" value={profile?.serviceArea} />
-          <SummaryRow label="Operating Hours" value={profile?.operatingHours} />
-          <SummaryRow label="Emergency Available" value={profile?.emergencyAvailable} />
-          <SummaryRow label="Emergency Fee" value={profile?.emergencyFee ? `$${profile.emergencyFee}` : undefined} />
+          <SummaryRow label="Call-Out Fee" value={profile?.callOutFee != null ? `$${profile.callOutFee}` : undefined} />
+          <SummaryRow label="Hourly Rate" value={profile?.hourlyRate != null ? `$${profile.hourlyRate}` : undefined} />
+          <SummaryRow label="Minimum Charge" value={profile?.minimumCharge != null ? `$${profile.minimumCharge}` : undefined} />
+          <SummaryRow label="After-Hours Multiplier" value={profile?.afterHoursMultiplier != null ? `${profile.afterHoursMultiplier}x` : undefined} />
+          <SummaryRow label="Service Area" value={profile?.serviceArea ?? undefined} />
+          <SummaryRow
+            label="Operating Hours"
+            value={
+              profile?.operatingHours && typeof profile.operatingHours === "object"
+                ? profile.operatingHours.monFri ?? undefined
+                : (profile?.operatingHours as string | undefined)
+            }
+          />
+          <SummaryRow label="Emergency Available" value={profile?.emergencyAvailable ?? undefined} />
+          <SummaryRow label="Emergency Fee" value={profile?.emergencyFee != null ? `$${profile.emergencyFee}` : undefined} />
         </Card>
 
         {/* Branding */}

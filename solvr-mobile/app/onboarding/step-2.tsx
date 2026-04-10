@@ -41,15 +41,15 @@ export default function Step2Branding() {
 
   const loadExistingData = async () => {
     try {
-      const profile = await (trpc as any).portal.getOnboardingProfile.query();
-      if (profile) {
-        setLogoUrl(profile.logoUrl ?? "");
-        setPrimaryColor(profile.primaryColor ?? "");
-        setSecondaryColor(profile.secondaryColor ?? "");
-        setTagline(profile.tagline ?? "");
-        if (profile.toneOfVoice) {
-          setToneOfVoice(profile.toneOfVoice as ToneOfVoice);
-        }
+      // Backend returns { profile, businessName, contactName, contactEmail, tradeType }
+      const response = await (trpc as any).portal.getOnboardingProfile.query();
+      const profile = response?.profile ?? {};
+      setLogoUrl(profile.logoUrl ?? "");
+      setPrimaryColor(profile.primaryColor ?? "");
+      setSecondaryColor(profile.secondaryColor ?? "");
+      setTagline(profile.tagline ?? "");
+      if (profile.toneOfVoice) {
+        setToneOfVoice(profile.toneOfVoice as ToneOfVoice);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load profile";

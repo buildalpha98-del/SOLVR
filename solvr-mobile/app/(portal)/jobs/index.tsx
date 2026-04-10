@@ -32,13 +32,28 @@ import {
 
 type JobStage = "new_lead" | "quoted" | "booked" | "completed" | "lost";
 
+/**
+ * Mirrors drizzle/schema.ts → portalJobs (what backend `listJobs` returns directly).
+ * Field names MUST match backend shape — job.id is a number, jobType/callerName
+ * are the real column names (NOT title/customerName).
+ */
 interface Job {
-  id: string;
-  title: string;
-  customerName?: string;
+  id: number;
+  clientId: number;
+  jobType: string;
+  description?: string | null;
+  callerName?: string | null;
+  callerPhone?: string | null;
+  location?: string | null;
   stage: JobStage;
-  value?: number;
+  estimatedValue?: number | null;
+  actualValue?: number | null;
+  preferredDate?: string | null;
+  notes?: string | null;
+  quotedAmount?: string | null;
+  sourceQuoteId?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +129,8 @@ function JobRow({
   item: Job;
   onLongPress: () => void;
 }) {
+  // Prefer actualValue (for completed jobs) over estimatedValue
+  const displayValue = item.actualValue ?? item.estimatedValue ?? null;
   return (
     <Card style={styles.jobCard}>
       <TouchableOpacity
@@ -123,16 +140,16 @@ function JobRow({
       >
         <View style={styles.jobHeader}>
           <Badge label={stageLabel(item.stage)} color={stageBadgeColor(item.stage)} />
-          {item.value != null && item.value > 0 ? (
-            <Text style={styles.jobValue}>{formatCurrency(item.value)}</Text>
+          {displayValue != null && displayValue > 0 ? (
+            <Text style={styles.jobValue}>{formatCurrency(displayValue)}</Text>
           ) : null}
         </View>
         <Text style={styles.jobTitle} numberOfLines={1}>
-          {item.title}
+          {item.jobType}
         </Text>
-        {item.customerName ? (
+        {item.callerName ? (
           <Text style={styles.jobCustomer} numberOfLines={1}>
-            {item.customerName}
+            {item.callerName}
           </Text>
         ) : null}
       </TouchableOpacity>
@@ -144,27 +161,22 @@ function JobRow({
 // Create Job Modal
 // ---------------------------------------------------------------------------
 
+/**
+ * Form fields match backend createJob input schema:
+ *   { jobType, description?, callerName?, callerPhone?, location?, estimatedValue?, preferredDate? }
+ * Backend does NOT accept `stage` on create — new jobs are always `new_lead`.
+ */
 interface CreateJobFormData {
-  title: string;
-  customerName: string;
-  value: string;
-  stage: JobStage;
+  jobType: string;
+  callerName: string;
+  estimatedValue: string;
 }
 
 const INITIAL_FORM: CreateJobFormData = {
-  title: "",
-  customerName: "",
-  value: "",
-  stage: "new_lead",
+  jobType: "",
+  callerName: "",
+  estimatedValue: "",
 };
-
-const STAGE_OPTIONS: { value: JobStage; label: string }[] = [
-  { value: "new_lead", label: "New Lead" },
-  { value: "quoted", label: "Quoted" },
-  { value: "booked", label: "Booked" },
-  { value: "completed", label: "Completed" },
-  { value: "lost", label: "Lost" },
-];
 
 function CreateJobModal({
   visible,
@@ -185,8 +197,8 @@ function CreateJobModal({
   }, [onClose]);
 
   const handleSubmit = useCallback(() => {
-    if (!form.title.trim()) {
-      Alert.alert("Validation", "Job title is required.");
+    if (!form.jobType.trim()) {
+      Alert.alert("Validation", "Job type is required.");
       return;
     }
     onSubmit(form);
@@ -218,59 +230,29 @@ function CreateJobModal({
             keyboardShouldPersistTaps="handled"
           >
             <Input
-              label="Title"
+              label="Job Type"
               placeholder="e.g. Kitchen Renovation"
-              value={form.title}
-              onChangeText={(text) => setForm((f) => ({ ...f, title: text }))}
+              value={form.jobType}
+              onChangeText={(text) => setForm((f) => ({ ...f, jobType: text }))}
               autoFocus
             />
 
             <Input
               label="Customer Name"
               placeholder="e.g. John Smith"
-              value={form.customerName}
+              value={form.callerName}
               onChangeText={(text) =>
-                setForm((f) => ({ ...f, customerName: text }))
+                setForm((f) => ({ ...f, callerName: text }))
               }
             />
 
             <Input
-              label="Value ($)"
+              label="Estimated Value ($)"
               placeholder="e.g. 5000"
-              value={form.value}
-              onChangeText={(text) => setForm((f) => ({ ...f, value: text }))}
+              value={form.estimatedValue}
+              onChangeText={(text) => setForm((f) => ({ ...f, estimatedValue: text }))}
               keyboardType="numeric"
             />
-
-            <Text style={styles.fieldLabel}>Stage</Text>
-            <View style={styles.stageRow}>
-              {STAGE_OPTIONS.map((opt) => {
-                const isSelected = form.stage === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    onPress={() => setForm((f) => ({ ...f, stage: opt.value }))}
-                    style={[
-                      styles.stageChip,
-                      isSelected && {
-                        backgroundColor: stageBadgeColor(opt.value) + "30",
-                        borderColor: stageBadgeColor(opt.value),
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.stageChipText,
-                        isSelected && { color: stageBadgeColor(opt.value) },
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
 
             <Button
               title={isSubmitting ? "Creating..." : "Create Job"}
@@ -339,11 +321,14 @@ export default function JobsScreen() {
     async (data: CreateJobFormData) => {
       setIsSubmitting(true);
       try {
+        const parsedValue = data.estimatedValue
+          ? parseInt(data.estimatedValue, 10)
+          : undefined;
         await (trpc as any).portal.createJob.mutate({
-          title: data.title.trim(),
-          customerName: data.customerName.trim() || undefined,
-          value: data.value ? parseFloat(data.value) : undefined,
-          stage: data.stage,
+          jobType: data.jobType.trim(),
+          callerName: data.callerName.trim() || undefined,
+          estimatedValue:
+            parsedValue != null && !Number.isNaN(parsedValue) ? parsedValue : undefined,
         });
         setModalVisible(false);
         await fetchJobs();
@@ -361,14 +346,15 @@ export default function JobsScreen() {
   // ---- Delete job ----
   const handleDeleteJob = useCallback(
     (job: Job) => {
-      Alert.alert("Delete Job", `Are you sure you want to delete "${job.title}"?`, [
+      Alert.alert("Delete Job", `Are you sure you want to delete "${job.jobType}"?`, [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
             try {
-              await (trpc as any).portal.deleteJob.mutate({ id: job.id });
+              // Backend zod schema requires id as NUMBER, not string
+              await (trpc as any).portal.deleteJob.mutate({ id: Number(job.id) });
               setJobs((prev) => prev.filter((j) => j.id !== job.id));
             } catch (err: unknown) {
               const message =
@@ -390,7 +376,8 @@ export default function JobsScreen() {
     [handleDeleteJob],
   );
 
-  const keyExtractor = useCallback((item: Job) => item.id, []);
+  // FlatList keyExtractor must return string — job.id is a number
+  const keyExtractor = useCallback((item: Job) => String(item.id), []);
 
   // ---- Feature gate UI ----
   if (!canAccessJobs) {
