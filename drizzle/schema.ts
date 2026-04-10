@@ -91,7 +91,7 @@ export const clientOnboardings = mysqlTable("client_onboardings", {
 export type ClientOnboarding = typeof clientOnboardings.$inferSelect;
 export type InsertClientOnboarding = typeof clientOnboardings.$inferInsert;
 
-// ─── CRM ─────────────────────────────────────────────────────────────────────
+//  CRM 
 
 /**
  * CRM client records — the central entity for every client relationship.
@@ -123,7 +123,7 @@ export const crmClients = mysqlTable("crm_clients", {
   aiBrief: text("aiBrief"),
   /** When the AI brief was last generated */
   aiBriefUpdatedAt: timestamp("aiBriefUpdatedAt"),
-  // ── Quote branding (used on PDF quotes sent to customers) ─────────────────
+  //  Quote branding (used on PDF quotes sent to customers) 
   /** Business logo URL (S3) for quote PDF header */
   quoteBrandLogoUrl: varchar("quoteBrandLogoUrl", { length: 512 }),
   /** Primary brand colour hex (e.g. #1E3A5F) */
@@ -154,6 +154,13 @@ export const crmClients = mysqlTable("crm_clients", {
   portalPasswordHash: varchar("portalPasswordHash", { length: 255 }),
   /** Expo push notification token for the mobile app (null = not registered) */
   pushToken: varchar("pushToken", { length: 512 }),
+  // Tradie referral programme
+  /** Unique referral code for this tradie to share (e.g. "JAYDEN20") */
+  referralCode: varchar("referralCode", { length: 32 }).unique(),
+  /** The crmClients.id of the tradie who referred this client (null = organic) */
+  referredByClientId: int("referredByClientId"),
+  /** Pending discount % to apply on next Stripe invoice (set to 20 when a referral converts) */
+  pendingDiscountPct: int("pendingDiscountPct").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -208,7 +215,7 @@ export const clientTags = mysqlTable("client_tags", {
 export type ClientTag = typeof clientTags.$inferSelect;
 export type InsertClientTag = typeof clientTags.$inferInsert;
 
-// ─── SALES PIPELINE ──────────────────────────────────────────────────────────
+//  SALES PIPELINE 
 
 /**
  * Sales pipeline deals — prospects moving through the sales funnel.
@@ -259,7 +266,7 @@ export const pipelineDeals = mysqlTable("pipeline_deals", {
 export type PipelineDeal = typeof pipelineDeals.$inferSelect;
 export type InsertPipelineDeal = typeof pipelineDeals.$inferInsert;
 
-// ─── CLIENT PRODUCTS ─────────────────────────────────────────────────────────
+//  CLIENT PRODUCTS 
 
 /**
  * Products/services active for each client.
@@ -302,7 +309,7 @@ export const clientProducts = mysqlTable("client_products", {
 export type ClientProduct = typeof clientProducts.$inferSelect;
 export type InsertClientProduct = typeof clientProducts.$inferInsert;
 
-// ─── AI INSIGHTS ─────────────────────────────────────────────────────────────
+//  AI INSIGHTS 
 
 /**
  * AI-generated insights — stored analysis results for clients, deals, and the business.
@@ -344,7 +351,7 @@ export const aiInsights = mysqlTable("ai_insights", {
 export type AiInsight = typeof aiInsights.$inferSelect;
 export type InsertAiInsight = typeof aiInsights.$inferInsert;
 
-// ─── TASKS ───────────────────────────────────────────────────────────────────
+//  TASKS 
 
 /**
  * Action items / tasks — linked to clients or deals.
@@ -382,7 +389,7 @@ export const tasks = mysqlTable("tasks", {
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = typeof tasks.$inferInsert;
 
-// ─── VOICE AGENT SUBSCRIPTIONS ───────────────────────────────────────────────
+//  VOICE AGENT SUBSCRIPTIONS 
 
 /**
  * Voice Agent subscriptions — tracks Stripe checkout sessions and subscription IDs.
@@ -404,6 +411,12 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
   /** Stripe Checkout Session ID */
   stripeSessionId: varchar("stripeSessionId", { length: 128 }),
+  /** FK to crmClients.id — set when a portal client upgrades via the portal upgrade checkout */
+  clientId: int("clientId"),
+  /** Onboarding email sequence tracking */
+  welcomeEmailSentAt: timestamp("welcomeEmailSentAt"),
+  checklistEmailSentAt: timestamp("checklistEmailSentAt"),
+  checkinEmailSentAt: timestamp("checkinEmailSentAt"),
   /** Subscription status */
   status: mysqlEnum("status", ["trialing", "active", "cancelled", "past_due", "incomplete"]).default("trialing").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -413,7 +426,7 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
 export type VoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferSelect;
 export type InsertVoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferInsert;
 
-// ─── ONBOARDING CHECKLISTS ────────────────────────────────────────────────────
+//  ONBOARDING CHECKLISTS 
 /**
  * Per-client onboarding checklist — tracks the 9-step delivery process.
  * One row per CRM client. Steps auto-advance via webhooks or manual triggers.
@@ -440,47 +453,47 @@ export const onboardingChecklists = mysqlTable("onboarding_checklists", {
   /** Link to CRM client */
   clientId: int("clientId").notNull().unique(),
 
-  // ── Step 1: Payment confirmed ──────────────────────────────────────────────
+  //  Step 1: Payment confirmed 
   paymentConfirmedStatus: mysqlEnum("paymentConfirmedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   paymentConfirmedAt: timestamp("paymentConfirmedAt"),
   paymentConfirmedNote: text("paymentConfirmedNote"),
 
-  // ── Step 2: CRM client created ─────────────────────────────────────────────
+  //  Step 2: CRM client created 
   crmCreatedStatus: mysqlEnum("crmCreatedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   crmCreatedAt: timestamp("crmCreatedAt"),
 
-  // ── Step 3: Welcome email sent ─────────────────────────────────────────────
+  //  Step 3: Welcome email sent 
   welcomeEmailStatus: mysqlEnum("welcomeEmailStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   welcomeEmailSentAt: timestamp("welcomeEmailSentAt"),
   welcomeEmailContent: text("welcomeEmailContent"),
 
-  // ── Step 4: Onboarding form sent ───────────────────────────────────────────
+  //  Step 4: Onboarding form sent 
   formSentStatus: mysqlEnum("formSentStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   formSentAt: timestamp("formSentAt"),
   /** Signed token for the onboarding form URL */
   formToken: varchar("formToken", { length: 128 }),
 
-  // ── Step 5: Onboarding form completed ─────────────────────────────────────
+  //  Step 5: Onboarding form completed 
   formCompletedStatus: mysqlEnum("formCompletedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   formCompletedAt: timestamp("formCompletedAt"),
 
-  // ── Step 6: Prompt built ───────────────────────────────────────────────────
+  //  Step 6: Prompt built 
   promptBuiltStatus: mysqlEnum("promptBuiltStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   promptBuiltAt: timestamp("promptBuiltAt"),
   /** ID of the saved prompt record */
   savedPromptId: int("savedPromptId"),
 
-  // ── Step 7: Vapi agent configured ─────────────────────────────────────────
+  //  Step 7: Vapi agent configured 
   vapiConfiguredStatus: mysqlEnum("vapiConfiguredStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   vapiConfiguredAt: timestamp("vapiConfiguredAt"),
   vapiAgentId: varchar("vapiAgentId", { length: 255 }),
 
-  // ── Step 8: Test call completed ────────────────────────────────────────────
+  //  Step 8: Test call completed 
   testCallStatus: mysqlEnum("testCallStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   testCallAt: timestamp("testCallAt"),
   testCallNote: text("testCallNote"),
 
-  // ── Step 9: Client live ────────────────────────────────────────────────────
+  //  Step 9: Client live 
   clientLiveStatus: mysqlEnum("clientLiveStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   clientLiveAt: timestamp("clientLiveAt"),
   goLiveEmailContent: text("goLiveEmailContent"),
@@ -492,9 +505,9 @@ export const onboardingChecklists = mysqlTable("onboarding_checklists", {
 export type OnboardingChecklist = typeof onboardingChecklists.$inferSelect;
 export type InsertOnboardingChecklist = typeof onboardingChecklists.$inferInsert;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // CLIENT PORTAL
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 /**
  * Magic-link session tokens for portal client auth.
@@ -558,6 +571,41 @@ export const portalJobs = mysqlTable("portal_jobs", {
   quotedAmount: decimal("quotedAmount", { precision: 10, scale: 2 }),
   /** FK to quotes.id — set when this job was created from an accepted quote */
   sourceQuoteId: varchar("sourceQuoteId", { length: 36 }),
+  //  Customer details (editable on job card) 
+  customerName: varchar("customerName", { length: 255 }),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  customerAddress: varchar("customerAddress", { length: 512 }),
+  //  Invoice 
+  /** Invoice number (e.g. INV-0001) — set when invoice is generated */
+  invoiceNumber: varchar("invoiceNumber", { length: 32 }),
+  /** Invoice status */
+  invoiceStatus: mysqlEnum("invoiceStatus", ["not_invoiced", "draft", "sent", "paid", "overdue"]).default("not_invoiced"),
+  /** Total invoiced amount in cents */
+  invoicedAmount: int("invoicedAmount"),
+  /** Total amount paid in cents (sum of progress payments + final payment) */
+  amountPaid: int("amountPaid").default(0),
+  /** Payment method used */
+  paymentMethod: mysqlEnum("paymentMethod", ["bank_transfer", "cash", "stripe", "other"]),
+  /** When the invoice was sent to the customer */
+  invoicedAt: timestamp("invoicedAt"),
+  /** When the job was fully paid */
+  paidAt: timestamp("paidAt"),
+  /** S3 URL of the generated invoice PDF */
+  invoicePdfUrl: varchar("invoicePdfUrl", { length: 512 }),
+  /** S3 URL of the generated job completion report PDF */
+  completionReportUrl: varchar("completionReportUrl", { length: 512 }),
+  /** Public token for read-only customer view of the completion report (no auth required) */
+  completionReportToken: varchar("completionReportToken", { length: 64 }),
+  //  Completion 
+  /** When the job was marked complete by the tradie */
+  completedAt: timestamp("completedAt"),
+  /** Tradie's completion notes / what was actually done */
+  completionNotes: text("completionNotes"),
+  /** Any variations from the original quote */
+  variationNotes: text("variationNotes"),
+  /** Actual time spent on the job (hours, stored as decimal) */
+  actualHours: decimal("actualHours", { precision: 6, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -630,9 +678,9 @@ export const referralConversions = mysqlTable("referral_conversions", {
 export type ReferralConversion = typeof referralConversions.$inferSelect;
 export type InsertReferralConversion = typeof referralConversions.$inferInsert;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // VOICE-TO-QUOTE ENGINE
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 /**
  * Voice recordings submitted for quote extraction.
@@ -676,45 +724,45 @@ export const quotes = mysqlTable("quotes", {
   status: mysqlEnum("status", [
     "draft", "sent", "accepted", "declined", "expired", "cancelled",
   ]).default("draft").notNull(),
-  // ── Customer details ──────────────────────────────────────────────────────
+  //  Customer details 
   customerName: varchar("customerName", { length: 255 }),
   customerEmail: varchar("customerEmail", { length: 320 }),
   customerPhone: varchar("customerPhone", { length: 50 }),
   customerAddress: varchar("customerAddress", { length: 512 }),
-  // ── Job details ───────────────────────────────────────────────────────────
+  //  Job details 
   jobTitle: varchar("jobTitle", { length: 255 }).notNull(),
   jobDescription: text("jobDescription"),
-  // ── Financials ────────────────────────────────────────────────────────────
+  //  Financials 
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }),
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("10.00").notNull(),
   gstAmount: decimal("gstAmount", { precision: 10, scale: 2 }),
   totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }),
-  // ── Terms ─────────────────────────────────────────────────────────────────
+  //  Terms 
   paymentTerms: varchar("paymentTerms", { length: 255 }),
   validityDays: int("validityDays").default(30).notNull(),
   validUntil: date("validUntil"),
   notes: text("notes"),
-  // ── Customer response ─────────────────────────────────────────────────────
+  //  Customer response 
   /** 64-char hex token for the public customer acceptance URL */
   customerToken: varchar("customerToken", { length: 128 }).notNull().unique(),
   customerNote: text("customerNote"),
   declineReason: varchar("declineReason", { length: 50 }),
   respondedAt: timestamp("respondedAt"),
-  // ── AI report ─────────────────────────────────────────────────────────────
+  //  AI report 
   /** Structured AI-generated report content (JSON) */
   reportContent: json("reportContent"),
   reportGeneratedAt: timestamp("reportGeneratedAt"),
-  // ── Links ─────────────────────────────────────────────────────────────────
+  //  Links 
   /** FK to quoteVoiceRecordings.id */
   voiceRecordingId: varchar("voiceRecordingId", { length: 36 }),
   /** FK to portalJobs.id — set when accepted quote converts to a job */
   convertedJobId: int("convertedJobId"),
-  // ── PDF ───────────────────────────────────────────────────────────────────
+  //  PDF 
   /** S3 URL of the generated PDF */
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** S3 key of the generated PDF */
   pdfKey: varchar("pdfKey", { length: 512 }),
-  // ── Timestamps ────────────────────────────────────────────────────────────
+  //  Timestamps 
   sentAt: timestamp("sentAt"),
   issuedAt: timestamp("issuedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -763,7 +811,81 @@ export const quotePhotos = mysqlTable("quote_photos", {
 export type QuotePhoto = typeof quotePhotos.$inferSelect;
 export type InsertQuotePhoto = typeof quotePhotos.$inferInsert;
 
-// ─── Client Profiles (Memory File) ──────────────────────────────────────────
+//  Invoice Chases 
+/**
+ * AI Invoice Chasing — tracks automated follow-up sequences for unpaid invoices.
+ * One row per invoice being chased. Linked to a quote (or standalone for manual invoices).
+ *
+ * Chase sequence:
+ *   Day 1  → Friendly reminder email
+ *   Day 7  → Follow-up email (polite urgency)
+ *   Day 14 → Final notice email
+ *   Day 21 → Escalation flag set (owner notified to call)
+ */
+export const invoiceChases = mysqlTable("invoice_chases", {
+  id: varchar("id", { length: 36 }).primaryKey(), // UUID — passed explicitly on insert
+  /** FK to crmClients.id — which Solvr client owns this chase */
+  clientId: int("clientId").notNull(),
+  /** FK to quotes.id — the accepted quote this invoice relates to (null for manual) */
+  quoteId: varchar("quoteId", { length: 36 }),
+  /** FK to portalJobs.id — the job this invoice relates to (null if quote-only) */
+  jobId: int("jobId"),
+
+  //  Invoice details 
+  /** Human-readable invoice number (e.g. INV-0042) */
+  invoiceNumber: varchar("invoiceNumber", { length: 32 }).notNull(),
+  /** Customer's name */
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  /** Customer's email — where chase emails are sent */
+  customerEmail: varchar("customerEmail", { length: 320 }).notNull(),
+  /** Customer's phone (optional, shown in escalation view) */
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  /** Brief description of the job / invoice */
+  description: varchar("description", { length: 512 }),
+  /** Total amount due in AUD (inc. GST) */
+  amountDue: decimal("amountDue", { precision: 10, scale: 2 }).notNull(),
+  /** Date the invoice was issued */
+  issuedAt: date("issuedAt").notNull(),
+  /** Payment due date (calculated from issuedAt + paymentTerms) */
+  dueDate: date("dueDate").notNull(),
+
+  //  Chase status 
+  /** Overall chase status */
+  status: mysqlEnum("status", [
+    "active",      // Chase sequence running
+    "paid",        // Marked as paid — sequence stops
+    "snoozed",     // Temporarily paused (snoozeUntil set)
+    "cancelled",   // Manually cancelled
+    "escalated",   // Day 21 reached — owner must call
+  ]).default("active").notNull(),
+
+  //  Sequence tracking 
+  /** How many chase emails have been sent (0–3) */
+  chaseCount: int("chaseCount").default(0).notNull(),
+  /** When the last chase email was sent */
+  lastChasedAt: timestamp("lastChasedAt"),
+  /** When the next chase email is scheduled (null = sequence complete or stopped) */
+  nextChaseAt: timestamp("nextChaseAt"),
+
+  //  Snooze 
+  /** If snoozed, resume chasing after this date */
+  snoozeUntil: timestamp("snoozeUntil"),
+
+  //  Resolution 
+  /** When the invoice was marked as paid */
+  paidAt: timestamp("paidAt"),
+  /** Amount actually received (may differ from amountDue) */
+  amountReceived: decimal("amountReceived", { precision: 10, scale: 2 }),
+  /** Notes added by the Solvr client (e.g. "customer promised to pay Friday") */
+  notes: text("notes"),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InvoiceChase = typeof invoiceChases.$inferSelect;
+export type InsertInvoiceChase = typeof invoiceChases.$inferInsert;
+
+//  Client Profiles (Memory File) 
 /**
  * Unified business profile for each CRM client — the "memory file".
  * Populated during onboarding, editable in Portal Settings.
@@ -775,7 +897,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** FK to crm_clients.id — unique constraint ensures 1:1 */
   clientId: int("clientId").notNull().unique(),
 
-  // ── Section 1: Business Basics ─────────────────────────────────────────────
+  //  Section 1: Business Basics 
   tradingName: varchar("tradingName", { length: 255 }),
   abn: varchar("abn", { length: 50 }),
   phone: varchar("phone", { length: 50 }),
@@ -791,7 +913,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   yearsInBusiness: int("yearsInBusiness"),
   teamSize: int("teamSize"),
 
-  // ── Section 2: Services & Pricing ──────────────────────────────────────────
+  //  Section 2: Services & Pricing 
   /** JSON array: [{ name, description, typicalPrice, unit }] */
   servicesOffered: json("servicesOffered").$type<Array<{
     name: string;
@@ -814,7 +936,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   emergencyAvailable: boolean("emergencyAvailable").default(false),
   emergencyFee: decimal("emergencyFee", { precision: 10, scale: 2 }),
 
-  // ── Section 3: Branding & Identity ─────────────────────────────────────────
+  //  Section 3: Branding & Identity 
   logoUrl: varchar("logoUrl", { length: 512 }),
   primaryColor: varchar("primaryColor", { length: 16 }),
   secondaryColor: varchar("secondaryColor", { length: 16 }),
@@ -822,7 +944,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   tagline: varchar("tagline", { length: 255 }),
   toneOfVoice: mysqlEnum("toneOfVoice", ["professional", "friendly", "casual", "formal"]),
 
-  // ── Section 4: AI Context (the "memory") ───────────────────────────────────
+  //  Section 4: AI Context (the "memory") 
   /** Free-form notes the AI should know about this business */
   aiContext: text("aiContext"),
   /** JSON array: [{ question, answer }] */
@@ -834,13 +956,23 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** When to transfer to owner vs take a message */
   escalationInstructions: text("escalationInstructions"),
 
-  // ── Section 5: Quote Defaults ──────────────────────────────────────────────
+  //  Section 5: Quote Defaults 
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("10.00"),
   paymentTerms: varchar("paymentTerms", { length: 255 }),
   validityDays: int("validityDays").default(30),
   defaultNotes: text("defaultNotes"),
 
-  // ── Meta ────────────────────────────────────────────────────────────────────
+  // Section 6: Banking & Payment Details
+  /** BSB number for bank transfer payments (e.g. 062-000) */
+  bankBsb: varchar("bankBsb", { length: 20 }),
+  /** Bank account number */
+  bankAccountNumber: varchar("bankAccountNumber", { length: 50 }),
+  /** Account name as it appears on the bank account */
+  bankAccountName: varchar("bankAccountName", { length: 255 }),
+  /** Bank name (e.g. Commonwealth Bank, ANZ) */
+  bankName: varchar("bankName", { length: 100 }),
+
+  // Meta
   /** Has the client completed the onboarding wizard? */
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
@@ -852,3 +984,163 @@ export const clientProfiles = mysqlTable("client_profiles", {
 });
 export type ClientProfile = typeof clientProfiles.$inferSelect;
 export type InsertClientProfile = typeof clientProfiles.$inferInsert;
+
+//  Job Progress Payments 
+/**
+ * Progress payments recorded against a job.
+ * A job can have multiple progress payments (e.g. deposit, progress claim, final).
+ * These are manually recorded by the tradie — not connected to ATO or accounting software.
+ */
+export const jobProgressPayments = mysqlTable("job_progress_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id (the Solvr client / tradie who owns this job) */
+  clientId: int("clientId").notNull(),
+  /** Amount received in cents (e.g. 50000 = $500.00) */
+  amountCents: int("amountCents").notNull(),
+  /** Payment method */
+  method: mysqlEnum("method", ["bank_transfer", "cash", "stripe", "cheque", "other"]).notNull(),
+  /** Label for this payment (e.g. "Deposit", "Progress claim 1", "Final payment") */
+  label: varchar("label", { length: 255 }),
+  /** Optional note (e.g. "Paid via BSB on 10 Apr") */
+  note: text("note"),
+  /** When the payment was received */
+  receivedAt: timestamp("receivedAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type JobProgressPayment = typeof jobProgressPayments.$inferSelect;
+export type InsertJobProgressPayment = typeof jobProgressPayments.$inferInsert;
+
+//  Job Photos 
+/**
+ * Before and after photos for a job.
+ * Uploaded via the portal at quote stage (before) and completion stage (after).
+ * Included in the job completion report PDF.
+ */
+export const jobPhotos = mysqlTable("job_photos", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Whether this is a before or after photo */
+  photoType: mysqlEnum("photoType", ["before", "after", "during", "other"]).notNull(),
+  /** S3 URL of the full-resolution photo */
+  imageUrl: varchar("imageUrl", { length: 512 }).notNull(),
+  /** S3 key (for deletion) */
+  imageKey: varchar("imageKey", { length: 512 }).notNull(),
+  /** Optional caption */
+  caption: varchar("caption", { length: 255 }),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type JobPhoto = typeof jobPhotos.$inferSelect;
+export type InsertJobPhoto = typeof jobPhotos.$inferInsert;
+
+//  Tradie Customers 
+/**
+ * Customer database for each tradie (Solvr client).
+ * Automatically populated when a job is marked as completed and paid.
+ * This is the tradie's own customer list — not connected to Solvr's CRM.
+ * Useful for repeat bookings, referrals, and future email marketing.
+ *
+ * One row per unique customer per Solvr client.
+ * If the same customer has multiple jobs, jobCount and totalSpentCents are updated.
+ */
+export const tradieCustomers = mysqlTable("tradie_customers", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — which Solvr client (tradie) this customer belongs to */
+  clientId: int("clientId").notNull(),
+  //  Customer details 
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 50 }),
+  address: varchar("address", { length: 512 }),
+  suburb: varchar("suburb", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  postcode: varchar("postcode", { length: 10 }),
+  //  Job history 
+  /** Total number of completed jobs for this customer */
+  jobCount: int("jobCount").default(1).notNull(),
+  /** Total amount paid across all jobs in cents */
+  totalSpentCents: int("totalSpentCents").default(0).notNull(),
+  /** Date of first job */
+  firstJobAt: timestamp("firstJobAt"),
+  /** Date of most recent completed job */
+  lastJobAt: timestamp("lastJobAt"),
+  /** Most recent job type (for quick reference) */
+  lastJobType: varchar("lastJobType", { length: 255 }),
+  //  Notes 
+  /** Any notes the tradie has added about this customer */
+  notes: text("notes"),
+  /** Tags for segmentation (e.g. "repeat", "referral", "commercial") */
+  tags: json("tags").$type<string[]>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TradieCustomer = typeof tradieCustomers.$inferSelect;
+export type InsertTradieCustomer = typeof tradieCustomers.$inferInsert;
+
+// ─── Push Subscriptions ───────────────────────────────────────────────────────
+/** Stores Web Push subscriptions for portal clients (tradies) */
+export const pushSubscriptions = mysqlTable("push_subscriptions", {
+  id: int("id").primaryKey().autoincrement(),
+  /** The portal client this subscription belongs to */
+  clientId: int("clientId").notNull(),
+  /** Web Push endpoint URL */
+  endpoint: text("endpoint").notNull(),
+  /** P256DH key (base64url) */
+  p256dh: text("p256dh").notNull(),
+  /** Auth secret (base64url) */
+  auth: text("auth").notNull(),
+  /** User agent hint for display */
+  userAgent: varchar("userAgent", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+// Tradie Referral Programme
+/**
+ * Tracks tradie-to-tradie referrals.
+ * When a referred tradie signs up and pays, the referrer gets 20% off their next invoice.
+ */
+export const clientReferrals = mysqlTable("client_referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The tradie who shared their referral link */
+  referrerId: int("referrerId").notNull(),
+  /** The tradie who signed up via the referral link */
+  refereeId: int("refereeId").notNull(),
+  /** Status of the referral */
+  status: mysqlEnum("status", ["pending", "converted", "rewarded"]).default("pending").notNull(),
+  /** When the referee completed their first payment */
+  convertedAt: timestamp("convertedAt"),
+  /** When the 20% discount was applied to the referrer's invoice */
+  rewardedAt: timestamp("rewardedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ClientReferral = typeof clientReferrals.$inferSelect;
+export type InsertClientReferral = typeof clientReferrals.$inferInsert;
+
+// Referral Blast Log
+/**
+ * Tracks each time the referral programme announcement email was blasted to all active clients.
+ * Used to show "last sent" info in the console and prevent accidental double-sends.
+ */
+export const referralBlastLogs = mysqlTable("referral_blast_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Number of emails successfully sent */
+  sent: int("sent").notNull().default(0),
+  /** Number of emails that failed */
+  failed: int("failed").notNull().default(0),
+  /** Total eligible clients at time of blast */
+  total: int("total").notNull().default(0),
+  /** JSON array of error strings for failed sends */
+  errors: text("errors"),
+  /** Who triggered the blast (admin user name) */
+  triggeredBy: varchar("triggeredBy", { length: 255 }),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+});
+export type ReferralBlastLog = typeof referralBlastLogs.$inferSelect;
+export type InsertReferralBlastLog = typeof referralBlastLogs.$inferInsert;

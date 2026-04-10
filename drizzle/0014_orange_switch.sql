@@ -1,0 +1,1 @@
+ALTER TABLE `voice_agent_subscriptions` ADD `clientId` int;

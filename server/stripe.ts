@@ -2,9 +2,11 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
-import { voiceAgentSubscriptions, clientProducts } from "../drizzle/schema";
+import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
-import { eq } from "drizzle-orm";
+import { eq, and, isNotNull } from "drizzle-orm";
+import { sendEmail } from "./_core/email";
+import { buildWelcomeEmail } from "./lib/onboardingEmails";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -256,6 +258,112 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 : undefined,
             status: "trialing",
           });
+          // ── Email 1: Welcome email (T+0) ──────────────────────────────────
+          const subEmail = session.customer_email ?? (session.customer_details?.email ?? null);
+          const subName = session.customer_details?.name ?? null;
+          const subPlan = (session.metadata?.plan ?? "starter") as string;
+          if (subEmail) {
+            const db = await getDb();
+            const sub = db ? await db
+              .select()
+              .from(voiceAgentSubscriptions)
+              .where(eq(voiceAgentSubscriptions.stripeSessionId, session.id))
+              .then(rows => rows[0] ?? null) : null;
+            // Only send if welcome email hasn't been sent yet
+            if (sub && !sub.welcomeEmailSentAt) {
+              const result = await sendEmail({
+                to: subEmail,
+                subject: "Welcome to Solvr — your AI Receptionist is on its way 🎉",
+                html: buildWelcomeEmail(subName ?? "", subPlan),
+                replyTo: "hello@solvr.com.au",
+              });
+              if (result.success && db) {
+                await db
+                  .update(voiceAgentSubscriptions)
+                  .set({ welcomeEmailSentAt: new Date(), updatedAt: new Date() })
+                  .where(eq(voiceAgentSubscriptions.id, sub.id));
+                console.log(`[Webhook] Welcome email sent to ${subEmail}`);
+              } else if (!result.success) {
+                console.error(`[Webhook] Failed to send welcome email to ${subEmail}: ${result.error}`);
+              }
+            }
+          }
+        }
+        // ── Referral reward: apply 20% discount to referrer's next invoice ──
+        if (session.metadata?.clientId) {
+          const newClientId = parseInt(session.metadata.clientId, 10);
+          if (!isNaN(newClientId)) {
+            const db = await getDb();
+            if (db) {
+              // Look up the new client to find who referred them
+              const newClient = await db
+                .select()
+                .from(crmClients)
+                .where(eq(crmClients.id, newClientId))
+                .then(rows => rows[0] ?? null);
+
+              if (newClient?.referredByClientId) {
+                const referrerId = newClient.referredByClientId;
+
+                // Check if a pending referral record exists (not yet rewarded)
+                const referral = await db
+                  .select()
+                  .from(clientReferrals)
+                  .where(
+                    and(
+                      eq(clientReferrals.referrerId, referrerId),
+                      eq(clientReferrals.refereeId, newClientId),
+                      eq(clientReferrals.status, "pending")
+                    )
+                  )
+                  .then(rows => rows[0] ?? null);
+
+                if (referral) {
+                  // Get the referrer's Stripe customer ID from voiceAgentSubscriptions
+                  const referrerSub = await db
+                    .select()
+                    .from(voiceAgentSubscriptions)
+                    .where(eq(voiceAgentSubscriptions.clientId, referrerId))
+                    .then(rows => rows.find(r => r.stripeCustomerId) ?? null);
+
+                  if (referrerSub?.stripeCustomerId) {
+                    try {
+                      // Create a 20% off one-time coupon and apply to referrer's next invoice
+                      const coupon = await stripe.coupons.create({
+                        percent_off: 20,
+                        duration: "once",
+                        name: "Referral Reward — 20% off next month",
+                        max_redemptions: 1,
+                      });
+                      // Apply coupon to the referrer's subscription directly
+                      if (referrerSub.stripeSubscriptionId) {
+                        await stripe.subscriptions.update(referrerSub.stripeSubscriptionId, {
+                          discounts: [{ coupon: coupon.id }],
+                        });
+                      }
+                      console.log(`[Webhook] Referral reward: 20% coupon applied to referrer ${referrerId} (sub ${referrerSub.stripeSubscriptionId})`);
+                    } catch (stripeErr) {
+                      console.error(`[Webhook] Failed to apply referral coupon:`, stripeErr);
+                    }
+                  }
+
+                  // Mark referral as converted + rewarded
+                  await db
+                    .update(clientReferrals)
+                    .set({ status: "rewarded", convertedAt: new Date(), rewardedAt: new Date() })
+                    .where(eq(clientReferrals.id, referral.id));
+
+                  // Clear the pending discount flag on the referrer
+                  await db
+                    .update(crmClients)
+                    .set({ pendingDiscountPct: 0 })
+                    .where(eq(crmClients.id, referrerId));
+
+                  console.log(`[Webhook] Referral ${referral.id} marked as rewarded.`);
+                }
+              }
+            }
+          }
         }
         break;
       }

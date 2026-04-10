@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2,
+  KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import { toast } from "sonner";
@@ -80,6 +80,19 @@ export default function PortalSettings() {
   });
   const [profileLoaded, setProfileLoaded] = useState(false);
 
+  // ─── Payment / bank details state ────────────────────────────────────────
+  const [bankDetails, setBankDetails] = useState({
+    bankName: "",
+    bankAccountName: "",
+    bankBsb: "",
+    bankAccountNumber: "",
+  });
+  const [bankLoaded, setBankLoaded] = useState(false);
+  const updateBankDetails = trpc.portal.updateBusinessProfile.useMutation({
+    onSuccess: () => toast.success("Payment details saved."),
+    onError: (err) => toast.error(err.message ?? "Failed to save payment details."),
+  });
+
   useEffect(() => {
     if (profileQuery.data && !profileLoaded) {
       setProfile({
@@ -95,7 +108,16 @@ export default function PortalSettings() {
       });
       setProfileLoaded(true);
     }
-  }, [profileQuery.data, profileLoaded]);
+    if (profileQuery.data && !bankLoaded) {
+      setBankDetails({
+        bankName: (profileQuery.data as any).bankName ?? "",
+        bankAccountName: (profileQuery.data as any).bankAccountName ?? "",
+        bankBsb: (profileQuery.data as any).bankBsb ?? "",
+        bankAccountNumber: (profileQuery.data as any).bankAccountNumber ?? "",
+      });
+      setBankLoaded(true);
+    }
+  }, [profileQuery.data, profileLoaded, bankLoaded]);
 
   function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
@@ -303,6 +325,84 @@ export default function PortalSettings() {
 
         {/* ── AI Memory File ─────────────────────────────────────────── */}
         <MemoryFileSection />
+
+        {/* ── Payment Details ─────────────────────────────────────────── */}
+        <SectionCard
+          icon={CreditCard}
+          title="Payment Details"
+          subtitle="Your bank details appear on invoices so customers know where to pay."
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              updateBankDetails.mutate(bankDetails);
+            }}
+            className="space-y-4"
+          >
+            {/* Row 1: Bank Name + Account Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Bank Name</Label>
+                <Input
+                  placeholder="e.g. Commonwealth Bank"
+                  value={bankDetails.bankName}
+                  onChange={(e) => setBankDetails((p) => ({ ...p, bankName: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Account Name</Label>
+                <Input
+                  placeholder="e.g. Smith's Plumbing Pty Ltd"
+                  value={bankDetails.bankAccountName}
+                  onChange={(e) => setBankDetails((p) => ({ ...p, bankAccountName: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {/* Row 2: BSB + Account Number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">BSB</Label>
+                <Input
+                  placeholder="e.g. 062-000"
+                  value={bankDetails.bankBsb}
+                  onChange={(e) => setBankDetails((p) => ({ ...p, bankBsb: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Account Number</Label>
+                <Input
+                  placeholder="e.g. 12345678"
+                  value={bankDetails.bankAccountNumber}
+                  onChange={(e) => setBankDetails((p) => ({ ...p, bankAccountNumber: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              These details are printed on every invoice PDF under the payment instructions section.
+            </p>
+
+            <div className="pt-1">
+              <Button
+                type="submit"
+                disabled={updateBankDetails.isPending}
+                className="font-semibold"
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+              >
+                {updateBankDetails.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                ) : (
+                  <><Save className="w-4 h-4 mr-2" />Save Payment Details</>
+                )}
+              </Button>
+            </div>
+          </form>
+        </SectionCard>
 
         {/* ── Change Password ──────────────────────────────────────────── */}
         <SectionCard

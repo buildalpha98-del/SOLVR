@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, ShieldCheck, AlertCircle, Eye, EyeOff, Phone, FileText, BarChart3, Clock } from "lucide-react";
+import { Loader2, ShieldCheck, AlertCircle, Eye, EyeOff, Phone, FileText, BarChart3, Clock, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,13 @@ export default function PortalLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refCode, setRefCode] = useState<string | null>(null);
+
+  // Referral code lookup
+  const referralQuery = trpc.portal.lookupReferralCode.useQuery(
+    { code: refCode! },
+    { enabled: !!refCode }
+  );
 
   // Legacy magic-link exchange
   const loginMutation = trpc.portal.login.useMutation({
@@ -57,14 +64,16 @@ export default function PortalLogin() {
     },
   });
 
-  // On mount: check for legacy magic-link token
+  // On mount: check for legacy magic-link token + referral code
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
+    const ref = params.get("ref");
     if (token) {
       setMode("magic-link-pending");
       loginMutation.mutate({ token });
     }
+    if (ref) setRefCode(ref);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePasswordLogin = (e: React.FormEvent) => {
@@ -127,6 +136,24 @@ export default function PortalLogin() {
       {/* Right panel — login form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
+
+          {/* Referral banner */}
+          {refCode && referralQuery.data && (
+            <div
+              className="mb-6 p-4 rounded-xl flex items-start gap-3"
+              style={{ background: "rgba(245,166,35,0.10)", border: "1px solid rgba(245,166,35,0.25)" }}
+            >
+              <Gift className="w-5 h-5 mt-0.5 shrink-0" style={{ color: "#F5A623" }} />
+              <div>
+                <p className="text-white text-sm font-semibold">
+                  {referralQuery.data.businessName} invited you to Solvr
+                </p>
+                <p className="text-white/60 text-xs mt-0.5">
+                  Sign up today and your referrer gets 20% off their next month. Welcome aboard!
+                </p>
+              </div>
+            </div>
+          )}
           {/* Mobile logo */}
           <div className="text-center mb-8 lg:hidden">
             <img src={LOGO} alt="Solvr" className="h-10 mx-auto opacity-90" />

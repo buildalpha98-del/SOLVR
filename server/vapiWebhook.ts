@@ -19,6 +19,7 @@ import { getDb } from "./db";
 import { crmClients, crmInteractions } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
+import { sendPushToClient } from "./pushNotifications";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -228,16 +229,17 @@ export async function handleVapiWebhook(req: Request, res: Response) {
         }
 
         // ── Send Expo push notification to the client's mobile app ──────────
-        if (clientPushToken) {
-          const durationLabel = durationSecs
-            ? ` (${Math.floor(durationSecs / 60)}m ${durationSecs % 60}s)`
-            : "";
-          const notifBody = summary
-            ? summary.length > 120
-              ? summary.substring(0, 117) + "..."
-              : summary
-            : `From ${callerName}${durationLabel}`;
+        const durationLabel = durationSecs
+          ? ` (${Math.floor(durationSecs / 60)}m ${durationSecs % 60}s)`
+          : "";
+        const notifBody = summary
+          ? summary.length > 120
+            ? summary.substring(0, 117) + "..."
+            : summary
+          : `From ${callerName}${durationLabel}`;
 
+        // Expo push (mobile app)
+        if (clientPushToken) {
           await sendExpoPushNotification({
             to: clientPushToken,
             title: `📞 New call — ${callerName}`,
@@ -253,6 +255,13 @@ export async function handleVapiWebhook(req: Request, res: Response) {
             },
           });
         }
+
+        // Web Push (browser portal)
+        await sendPushToClient(clientId, {
+          title: `📞 New call — ${callerName}`,
+          body: notifBody,
+          url: `/portal/calls`,
+        });
       } else {
         // No matching client — notify owner so they can manually link it
         console.log(`[Vapi Webhook] No CRM client found for assistant ID: ${assistantId || "none"}`);

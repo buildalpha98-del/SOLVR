@@ -1,15 +1,22 @@
 /**
  * Portal Jobs — Kanban pipeline board with revenue tracking.
  * Available on setup-monthly + full-managed plans.
+ * Features: Board/List toggle, search/filter, tap-to-open job detail.
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { Plus, DollarSign, X, Loader2, Lock } from "lucide-react";
+import {
+  Plus, DollarSign, X, Loader2, Lock, ChevronRight,
+  LayoutGrid, List, Search, MapPin, Phone, Calendar,
+  Sparkles, ArrowRight,
+} from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 
 type JobStage = "new_lead" | "quoted" | "booked" | "completed" | "lost";
+type ViewMode = "board" | "list";
 
 const COLUMNS: { key: JobStage; label: string; color: string; bg: string }[] = [
   { key: "new_lead",  label: "New Lead",  color: "#F5A623", bg: "rgba(245,166,35,0.08)" },
@@ -17,6 +24,8 @@ const COLUMNS: { key: JobStage; label: string; color: string; bg: string }[] = [
   { key: "booked",    label: "Booked",    color: "#8b5cf6", bg: "rgba(139,92,246,0.08)" },
   { key: "completed", label: "Completed", color: "#4ade80", bg: "rgba(74,222,128,0.08)" },
 ];
+
+const STAGE_ALL = [...COLUMNS.map(c => c.key), "lost" as JobStage];
 
 interface Job {
   id: number;
@@ -32,29 +41,37 @@ interface Job {
   createdAt: Date;
 }
 
+// ─── Job Card (board view) ────────────────────────────────────────────────────
 function JobCard({
   job,
   onMove,
   onSetValue,
+  onOpen,
 }: {
   job: Job;
   onMove: (id: number, stage: JobStage) => void;
   onSetValue: (id: number, value: number) => void;
+  onOpen: (id: number) => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
   const [valueInput, setValueInput] = useState(
     String(job.actualValue ?? job.estimatedValue ?? "")
   );
-
   const displayValue = job.actualValue ?? job.estimatedValue;
 
   return (
     <div
-      className="rounded-lg p-3 space-y-2 cursor-default"
+      className="rounded-lg p-3 space-y-2 cursor-pointer relative group active:scale-[0.98] transition-transform"
       style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+      onClick={() => onOpen(job.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onOpen(job.id); }}
     >
-      {/* Job type tag + description */}
-      <div>
+      <div className="absolute top-2 right-2 flex items-center gap-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>
+        <ChevronRight className="w-3.5 h-3.5" />
+      </div>
+      <div className="pr-5">
         <span
           className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
           style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}
@@ -77,7 +94,6 @@ function JobCard({
         )}
       </div>
 
-      {/* Value */}
       <div className="flex items-center gap-2">
         <DollarSign className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
         {editingValue ? (
@@ -94,6 +110,7 @@ function JobCard({
               type="number"
               value={valueInput}
               onChange={e => setValueInput(e.target.value)}
+              onClick={e => e.stopPropagation()}
               className="w-20 text-xs px-2 py-0.5 rounded outline-none"
               style={{ background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)" }}
               autoFocus
@@ -102,7 +119,7 @@ function JobCard({
           </form>
         ) : (
           <button
-            onClick={() => setEditingValue(true)}
+            onClick={e => { e.stopPropagation(); setEditingValue(true); }}
             className="text-xs hover:underline"
             style={{ color: displayValue ? "#4ade80" : "rgba(255,255,255,0.3)" }}
           >
@@ -111,12 +128,11 @@ function JobCard({
         )}
       </div>
 
-      {/* Move buttons */}
       <div className="flex gap-1 flex-wrap">
         {COLUMNS.filter(c => c.key !== job.stage).map(col => (
           <button
             key={col.key}
-            onClick={() => onMove(job.id, col.key)}
+            onClick={e => { e.stopPropagation(); onMove(job.id, col.key); }}
             className="text-[10px] px-2 py-0.5 rounded font-medium transition-opacity hover:opacity-80"
             style={{ background: col.bg, color: col.color }}
           >
@@ -125,7 +141,7 @@ function JobCard({
         ))}
         {job.stage !== "lost" && (
           <button
-            onClick={() => onMove(job.id, "lost")}
+            onClick={e => { e.stopPropagation(); onMove(job.id, "lost"); }}
             className="text-[10px] px-2 py-0.5 rounded font-medium"
             style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
           >
@@ -137,6 +153,77 @@ function JobCard({
   );
 }
 
+// ─── Job Row (list view) ──────────────────────────────────────────────────────
+function JobRow({ job, onOpen }: { job: Job; onOpen: (id: number) => void }) {
+  const stageCol = COLUMNS.find(c => c.key === job.stage) ?? { color: "#ef4444", label: "Lost", bg: "rgba(239,68,68,0.08)" };
+  const displayValue = job.actualValue ?? job.estimatedValue;
+  const dateStr = new Date(job.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer active:scale-[0.99] transition-transform"
+      style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+      onClick={() => onOpen(job.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onOpen(job.id); }}
+    >
+      {/* Stage dot */}
+      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: stageCol.color }} />
+
+      {/* Main info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold text-white truncate">
+            {job.description ?? job.jobType}
+          </span>
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide flex-shrink-0"
+            style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}
+          >
+            {job.jobType}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+          {job.callerName && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+              <Phone className="w-3 h-3" />
+              {job.callerName}{job.callerPhone ? ` · ${job.callerPhone}` : ""}
+            </span>
+          )}
+          {job.location && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              <MapPin className="w-3 h-3" />
+              {job.location}
+            </span>
+          )}
+          <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+            <Calendar className="w-3 h-3" />
+            {dateStr}
+          </span>
+        </div>
+      </div>
+
+      {/* Value + stage + chevron */}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {displayValue != null && (
+          <span className="text-sm font-semibold" style={{ color: job.stage === "completed" ? "#4ade80" : "#F5A623" }}>
+            ${displayValue.toLocaleString()}
+          </span>
+        )}
+        <span
+          className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide hidden sm:inline"
+          style={{ background: stageCol.bg, color: stageCol.color }}
+        >
+          {stageCol.label}
+        </span>
+        <ChevronRight className="w-4 h-4" style={{ color: "rgba(255,255,255,0.25)" }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Add Job Modal ────────────────────────────────────────────────────────────
 function AddJobModal({
   onClose,
   onAdd,
@@ -213,9 +300,16 @@ function AddJobModal({
   );
 }
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PortalJobs() {
   const [showAdd, setShowAdd] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("board");
+  const [search, setSearch] = useState("");
+  const [stageFilter, setStageFilter] = useState<JobStage | "all">("all");
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+
+  const handleOpen = (id: number) => navigate(`/portal/jobs/${id}`);
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const features = me?.features ?? [];
@@ -239,15 +333,69 @@ export default function PortalJobs() {
   });
 
   if (!features.includes("jobs")) {
+    const jobFeatures = [
+      { icon: "📋", title: "Job Pipeline Board", desc: "Kanban view — drag leads from New → Quoted → Booked → Completed" },
+      { icon: "💰", title: "Revenue Tracking", desc: "Live pipeline value and revenue won at a glance" },
+      { icon: "📄", title: "Completion Reports", desc: "Auto-generated PDF reports you can send directly to customers" },
+      { icon: "🧾", title: "Invoice Generation", desc: "Create and send invoices from completed jobs in one click" },
+      { icon: "📸", title: "Before & After Photos", desc: "Attach job photos to build trust and win repeat business" },
+    ];
     return (
       <PortalLayout activeTab="jobs">
-        <div className="flex flex-col items-center justify-center py-24 text-center max-w-sm mx-auto">
-          <Lock className="w-12 h-12 mb-4" style={{ color: "#F5A623" }} />
-          <h2 className="text-xl font-bold text-white mb-2">Job Pipeline</h2>
-          <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Track every lead from first call to completed job. See your pipeline value, drag jobs between stages, and know exactly what's in the works.
-          </p>
-          <UpgradeButton plan="professional" label="Upgrade Your Plan" size="lg" />
+        <div className="max-w-2xl mx-auto py-10 space-y-6">
+          {/* Banner */}
+          <div
+            className="rounded-2xl p-6"
+            style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)" }}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "rgba(245,166,35,0.15)" }}
+              >
+                <Sparkles className="w-6 h-6" style={{ color: "#F5A623" }} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-1">Unlock your Job Pipeline</h2>
+                <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Your AI receptionist is already capturing leads — upgrade to track every job from first call to paid invoice, all in one place.
+                </p>
+                <div className="mt-4">
+                  <UpgradeButton plan="professional" label="Upgrade to Starter — from $99/mo" size="lg" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature list */}
+          <div className="space-y-2">
+            {jobFeatures.map(f => (
+              <div
+                key={f.title}
+                className="flex items-start gap-3 rounded-xl px-4 py-3"
+                style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <span className="text-xl shrink-0 mt-0.5">{f.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-white">{f.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{f.desc}</p>
+                </div>
+                <Lock className="w-3.5 h-3.5 shrink-0 ml-auto mt-1" style={{ color: "rgba(255,255,255,0.2)" }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Secondary CTA */}
+          <div className="text-center">
+            <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>Questions? Chat with us anytime.</p>
+            <a
+              href="mailto:hello@solvr.com.au"
+              className="inline-flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: "#F5A623" }}
+            >
+              hello@solvr.com.au <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </PortalLayout>
     );
@@ -263,16 +411,32 @@ export default function PortalJobs() {
     updateJobMutation.mutate({ id, actualValue });
   };
 
-  // Group by stage
-  const byStage = (stage: JobStage) => jobs.filter((j: Job) => j.stage === stage);
+  // Search + filter
+  const filteredJobs = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return jobs.filter(j => {
+      const matchesStage = stageFilter === "all" || j.stage === stageFilter;
+      if (!matchesStage) return false;
+      if (!q) return true;
+      return (
+        j.jobType.toLowerCase().includes(q) ||
+        (j.description ?? "").toLowerCase().includes(q) ||
+        (j.callerName ?? "").toLowerCase().includes(q) ||
+        (j.callerPhone ?? "").toLowerCase().includes(q) ||
+        (j.location ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [jobs, search, stageFilter]);
 
-  // Revenue totals
+  const byStage = (stage: JobStage) => filteredJobs.filter(j => j.stage === stage);
+
+  // Revenue totals (always from all jobs, not filtered)
   const pipelineValue = jobs
-    .filter((j: Job) => j.stage !== "lost")
-    .reduce((sum: number, j: Job) => sum + (j.estimatedValue ?? 0), 0);
+    .filter(j => j.stage !== "lost")
+    .reduce((sum, j) => sum + (j.estimatedValue ?? 0), 0);
   const wonValue = jobs
-    .filter((j: Job) => j.stage === "completed")
-    .reduce((sum: number, j: Job) => sum + (j.actualValue ?? j.estimatedValue ?? 0), 0);
+    .filter(j => j.stage === "completed")
+    .reduce((sum, j) => sum + (j.actualValue ?? j.estimatedValue ?? 0), 0);
 
   return (
     <PortalLayout activeTab="jobs">
@@ -282,7 +446,7 @@ export default function PortalJobs() {
           onAdd={data => createJobMutation.mutate(data)}
         />
       )}
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -312,82 +476,168 @@ export default function PortalJobs() {
           </div>
         </div>
 
-        {/* Kanban board */}
+        {/* Search + filter + view toggle toolbar */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search jobs, customers, locations…"
+              className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                style={{ color: "rgba(255,255,255,0.3)" }}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Stage filter (list view only — board already groups by stage) */}
+          {viewMode === "list" && (
+            <select
+              value={stageFilter}
+              onChange={e => setStageFilter(e.target.value as JobStage | "all")}
+              className="px-3 py-2 rounded-lg text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+            >
+              <option value="all">All stages</option>
+              {COLUMNS.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              <option value="lost">Lost</option>
+            </select>
+          )}
+
+          {/* Board / List toggle */}
+          <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+            <button
+              onClick={() => setViewMode("board")}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors"
+              style={{
+                background: viewMode === "board" ? "rgba(245,166,35,0.15)" : "transparent",
+                color: viewMode === "board" ? "#F5A623" : "rgba(255,255,255,0.4)",
+              }}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Board
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors"
+              style={{
+                background: viewMode === "list" ? "rgba(245,166,35,0.15)" : "transparent",
+                color: viewMode === "list" ? "#F5A623" : "rgba(255,255,255,0.4)",
+                borderLeft: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <List className="w-3.5 h-3.5" /> List
+            </button>
+          </div>
+        </div>
+
+        {/* Search result count */}
+        {search && (
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+            {filteredJobs.length} result{filteredJobs.length !== 1 ? "s" : ""} for "{search}"
+          </p>
+        )}
+
+        {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {COLUMNS.map(col => {
-              const colJobs = byStage(col.key);
-              const colValue = colJobs.reduce((s: number, j: Job) => s + (j.estimatedValue ?? 0), 0);
-              return (
-                <div key={col.key} className="space-y-3">
-                  {/* Column header */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ background: col.color }}
-                      />
-                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: col.color }}>
-                        {col.label}
-                      </span>
-                      <span
-                        className="text-xs px-1.5 py-0.5 rounded-full"
-                        style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}
-                      >
-                        {colJobs.length}
-                      </span>
-                    </div>
-                    {colValue > 0 && (
-                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                        ${colValue.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  {/* Cards */}
-                  <div className="space-y-2 min-h-[120px]">
-                    {colJobs.length === 0 ? (
-                      <div
-                        className="rounded-lg p-4 text-center text-xs"
-                        style={{ border: "1px dashed rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.25)" }}
-                      >
-                        No jobs
+        ) : viewMode === "board" ? (
+          <>
+            {/* Board view */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {COLUMNS.map(col => {
+                const colJobs = byStage(col.key);
+                const colValue = colJobs.reduce((s, j) => s + (j.estimatedValue ?? 0), 0);
+                return (
+                  <div key={col.key} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
+                        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: col.color }}>
+                          {col.label}
+                        </span>
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}
+                        >
+                          {colJobs.length}
+                        </span>
                       </div>
-                    ) : (
-                      colJobs.map((job: Job) => (
-                        <JobCard
-                          key={job.id}
-                          job={job}
-                          onMove={handleMove}
-                          onSetValue={handleSetValue}
-                        />
-                      ))
-                    )}
+                      {colValue > 0 && (
+                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          ${colValue.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-2 min-h-[120px]">
+                      {colJobs.length === 0 ? (
+                        <div
+                          className="rounded-lg p-4 text-center text-xs"
+                          style={{ border: "1px dashed rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.25)" }}
+                        >
+                          {search ? "No matches" : "No jobs"}
+                        </div>
+                      ) : (
+                        colJobs.map(job => (
+                          <JobCard
+                            key={job.id}
+                            job={job}
+                            onMove={handleMove}
+                            onSetValue={handleSetValue}
+                            onOpen={handleOpen}
+                          />
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Lost jobs (collapsed) */}
-        {byStage("lost").length > 0 && (
-          <details className="group">
-            <summary
-              className="text-xs cursor-pointer select-none"
-              style={{ color: "rgba(255,255,255,0.3)" }}
-            >
-              {byStage("lost").length} lost job{byStage("lost").length !== 1 ? "s" : ""} — click to view
-            </summary>
-            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              {byStage("lost").map((job: Job) => (
-                <JobCard key={job.id} job={job} onMove={handleMove} onSetValue={handleSetValue} />
-              ))}
+                );
+              })}
             </div>
-          </details>
+
+            {/* Lost jobs (collapsed) */}
+            {byStage("lost").length > 0 && (
+              <details className="group">
+                <summary className="text-xs cursor-pointer select-none" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {byStage("lost").length} lost job{byStage("lost").length !== 1 ? "s" : ""} — click to view
+                </summary>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                  {byStage("lost").map(job => (
+                    <JobCard key={job.id} job={job} onMove={handleMove} onSetValue={handleSetValue} onOpen={handleOpen} />
+                  ))}
+                </div>
+              </details>
+            )}
+          </>
+        ) : (
+          /* List view */
+          <div className="space-y-2">
+            {filteredJobs.length === 0 ? (
+              <div
+                className="rounded-xl p-8 text-center text-sm"
+                style={{ border: "1px dashed rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)" }}
+              >
+                {search ? `No jobs matching "${search}"` : "No jobs yet — add your first job above."}
+              </div>
+            ) : (
+              // Sort: newest first
+              [...filteredJobs]
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map(job => (
+                  <JobRow key={job.id} job={job} onOpen={handleOpen} />
+                ))
+            )}
+          </div>
         )}
       </div>
     </PortalLayout>

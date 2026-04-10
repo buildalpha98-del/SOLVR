@@ -13,11 +13,14 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -81,6 +84,10 @@ export default function PortalDashboard() {
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const features = me?.features ?? [];
   const hasInsights = features.includes("ai-insights");
+  const isFreeTier = me?.plan === "setup-only";
+  const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(() => {
+    try { return sessionStorage.getItem("solvr-upgrade-banner-dismissed") === "1"; } catch { return false; }
+  });
 
   // AI Weekly Insight — only fetched for full-managed clients
   const {
@@ -94,17 +101,103 @@ export default function PortalDashboard() {
     retry: 1,
   });
 
+  const { isSupported, isSubscribed, isLoading: pushLoading, subscribe, unsubscribe } = usePushNotifications();
+
+  // Referral programme
+  const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, { staleTime: Infinity });
+  const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
+  const [copied, setCopied] = useState(false);
+  const referralLink = referralCode?.referralCode
+    ? `${window.location.origin}/portal/login?ref=${referralCode.referralCode}`
+    : null;
+  const copyReferralLink = () => {
+    if (!referralLink) return;
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  const canShare = typeof navigator !== "undefined" && !!navigator.share;
+  const shareReferralLink = async () => {
+    if (!referralLink) return;
+    try {
+      await navigator.share({
+        title: "Try Solvr — AI for Tradies",
+        text: "I use Solvr to manage my business with AI. Sign up and my referrer gets 20% off their next month!",
+        url: referralLink,
+      });
+    } catch {
+      // User cancelled or browser blocked share — silently ignore
+    }
+  };
+
   return (
     <PortalLayout activeTab="dashboard">
       <div className="space-y-6">
+        {/* Free-tier upgrade banner */}
+        {isFreeTier && !upgradeBannerDismissed && (
+          <div
+            className="rounded-xl px-4 py-3 flex items-center gap-3"
+            style={{ background: "rgba(245,166,35,0.10)", border: "1px solid rgba(245,166,35,0.28)" }}
+          >
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "#F5A623" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">Unlock the full Solvr platform</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+                Your setup is complete. Upgrade to get job tracking, invoicing, completion reports, AI insights, and more.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <UpgradeButton plan="professional" label="Upgrade Now" size="sm" />
+              <button
+                onClick={() => {
+                  setUpgradeBannerDismissed(true);
+                  try { sessionStorage.setItem("solvr-upgrade-banner-dismissed", "1"); } catch {}
+                }}
+                className="p-1 rounded-lg"
+                style={{ color: "rgba(255,255,255,0.35)" }}
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            G'day, {me?.contactName?.split(" ")[0] ?? me?.businessName} 👋
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Here's how your AI receptionist is performing.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              G'day, {me?.contactName?.split(" ")[0] ?? me?.businessName} 👋
+            </h1>
+            <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Here's how your AI receptionist is performing.
+            </p>
+          </div>
+          {isSupported && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={isSubscribed ? unsubscribe : subscribe}
+              disabled={pushLoading}
+              className="shrink-0 gap-2 text-xs"
+              style={{
+                background: isSubscribed ? "rgba(245,166,35,0.1)" : "rgba(255,255,255,0.05)",
+                borderColor: isSubscribed ? "rgba(245,166,35,0.4)" : "rgba(255,255,255,0.15)",
+                color: isSubscribed ? "#F5A623" : "rgba(255,255,255,0.6)",
+              }}
+              title={isSubscribed ? "Disable job alerts" : "Enable job alerts"}
+            >
+              {pushLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : isSubscribed ? (
+                <Bell className="w-3.5 h-3.5" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5" />
+              )}
+              {isSubscribed ? "Alerts on" : "Enable alerts"}
+            </Button>
+          )}
         </div>
 
         {isLoading ? (
@@ -306,6 +399,72 @@ export default function PortalDashboard() {
             <p>No data yet — your AI receptionist will start logging calls here once it's live.</p>
           </div>
         )}
+
+        {/* Referral Programme Card */}
+        <div
+          className="rounded-xl p-5"
+          style={{ background: "rgba(245,166,35,0.07)", border: "1px solid rgba(245,166,35,0.2)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
+            <h2 className="text-sm font-semibold text-white">Refer a Tradie, Get 20% Off</h2>
+          </div>
+          <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Share your unique link. When a tradie you refer signs up and pays, you get 20% off your next month's subscription — automatically applied.
+          </p>
+
+          {/* Stats row */}
+          <div className="flex gap-4 mb-4">
+            <div className="text-center">
+              <div className="text-xl font-bold" style={{ color: "#F5A623" }}>{referralStats?.totalReferred ?? 0}</div>
+              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Referred</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-white">{referralStats?.totalConverted ?? 0}</div>
+              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Converted</div>
+            </div>
+            {(referralStats?.pendingDiscountPct ?? 0) > 0 && (
+              <div className="text-center">
+                <div className="text-xl font-bold text-green-400">{referralStats?.pendingDiscountPct}%</div>
+                <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Pending discount</div>
+              </div>
+            )}
+          </div>
+
+          {/* Copy link */}
+          {referralLink ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="flex-1 text-xs px-3 py-2 rounded-lg truncate"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", fontFamily: "monospace" }}
+              >
+                {referralLink}
+              </div>
+              <Button
+                size="sm"
+                onClick={copyReferralLink}
+                className="shrink-0 gap-1.5 text-xs"
+                style={{ background: copied ? "#22c55e" : "#F5A623", color: "#0F1F3D", border: "none" }}
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied!" : "Copy"}
+              </Button>
+              {canShare && (
+                <Button
+                  size="sm"
+                  onClick={shareReferralLink}
+                  className="shrink-0 gap-1.5 text-xs"
+                  style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  Share
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Generating your link...</div>
+          )}
+        </div>
       </div>
     </PortalLayout>
   );

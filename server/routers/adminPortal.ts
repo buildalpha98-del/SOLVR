@@ -13,7 +13,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb } from "../db";
+import { getDb, getOrCreateClientProfile, updateClientProfile } from "../db";
 import {
   crmClients,
   portalSessions,
@@ -247,6 +247,54 @@ export const adminPortalRouter = router({
         .update(crmClients)
         .set({ portalPasswordHash: hash })
         .where(eq(crmClients.id, input.clientId));
+      return { success: true };
+    }),
+
+  /**
+   * Get the full memory file / business profile for a client (admin view).
+   */
+  adminGetClientProfile: protectedProcedure
+    .input(z.object({ clientId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const profile = await getOrCreateClientProfile(input.clientId);
+      return { profile };
+    }),
+
+  /**
+   * Update any field in a client's memory file from the Console (admin view).
+   */
+  adminUpdateClientProfile: protectedProcedure
+    .input(z.object({
+      clientId: z.number().int().positive(),
+      tradingName: z.string().max(255).optional(),
+      abn: z.string().max(50).optional(),
+      phone: z.string().max(50).optional(),
+      address: z.string().max(512).optional(),
+      email: z.string().max(320).optional(),
+      website: z.string().max(512).optional(),
+      industryType: z.string().optional(),
+      yearsInBusiness: z.number().int().min(0).max(200).optional().nullable(),
+      teamSize: z.number().int().min(0).max(10000).optional().nullable(),
+      callOutFee: z.string().optional(),
+      hourlyRate: z.string().optional(),
+      minimumCharge: z.string().optional(),
+      serviceArea: z.string().max(2000).optional(),
+      aiContext: z.string().optional(),
+      competitorNotes: z.string().optional(),
+      bookingInstructions: z.string().optional(),
+      escalationInstructions: z.string().optional(),
+      tagline: z.string().max(255).optional(),
+      paymentTerms: z.string().max(255).optional(),
+      validityDays: z.number().int().min(1).max(365).optional(),
+      defaultNotes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { clientId, ...fields } = input;
+      // Remove undefined keys so we only update what was passed
+      const data = Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== undefined)
+      );
+      await updateClientProfile(clientId, data);
       return { success: true };
     }),
 

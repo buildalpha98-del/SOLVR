@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle } from "lucide-react";
+import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail, History, AlertTriangle } from "lucide-react";
 
 const APP_ORIGIN = window.location.origin;
 
@@ -304,7 +304,249 @@ export default function ConsoleReferrals() {
         </div>
       </div>
 
+      {/* ─── Tradie-to-Tradie Referral Programme ─────────────────────────────── */}
+      <TradieProgrammeSection />
+
       <AddPartnerModal open={showAdd} onClose={() => setShowAdd(false)} onSuccess={() => utils.referral.listPartners.invalidate()} />
     </DashboardLayout>
+  );
+}
+
+// ─── Tradie Programme Section ─────────────────────────────────────────────────
+function statusBadge(status: string) {
+  if (status === "rewarded") return <Badge className="bg-green-100 text-green-700 border-green-200">Rewarded</Badge>;
+  if (status === "converted") return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Converted</Badge>;
+  return <Badge variant="secondary">Pending</Badge>;
+}
+
+function TradieProgrammeSection() {
+  const utils = trpc.useUtils();
+  const [showBlastConfirm, setShowBlastConfirm] = useState(false);
+  const { data: summary, isLoading: summaryLoading } = trpc.adminReferral.getTradieProgrammeSummary.useQuery();
+  const { data: referrals = [], isLoading } = trpc.adminReferral.listTradieProgramme.useQuery();
+  const { data: blastHistory = [] } = trpc.adminReferral.getBlastHistory.useQuery();
+
+  const sendBlast = trpc.adminReferral.sendReferralBlast.useMutation({
+    onSuccess: (d) => {
+      setShowBlastConfirm(false);
+      utils.adminReferral.getBlastHistory.invalidate();
+      if (d.failed > 0) {
+        toast.warning(`Sent ${d.sent}/${d.total} emails. ${d.failed} failed.`);
+      } else {
+        toast.success(`Referral programme email sent to ${d.sent} client${d.sent !== 1 ? "s" : ""}.`);
+      }
+    },
+    onError: (e) => { setShowBlastConfirm(false); toast.error(e.message); },
+  });
+
+  const applyDiscount = trpc.adminReferral.applyDiscountManually.useMutation({
+    onSuccess: () => {
+      toast.success("20% discount applied and referral marked as rewarded.");
+      utils.adminReferral.listTradieProgramme.invalidate();
+      utils.adminReferral.getTradieProgrammeSummary.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-6 border-t pt-8">
+      {/* Section header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-display font-bold flex items-center gap-2">
+            <Gift className="w-5 h-5 text-amber-500" />
+            Tradie Referral Programme
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Tradie-to-tradie referrals — when a referred tradie pays their first invoice, the referrer gets 20% off their next bill.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          disabled={sendBlast.isPending}
+          onClick={() => setShowBlastConfirm(true)}
+          className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+        >
+          {sendBlast.isPending ? (
+            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Sending...</>
+          ) : (
+            <><Mail className="w-3.5 h-3.5 mr-1.5" /> Send Referral Email to All Clients</>
+          )}
+        </Button>
+      </div>
+
+      {/* Summary cards */}
+      {!summaryLoading && summary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {[
+            { icon: Users, label: "Total Referred", value: summary.total },
+            { icon: Clock, label: "Pending", value: summary.pending },
+            { icon: TrendingUp, label: "Converted", value: summary.converted },
+            { icon: Award, label: "Rewarded", value: summary.rewarded },
+            { icon: Gift, label: "Pending Discounts", value: summary.clientsWithPendingDiscount },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border p-4 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                <s.icon className="w-3.5 h-3.5" />
+                {s.label}
+              </div>
+              <div className="text-2xl font-display font-bold">{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Referral table */}
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Referrer</TableHead>
+              <TableHead>Ref Code</TableHead>
+              <TableHead>Referee</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Pending Discount</TableHead>
+              <TableHead>Referred</TableHead>
+              <TableHead>Converted</TableHead>
+              <TableHead>Rewarded</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+            )}
+            {!isLoading && referrals.length === 0 && (
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No tradie referrals yet. Share the portal link with clients to get started.</TableCell></TableRow>
+            )}
+            {referrals.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell>
+                  <div className="font-medium">{r.referrer?.businessName ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground">{r.referrer?.contactName ?? ""}</div>
+                </TableCell>
+                <TableCell>
+                  <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
+                    {r.referrer?.referralCode ?? "—"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">{r.referee?.businessName ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground">{r.referee?.contactName ?? ""}</div>
+                </TableCell>
+                <TableCell>{statusBadge(r.status)}</TableCell>
+                <TableCell>
+                  {(r.referrer?.pendingDiscountPct ?? 0) > 0 ? (
+                    <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                      {r.referrer?.pendingDiscountPct}% off next invoice
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtDate(r.createdAt)}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {r.convertedAt ? fmtDate(r.convertedAt) : "—"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {r.rewardedAt ? fmtDate(r.rewardedAt) : "—"}
+                </TableCell>
+                <TableCell>
+                  {r.status !== "rewarded" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 border-amber-500/30 text-amber-600 hover:bg-amber-50"
+                      disabled={applyDiscount.isPending}
+                      onClick={() => applyDiscount.mutate({ referralId: r.id })}
+                    >
+                      Apply Discount
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      {/* Blast history */}
+      {blastHistory.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+            <History className="w-4 h-4 text-muted-foreground" />
+            Blast History
+          </h3>
+          <div className="rounded-xl border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sent At</TableHead>
+                  <TableHead>Total Eligible</TableHead>
+                  <TableHead>Sent</TableHead>
+                  <TableHead>Failed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {blastHistory.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-sm">{fmtDate(log.sentAt)}</TableCell>
+                    <TableCell className="text-sm">{log.total}</TableCell>
+                    <TableCell>
+                      <Badge className="bg-green-100 text-green-700 border-green-200">{log.sent} sent</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {log.failed > 0 ? (
+                        <Badge className="bg-red-100 text-red-700 border-red-200">{log.failed} failed</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Blast confirmation dialog */}
+      <Dialog open={showBlastConfirm} onOpenChange={setShowBlastConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Confirm Email Blast
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You are about to email <strong>all active clients with a referral code</strong> their unique referral link and the 20% offer.
+            </p>
+            {blastHistory.length > 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Last blast sent: <strong>{fmtDate(blastHistory[0].sentAt)}</strong> — {blastHistory[0].sent} emails sent.
+              </p>
+            )}
+            <p className="text-sm font-medium">Are you sure you want to proceed?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBlastConfirm(false)}>Cancel</Button>
+            <Button
+              className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+              disabled={sendBlast.isPending}
+              onClick={() => sendBlast.mutate()}
+            >
+              {sendBlast.isPending ? (
+                <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Sending...</>
+              ) : (
+                "Yes, Send Blast"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

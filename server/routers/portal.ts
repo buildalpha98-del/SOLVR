@@ -31,6 +31,19 @@ import {
   createPortalJob,
   updatePortalJob,
   deletePortalJob,
+  listJobProgressPayments,
+  createJobProgressPayment,
+  deleteJobProgressPayment,
+  listJobPhotos,
+  createJobPhoto,
+  deleteJobPhoto,
+  getJobPhoto,
+  listTradieCustomers,
+  createTradieCustomer,
+  updateTradieCustomer,
+  getTradieCustomerByPhone,
+  getTradieCustomerByEmail,
+  getTradieCustomer,
   listPortalCalendarEvents,
   createPortalCalendarEvent,
   updatePortalCalendarEvent,
@@ -45,6 +58,9 @@ import { invokeLLM } from "../_core/llm";
 import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { portalJobsProcedures } from "./portalJobs";
+import { portalPushProcedures } from "./portalPush";
+import { portalReferralProcedures } from "./portalReferral";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -548,6 +564,15 @@ export const portalRouter = router({
       return { success: true };
     }),
 
+  // ─── Extended Job Procedures ────────────────────────────────────────────────
+  ...portalJobsProcedures,
+
+  // ─── Push Notifications ────────────────────────────────────────────────────
+  ...portalPushProcedures,
+
+  // ─── Referral Programme ────────────────────────────────────────────────────
+  ...portalReferralProcedures,
+
   // ─── Calendar ──────────────────────────────────────────────────────────────
 
   /**
@@ -841,6 +866,7 @@ export const portalRouter = router({
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
+      const profile = await getClientProfile(client.id);
       return {
         tradingName: client.quoteTradingName ?? client.businessName ?? "",
         abn: client.quoteAbn ?? "",
@@ -851,6 +877,11 @@ export const portalRouter = router({
         gstRate: client.quoteGstRate ?? "10.00",
         validityDays: client.quoteValidityDays ?? 30,
         defaultNotes: client.quoteDefaultNotes ?? "",
+        // Bank / payment details (from clientProfiles)
+        bankName: profile?.bankName ?? "",
+        bankAccountName: profile?.bankAccountName ?? "",
+        bankBsb: profile?.bankBsb ?? "",
+        bankAccountNumber: profile?.bankAccountNumber ?? "",
       };
     }),
 
@@ -868,11 +899,17 @@ export const portalRouter = router({
       gstRate: z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).optional(),
       validityDays: z.number().int().min(1).max(365).optional(),
       defaultNotes: z.string().max(2000).optional(),
+      // Payment / bank details
+      bankName: z.string().max(100).optional(),
+      bankAccountName: z.string().max(255).optional(),
+      bankBsb: z.string().max(10).optional(),
+      bankAccountNumber: z.string().max(20).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
+      // Quote branding fields go to crmClients
       await updateCrmClient(client.id, {
         ...(input.tradingName !== undefined && { quoteTradingName: input.tradingName }),
         ...(input.abn !== undefined && { quoteAbn: input.abn }),
@@ -884,6 +921,16 @@ export const portalRouter = router({
         ...(input.validityDays !== undefined && { quoteValidityDays: input.validityDays }),
         ...(input.defaultNotes !== undefined && { quoteDefaultNotes: input.defaultNotes }),
       });
+      // Bank / payment details go to clientProfiles
+      const bankUpdate: Record<string, string | undefined> = {};
+      if (input.bankName !== undefined) bankUpdate.bankName = input.bankName;
+      if (input.bankAccountName !== undefined) bankUpdate.bankAccountName = input.bankAccountName;
+      if (input.bankBsb !== undefined) bankUpdate.bankBsb = input.bankBsb;
+      if (input.bankAccountNumber !== undefined) bankUpdate.bankAccountNumber = input.bankAccountNumber;
+      if (Object.keys(bankUpdate).length > 0) {
+        await getOrCreateClientProfile(client.id); // ensure row exists
+        await updateClientProfile(client.id, bankUpdate as any);
+      }
       return { success: true };
     }),
 
@@ -1075,5 +1122,110 @@ export const portalRouter = router({
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       await updateCrmClient(result.client.id, { pushToken: null });
       return { success: true };
+    }),
+
+  // ─── Subscription status ─────────────────────────────────────────────────
+  /**
+   * Returns the current Stripe subscription for this portal client.
+   * Looks up voiceAgentSubscriptions by clientId first, then falls back to email.
+   * Fetches live billing dates from Stripe if STRIPE_SECRET_KEY is configured.
+   */
+  getSubscriptionStatus: publicProcedure.query(async ({ ctx }) => {
+    const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+    if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+    const { client } = result;
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable." });
+    const { voiceAgentSubscriptions } = await import("../../drizzle/schema");
+    const { eq, or } = await import("drizzle-orm");
+    const rows = await db
+      .select()
+      .from(voiceAgentSubscriptions)
+      .where(
+        or(
+          eq(voiceAgentSubscriptions.clientId, client.id),
+          eq(voiceAgentSubscriptions.email, client.contactEmail)
+        )
+      )
+      .orderBy(voiceAgentSubscriptions.createdAt)
+      .limit(1);
+    const sub = rows[0] ?? null;
+    if (!sub) return null;
+    // Fetch live billing dates from Stripe if available
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    let nextBillingDate: string | null = null;
+    let trialEndDate: string | null = null;
+    if (stripeKey && sub.stripeSubscriptionId) {
+      try {
+        const Stripe = (await import("stripe")).default;
+        const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+        const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const subAny = stripeSub as any;
+        if (subAny.current_period_end) {
+          nextBillingDate = new Date(subAny.current_period_end * 1000).toISOString();
+        }
+        if (subAny.trial_end) {
+          trialEndDate = new Date(subAny.trial_end * 1000).toISOString();
+        }
+      } catch {
+        // Non-fatal — return local data without live billing date
+      }
+    }
+    return {
+      id: sub.id,
+      plan: sub.plan,
+      billingCycle: sub.billingCycle,
+      status: sub.status,
+      stripeCustomerId: sub.stripeCustomerId,
+      stripeSubscriptionId: sub.stripeSubscriptionId,
+      nextBillingDate,
+      trialEndDate,
+      createdAt: sub.createdAt,
+    };
+  }),
+
+  /**
+   * Creates a Stripe Customer Portal session so the client can manage their
+   * payment method, view invoices, or cancel their subscription.
+   */
+  createBillingPortalSession: publicProcedure
+    .input(z.object({ origin: z.string().url() }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable." });
+      const { voiceAgentSubscriptions } = await import("../../drizzle/schema");
+      const { eq, or } = await import("drizzle-orm");
+      const rows = await db
+        .select()
+        .from(voiceAgentSubscriptions)
+        .where(
+          or(
+            eq(voiceAgentSubscriptions.clientId, client.id),
+            eq(voiceAgentSubscriptions.email, client.contactEmail)
+          )
+        )
+        .limit(1);
+      const sub = rows[0] ?? null;
+      if (!sub?.stripeCustomerId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No active subscription found. Please contact Solvr support.",
+        });
+      }
+      const stripeKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeKey) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe not configured." });
+      const Stripe = (await import("stripe")).default;
+      const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+      const session = await stripe.billingPortal.sessions.create({
+        customer: sub.stripeCustomerId,
+        return_url: `${input.origin}/portal/subscription`,
+      });
+      return { url: session.url };
     }),
 });

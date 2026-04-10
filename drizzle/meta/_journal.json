@@ -92,6 +92,76 @@
       "when": 1775726008161,
       "tag": "0012_worried_satana",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1775754188979,
+      "tag": "0013_big_snowbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1775803286236,
+      "tag": "0014_orange_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1775807385295,
+      "tag": "0015_outgoing_roland_deschain",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1775819253102,
+      "tag": "0016_mighty_masked_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1775820530532,
+      "tag": "0017_common_steel_serpent",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1775822040460,
+      "tag": "0018_sudden_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1775825182523,
+      "tag": "0019_superb_blazing_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1775834836233,
+      "tag": "0020_first_stellaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1775835785665,
+      "tag": "0021_naive_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1775859302729,
+      "tag": "0022_unusual_piledriver",
+      "breakpoints": true
     }
   ]
 }

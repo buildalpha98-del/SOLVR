@@ -147,3 +147,47 @@
 - [x] /services page created with detailed engagement breakdowns (4 services, process, deliverables, timeline)
 - [x] /voice-agent page updated: Products comparison section, comparison table, updated nav with Services link
 - [x] 99 vitest tests passing, tsc --noEmit exits clean
+
+## AI Invoice Chasing (Apr 2026)
+- [ ] invoiceChases table: schema + migration
+- [ ] Invoice chasing cron job (day 1, 7, 14 email sequences + day 21 escalation)
+- [ ] tRPC procedures: listInvoiceChases, createInvoiceChase, markInvoicePaid, snoozeChase, cancelChase
+- [ ] Portal Invoice Chasing page (client-facing)
+- [ ] Console Invoice Chasing overview (admin)
+- [ ] Website Products section updated with Invoice Chasing
+- [ ] Handoff doc updated with new procedures
+## Stripe Subscription Portal (Apr 2026)
+- [x] Add clientId field to voiceAgentSubscriptions schema + db:push migration
+- [ ] Update webhook to link portal upgrade checkout to crmClients via clientId metadata
+- [x] portal.getSubscriptionStatus procedure (plan, status, billingCycle, nextBillingDate)
+- [x] portal.createBillingPortalSession procedure (Stripe Customer Portal redirect)
+- [x] PortalSubscription page (/portal/subscription) — current plan, status, billing, upgrade/manage
+- [x] Add Subscription nav item to PortalLayout
+- [x] Add /portal/subscription route to App.tsx
+- [ ] Add Billing section to PortalSettings (current plan summary + link to subscription page)
+
+## Automated Onboarding Email Sequence (Apr 2026)
+- [ ] Build onboarding email templates (welcome, checklist, 7-day check-in)
+- [ ] Build onboardingEmailSequence cron — scheduled emails at T+0, T+3days, T+7days
+- [ ] Add onboardingEmailsSent tracking to voiceAgentSubscriptions schema + migrate
+- [ ] Wire sequence trigger into Stripe webhook on checkout.session.completed
+- [ ] Write vitest tests for onboarding email sequence
+
+## Console Reporting Dashboard (Apr 2026)
+- [ ] Build reporting tRPC procedures (MRR breakdown, subscriber count, plan split, churn rate, outstanding invoices)
+- [ ] Build ConsoleReporting page (/console/reporting) with KPI cards, plan breakdown chart, MRR trend, churn table
+- [ ] Add Reporting nav item to ConsoleLayout sidebar
+- [ ] Add /console/reporting route to App.tsx
+
+## Invoice PDF Generation & Photo Upload (Apr 2026)
+- [x] Build invoice PDF template (bank details, ABN, line items, GST, cash paid flag)
+- [x] Upload invoice PDF to S3 and store URL on portalInvoices record
+- [x] Email invoice PDF to customer on generation
+- [x] Wire before/after photo upload UI in PortalJobDetail (S3 upload, preview, delete)
+
+## Payment Details & Completion Report PDF (Apr 2026)
+- [ ] Add Payment Details section to PortalSettings (BSB, account number, account name, bank name)
+- [ ] Wire updateProfile to save bank details fields
+- [ ] Build CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
+- [ ] Add generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
+- [ ] Wire Generate Report button in PortalJobDetail completion section

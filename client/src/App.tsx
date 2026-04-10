@@ -39,6 +39,8 @@ import ReferralLanding from "./pages/ReferralLanding";
 import ConsoleReferrals from "./pages/ConsoleReferrals";
 import ConsolePortalClients from "./pages/ConsolePortalClients";
 import ConsoleQuotes from "./pages/ConsoleQuotes";
+import ConsoleInvoices from "./pages/ConsoleInvoices";
+import ConsoleReporting from "./pages/ConsoleReporting";
 
 // ── Client Portal ─────────────────────────────────────────────────────────────
 import PortalLogin from "./pages/portal/PortalLogin";
@@ -47,15 +49,22 @@ import PortalResetPassword from "./pages/portal/PortalResetPassword";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCalls from "./pages/portal/PortalCalls";
 import PortalJobs from "./pages/portal/PortalJobs";
+import PortalJobDetail from "./pages/portal/PortalJobDetail";
 import PortalCalendar from "./pages/portal/PortalCalendar";
 import PortalQuotes from "./pages/portal/PortalQuotes";
 import PortalQuoteDetail from "./pages/portal/PortalQuoteDetail";
 import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
 import PortalSettings from "./pages/portal/PortalSettings";
 import PortalOnboarding from "./pages/portal/PortalOnboarding";
+import PortalInvoices from "./pages/portal/PortalInvoices";
+import PortalSubscription from "./pages/portal/PortalSubscription";
+import PortalCustomers from "./pages/portal/PortalCustomers";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
+
+// ── Public completion report page (no auth) ──────────────────────────────────
+import PublicCompletionReport from "./pages/PublicCompletionReport";
 
 function Router() {
   return (
@@ -104,6 +113,8 @@ function Router() {
       <Route path="/console/referrals" component={ConsoleReferrals} />
       <Route path="/console/portal-clients" component={ConsolePortalClients} />
       <Route path="/console/quotes" component={ConsoleQuotes} />
+      <Route path="/console/invoices" component={ConsoleInvoices} />
+      <Route path="/console/reporting" component={ConsoleReporting} />
 
       {/* ── Referral landing pages ────────────────────────────────────────── */}
       <Route path="/ref/:code" component={ReferralLanding} />
@@ -116,15 +127,22 @@ function Router() {
       <Route path="/portal/dashboard" component={PortalDashboard} />
       <Route path="/portal/calls" component={PortalCalls} />
       <Route path="/portal/jobs" component={PortalJobs} />
+      <Route path="/portal/jobs/:id" component={PortalJobDetail} />
       <Route path="/portal/calendar" component={PortalCalendar} />
       <Route path="/portal/quotes" component={PortalQuotes} />
       <Route path="/portal/quotes/settings" component={PortalQuoteSettings} />
       <Route path="/portal/quotes/:id" component={PortalQuoteDetail} />
       <Route path="/portal/onboarding" component={PortalOnboarding} />
       <Route path="/portal/settings" component={PortalSettings} />
+      <Route path="/portal/invoices" component={PortalInvoices} />
+      <Route path="/portal/subscription" component={PortalSubscription} />
+      <Route path="/portal/customers" component={PortalCustomers} />
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />
+
+      {/* ── Public completion report (no auth, token-based) ──────────────── */}
+      <Route path="/report/:token" component={PublicCompletionReport} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

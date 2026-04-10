@@ -1,0 +1,1 @@
+ALTER TABLE `portal_jobs` ADD `completionReportToken` varchar(64);
