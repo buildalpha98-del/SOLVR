@@ -13,9 +13,10 @@ import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard, Zap, CheckCircle, Clock, AlertTriangle, ExternalLink } from "lucide-react";
+import { Loader2, CreditCard, Zap, CheckCircle, Clock, AlertTriangle, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { UpgradeButton } from "@/components/portal/UpgradeButton";
 
 const PLAN_LABELS: Record<string, string> = {
   starter: "Starter",
@@ -82,9 +83,98 @@ function fmtDate(iso: string | null | undefined) {
   });
 }
 
+// ─── Plan comparison data ────────────────────────────────────────────────────
+const COMPARISON_FEATURES = [
+  { label: "AI Receptionist (24/7 call answering)",       setupOnly: true,  starter: true,  managed: true  },
+  { label: "SMS confirmation on every call",              setupOnly: true,  starter: true,  managed: true  },
+  { label: "Owner notification (SMS + email)",            setupOnly: true,  starter: true,  managed: true  },
+  { label: "Client portal access",                       setupOnly: true,  starter: true,  managed: true  },
+  { label: "Job Pipeline Board",                         setupOnly: false, starter: true,  managed: true  },
+  { label: "Revenue & pipeline tracking",                setupOnly: false, starter: true,  managed: true  },
+  { label: "Completion reports (PDF + shareable link)",  setupOnly: false, starter: true,  managed: true  },
+  { label: "Invoice generation",                         setupOnly: false, starter: true,  managed: true  },
+  { label: "Before & after photos",                      setupOnly: false, starter: true,  managed: true  },
+  { label: "Monthly prompt tuning session",              setupOnly: false, starter: false, managed: true  },
+  { label: "Dedicated account manager",                  setupOnly: false, starter: false, managed: true  },
+  { label: "AI insights & call summaries",               setupOnly: false, starter: false, managed: true  },
+  { label: "Calendar & booking integration",             setupOnly: false, starter: false, managed: true  },
+];
+
+function Tick({ yes }: { yes: boolean }) {
+  return yes
+    ? <CheckCircle className="w-4 h-4 mx-auto" style={{ color: "#F5A623" }} />
+    : <X className="w-4 h-4 mx-auto" style={{ color: "rgba(255,255,255,0.15)" }} />;
+}
+
+function PlanComparisonTable() {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold" style={{ color: "#F5F5F0" }}>Compare Plans</h2>
+        <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Upgrade to unlock the full job management suite.</p>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+        {/* Header row */}
+        <div className="grid grid-cols-4 text-center text-xs font-semibold uppercase tracking-wide"
+          style={{ background: "#0A1628", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <div className="py-3 px-4 text-left" style={{ color: "rgba(255,255,255,0.4)" }}>Feature</div>
+          <div className="py-3" style={{ color: "rgba(255,255,255,0.4)" }}>Setup Only<br /><span className="text-xs normal-case font-normal">Current plan</span></div>
+          <div className="py-3 relative" style={{ color: "#F5A623", background: "rgba(245,166,35,0.06)" }}>
+            <span className="absolute top-1.5 left-1/2 -translate-x-1/2 text-[10px] bg-amber-500 text-black font-bold px-2 py-0.5 rounded-full">Popular</span>
+            <span className="mt-3 block">Starter</span>
+            <span className="text-xs normal-case font-normal" style={{ color: "rgba(255,255,255,0.4)" }}>from $99/mo</span>
+          </div>
+          <div className="py-3" style={{ color: "rgba(255,255,255,0.4)" }}>Full Managed<br /><span className="text-xs normal-case font-normal">from $297/mo</span></div>
+        </div>
+
+        {/* Feature rows */}
+        {COMPARISON_FEATURES.map((f, i) => (
+          <div
+            key={f.label}
+            className="grid grid-cols-4 text-sm items-center"
+            style={{
+              background: i % 2 === 0 ? "#0F1F3D" : "#0A1628",
+              borderBottom: i < COMPARISON_FEATURES.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined,
+            }}
+          >
+            <div className="py-2.5 px-4" style={{ color: "rgba(255,255,255,0.65)" }}>{f.label}</div>
+            <div className="py-2.5 text-center"><Tick yes={f.setupOnly} /></div>
+            <div className="py-2.5 text-center" style={{ background: "rgba(245,166,35,0.04)" }}><Tick yes={f.starter} /></div>
+            <div className="py-2.5 text-center"><Tick yes={f.managed} /></div>
+          </div>
+        ))}
+      </div>
+
+      {/* CTAs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
+          <div>
+            <p className="font-semibold" style={{ color: "#F5A623" }}>Starter — from $99/mo</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Job pipeline, reports, invoices, and more.</p>
+          </div>
+          <UpgradeButton plan="starter" label="Upgrade to Starter" size="sm" />
+        </div>
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div>
+            <p className="font-semibold" style={{ color: "#F5F5F0" }}>Full Managed — from $297/mo</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Everything in Starter + dedicated account manager.</p>
+          </div>
+          <UpgradeButton plan="professional" label="Upgrade to Full Managed" size="sm" variant="outline" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PortalSubscription() {
   const [, navigate] = useLocation();
   const [portalLoading, setPortalLoading] = useState(false);
+
+  const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const isSetupOnly = me?.plan === "setup-only";
 
   const { data: sub, isLoading } = trpc.portal.getSubscriptionStatus.useQuery(undefined, {
     retry: false,
@@ -129,6 +219,9 @@ export default function PortalSubscription() {
             Manage your Solvr plan and payment details.
           </p>
         </div>
+
+        {/* ── Plan comparison table for setup-only clients ──────────── */}
+        {isSetupOnly && <PlanComparisonTable />}
 
         {sub ? (
           <>

@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award } from "lucide-react";
+import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail } from "lucide-react";
 
 const APP_ORIGIN = window.location.origin;
 
@@ -320,20 +320,55 @@ function statusBadge(status: string) {
 }
 
 function TradieProgrammeSection() {
+  const utils = trpc.useUtils();
   const { data: summary, isLoading: summaryLoading } = trpc.adminReferral.getTradieProgrammeSummary.useQuery();
   const { data: referrals = [], isLoading } = trpc.adminReferral.listTradieProgramme.useQuery();
+
+  const sendBlast = trpc.adminReferral.sendReferralBlast.useMutation({
+    onSuccess: (d) => {
+      if (d.failed > 0) {
+        toast.warning(`Sent ${d.sent}/${d.total} emails. ${d.failed} failed.`);
+      } else {
+        toast.success(`Referral programme email sent to ${d.sent} client${d.sent !== 1 ? "s" : ""}.`);
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const applyDiscount = trpc.adminReferral.applyDiscountManually.useMutation({
+    onSuccess: () => {
+      toast.success("20% discount applied and referral marked as rewarded.");
+      utils.adminReferral.listTradieProgramme.invalidate();
+      utils.adminReferral.getTradieProgrammeSummary.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <div className="space-y-6 border-t pt-8">
       {/* Section header */}
-      <div>
-        <h2 className="text-xl font-display font-bold flex items-center gap-2">
-          <Gift className="w-5 h-5 text-amber-500" />
-          Tradie Referral Programme
-        </h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Tradie-to-tradie referrals — when a referred tradie pays their first invoice, the referrer gets 20% off their next bill.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-display font-bold flex items-center gap-2">
+            <Gift className="w-5 h-5 text-amber-500" />
+            Tradie Referral Programme
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Tradie-to-tradie referrals — when a referred tradie pays their first invoice, the referrer gets 20% off their next bill.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          disabled={sendBlast.isPending}
+          onClick={() => sendBlast.mutate()}
+          className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+        >
+          {sendBlast.isPending ? (
+            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Sending...</>
+          ) : (
+            <><Mail className="w-3.5 h-3.5 mr-1.5" /> Send Referral Email to All Clients</>
+          )}
+        </Button>
       </div>
 
       {/* Summary cards */}
@@ -370,6 +405,7 @@ function TradieProgrammeSection() {
               <TableHead>Referred</TableHead>
               <TableHead>Converted</TableHead>
               <TableHead>Rewarded</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -412,6 +448,19 @@ function TradieProgrammeSection() {
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {r.rewardedAt ? fmtDate(r.rewardedAt) : "—"}
+                </TableCell>
+                <TableCell>
+                  {r.status !== "rewarded" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 border-amber-500/30 text-amber-600 hover:bg-amber-50"
+                      disabled={applyDiscount.isPending}
+                      onClick={() => applyDiscount.mutate({ referralId: r.id })}
+                    >
+                      Apply Discount
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
