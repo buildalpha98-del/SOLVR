@@ -18,18 +18,41 @@ async function customFetch(
     headers["Cookie"] = cookie;
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  // Add 15s timeout so hangs fail loudly instead of silently
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
-  const setCookie = response.headers.get("set-cookie");
-  if (setCookie) {
-    await storeSessionCookie(setCookie);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+      signal: controller.signal,
+    });
+
+    // Debug: log what iOS actually exposes in response headers.
+    // React Native on iOS often strips Set-Cookie because NSURLSession handles cookies natively.
+    if (__DEV__ || process.env.EXPO_PUBLIC_DEBUG === "true") {
+      const setCookie = response.headers.get("set-cookie");
+      console.log(
+        "[trpc fetch]",
+        typeof url === "string" ? url.slice(0, 80) : "",
+        "status=",
+        response.status,
+        "set-cookie=",
+        setCookie ?? "NULL"
+      );
+    }
+
+    const setCookie = response.headers.get("set-cookie");
+    if (setCookie) {
+      await storeSessionCookie(setCookie);
+    }
+
+    return response;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response;
 }
 
 export const trpc = createTRPCClient<any>({
