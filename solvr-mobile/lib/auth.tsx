@@ -5,20 +5,34 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import { Alert } from "react-native";
 import { trpc } from "./trpc";
-import { clearStoredCookie, getStoredCookie, storeSessionCookie } from "./cookieStore";
+import { clearStoredCookie } from "./cookieStore";
 
 type Feature = string;
 
+/**
+ * Mirrors the shape returned by the backend `portal.me` tRPC procedure.
+ * The backend does NOT return `id`/`email`/`name` — it returns `clientId`,
+ * `contactName`, `businessName`, plus quote branding fields. Keep this
+ * interface in sync with server/routers/portal.ts → `me` procedure.
+ */
 interface User {
-  id: string;
-  email: string;
-  name: string;
-  businessName?: string;
-  onboardingCompleted: boolean;
+  clientId: string;
+  businessName: string;
+  contactName: string;
+  tradeType?: string | null;
   plan?: string;
   features: Feature[];
+  featureMatrix?: Record<string, Feature[]>;
+  logoUrl?: string | null;
+  brandColour?: string;
+  abn?: string | null;
+  paymentTerms?: string | null;
+  defaultNotes?: string | null;
+  gstRate?: string;
+  replyToEmail?: string | null;
+  validityDays?: number;
+  onboardingCompleted: boolean;
   [key: string]: unknown;
 }
 
@@ -54,57 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchUser]);
 
   const login = useCallback(async (email: string, password: string) => {
-    // DEBUG: show each stage so we can see where login fails on real device.
-    // Remove these Alert.alert calls once login is confirmed working.
-    const showStage = (title: string, body: string) =>
-      new Promise<void>((resolve) => {
-        Alert.alert(title, body, [{ text: "OK", onPress: () => resolve() }]);
-      });
-
-    try {
-      await showStage("[1/5] Login start", `Calling passwordLogin for ${email}`);
-
-      const result = await (trpc as any).portal.passwordLogin.mutate({
-        email,
-        password,
-      });
-
-      await showStage(
-        "[2/5] passwordLogin OK",
-        `Response: ${JSON.stringify(result).slice(0, 300)}`
-      );
-
-      if (result?.setCookie) {
-        await storeSessionCookie(result.setCookie);
-      }
-
-      const storedCookie = await getStoredCookie();
-      await showStage(
-        "[3/5] Cookie check",
-        `Stored cookie: ${storedCookie ? storedCookie.slice(0, 60) + "..." : "NONE (iOS likely stripped Set-Cookie)"}`
-      );
-
-      await showStage("[4/5] Calling me.query", "Fetching /portal.me");
-
-      const me = await (trpc as any).portal.me.query();
-
-      await showStage(
-        "[5/5] me.query OK",
-        `User: ${me?.email ?? "no email"} id=${me?.id ?? "no id"}`
-      );
-
-      setUser(me);
-    } catch (err: any) {
-      const msg =
-        err?.message ||
-        err?.data?.message ||
-        err?.shape?.message ||
-        JSON.stringify(err).slice(0, 300) ||
-        "unknown";
-      const code = err?.data?.code || err?.shape?.data?.code || "no-code";
-      Alert.alert("[X] Login failed", `code: ${code}\nmessage: ${msg}`);
-      throw err;
+    await (trpc as any).portal.passwordLogin.mutate({ email, password });
+    // Cookie is captured automatically by customFetch in lib/trpc.ts
+    // (reads Set-Cookie from response headers and stores via SecureStore).
+    const me = await (trpc as any).portal.me.query();
+    if (!me) {
+      throw new Error("Authentication succeeded but /portal.me returned null. Check the session cookie.");
     }
+    setUser(me);
   }, []);
 
   const logout = useCallback(async () => {

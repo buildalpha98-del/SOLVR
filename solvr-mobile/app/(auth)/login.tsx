@@ -8,12 +8,13 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
 import { useAuth } from "../../lib/auth";
-import { colors, fonts, spacing, borderRadius, LOGO_URL } from "../../lib/theme";
+import { colors, fonts, spacing, borderRadius, LOGO } from "../../lib/theme";
 import { Button, Input } from "../../components/ui";
 
 export default function LoginScreen() {
@@ -53,14 +54,14 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim().toLowerCase(), password);
+      // Login succeeded — navigate to root so index.tsx can route based on
+      // authenticated state (onboarding vs. dashboard). The login screen
+      // has no auth-aware redirect of its own.
+      router.replace("/");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Login failed. Please try again.";
-      Toast.show({
-        type: "error",
-        text1: "Login Failed",
-        text2: message,
-      });
+      Alert.alert("Login Failed", message);
     } finally {
       setLoading(false);
     }
@@ -78,11 +79,7 @@ export default function LoginScreen() {
           bounces={false}
         >
           <View style={styles.header}>
-            <Image
-              source={{ uri: LOGO_URL }}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+            <Image source={LOGO} style={styles.logo} resizeMode="contain" />
             <Text style={styles.subtitle}>Client Portal</Text>
           </View>
 

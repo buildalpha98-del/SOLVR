@@ -2,7 +2,7 @@ import React from "react";
 import { View, ActivityIndicator, Image, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
 import { useAuth } from "../lib/auth";
-import { colors, LOGO_URL } from "../lib/theme";
+import { colors, LOGO } from "../lib/theme";
 
 export default function Index() {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -10,11 +10,7 @@ export default function Index() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <Image
-          source={{ uri: LOGO_URL }}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <Image source={LOGO} style={styles.logo} resizeMode="contain" />
         <ActivityIndicator
           color={colors.primary}
           size="large"

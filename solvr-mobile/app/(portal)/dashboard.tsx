@@ -13,7 +13,7 @@ import {
   fonts,
   spacing,
   borderRadius,
-  LOGO_URL,
+  LOGO,
 } from "../../lib/theme";
 import { Card, KPICard, Skeleton, PullRefreshScroll, Badge } from "../../components/ui";
 
@@ -248,14 +248,10 @@ export default function DashboardScreen() {
               <View style={styles.headerTextBlock}>
                 <Text style={styles.welcomeLabel}>Welcome back,</Text>
                 <Text style={styles.userName} numberOfLines={1}>
-                  {user?.name ?? "there"}
+                  {user?.contactName ?? "there"}
                 </Text>
               </View>
-              <Image
-                source={{ uri: LOGO_URL }}
-                style={styles.logo}
-                resizeMode="contain"
-              />
+              <Image source={LOGO} style={styles.logo} resizeMode="contain" />
             </View>
 
             <View style={styles.kpiGrid}>

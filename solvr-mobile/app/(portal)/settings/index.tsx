@@ -245,12 +245,12 @@ export default function SettingsScreen() {
         <Card style={styles.profileCard}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
-              {(user?.name || "U").charAt(0).toUpperCase()}
+              {(user?.contactName || user?.businessName || "U").charAt(0).toUpperCase()}
             </Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.name || "User"}</Text>
-            <Text style={styles.profileEmail}>{user?.email || ""}</Text>
+            <Text style={styles.profileName}>{user?.contactName || "User"}</Text>
+            <Text style={styles.profileEmail}>{user?.businessName || ""}</Text>
             {user?.plan && (
               <Badge
                 label={user.plan}

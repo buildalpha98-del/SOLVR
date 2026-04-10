@@ -30,20 +30,6 @@ async function customFetch(
       signal: controller.signal,
     });
 
-    // Debug: log what iOS actually exposes in response headers.
-    // React Native on iOS often strips Set-Cookie because NSURLSession handles cookies natively.
-    if (__DEV__ || process.env.EXPO_PUBLIC_DEBUG === "true") {
-      const setCookie = response.headers.get("set-cookie");
-      console.log(
-        "[trpc fetch]",
-        typeof url === "string" ? url.slice(0, 80) : "",
-        "status=",
-        response.status,
-        "set-cookie=",
-        setCookie ?? "NULL"
-      );
-    }
-
     const setCookie = response.headers.get("set-cookie");
     if (setCookie) {
       await storeSessionCookie(setCookie);

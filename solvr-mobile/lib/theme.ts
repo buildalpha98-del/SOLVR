@@ -34,5 +34,12 @@ export const borderRadius = {
   xl: 24,
 } as const;
 
-export const LOGO_URL =
-  "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt.png";
+/**
+ * Local bundled logo asset. Pass the require() result to <Image source={LOGO} />
+ * (not {{ uri: LOGO }}). The PNG lives at assets/logo.png and is bundled into the app,
+ * so it works offline and loads instantly.
+ */
+export const LOGO = require("../assets/logo.png");
+
+/** @deprecated Use LOGO with a require-based source. Kept only for backward compatibility. */
+export const LOGO_URL = "";
