@@ -12,7 +12,7 @@ import {
   ArrowLeft, MapPin, User, Phone, Mail, Home, Briefcase,
   DollarSign, CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
-  Banknote, Receipt, Send,
+  Banknote, Receipt, Send, Copy, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -220,6 +220,28 @@ function PhotoSection({
         <PhotoGrid photos={afterPhotos} type="after" />
       </div>
     </SectionCard>
+  );
+}
+
+// ─── Copy Report Link Button ─────────────────────────────────────────────────
+function CopyReportLinkButton({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  const publicUrl = `${window.location.origin}/report/${token}`;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <Button
+      size="sm"
+      onClick={handleCopy}
+      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", color: copied ? "#22c55e" : "rgba(255,255,255,0.6)", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)"}` }}
+    >
+      {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+      {copied ? "Copied!" : "Copy Link"}
+    </Button>
   );
 }
 
@@ -629,6 +651,9 @@ export default function PortalJobDetail() {
                 >
                   <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
                 </Button>
+                {(job as any).completionReportToken && (
+                  <CopyReportLinkButton token={(job as any).completionReportToken} />
+                )}
                 <Button
                   size="sm"
                   onClick={() => {

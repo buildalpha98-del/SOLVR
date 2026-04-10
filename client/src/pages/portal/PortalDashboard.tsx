@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2 } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -84,6 +84,10 @@ export default function PortalDashboard() {
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const features = me?.features ?? [];
   const hasInsights = features.includes("ai-insights");
+  const isFreeTier = me?.plan === "setup-only";
+  const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(() => {
+    try { return sessionStorage.getItem("solvr-upgrade-banner-dismissed") === "1"; } catch { return false; }
+  });
 
   // AI Weekly Insight — only fetched for full-managed clients
   const {
@@ -130,6 +134,36 @@ export default function PortalDashboard() {
   return (
     <PortalLayout activeTab="dashboard">
       <div className="space-y-6">
+        {/* Free-tier upgrade banner */}
+        {isFreeTier && !upgradeBannerDismissed && (
+          <div
+            className="rounded-xl px-4 py-3 flex items-center gap-3"
+            style={{ background: "rgba(245,166,35,0.10)", border: "1px solid rgba(245,166,35,0.28)" }}
+          >
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: "#F5A623" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">Unlock the full Solvr platform</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+                Your setup is complete. Upgrade to get job tracking, invoicing, completion reports, AI insights, and more.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <UpgradeButton plan="professional" label="Upgrade Now" size="sm" />
+              <button
+                onClick={() => {
+                  setUpgradeBannerDismissed(true);
+                  try { sessionStorage.setItem("solvr-upgrade-banner-dismissed", "1"); } catch {}
+                }}
+                className="p-1 rounded-lg"
+                style={{ color: "rgba(255,255,255,0.35)" }}
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
