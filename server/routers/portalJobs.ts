@@ -553,19 +553,29 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
         "application/pdf",
       );
 
-      // Save URL to job record
-      await updatePortalJob(input.jobId, { completionReportUrl: pdfUrl } as any);
+      // Generate a public token for the read-only customer view
+      const reportToken = randomUUID().replace(/-/g, "");
+
+      // Save URL and token to job record
+      await updatePortalJob(input.jobId, { completionReportUrl: pdfUrl, completionReportToken: reportToken } as any);
 
       // Send email if requested
       const recipientEmail = input.customerEmail ?? job.customerEmail ?? null;
       const shouldSendEmail = input.sendEmail && !!recipientEmail;
       if (shouldSendEmail && recipientEmail) {
         const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
+        // Build the public view URL — origin comes from the request headers
+        const origin = (ctx.req as any)?.headers?.origin ?? "https://solvr.com.au";
+        const publicViewUrl = `${origin}/report/${reportToken}`;
         const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
 <h2 style="color:#1F2937">Job Completion Report</h2>
 <p>Hi ${reportInput.job.customerName ?? "there"},</p>
-<p>Please find your job completion report attached for <strong>${reportInput.job.jobTitle}</strong>.</p>
+<p>Please find your job completion report for <strong>${reportInput.job.jobTitle}</strong>.</p>
 <p>This document summarises the work completed${reportInput.job.completedAt ? ` on ${new Date(reportInput.job.completedAt).toLocaleDateString("en-AU")}` : ""}, including any variations and before/after photos.</p>
+<div style="margin:24px 0;text-align:center">
+  <a href="${publicViewUrl}" style="display:inline-block;background:#F5A623;color:#0F1F3D;font-weight:bold;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:15px">View Your Report Online</a>
+</div>
+<p style="color:#6B7280;font-size:13px">Or download the PDF attached to this email.</p>
 <p style="color:#6B7280;font-size:13px">Powered by <a href="https://solvr.com.au" style="color:#6B7280">Solvr</a></p>
 </body></html>`;
         await sendEmail({
@@ -577,7 +587,58 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
         });
       }
 
-      return { success: true, pdfUrl, sent: shouldSendEmail };
+      return { success: true, pdfUrl, reportToken, sent: shouldSendEmail };
+    }),
+
+  /**
+   * Public read-only completion report view — no auth required.
+   * Returns job summary, branding, and photo URLs for the customer-facing page.
+   */
+  getPublicCompletionReport: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const db = await (await import("../db")).getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { portalJobs, crmClients, clientProfiles } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Find job by token
+      const jobs = await db.select().from(portalJobs).where(eq(portalJobs.completionReportToken as any, input.token)).limit(1);
+      if (!jobs.length) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found." });
+      const job = jobs[0];
+
+      // Fetch client branding
+      const clients = await db.select().from(crmClients).where(eq(crmClients.id, job.clientId!)).limit(1);
+      const client = clients[0] ?? null;
+      const profiles = await db.select().from(clientProfiles).where(eq(clientProfiles.clientId, job.clientId!)).limit(1);
+      const profile = profiles[0] ?? null;
+
+      // Fetch photos
+      const photos = await listJobPhotos(job.id);
+
+      return {
+        job: {
+          jobTitle: job.jobType ?? job.description ?? "Job",
+          completionNotes: job.completionNotes ?? null,
+          variationNotes: (job as any).variationNotes ?? null,
+          completedAt: job.completedAt ? (job.completedAt instanceof Date ? job.completedAt.toISOString() : String(job.completedAt)) : null,
+          customerName: job.customerName ?? job.callerName ?? null,
+          location: job.location ?? null,
+          pdfUrl: job.completionReportUrl ?? null,
+        },
+        branding: {
+          businessName: profile?.tradingName ?? client?.businessName ?? "Your Service Provider",
+          phone: profile?.phone ?? null,
+          address: profile?.address ?? null,
+          logoUrl: profile?.logoUrl ?? null,
+          primaryColor: profile?.primaryColor ?? "#1F2937",
+        },
+        photos: photos.map((p) => ({
+          url: p.imageUrl,
+          photoType: p.photoType as "before" | "after",
+          caption: p.caption ?? null,
+        })),
+      };
     }),
 
   /**

@@ -63,6 +63,9 @@ import PortalCustomers from "./pages/portal/PortalCustomers";
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
 
+// ── Public completion report page (no auth) ──────────────────────────────────
+import PublicCompletionReport from "./pages/PublicCompletionReport";
+
 function Router() {
   return (
     <Switch>
@@ -137,6 +140,9 @@ function Router() {
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />
+
+      {/* ── Public completion report (no auth, token-based) ──────────────── */}
+      <Route path="/report/:token" component={PublicCompletionReport} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

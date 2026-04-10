@@ -588,6 +588,8 @@ export const portalJobs = mysqlTable("portal_jobs", {
   invoicePdfUrl: varchar("invoicePdfUrl", { length: 512 }),
   /** S3 URL of the generated job completion report PDF */
   completionReportUrl: varchar("completionReportUrl", { length: 512 }),
+  /** Public token for read-only customer view of the completion report (no auth required) */
+  completionReportToken: varchar("completionReportToken", { length: 64 }),
   //  Completion 
   /** When the job was marked complete by the tradie */
   completedAt: timestamp("completedAt"),

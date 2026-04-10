@@ -296,6 +296,9 @@ export default function PortalJobDetail() {
   const [showSendReport, setShowSendReport] = useState(false);
   const [sendReportEmail, setSendReportEmail] = useState("");
 
+  const [showSendInvoice, setShowSendInvoice] = useState(false);
+  const [sendInvoiceEmail, setSendInvoiceEmail] = useState("");
+
   if (isLoading) {
     return (
       <PortalLayout>
@@ -756,8 +759,25 @@ export default function PortalJobDetail() {
                 <span>Invoiced {formatDate(job.invoicedAt)}</span>
                 {job.paidAt && <><span>·</span><span>Paid {formatDate(job.paidAt)}</span></>}
               </div>
+              {/* View PDF button always shown when invoice exists */}
+              {(job as any).invoicePdfUrl && (
+                <Button
+                  size="sm"
+                  onClick={() => window.open((job as any).invoicePdfUrl, "_blank")}
+                  style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
+                >
+                  <FileText className="w-3.5 h-3.5 mr-1.5" /> View PDF
+                </Button>
+              )}
               {job.invoiceStatus !== "paid" && (
-                <div className="flex gap-2 pt-1">
+                <div className="flex gap-2 pt-1 flex-wrap">
+                  <Button
+                    size="sm"
+                    onClick={() => { setSendInvoiceEmail(job.customerEmail ?? ""); setShowSendInvoice(true); }}
+                    style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
+                  </Button>
                   <Button
                     size="sm"
                     onClick={() => { setPaidAmount(String((invoicedCents / 100).toFixed(2))); setShowMarkPaid(true); }}
@@ -768,6 +788,44 @@ export default function PortalJobDetail() {
                   <Button size="sm" variant="ghost" onClick={() => updateJob.mutate({ id: jobId, invoiceStatus: "sent" })}>
                     Mark Sent
                   </Button>
+                </div>
+              )}
+              {/* Send Invoice inline panel */}
+              {showSendInvoice && (
+                <div className="mt-2 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send invoice to:</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={sendInvoiceEmail}
+                      onChange={e => setSendInvoiceEmail(e.target.value)}
+                      placeholder="customer@email.com"
+                      className="flex-1 text-xs px-3 py-1.5 rounded-md"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!sendInvoiceEmail) { toast.error("Enter a customer email"); return; }
+                        generateInvoice.mutate(
+                          { jobId, sendEmail: true, customerEmail: sendInvoiceEmail },
+                          {
+                            onSuccess: (res) => {
+                              setShowSendInvoice(false);
+                              toast.success(res.sent ? "Invoice sent to client" : "Invoice generated (email not sent)");
+                            }
+                          }
+                        );
+                      }}
+                      disabled={generateInvoice.isPending}
+                      style={{ background: "#22c55e", color: "white" }}
+                    >
+                      {generateInvoice.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowSendInvoice(false)} style={{ color: "rgba(255,255,255,0.4)" }}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
