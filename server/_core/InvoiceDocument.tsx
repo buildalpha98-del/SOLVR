@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    transform: [{ rotate: "-15deg" }],
+    transform: "rotate(-15deg)" as unknown as any,
   },
   cashStampText: {
     fontFamily: "Helvetica-Bold",

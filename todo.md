@@ -184,3 +184,10 @@
 - [x] Upload invoice PDF to S3 and store URL on portalInvoices record
 - [x] Email invoice PDF to customer on generation
 - [x] Wire before/after photo upload UI in PortalJobDetail (S3 upload, preview, delete)
+
+## Payment Details & Completion Report PDF (Apr 2026)
+- [ ] Add Payment Details section to PortalSettings (BSB, account number, account name, bank name)
+- [ ] Wire updateProfile to save bank details fields
+- [ ] Build CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
+- [ ] Add generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
+- [ ] Wire Generate Report button in PortalJobDetail completion section

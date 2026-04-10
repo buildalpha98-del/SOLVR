@@ -127,6 +127,13 @@
       "when": 1775820530532,
       "tag": "0017_common_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1775822040460,
+      "tag": "0018_sudden_nova",
+      "breakpoints": true
     }
   ]
 }

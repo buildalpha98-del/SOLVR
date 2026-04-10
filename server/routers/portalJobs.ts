@@ -13,6 +13,7 @@ import { storagePut } from "../storage";
 import { sendEmail } from "../_core/email";
 import { fetchImageBuffer } from "../_core/pdfGeneration";
 import { InvoiceDocument } from "../_core/InvoiceDocument";
+import { CompletionReportDocument } from "../_core/CompletionReportDocument";
 import { getClientProfile } from "../db";
 import {
   getPortalJob,
@@ -458,6 +459,122 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
       return listTradieCustomers(client.id);
+    }),
+
+  /**
+   * Generate a Job Completion Report PDF — a client-facing document showing
+   * what was done, any variations, and before/after photos.
+   * Uploads to S3, optionally emails the customer.
+   */
+  generateCompletionReport: publicProcedure
+    .input(z.object({
+      jobId: z.number(),
+      sendEmail: z.boolean().optional().default(false),
+      customerEmail: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+
+      // Fetch client profile for branding
+      const profile = await getClientProfile(client.id);
+
+      // Fetch line items from linked quote
+      let lineItems: { description: string; quantity: string; unit: string | null; unitPrice: string | null; lineTotal: string | null }[] = [];
+      if (job.sourceQuoteId) {
+        const rawItems = await listQuoteLineItems(job.sourceQuoteId);
+        lineItems = rawItems.map((li) => ({
+          description: li.description,
+          quantity: String(li.quantity ?? 1),
+          unit: li.unit ?? null,
+          unitPrice: li.unitPrice ? String(li.unitPrice) : null,
+          lineTotal: li.lineTotal ? String(li.lineTotal) : null,
+        }));
+      }
+
+      // Fetch photos
+      const photos = await listJobPhotos(input.jobId);
+
+      // Fetch logo buffer
+      let logoBuffer: Buffer | null = null;
+      if (profile?.logoUrl) logoBuffer = await fetchImageBuffer(profile.logoUrl);
+
+      const now = new Date();
+      const totalCents = job.invoicedAmount ?? (job.actualValue ? Math.round(job.actualValue * 100) : 0);
+
+      const reportInput = {
+        job: {
+          jobTitle: job.jobType ?? job.description ?? "Job",
+          jobDescription: job.completionNotes ?? job.description ?? null,
+          location: job.location ?? null,
+          completedAt: job.completedAt ? job.completedAt.toISOString() : null,
+          reportDate: now.toISOString(),
+          customerName: job.customerName ?? job.callerName ?? null,
+          customerEmail: input.customerEmail ?? job.customerEmail ?? null,
+          customerPhone: job.customerPhone ?? job.callerPhone ?? null,
+          customerAddress: job.customerAddress ?? job.location ?? null,
+          variations: (job as any).variationNotes ?? null,
+          notes: job.notes ?? null,
+          totalCents,
+        },
+        lineItems,
+        photos: photos.map((p) => ({
+          url: p.imageUrl,
+          photoType: (p.photoType === "before" || p.photoType === "after") ? p.photoType : "after" as "before" | "after",
+          caption: p.caption ?? null,
+        })),
+        branding: {
+          businessName: profile?.tradingName ?? client.businessName ?? "Your Business",
+          abn: profile?.abn ?? null,
+          phone: profile?.phone ?? null,
+          address: profile?.address ?? null,
+          logoBuffer,
+          primaryColor: profile?.primaryColor ?? "#1F2937",
+        },
+      };
+
+      // Render PDF
+      const element = React.createElement(CompletionReportDocument, { input: reportInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+      const pdfBuffer = Buffer.from(await renderToBuffer(element));
+
+      // Upload to S3
+      const reportRef = `CR-${String(Date.now()).slice(-6)}`;
+      const { url: pdfUrl } = await storagePut(
+        `completion-reports/${client.id}/${reportRef}-${Date.now()}.pdf`,
+        pdfBuffer,
+        "application/pdf",
+      );
+
+      // Save URL to job record
+      await updatePortalJob(input.jobId, { completionReportUrl: pdfUrl } as any);
+
+      // Send email if requested
+      const recipientEmail = input.customerEmail ?? job.customerEmail ?? null;
+      const shouldSendEmail = input.sendEmail && !!recipientEmail;
+      if (shouldSendEmail && recipientEmail) {
+        const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
+        const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
+<h2 style="color:#1F2937">Job Completion Report</h2>
+<p>Hi ${reportInput.job.customerName ?? "there"},</p>
+<p>Please find your job completion report attached for <strong>${reportInput.job.jobTitle}</strong>.</p>
+<p>This document summarises the work completed${reportInput.job.completedAt ? ` on ${new Date(reportInput.job.completedAt).toLocaleDateString("en-AU")}` : ""}, including any variations and before/after photos.</p>
+<p style="color:#6B7280;font-size:13px">Powered by <a href="https://solvr.com.au" style="color:#6B7280">Solvr</a></p>
+</body></html>`;
+        await sendEmail({
+          to: recipientEmail,
+          subject: `Job Completion Report from ${businessName}`,
+          html,
+          fromName: businessName,
+          attachments: [{ filename: `completion-report-${reportRef}.pdf`, content: pdfBuffer }],
+        });
+      }
+
+      return { success: true, pdfUrl, sent: shouldSendEmail };
     }),
 
   /**

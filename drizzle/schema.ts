@@ -91,7 +91,7 @@ export const clientOnboardings = mysqlTable("client_onboardings", {
 export type ClientOnboarding = typeof clientOnboardings.$inferSelect;
 export type InsertClientOnboarding = typeof clientOnboardings.$inferInsert;
 
-// ─── CRM ─────────────────────────────────────────────────────────────────────
+//  CRM 
 
 /**
  * CRM client records — the central entity for every client relationship.
@@ -123,7 +123,7 @@ export const crmClients = mysqlTable("crm_clients", {
   aiBrief: text("aiBrief"),
   /** When the AI brief was last generated */
   aiBriefUpdatedAt: timestamp("aiBriefUpdatedAt"),
-  // ── Quote branding (used on PDF quotes sent to customers) ─────────────────
+  //  Quote branding (used on PDF quotes sent to customers) 
   /** Business logo URL (S3) for quote PDF header */
   quoteBrandLogoUrl: varchar("quoteBrandLogoUrl", { length: 512 }),
   /** Primary brand colour hex (e.g. #1E3A5F) */
@@ -208,7 +208,7 @@ export const clientTags = mysqlTable("client_tags", {
 export type ClientTag = typeof clientTags.$inferSelect;
 export type InsertClientTag = typeof clientTags.$inferInsert;
 
-// ─── SALES PIPELINE ──────────────────────────────────────────────────────────
+//  SALES PIPELINE 
 
 /**
  * Sales pipeline deals — prospects moving through the sales funnel.
@@ -259,7 +259,7 @@ export const pipelineDeals = mysqlTable("pipeline_deals", {
 export type PipelineDeal = typeof pipelineDeals.$inferSelect;
 export type InsertPipelineDeal = typeof pipelineDeals.$inferInsert;
 
-// ─── CLIENT PRODUCTS ─────────────────────────────────────────────────────────
+//  CLIENT PRODUCTS 
 
 /**
  * Products/services active for each client.
@@ -302,7 +302,7 @@ export const clientProducts = mysqlTable("client_products", {
 export type ClientProduct = typeof clientProducts.$inferSelect;
 export type InsertClientProduct = typeof clientProducts.$inferInsert;
 
-// ─── AI INSIGHTS ─────────────────────────────────────────────────────────────
+//  AI INSIGHTS 
 
 /**
  * AI-generated insights — stored analysis results for clients, deals, and the business.
@@ -344,7 +344,7 @@ export const aiInsights = mysqlTable("ai_insights", {
 export type AiInsight = typeof aiInsights.$inferSelect;
 export type InsertAiInsight = typeof aiInsights.$inferInsert;
 
-// ─── TASKS ───────────────────────────────────────────────────────────────────
+//  TASKS 
 
 /**
  * Action items / tasks — linked to clients or deals.
@@ -382,7 +382,7 @@ export const tasks = mysqlTable("tasks", {
 export type Task = typeof tasks.$inferSelect;
 export type InsertTask = typeof tasks.$inferInsert;
 
-// ─── VOICE AGENT SUBSCRIPTIONS ───────────────────────────────────────────────
+//  VOICE AGENT SUBSCRIPTIONS 
 
 /**
  * Voice Agent subscriptions — tracks Stripe checkout sessions and subscription IDs.
@@ -419,7 +419,7 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
 export type VoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferSelect;
 export type InsertVoiceAgentSubscription = typeof voiceAgentSubscriptions.$inferInsert;
 
-// ─── ONBOARDING CHECKLISTS ────────────────────────────────────────────────────
+//  ONBOARDING CHECKLISTS 
 /**
  * Per-client onboarding checklist — tracks the 9-step delivery process.
  * One row per CRM client. Steps auto-advance via webhooks or manual triggers.
@@ -446,47 +446,47 @@ export const onboardingChecklists = mysqlTable("onboarding_checklists", {
   /** Link to CRM client */
   clientId: int("clientId").notNull().unique(),
 
-  // ── Step 1: Payment confirmed ──────────────────────────────────────────────
+  //  Step 1: Payment confirmed 
   paymentConfirmedStatus: mysqlEnum("paymentConfirmedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   paymentConfirmedAt: timestamp("paymentConfirmedAt"),
   paymentConfirmedNote: text("paymentConfirmedNote"),
 
-  // ── Step 2: CRM client created ─────────────────────────────────────────────
+  //  Step 2: CRM client created 
   crmCreatedStatus: mysqlEnum("crmCreatedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   crmCreatedAt: timestamp("crmCreatedAt"),
 
-  // ── Step 3: Welcome email sent ─────────────────────────────────────────────
+  //  Step 3: Welcome email sent 
   welcomeEmailStatus: mysqlEnum("welcomeEmailStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   welcomeEmailSentAt: timestamp("welcomeEmailSentAt"),
   welcomeEmailContent: text("welcomeEmailContent"),
 
-  // ── Step 4: Onboarding form sent ───────────────────────────────────────────
+  //  Step 4: Onboarding form sent 
   formSentStatus: mysqlEnum("formSentStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   formSentAt: timestamp("formSentAt"),
   /** Signed token for the onboarding form URL */
   formToken: varchar("formToken", { length: 128 }),
 
-  // ── Step 5: Onboarding form completed ─────────────────────────────────────
+  //  Step 5: Onboarding form completed 
   formCompletedStatus: mysqlEnum("formCompletedStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   formCompletedAt: timestamp("formCompletedAt"),
 
-  // ── Step 6: Prompt built ───────────────────────────────────────────────────
+  //  Step 6: Prompt built 
   promptBuiltStatus: mysqlEnum("promptBuiltStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   promptBuiltAt: timestamp("promptBuiltAt"),
   /** ID of the saved prompt record */
   savedPromptId: int("savedPromptId"),
 
-  // ── Step 7: Vapi agent configured ─────────────────────────────────────────
+  //  Step 7: Vapi agent configured 
   vapiConfiguredStatus: mysqlEnum("vapiConfiguredStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   vapiConfiguredAt: timestamp("vapiConfiguredAt"),
   vapiAgentId: varchar("vapiAgentId", { length: 255 }),
 
-  // ── Step 8: Test call completed ────────────────────────────────────────────
+  //  Step 8: Test call completed 
   testCallStatus: mysqlEnum("testCallStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   testCallAt: timestamp("testCallAt"),
   testCallNote: text("testCallNote"),
 
-  // ── Step 9: Client live ────────────────────────────────────────────────────
+  //  Step 9: Client live 
   clientLiveStatus: mysqlEnum("clientLiveStatus", ["pending", "done", "skipped"]).default("pending").notNull(),
   clientLiveAt: timestamp("clientLiveAt"),
   goLiveEmailContent: text("goLiveEmailContent"),
@@ -498,9 +498,9 @@ export const onboardingChecklists = mysqlTable("onboarding_checklists", {
 export type OnboardingChecklist = typeof onboardingChecklists.$inferSelect;
 export type InsertOnboardingChecklist = typeof onboardingChecklists.$inferInsert;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // CLIENT PORTAL
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 /**
  * Magic-link session tokens for portal client auth.
@@ -564,12 +564,12 @@ export const portalJobs = mysqlTable("portal_jobs", {
   quotedAmount: decimal("quotedAmount", { precision: 10, scale: 2 }),
   /** FK to quotes.id — set when this job was created from an accepted quote */
   sourceQuoteId: varchar("sourceQuoteId", { length: 36 }),
-  // ── Customer details (editable on job card) ───────────────────────────────
+  //  Customer details (editable on job card) 
   customerName: varchar("customerName", { length: 255 }),
   customerEmail: varchar("customerEmail", { length: 320 }),
   customerPhone: varchar("customerPhone", { length: 50 }),
   customerAddress: varchar("customerAddress", { length: 512 }),
-  // ── Invoice ───────────────────────────────────────────────────────────────
+  //  Invoice 
   /** Invoice number (e.g. INV-0001) — set when invoice is generated */
   invoiceNumber: varchar("invoiceNumber", { length: 32 }),
   /** Invoice status */
@@ -586,7 +586,9 @@ export const portalJobs = mysqlTable("portal_jobs", {
   paidAt: timestamp("paidAt"),
   /** S3 URL of the generated invoice PDF */
   invoicePdfUrl: varchar("invoicePdfUrl", { length: 512 }),
-  // ── Completion ────────────────────────────────────────────────────────────
+  /** S3 URL of the generated job completion report PDF */
+  completionReportUrl: varchar("completionReportUrl", { length: 512 }),
+  //  Completion 
   /** When the job was marked complete by the tradie */
   completedAt: timestamp("completedAt"),
   /** Tradie's completion notes / what was actually done */
@@ -667,9 +669,9 @@ export const referralConversions = mysqlTable("referral_conversions", {
 export type ReferralConversion = typeof referralConversions.$inferSelect;
 export type InsertReferralConversion = typeof referralConversions.$inferInsert;
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // VOICE-TO-QUOTE ENGINE
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 /**
  * Voice recordings submitted for quote extraction.
@@ -713,45 +715,45 @@ export const quotes = mysqlTable("quotes", {
   status: mysqlEnum("status", [
     "draft", "sent", "accepted", "declined", "expired", "cancelled",
   ]).default("draft").notNull(),
-  // ── Customer details ──────────────────────────────────────────────────────
+  //  Customer details 
   customerName: varchar("customerName", { length: 255 }),
   customerEmail: varchar("customerEmail", { length: 320 }),
   customerPhone: varchar("customerPhone", { length: 50 }),
   customerAddress: varchar("customerAddress", { length: 512 }),
-  // ── Job details ───────────────────────────────────────────────────────────
+  //  Job details 
   jobTitle: varchar("jobTitle", { length: 255 }).notNull(),
   jobDescription: text("jobDescription"),
-  // ── Financials ────────────────────────────────────────────────────────────
+  //  Financials 
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }),
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("10.00").notNull(),
   gstAmount: decimal("gstAmount", { precision: 10, scale: 2 }),
   totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }),
-  // ── Terms ─────────────────────────────────────────────────────────────────
+  //  Terms 
   paymentTerms: varchar("paymentTerms", { length: 255 }),
   validityDays: int("validityDays").default(30).notNull(),
   validUntil: date("validUntil"),
   notes: text("notes"),
-  // ── Customer response ─────────────────────────────────────────────────────
+  //  Customer response 
   /** 64-char hex token for the public customer acceptance URL */
   customerToken: varchar("customerToken", { length: 128 }).notNull().unique(),
   customerNote: text("customerNote"),
   declineReason: varchar("declineReason", { length: 50 }),
   respondedAt: timestamp("respondedAt"),
-  // ── AI report ─────────────────────────────────────────────────────────────
+  //  AI report 
   /** Structured AI-generated report content (JSON) */
   reportContent: json("reportContent"),
   reportGeneratedAt: timestamp("reportGeneratedAt"),
-  // ── Links ─────────────────────────────────────────────────────────────────
+  //  Links 
   /** FK to quoteVoiceRecordings.id */
   voiceRecordingId: varchar("voiceRecordingId", { length: 36 }),
   /** FK to portalJobs.id — set when accepted quote converts to a job */
   convertedJobId: int("convertedJobId"),
-  // ── PDF ───────────────────────────────────────────────────────────────────
+  //  PDF 
   /** S3 URL of the generated PDF */
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** S3 key of the generated PDF */
   pdfKey: varchar("pdfKey", { length: 512 }),
-  // ── Timestamps ────────────────────────────────────────────────────────────
+  //  Timestamps 
   sentAt: timestamp("sentAt"),
   issuedAt: timestamp("issuedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -800,7 +802,7 @@ export const quotePhotos = mysqlTable("quote_photos", {
 export type QuotePhoto = typeof quotePhotos.$inferSelect;
 export type InsertQuotePhoto = typeof quotePhotos.$inferInsert;
 
-// ─── Invoice Chases ─────────────────────────────────────────────────────────
+//  Invoice Chases 
 /**
  * AI Invoice Chasing — tracks automated follow-up sequences for unpaid invoices.
  * One row per invoice being chased. Linked to a quote (or standalone for manual invoices).
@@ -820,7 +822,7 @@ export const invoiceChases = mysqlTable("invoice_chases", {
   /** FK to portalJobs.id — the job this invoice relates to (null if quote-only) */
   jobId: int("jobId"),
 
-  // ── Invoice details ──────────────────────────────────────────────────────
+  //  Invoice details 
   /** Human-readable invoice number (e.g. INV-0042) */
   invoiceNumber: varchar("invoiceNumber", { length: 32 }).notNull(),
   /** Customer's name */
@@ -838,7 +840,7 @@ export const invoiceChases = mysqlTable("invoice_chases", {
   /** Payment due date (calculated from issuedAt + paymentTerms) */
   dueDate: date("dueDate").notNull(),
 
-  // ── Chase status ─────────────────────────────────────────────────────────
+  //  Chase status 
   /** Overall chase status */
   status: mysqlEnum("status", [
     "active",      // Chase sequence running
@@ -848,7 +850,7 @@ export const invoiceChases = mysqlTable("invoice_chases", {
     "escalated",   // Day 21 reached — owner must call
   ]).default("active").notNull(),
 
-  // ── Sequence tracking ────────────────────────────────────────────────────
+  //  Sequence tracking 
   /** How many chase emails have been sent (0–3) */
   chaseCount: int("chaseCount").default(0).notNull(),
   /** When the last chase email was sent */
@@ -856,11 +858,11 @@ export const invoiceChases = mysqlTable("invoice_chases", {
   /** When the next chase email is scheduled (null = sequence complete or stopped) */
   nextChaseAt: timestamp("nextChaseAt"),
 
-  // ── Snooze ───────────────────────────────────────────────────────────────
+  //  Snooze 
   /** If snoozed, resume chasing after this date */
   snoozeUntil: timestamp("snoozeUntil"),
 
-  // ── Resolution ───────────────────────────────────────────────────────────
+  //  Resolution 
   /** When the invoice was marked as paid */
   paidAt: timestamp("paidAt"),
   /** Amount actually received (may differ from amountDue) */
@@ -874,7 +876,7 @@ export const invoiceChases = mysqlTable("invoice_chases", {
 export type InvoiceChase = typeof invoiceChases.$inferSelect;
 export type InsertInvoiceChase = typeof invoiceChases.$inferInsert;
 
-// ─── Client Profiles (Memory File) ───────────────────────────────────────────
+//  Client Profiles (Memory File) 
 /**
  * Unified business profile for each CRM client — the "memory file".
  * Populated during onboarding, editable in Portal Settings.
@@ -886,7 +888,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** FK to crm_clients.id — unique constraint ensures 1:1 */
   clientId: int("clientId").notNull().unique(),
 
-  // ── Section 1: Business Basics ─────────────────────────────────────────────
+  //  Section 1: Business Basics 
   tradingName: varchar("tradingName", { length: 255 }),
   abn: varchar("abn", { length: 50 }),
   phone: varchar("phone", { length: 50 }),
@@ -902,7 +904,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   yearsInBusiness: int("yearsInBusiness"),
   teamSize: int("teamSize"),
 
-  // ── Section 2: Services & Pricing ──────────────────────────────────────────
+  //  Section 2: Services & Pricing 
   /** JSON array: [{ name, description, typicalPrice, unit }] */
   servicesOffered: json("servicesOffered").$type<Array<{
     name: string;
@@ -925,7 +927,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   emergencyAvailable: boolean("emergencyAvailable").default(false),
   emergencyFee: decimal("emergencyFee", { precision: 10, scale: 2 }),
 
-  // ── Section 3: Branding & Identity ─────────────────────────────────────────
+  //  Section 3: Branding & Identity 
   logoUrl: varchar("logoUrl", { length: 512 }),
   primaryColor: varchar("primaryColor", { length: 16 }),
   secondaryColor: varchar("secondaryColor", { length: 16 }),
@@ -933,7 +935,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   tagline: varchar("tagline", { length: 255 }),
   toneOfVoice: mysqlEnum("toneOfVoice", ["professional", "friendly", "casual", "formal"]),
 
-  // ── Section 4: AI Context (the "memory") ───────────────────────────────────
+  //  Section 4: AI Context (the "memory") 
   /** Free-form notes the AI should know about this business */
   aiContext: text("aiContext"),
   /** JSON array: [{ question, answer }] */
@@ -945,13 +947,13 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** When to transfer to owner vs take a message */
   escalationInstructions: text("escalationInstructions"),
 
-  // ── Section 5: Quote Defaults ──────────────────────────────────────────────
+  //  Section 5: Quote Defaults 
   gstRate: decimal("gstRate", { precision: 5, scale: 2 }).default("10.00"),
   paymentTerms: varchar("paymentTerms", { length: 255 }),
   validityDays: int("validityDays").default(30),
   defaultNotes: text("defaultNotes"),
 
-  // ── Section 6: Banking & Payment Details ───────────────────────────────────────────────
+  // Section 6: Banking & Payment Details
   /** BSB number for bank transfer payments (e.g. 062-000) */
   bankBsb: varchar("bankBsb", { length: 20 }),
   /** Bank account number */
@@ -961,7 +963,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Bank name (e.g. Commonwealth Bank, ANZ) */
   bankName: varchar("bankName", { length: 100 }),
 
-  // ── Meta ────────────────────────────────────────────────────────────────────────────────
+  // Meta
   /** Has the client completed the onboarding wizard? */
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
@@ -974,7 +976,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
 export type ClientProfile = typeof clientProfiles.$inferSelect;
 export type InsertClientProfile = typeof clientProfiles.$inferInsert;
 
-// ─── Job Progress Payments ────────────────────────────────────────────────────
+//  Job Progress Payments 
 /**
  * Progress payments recorded against a job.
  * A job can have multiple progress payments (e.g. deposit, progress claim, final).
@@ -1001,7 +1003,7 @@ export const jobProgressPayments = mysqlTable("job_progress_payments", {
 export type JobProgressPayment = typeof jobProgressPayments.$inferSelect;
 export type InsertJobProgressPayment = typeof jobProgressPayments.$inferInsert;
 
-// ─── Job Photos ───────────────────────────────────────────────────────────────
+//  Job Photos 
 /**
  * Before and after photos for a job.
  * Uploaded via the portal at quote stage (before) and completion stage (after).
@@ -1027,7 +1029,7 @@ export const jobPhotos = mysqlTable("job_photos", {
 export type JobPhoto = typeof jobPhotos.$inferSelect;
 export type InsertJobPhoto = typeof jobPhotos.$inferInsert;
 
-// ─── Tradie Customers ─────────────────────────────────────────────────────────
+//  Tradie Customers 
 /**
  * Customer database for each tradie (Solvr client).
  * Automatically populated when a job is marked as completed and paid.
@@ -1041,7 +1043,7 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   id: int("id").autoincrement().primaryKey(),
   /** FK to crmClients.id — which Solvr client (tradie) this customer belongs to */
   clientId: int("clientId").notNull(),
-  // ── Customer details ──────────────────────────────────────────────────────
+  //  Customer details 
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 50 }),
@@ -1049,7 +1051,7 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   suburb: varchar("suburb", { length: 100 }),
   state: varchar("state", { length: 50 }),
   postcode: varchar("postcode", { length: 10 }),
-  // ── Job history ───────────────────────────────────────────────────────────
+  //  Job history 
   /** Total number of completed jobs for this customer */
   jobCount: int("jobCount").default(1).notNull(),
   /** Total amount paid across all jobs in cents */
@@ -1060,7 +1062,7 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   lastJobAt: timestamp("lastJobAt"),
   /** Most recent job type (for quick reference) */
   lastJobType: varchar("lastJobType", { length: 255 }),
-  // ── Notes ─────────────────────────────────────────────────────────────────
+  //  Notes 
   /** Any notes the tradie has added about this customer */
   notes: text("notes"),
   /** Tags for segmentation (e.g. "repeat", "referral", "commercial") */

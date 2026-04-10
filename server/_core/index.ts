@@ -14,6 +14,7 @@ import { photoUploadRouter } from "../photoUpload";
 import { registerMonthlyCallReportCron } from "../cron/monthlyCallReport";
 import { registerSessionExpiryWarningCron } from "../cron/sessionExpiryWarning";
 import { scheduleInvoiceChasingCron } from "../cron/invoiceChasing";
+import { scheduleOnboardingEmailSequence } from "../cron/onboardingEmailSequence";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -84,6 +85,7 @@ async function startServer() {
   registerMonthlyCallReportCron();
   registerSessionExpiryWarningCron();
   scheduleInvoiceChasingCron();
+  scheduleOnboardingEmailSequence();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

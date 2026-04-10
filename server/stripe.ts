@@ -6,6 +6,7 @@ import { voiceAgentSubscriptions, clientProducts } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
+import { buildWelcomeEmail } from "./lib/onboardingEmails";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -257,6 +258,36 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 : undefined,
             status: "trialing",
           });
+          // ── Email 1: Welcome email (T+0) ──────────────────────────────────
+          const subEmail = session.customer_email ?? (session.customer_details?.email ?? null);
+          const subName = session.customer_details?.name ?? null;
+          const subPlan = (session.metadata?.plan ?? "starter") as string;
+          if (subEmail) {
+            const db = await getDb();
+            const sub = db ? await db
+              .select()
+              .from(voiceAgentSubscriptions)
+              .where(eq(voiceAgentSubscriptions.stripeSessionId, session.id))
+              .then(rows => rows[0] ?? null) : null;
+            // Only send if welcome email hasn't been sent yet
+            if (sub && !sub.welcomeEmailSentAt) {
+              const result = await sendEmail({
+                to: subEmail,
+                subject: "Welcome to Solvr — your AI Receptionist is on its way 🎉",
+                html: buildWelcomeEmail(subName ?? "", subPlan),
+                replyTo: "hello@solvr.com.au",
+              });
+              if (result.success && db) {
+                await db
+                  .update(voiceAgentSubscriptions)
+                  .set({ welcomeEmailSentAt: new Date(), updatedAt: new Date() })
+                  .where(eq(voiceAgentSubscriptions.id, sub.id));
+                console.log(`[Webhook] Welcome email sent to ${subEmail}`);
+              } else if (!result.success) {
+                console.error(`[Webhook] Failed to send welcome email to ${subEmail}: ${result.error}`);
+              }
+            }
+          }
         }
         break;
       }

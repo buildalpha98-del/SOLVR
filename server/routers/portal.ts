@@ -858,6 +858,7 @@ export const portalRouter = router({
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
+      const profile = await getClientProfile(client.id);
       return {
         tradingName: client.quoteTradingName ?? client.businessName ?? "",
         abn: client.quoteAbn ?? "",
@@ -868,6 +869,11 @@ export const portalRouter = router({
         gstRate: client.quoteGstRate ?? "10.00",
         validityDays: client.quoteValidityDays ?? 30,
         defaultNotes: client.quoteDefaultNotes ?? "",
+        // Bank / payment details (from clientProfiles)
+        bankName: profile?.bankName ?? "",
+        bankAccountName: profile?.bankAccountName ?? "",
+        bankBsb: profile?.bankBsb ?? "",
+        bankAccountNumber: profile?.bankAccountNumber ?? "",
       };
     }),
 
@@ -885,11 +891,17 @@ export const portalRouter = router({
       gstRate: z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).optional(),
       validityDays: z.number().int().min(1).max(365).optional(),
       defaultNotes: z.string().max(2000).optional(),
+      // Payment / bank details
+      bankName: z.string().max(100).optional(),
+      bankAccountName: z.string().max(255).optional(),
+      bankBsb: z.string().max(10).optional(),
+      bankAccountNumber: z.string().max(20).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
+      // Quote branding fields go to crmClients
       await updateCrmClient(client.id, {
         ...(input.tradingName !== undefined && { quoteTradingName: input.tradingName }),
         ...(input.abn !== undefined && { quoteAbn: input.abn }),
@@ -901,6 +913,16 @@ export const portalRouter = router({
         ...(input.validityDays !== undefined && { quoteValidityDays: input.validityDays }),
         ...(input.defaultNotes !== undefined && { quoteDefaultNotes: input.defaultNotes }),
       });
+      // Bank / payment details go to clientProfiles
+      const bankUpdate: Record<string, string | undefined> = {};
+      if (input.bankName !== undefined) bankUpdate.bankName = input.bankName;
+      if (input.bankAccountName !== undefined) bankUpdate.bankAccountName = input.bankAccountName;
+      if (input.bankBsb !== undefined) bankUpdate.bankBsb = input.bankBsb;
+      if (input.bankAccountNumber !== undefined) bankUpdate.bankAccountNumber = input.bankAccountNumber;
+      if (Object.keys(bankUpdate).length > 0) {
+        await getOrCreateClientProfile(client.id); // ensure row exists
+        await updateClientProfile(client.id, bankUpdate as any);
+      }
       return { success: true };
     }),
 

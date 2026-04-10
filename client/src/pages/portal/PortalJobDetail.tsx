@@ -118,7 +118,7 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
 }
 
 // ─── Photo Section ──────────────────────────────────────────────────────────
-type JobPhoto = { id: number; photoType: string; imageUrl: string; caption: string | null };
+type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null };
 
 function PhotoSection({
   jobId,
@@ -155,7 +155,8 @@ function PhotoSection({
       const res = await fetch("/api/portal/upload-photo", { method: "POST", credentials: "include", body: fd });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
       const { url } = await res.json() as { url: string };
-      addPhoto.mutate({ jobId, photoType, imageUrl: url });
+      // imageKey is the S3 key — extract from URL path for now (server handles actual key)
+      addPhoto.mutate({ jobId, photoType, imageUrl: url, imageKey: url.split("/").pop() ?? url });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -196,7 +197,7 @@ function PhotoSection({
               <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "4/3" }}>
                 <img src={p.imageUrl} alt={p.caption ?? type} className="w-full h-full object-cover" />
                 <button
-                  onClick={() => removePhoto.mutate({ id: p.id })}
+                  onClick={() => removePhoto.mutate({ id: p.id, jobId })}
                   className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ background: "rgba(239,68,68,0.85)" }}
                 >
@@ -252,6 +253,15 @@ export default function PortalJobDetail() {
 
   const markComplete = trpc.portal.markJobComplete.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowCompleteModal(false); toast.success("Job marked complete"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const generateCompletionReport = trpc.portal.generateCompletionReport.useMutation({
+    onSuccess: (res) => {
+      utils.portal.getJobDetail.invalidate({ id: jobId });
+      toast.success("Completion report generated");
+      if (res.pdfUrl) window.open(res.pdfUrl, "_blank");
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -598,6 +608,47 @@ export default function PortalJobDetail() {
             </Button>
           </div>
         )}
+
+        {/* ── Completion Report ── */}
+        <SectionCard title="Completion Report" action={<FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+          {(job as any).completionReportUrl ? (
+            <div className="space-y-3">
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report generated and ready to send to your customer.</p>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  onClick={() => window.open((job as any).completionReportUrl, "_blank")}
+                  style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
+                >
+                  <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => generateCompletionReport.mutate({ jobId, sendEmail: !!(job.customerEmail), customerEmail: job.customerEmail ?? undefined })}
+                  disabled={generateCompletionReport.isPending}
+                  style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
+                  Regenerate
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-2">
+              <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Generate a client-facing report showing what was done, variations, and before/after photos.
+              </p>
+              <Button
+                onClick={() => generateCompletionReport.mutate({ jobId })}
+                disabled={generateCompletionReport.isPending}
+                style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
+              >
+                {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                Generate Completion Report
+              </Button>
+            </div>
+          )}
+        </SectionCard>
 
         {/* ── Invoice Actions ── */}
         <SectionCard title="Invoice" action={<Receipt className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
