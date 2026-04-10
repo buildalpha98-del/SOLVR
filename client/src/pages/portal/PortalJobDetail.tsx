@@ -12,10 +12,11 @@ import {
   ArrowLeft, MapPin, User, Phone, Mail, Home, Briefcase,
   DollarSign, CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
-  Banknote, Receipt,
+  Banknote, Receipt, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STAGE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -292,6 +293,9 @@ export default function PortalJobDetail() {
   const [paidMethod, setPaidMethod] = useState<"bank_transfer" | "cash" | "stripe" | "other">("cash");
   const [paidAmount, setPaidAmount] = useState("");
 
+  const [showSendReport, setShowSendReport] = useState(false);
+  const [sendReportEmail, setSendReportEmail] = useState("");
+
   if (isLoading) {
     return (
       <PortalLayout>
@@ -315,7 +319,7 @@ export default function PortalJobDetail() {
     );
   }
 
-  const { job, progressPayments, photos, quote, lineItems } = data;
+  const { job, progressPayments, photos, quote, lineItems, hasQuoteEngine } = data;
   const stageStyle = STAGE_COLORS[job.stage] ?? STAGE_COLORS.new_lead;
   const invoiceStyle = INVOICE_STATUS_COLORS[job.invoiceStatus ?? "not_invoiced"] ?? INVOICE_STATUS_COLORS.not_invoiced;
 
@@ -624,7 +628,17 @@ export default function PortalJobDetail() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => generateCompletionReport.mutate({ jobId, sendEmail: !!(job.customerEmail), customerEmail: job.customerEmail ?? undefined })}
+                  onClick={() => {
+                    setSendReportEmail(job.customerEmail ?? "");
+                    setShowSendReport(true);
+                  }}
+                  style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
+                >
+                  <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => generateCompletionReport.mutate({ jobId })}
                   disabled={generateCompletionReport.isPending}
                   style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
                 >
@@ -632,20 +646,68 @@ export default function PortalJobDetail() {
                   Regenerate
                 </Button>
               </div>
+              {/* Send Report modal */}
+              {showSendReport && (
+                <div className="mt-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send completion report to:</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={sendReportEmail}
+                      onChange={e => setSendReportEmail(e.target.value)}
+                      placeholder="customer@email.com"
+                      className="flex-1 text-xs px-3 py-1.5 rounded-md"
+                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!sendReportEmail) { toast.error("Enter a customer email"); return; }
+                        generateCompletionReport.mutate({ jobId, sendEmail: true, customerEmail: sendReportEmail }, {
+                          onSuccess: (res) => {
+                            setShowSendReport(false);
+                            toast.success(res.sent ? "Report sent to client" : "Report generated (email not sent)");
+                          }
+                        });
+                      }}
+                      disabled={generateCompletionReport.isPending}
+                      style={{ background: "#22c55e", color: "white" }}
+                    >
+                      {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowSendReport(false)} style={{ color: "rgba(255,255,255,0.4)" }}>
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 py-2">
-              <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Generate a client-facing report showing what was done, variations, and before/after photos.
-              </p>
-              <Button
-                onClick={() => generateCompletionReport.mutate({ jobId })}
-                disabled={generateCompletionReport.isPending}
-                style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
-              >
-                {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                Generate Completion Report
-              </Button>
+              {hasQuoteEngine ? (
+                <>
+                  <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    Generate a client-facing report showing what was done, variations, and before/after photos.
+                  </p>
+                  <Button
+                    onClick={() => generateCompletionReport.mutate({ jobId })}
+                    disabled={generateCompletionReport.isPending}
+                    style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
+                  >
+                    {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                    Generate Completion Report
+                  </Button>
+                </>
+              ) : (
+                <div className="w-full rounded-xl p-4 text-center space-y-3" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}>
+                  <div className="text-2xl">📋</div>
+                  <p className="text-sm font-semibold text-white">Completion Reports</p>
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    Send professional completion reports with before/after photos directly to your customers. Included in the Quote Engine add-on.
+                  </p>
+                  <QuoteEngineUpgradeButton size="sm" label="Unlock for $97/mo" />
+                </div>
+              )}
             </div>
           )}
         </SectionCard>
@@ -654,17 +716,30 @@ export default function PortalJobDetail() {
         <SectionCard title="Invoice" action={<Receipt className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
           {job.invoiceStatus === "not_invoiced" || !job.invoiceStatus ? (
             <div className="flex flex-col items-center gap-3 py-2">
-              <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
-                No invoice generated yet. Generate one from the accepted quote or job value.
-              </p>
-              <Button
-                onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })}
-                disabled={generateInvoice.isPending}
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
-              >
-                {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                Generate Invoice
-              </Button>
+              {hasQuoteEngine ? (
+                <>
+                  <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    No invoice generated yet. Generate one from the accepted quote or job value.
+                  </p>
+                  <Button
+                    onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })}
+                    disabled={generateInvoice.isPending}
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  >
+                    {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                    Generate Invoice
+                  </Button>
+                </>
+              ) : (
+                <div className="w-full rounded-xl p-4 text-center space-y-3" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}>
+                  <div className="text-2xl">🧾</div>
+                  <p className="text-sm font-semibold text-white">Professional Invoicing</p>
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    Generate branded PDF invoices with your bank details, GST breakdown, and payment tracking. Included in the Quote Engine add-on.
+                  </p>
+                  <QuoteEngineUpgradeButton size="sm" label="Unlock for $97/mo" />
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

@@ -15,6 +15,7 @@ import { fetchImageBuffer } from "../_core/pdfGeneration";
 import { InvoiceDocument } from "../_core/InvoiceDocument";
 import { CompletionReportDocument } from "../_core/CompletionReportDocument";
 import { getClientProfile } from "../db";
+import { hasFeature } from "../_core/featureGate";
 import {
   getPortalJob,
   updatePortalJob,
@@ -62,7 +63,9 @@ export const portalJobsProcedures = {
         quote = await getQuoteById(job.sourceQuoteId);
         if (quote) lineItems = await listQuoteLineItems(job.sourceQuoteId);
       }
-      return { job, progressPayments, photos, quote, lineItems };
+      // Check if client has Quote Engine add-on active
+      const hasQuoteEngine = await hasFeature(client.id, "quote-engine");
+      return { job, progressPayments, photos, quote, lineItems, hasQuoteEngine };
     }),
 
   /**
