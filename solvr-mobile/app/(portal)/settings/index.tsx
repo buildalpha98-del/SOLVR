@@ -99,6 +99,14 @@ export default function SettingsScreen() {
   const [bizAddress, setBizAddress] = useState("");
   const [bizWebsite, setBizWebsite] = useState("");
 
+  // ---- Payment Details (bank fields live on portal.getBusinessProfile) ----
+  const [paymentLoading, setPaymentLoading] = useState(true);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [bankName, setBankName] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [bankBsb, setBankBsb] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+
   useEffect(() => {
     let cancelled = false;
 
@@ -125,6 +133,32 @@ export default function SettingsScreen() {
     };
   }, []);
 
+  // Separate effect for bank fields — they live on getBusinessProfile (not getFullProfile).
+  // This is a post-Manus backend change; if the production deploy lags, these calls will
+  // return empty strings but won't crash.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const business = await (trpc as any).portal.getBusinessProfile.query();
+        if (cancelled) return;
+        setBankName(business?.bankName ?? "");
+        setBankAccountName(business?.bankAccountName ?? "");
+        setBankBsb(business?.bankBsb ?? "");
+        setBankAccountNumber(business?.bankAccountNumber ?? "");
+      } catch {
+        // Older backend may not support bank fields yet — silently fall back to empty.
+      } finally {
+        if (!cancelled) setPaymentLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const saveProfile = useCallback(async () => {
     setProfileSaving(true);
     try {
@@ -142,6 +176,32 @@ export default function SettingsScreen() {
       setProfileSaving(false);
     }
   }, [tradingName, bizPhone, bizEmail, bizAddress, bizWebsite]);
+
+  // Save bank fields via updateBusinessProfile (mirrors the web app's PortalSettings
+  // Payment Details section added in the Manus backend changes).
+  const savePayment = useCallback(async () => {
+    // Basic BSB validation — must be 6 digits (Australian format)
+    const bsbDigits = bankBsb.replace(/\D/g, "");
+    if (bankBsb && bsbDigits.length !== 6) {
+      Alert.alert("Validation", "BSB must be 6 digits (e.g. 062-000).");
+      return;
+    }
+
+    setPaymentSaving(true);
+    try {
+      await (trpc as any).portal.updateBusinessProfile.mutate({
+        bankName: bankName || undefined,
+        bankAccountName: bankAccountName || undefined,
+        bankBsb: bankBsb || undefined,
+        bankAccountNumber: bankAccountNumber || undefined,
+      });
+      Alert.alert("Saved", "Payment details updated. These will appear on your invoices.");
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to save payment details.");
+    } finally {
+      setPaymentSaving(false);
+    }
+  }, [bankName, bankAccountName, bankBsb, bankAccountNumber]);
 
   // ---- Change Password ----
   const [currentPassword, setCurrentPassword] = useState("");
@@ -316,6 +376,53 @@ export default function SettingsScreen() {
           )}
         </CollapsibleSection>
 
+        {/* Payment Details — auto-populates the bank section on invoice PDFs */}
+        <CollapsibleSection title="Payment Details">
+          {paymentLoading ? (
+            <ActivityIndicator
+              color={colors.primary}
+              style={{ paddingVertical: spacing.md }}
+            />
+          ) : (
+            <>
+              <Text style={styles.helpText}>
+                These details appear on your invoice PDFs so customers know where to pay.
+              </Text>
+              <Input
+                label="Bank Name"
+                value={bankName}
+                onChangeText={setBankName}
+                placeholder="e.g. Commonwealth Bank"
+              />
+              <Input
+                label="Account Name"
+                value={bankAccountName}
+                onChangeText={setBankAccountName}
+                placeholder="e.g. Smith's Plumbing Pty Ltd"
+              />
+              <Input
+                label="BSB"
+                value={bankBsb}
+                onChangeText={setBankBsb}
+                keyboardType="number-pad"
+                placeholder="e.g. 062-000"
+              />
+              <Input
+                label="Account Number"
+                value={bankAccountNumber}
+                onChangeText={setBankAccountNumber}
+                keyboardType="number-pad"
+                placeholder="e.g. 12345678"
+              />
+              <Button
+                title="Save Payment Details"
+                onPress={savePayment}
+                loading={paymentSaving}
+              />
+            </>
+          )}
+        </CollapsibleSection>
+
         {/* Change Password */}
         <SectionHeader title="Security" />
         <CollapsibleSection title="Change Password">
@@ -453,6 +560,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
+  },
+  helpText: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+    lineHeight: 18,
   },
   notifCard: {
     padding: spacing.md,
