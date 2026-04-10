@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -112,6 +112,19 @@ export default function PortalDashboard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+  const canShare = typeof navigator !== "undefined" && !!navigator.share;
+  const shareReferralLink = async () => {
+    if (!referralLink) return;
+    try {
+      await navigator.share({
+        title: "Try Solvr — AI for Tradies",
+        text: "I use Solvr to manage my business with AI. Sign up and my referrer gets 20% off their next month!",
+        url: referralLink,
+      });
+    } catch {
+      // User cancelled or browser blocked share — silently ignore
+    }
   };
 
   return (
@@ -400,8 +413,19 @@ export default function PortalDashboard() {
                 style={{ background: copied ? "#22c55e" : "#F5A623", color: "#0F1F3D", border: "none" }}
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copied!" : "Copy Link"}
+                {copied ? "Copied!" : "Copy"}
               </Button>
+              {canShare && (
+                <Button
+                  size="sm"
+                  onClick={shareReferralLink}
+                  className="shrink-0 gap-1.5 text-xs"
+                  style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.12)" }}
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  Share
+                </Button>
+              )}
             </div>
           ) : (
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Generating your link...</div>
