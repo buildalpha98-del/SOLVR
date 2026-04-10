@@ -15,7 +15,17 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.solvr.mobile"
+      "bundleIdentifier": "com.solvr.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Solvr uses your microphone to record job details for voice-to-quote generation.",
+        "NSPhotoLibraryUsageDescription": "Solvr needs access to your photo library so you can attach photos to your quotes.",
+        "NSPhotoLibraryAddUsageDescription": "Solvr needs permission to save generated quote PDFs to your photo library.",
+        "NSCameraUsageDescription": "Solvr uses the camera so you can take photos of job sites to attach to quotes.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "aps-environment": "production"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +33,15 @@
         "backgroundColor": "#0A1628"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.solvr.mobile"
+      "package": "com.solvr.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -43,13 +61,23 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#F5A623"
+          "color": "#F5A623",
+          "defaultChannel": "default",
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Solvr to access your photos for quotes"
+          "photosPermission": "Solvr needs access to your photo library so you can attach photos to your quotes.",
+          "cameraPermission": "Solvr uses the camera so you can take photos of job sites to attach to quotes."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Solvr uses your microphone to record job details for voice-to-quote generation."
         }
       ]
     ]
