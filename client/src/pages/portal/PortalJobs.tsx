@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { Plus, DollarSign, X, Loader2, Lock, ExternalLink } from "lucide-react";
+import { Plus, DollarSign, X, Loader2, Lock, ChevronRight } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 
@@ -53,20 +53,19 @@ function JobCard({
 
   return (
     <div
-      className="rounded-lg p-3 space-y-2 cursor-default relative group"
+      className="rounded-lg p-3 space-y-2 cursor-pointer relative group active:scale-[0.98] transition-transform"
       style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+      onClick={() => onOpen(job.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onOpen(job.id); }}
     >
-      {/* Open detail button */}
-      <button
-        onClick={() => onOpen(job.id)}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
-        style={{ color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.05)" }}
-        title="Open job detail"
-      >
-        <ExternalLink className="w-3 h-3" />
-      </button>
+      {/* Tap anywhere to open — chevron hint */}
+      <div className="absolute top-2 right-2 flex items-center gap-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>
+        <ChevronRight className="w-3.5 h-3.5" />
+      </div>
       {/* Job type tag + description */}
-      <div>
+      <div className="pr-5">
         <span
           className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
           style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}
@@ -106,6 +105,7 @@ function JobCard({
               type="number"
               value={valueInput}
               onChange={e => setValueInput(e.target.value)}
+              onClick={e => e.stopPropagation()}
               className="w-20 text-xs px-2 py-0.5 rounded outline-none"
               style={{ background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)" }}
               autoFocus
@@ -114,7 +114,7 @@ function JobCard({
           </form>
         ) : (
           <button
-            onClick={() => setEditingValue(true)}
+            onClick={e => { e.stopPropagation(); setEditingValue(true); }}
             className="text-xs hover:underline"
             style={{ color: displayValue ? "#4ade80" : "rgba(255,255,255,0.3)" }}
           >
@@ -128,7 +128,7 @@ function JobCard({
         {COLUMNS.filter(c => c.key !== job.stage).map(col => (
           <button
             key={col.key}
-            onClick={() => onMove(job.id, col.key)}
+            onClick={e => { e.stopPropagation(); onMove(job.id, col.key); }}
             className="text-[10px] px-2 py-0.5 rounded font-medium transition-opacity hover:opacity-80"
             style={{ background: col.bg, color: col.color }}
           >
@@ -137,7 +137,7 @@ function JobCard({
         ))}
         {job.stage !== "lost" && (
           <button
-            onClick={() => onMove(job.id, "lost")}
+            onClick={e => { e.stopPropagation(); onMove(job.id, "lost"); }}
             className="text-[10px] px-2 py-0.5 rounded font-medium"
             style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
           >
