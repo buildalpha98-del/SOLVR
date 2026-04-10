@@ -39,6 +39,7 @@ import ReferralLanding from "./pages/ReferralLanding";
 import ConsoleReferrals from "./pages/ConsoleReferrals";
 import ConsolePortalClients from "./pages/ConsolePortalClients";
 import ConsoleQuotes from "./pages/ConsoleQuotes";
+import ConsoleInvoices from "./pages/ConsoleInvoices";
 
 // ── Client Portal ─────────────────────────────────────────────────────────────
 import PortalLogin from "./pages/portal/PortalLogin";
@@ -54,6 +55,7 @@ import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
 import PortalSettings from "./pages/portal/PortalSettings";
 import PortalOnboarding from "./pages/portal/PortalOnboarding";
 import PortalInvoices from "./pages/portal/PortalInvoices";
+import PortalSubscription from "./pages/portal/PortalSubscription";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
@@ -105,6 +107,7 @@ function Router() {
       <Route path="/console/referrals" component={ConsoleReferrals} />
       <Route path="/console/portal-clients" component={ConsolePortalClients} />
       <Route path="/console/quotes" component={ConsoleQuotes} />
+      <Route path="/console/invoices" component={ConsoleInvoices} />
 
       {/* ── Referral landing pages ────────────────────────────────────────── */}
       <Route path="/ref/:code" component={ReferralLanding} />
@@ -124,6 +127,7 @@ function Router() {
       <Route path="/portal/onboarding" component={PortalOnboarding} />
       <Route path="/portal/settings" component={PortalSettings} />
       <Route path="/portal/invoices" component={PortalInvoices} />
+      <Route path="/portal/subscription" component={PortalSubscription} />
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />

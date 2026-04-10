@@ -156,3 +156,12 @@
 - [ ] Console Invoice Chasing overview (admin)
 - [ ] Website Products section updated with Invoice Chasing
 - [ ] Handoff doc updated with new procedures
+## Stripe Subscription Portal (Apr 2026)
+- [x] Add clientId field to voiceAgentSubscriptions schema + db:push migration
+- [ ] Update webhook to link portal upgrade checkout to crmClients via clientId metadata
+- [x] portal.getSubscriptionStatus procedure (plan, status, billingCycle, nextBillingDate)
+- [x] portal.createBillingPortalSession procedure (Stripe Customer Portal redirect)
+- [x] PortalSubscription page (/portal/subscription) — current plan, status, billing, upgrade/manage
+- [x] Add Subscription nav item to PortalLayout
+- [x] Add /portal/subscription route to App.tsx
+- [ ] Add Billing section to PortalSettings (current plan summary + link to subscription page)

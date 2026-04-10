@@ -12,7 +12,7 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, Menu, X, FileText, Settings, Receipt
+  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -147,6 +147,15 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
             >
               {me.plan === "full-managed" ? "Managed" : me.plan === "setup-monthly" ? "Monthly" : "Starter"}
             </span>
+            <Link href="/portal/subscription">
+              <span
+                className="p-2 rounded-md transition-colors cursor-pointer flex items-center"
+                style={{ color: currentTab === "subscription" ? "#F5A623" : "rgba(255,255,255,0.4)" }}
+                title="Subscription & Billing"
+              >
+                <CreditCard className="w-4 h-4" />
+              </span>
+            </Link>
             <Link href="/portal/settings">
               <span
                 className="p-2 rounded-md transition-colors cursor-pointer flex items-center"
@@ -218,6 +227,20 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
                 </Link>
               );
             })}
+            {/* Subscription link in mobile menu */}
+            <Link href="/portal/subscription">
+              <span
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer"
+                style={{
+                  background: currentTab === "subscription" ? "rgba(245,166,35,0.12)" : "transparent",
+                  color: currentTab === "subscription" ? "#F5A623" : "rgba(255,255,255,0.7)",
+                }}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <CreditCard className="w-4 h-4" />
+                Subscription & Billing
+              </span>
+            </Link>
             {/* Settings link in mobile menu */}
             <Link href="/portal/settings">
               <span

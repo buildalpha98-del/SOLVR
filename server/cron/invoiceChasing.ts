@@ -5,10 +5,10 @@
  * For each active invoice chase, checks if a chase email is due and sends it.
  *
  * Chase sequence (days since dueDate):
- *   Day 1  → Friendly reminder ("just checking in")
- *   Day 7  → Follow-up ("still outstanding")
- *   Day 14 → Final notice ("urgent action required")
- *   Day 21 → Escalation flag (no email — owner is notified to call)
+ *   Day 1  → Email only ("just checking in")
+ *   Day 7  → Email + SMS ("still outstanding")
+ *   Day 14 → Email + SMS ("urgent action required")
+ *   Day 21 → Escalation flag (no message — owner notified to call)
  *
  * Cron expression: 0 23 * * * (11pm UTC = 9am AEST)
  */
@@ -17,8 +17,9 @@ import { getDb } from "../db";
 import { sendEmail } from "../_core/email";
 import { notifyOwner } from "../_core/notification";
 import { sendExpoPush } from "../expoPush";
+import { sendSms } from "../lib/sms";
 import { invoiceChases, crmClients, clientProfiles } from "../../drizzle/schema";
-import { and, eq, lte, isNotNull, or, isNull } from "drizzle-orm";
+import { and, eq, lte, or, isNull } from "drizzle-orm";
 
 // ─── Email templates ──────────────────────────────────────────────────────────
 
@@ -131,6 +132,34 @@ function buildChaseEmail(opts: {
   };
 }
 
+// ─── SMS templates ──────────────────────────────────────────────────────────
+
+function buildChaseSms(opts: {
+  chaseCount: number; // 2 or 3
+  invoiceNumber: string;
+  customerName: string;
+  businessName: string;
+  amountDue: string;
+}): string {
+  const { chaseCount, invoiceNumber, customerName, businessName, amountDue } = opts;
+  const formattedAmount = `$${parseFloat(amountDue).toFixed(2)}`;
+
+  if (chaseCount === 2) {
+    return (
+      `Hi ${customerName}, this is a follow-up from ${businessName}. ` +
+      `Invoice ${invoiceNumber} for ${formattedAmount} is still outstanding. ` +
+      `Please arrange payment or reply to your invoice email if you have any questions.`
+    );
+  }
+
+  // chaseCount === 3 — final notice SMS
+  return (
+    `FINAL NOTICE from ${businessName}: Invoice ${invoiceNumber} for ${formattedAmount} ` +
+    `requires immediate payment. If not received within 7 days, further action may be taken. ` +
+    `Please contact us urgently.`
+  );
+}
+
 // ─── Main cron function ───────────────────────────────────────────────────────
 
 export async function runInvoiceChasingCron(): Promise<void> {
@@ -213,13 +242,13 @@ export async function runInvoiceChasingCron(): Promise<void> {
       continue;
     }
 
-    // Send the next chase email
+      // Determine next chase number
     const nextChaseCount = chase.chaseCount + 1;
     if (nextChaseCount > 3) continue; // sequence complete
-
     const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
     const replyTo = profile?.replyToEmail ?? client.contactEmail ?? undefined; // replyToEmail maps to clientProfiles.email
 
+    // ── Send email ────────────────────────────────────────────────────────────
     const { subject, html } = buildChaseEmail({
       chaseCount: nextChaseCount,
       invoiceNumber: chase.invoiceNumber,
@@ -230,7 +259,7 @@ export async function runInvoiceChasingCron(): Promise<void> {
       dueDate: typeof chase.dueDate === 'string' ? chase.dueDate : (chase.dueDate as Date).toISOString().split('T')[0],
       description: chase.description,
     });
-    const result = await sendEmail({
+    const emailResult = await sendEmail({
       to: chase.customerEmail,
       subject,
       html,
@@ -238,11 +267,30 @@ export async function runInvoiceChasingCron(): Promise<void> {
       replyTo,
     });
 
-    if (!result.success) {
-      console.error(`[InvoiceChasing] Failed to send chase email for ${chase.id}: ${result.error}`);
-      continue;
+    if (!emailResult.success) {
+      console.error(`[InvoiceChasing] Failed to send chase email for ${chase.id}: ${emailResult.error}`);
+      // Don't skip — still attempt SMS if applicable
     }
 
+    // ── Send SMS on day 7 (chase #2) and day 14 (chase #3) ───────────────────
+    const shouldSendSms = nextChaseCount >= 2 && !!chase.customerPhone;
+    if (shouldSendSms && chase.customerPhone) {
+      const smsBody = buildChaseSms({
+        chaseCount: nextChaseCount,
+        invoiceNumber: chase.invoiceNumber,
+        customerName: chase.customerName,
+        businessName,
+        amountDue: chase.amountDue,
+      });
+      const smsResult = await sendSms({ to: chase.customerPhone, body: smsBody });
+      if (smsResult.success) {
+        console.log(`[InvoiceChasing] SMS sent for chase #${nextChaseCount} — ${chase.id} (SID: ${smsResult.sid})`);
+      } else {
+        console.warn(`[InvoiceChasing] SMS failed for chase #${nextChaseCount} — ${chase.id}: ${smsResult.error}`);
+      }
+    }
+
+    // ── Update DB record ──────────────────────────────────────────────────────
     // Calculate next chase date: day 1 → day 7 (+6 days), day 7 → day 14 (+7 days), day 14 → day 21 (+7 days)
     const daysUntilNext = nextChaseCount === 1 ? 6 : 7;
     const nextChaseAt = new Date(now.getTime() + daysUntilNext * 24 * 60 * 60 * 1000);
@@ -260,17 +308,18 @@ export async function runInvoiceChasingCron(): Promise<void> {
       })
       .where(eq(invoiceChases.id, chase.id));
 
-    // Push notification to the Solvr client confirming chase sent
+    // ── Push notification to Solvr client ─────────────────────────────────────
     if (client.pushToken) {
+      const smsNote = shouldSendSms && chase.customerPhone ? " + SMS" : "";
       await sendExpoPush({
         to: client.pushToken,
-        title: `Chase Email Sent — ${chase.invoiceNumber}`,
-        body: `Reminder #${nextChaseCount} sent to ${chase.customerName} for $${chase.amountDue}.`,
+        title: `Chase #${nextChaseCount} Sent — ${chase.invoiceNumber}`,
+        body: `Email${smsNote} sent to ${chase.customerName} for $${chase.amountDue}.`,
         data: { type: "invoice_chase_sent", chaseId: chase.id },
       });
     }
 
-    console.log(`[InvoiceChasing] Sent chase #${nextChaseCount} for invoice ${chase.invoiceNumber} (${chase.id})`);
+    console.log(`[InvoiceChasing] Sent chase #${nextChaseCount} (email${shouldSendSms ? "+SMS" : ""}) for invoice ${chase.invoiceNumber} (${chase.id})`);
   }
 
   console.log("[InvoiceChasing] Cron complete");

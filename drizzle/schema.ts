@@ -404,6 +404,8 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
   /** Stripe Checkout Session ID */
   stripeSessionId: varchar("stripeSessionId", { length: 128 }),
+  /** FK to crmClients.id — set when a portal client upgrades via the portal upgrade checkout */
+  clientId: int("clientId"),
   /** Subscription status */
   status: mysqlEnum("status", ["trialing", "active", "cancelled", "past_due", "incomplete"]).default("trialing").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
