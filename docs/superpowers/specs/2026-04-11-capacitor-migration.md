@@ -23,18 +23,18 @@ A full session of mobile bug fixing on 2026-04-10/11 fixed shape mismatches on l
 
 - **Solo founder workflow:** Jayden builds features via Manus (AI agent that owns the web portal + backend) and delegates mobile wrapping work to Claude Code. The solution must not require hiring a mobile developer.
 - **App Store presence required:** Tradies (target users) expect a real app icon on their home screen. Pure PWA is not acceptable because iOS cripples web-push notifications and App Store presence is part of the trust signal.
-- **Native features needed:** voice recording (for voice-to-quote), camera/photo library (for job photos), push notifications (for new call/job alerts), persistent session.
+- **Native features needed in v1:** voice recording (voice-to-quote), camera/photo library (job photos), persistent session. **Push notifications deferred to v2** — see Non-goals.
 - **Existing Apple assets must transfer:** Apple Developer account (Individual tier, valid through March 2027), Team ID `L847929X9X`, App Store Connect app ID `6761999026`, bundle ID `com.solvr.mobile`, APNs push key `X528824HRA`. None of these should be re-applied for.
 - **Existing web portal is mobile-responsive:** Confirmed by Jayden — `solvr.com.au/portal` already feels like a real app on Safari. Only gap: hamburger menu in the top right, instead of bottom tab bar (standard mobile pattern).
 - **Existing React Native work must be archived, not deleted:** Kept in git history for learnings, but removed from active maintenance.
+- **iOS-only for v1.** Android is deferred to a follow-up spec.
 
 ### Goals
 
-1. **One codebase.** The mobile app IS the web portal, wrapped in a native shell. Manus builds features once; they ship to web + mobile simultaneously.
-2. **Native feel.** Status bar, splash screen, app icon, proper keyboard handling, no browser chrome, native picker UIs for camera/mic, push notifications. Tradies should not be able to tell this is "a wrapped web app."
-3. **Instant updates for 95% of changes.** JS/CSS/HTML changes ship via Capacitor Live Updates — no App Store review, no waiting. Users get them on next launch.
-4. **Sync is automatic.** Manus ships to GitHub → GitHub Action syncs to Live Update service → tradies get the update. No manual pasting between agents.
-5. **App Store submission.** Build a signed `.ipa`, submit via App Store Connect, get through Apple review. Android via Google Play Console as follow-up.
+1. **One codebase.** The mobile app IS the web portal, wrapped in a native iOS shell. Manus builds features once; they ship to web + mobile simultaneously. **As long as two separate clients depend on the same backend, drift is inevitable** — this architecture eliminates drift entirely because there is no second client.
+2. **Native feel.** Status bar, splash screen, app icon, proper keyboard handling, no browser chrome, native picker UIs for camera/mic. Tradies should not be able to tell this is "a wrapped web app."
+3. **App Store submission.** Build a signed `.ipa`, submit via App Store Connect, get through Apple review. The installed app shows the SOLVR icon on the home screen and every feature from the web portal works end-to-end.
+4. **No sync drift between Manus features and mobile app.** When Manus ships a new feature to the web portal, a manual Claude Code step (`npm run build && npx cap sync && xcodebuild archive && upload to App Store Connect`) rebuilds and re-submits the mobile app. **This is NOT automated in v1** — automation (Live Updates, GitHub Actions) is deferred to a follow-up spec.
 
 ### Non-goals
 
@@ -43,6 +43,10 @@ A full session of mobile bug fixing on 2026-04-10/11 fixed shape mismatches on l
 - Supporting a separate mobile-only feature set. Web and mobile have identical features.
 - Offline mode. Out of scope for v1 — can be added later via service workers.
 - Migrating any code from `solvr-mobile/`. That codebase is archived. All native features are re-wired from scratch on top of the web portal using Capacitor plugins.
+- **Android.** Deferred to a follow-up spec. Scaffolding both platforms in parallel doubles the surface area to verify, and iOS-first gets Jayden a shippable app fastest.
+- **Push notifications.** Deferred to a follow-up spec. The existing backend uses Expo Push API; verifying Expo's compatibility with raw Capacitor device tokens (vs. switching to direct APNs) is its own mini-project. The v1 launch works without push; add them when the user actively requests them.
+- **Capacitor Live Updates / OTA JS patching.** Deferred to a follow-up spec. Getting Live Updates right requires a provider decision (Capgo vs. Appflow vs. self-hosted), secret management, a GitHub Action with proper rollback tooling, and end-to-end verification. None of that blocks v1. In v1, every update requires a manual rebuild and App Store re-submission. Acceptable for the first 2-4 weeks while the app is in TestFlight and early App Store.
+- **GitHub Action to auto-sync Manus web changes into a new mobile build.** Follows Live Updates spec.
 
 ---
 
@@ -56,33 +60,33 @@ A full session of mobile bug fixing on 2026-04-10/11 fixed shape mismatches on l
 │  ~/Developer/SOLVR/server/                            │
 │  Deployed to solvr.com.au                             │
 └──────────────────────┬───────────────────────────────┘
-                       │ HTTPS (tRPC over fetch)
+                       │ HTTPS (tRPC over fetch, CORS allows capacitor://localhost)
                        │
 ┌──────────────────────┴───────────────────────────────┐
 │  Web portal (Vite + React + tRPC client + shadcn/ui) │
 │  ~/Developer/SOLVR/client/                            │
 │  Single codebase                                      │
-└──────┬─────────────────────────┬──────────────────────┘
-       │                         │
-       ▼                         ▼
-┌──────────────┐         ┌──────────────────────────┐
-│ Browser      │         │ Capacitor native shell   │
-│ (Chrome/     │         │ - iOS (WKWebView)         │
-│  Safari/     │         │ - Android (WebView)       │
-│  Firefox)    │         │ - Native plugins:         │
-│              │         │   camera, mic, push,      │
-│              │         │   preferences, splash,    │
-│              │         │   status bar              │
-└──────────────┘         └───────────┬───────────────┘
-                                     │
-                         ┌───────────┴───────────┐
-                         ▼                       ▼
-                    ┌────────┐             ┌──────────┐
-                    │  iOS   │             │ Android  │
-                    │ App    │             │ App      │
-                    │ Store  │             │ Play     │
-                    └────────┘             └──────────┘
+└──────┬────────────────────────────┬───────────────────┘
+       │                            │
+       ▼                            ▼
+┌──────────────┐           ┌──────────────────────────┐
+│ Browser      │           │ Capacitor iOS shell      │
+│ (Chrome/     │           │ (WKWebView)              │
+│  Safari/     │           │ Native plugins (v1):     │
+│  Firefox)    │           │   camera, voice-recorder,│
+│              │           │   preferences, splash,   │
+│              │           │   status bar, haptics    │
+└──────────────┘           └───────────┬──────────────┘
+                                       │
+                                       ▼
+                                  ┌────────┐
+                                  │  iOS   │
+                                  │  App   │
+                                  │ Store  │
+                                  └────────┘
 ```
+
+**Android, push notifications, and Live Updates are NOT in this diagram because they are deferred to follow-up specs.**
 
 ### Key principle: the web portal IS the mobile app
 
@@ -108,16 +112,18 @@ Capacitor is installed INSIDE the existing web app directory (`~/Developer/SOLVR
 ```
 ~/Developer/SOLVR/
 ├── server/                      # unchanged — backend
-├── client/                      # unchanged — web portal (Vite)
-│   ├── src/                      # React source
+├── client/                      # web portal (Vite) — mostly unchanged
+│   ├── src/
+│   │   └── lib/
+│   │       ├── native/           # NEW — platform-aware abstractions for camera, mic, etc.
+│   │       └── trpcClient.ts     # updated — absolute API URL for Capacitor builds
 │   ├── dist/                     # Vite build output (Capacitor wraps this)
 │   ├── capacitor.config.ts       # NEW — Capacitor configuration
-│   ├── ios/                      # NEW — Capacitor-generated iOS project
+│   ├── ios/                      # NEW — Capacitor-generated iOS project (committed to git)
 │   │   └── App/
 │   │       ├── App.xcworkspace
 │   │       ├── Podfile
-│   │       └── Info.plist
-│   ├── android/                  # NEW — Capacitor-generated Android project
+│   │       └── App/Info.plist
 │   ├── package.json              # updated with Capacitor deps
 │   └── ...
 ├── solvr-mobile/                 # ARCHIVED — kept in git, stop maintaining
@@ -129,6 +135,8 @@ Capacitor is installed INSIDE the existing web app directory (`~/Developer/SOLVR
             └── 2026-04-11-capacitor-migration.md  # this file
 ```
 
+**No `client/android/` directory in v1** — Android is deferred.
+
 ### Why install Capacitor inside `client/`
 
 Capacitor is tightly coupled to the web app's build output. The `capacitor.config.ts` references `dist/` as its `webDir`, and `npx cap sync` copies `dist/*` into the native projects' asset folders. Keeping Capacitor inside `client/` means `npm run build && npx cap sync` is a one-directory flow, and the iOS/Android projects live next to the React code they wrap.
@@ -139,275 +147,684 @@ Alternative: put Capacitor in a sibling `mobile/` directory that references `../
 
 ## Units and their boundaries
 
-The migration breaks into seven independently-testable units. Each has a clear purpose, interface, and dependency set.
+The migration breaks into eight independently-testable units (Units 0-7), executed roughly in order. Each has a clear purpose, interface, explicit dependencies, and a verification gate.
 
-### Unit 1: Pre-migration web portal fixes
+**Execution ownership key:** (M) = Manus, (C) = Claude Code, (J) = Jayden (manual user action)
 
-**Purpose:** Add bottom tab bar navigation to the web portal before wrapping, so the first Capacitor build already has proper mobile navigation.
+---
 
-**What it does:** On mobile-sized screens (<768px wide), replace the top-right hamburger menu with a fixed-bottom tab bar. Tabs: Dashboard, Calls, Jobs, Quotes, Settings. Keep hamburger on desktop (≥768px).
+### Unit 0: Backend prerequisites
 
-**Who does this:** Manus (via prompt from Jayden). NOT Claude Code.
+**Purpose:** Make the three backend changes required before a Capacitor-wrapped web portal can talk to `solvr.com.au` from a `capacitor://localhost` origin.
 
-**Interface:** After Manus ships, `https://solvr.com.au/portal` on a mobile-sized viewport shows the bottom tab bar. All other behavior unchanged. No backend changes.
+**Owner:** Manus (M) — backend work.
+
+**What it does:**
+
+**(a) CORS: allow the Capacitor origin.**
+
+The Capacitor iOS app loads its web bundle from the local file system, and the browser-side JavaScript origin is `capacitor://localhost`. When that JS calls `https://solvr.com.au/api/trpc`, the browser sends an `Origin: capacitor://localhost` header. Express CORS middleware must allow this origin AND allow credentials (so the `solvr_portal_session` cookie is sent with the request).
+
+Concrete change in `server/_core/index.ts` (or wherever Express CORS is configured):
+
+```ts
+import cors from "cors";
+
+const allowedOrigins = [
+  "https://solvr.com.au",
+  "https://www.solvr.com.au",
+  "capacitor://localhost",   // iOS Capacitor
+  "http://localhost:5173",   // Vite dev
+];
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
+```
+
+**(b) Session cookie: audit and update for cross-origin use.**
+
+The current session cookie `solvr_portal_session` is set in `server/routers/portal.ts` via `ctx.res.cookie(PORTAL_COOKIE, token, cookieOpts)`. For that cookie to be sent from `capacitor://localhost` back to `solvr.com.au`, it must be configured with:
+
+- `sameSite: "none"` (required for cross-origin cookies)
+- `secure: true` (required when `sameSite: none`)
+- `httpOnly: true` (no change from current)
+- `path: "/"` (no change from current)
+
+Manus must locate the cookie options (currently in `getSessionCookieOptions()` in `server/_core/cookies.ts` based on the earlier code inspection) and confirm or add the above values. If the web portal is currently using `sameSite: "lax"`, that works for same-origin web requests but breaks for Capacitor.
+
+**(c) `portal.registerPushToken` compatibility check (for v2 push notifications, but verify now):**
+
+This is a **verification-only** check in v1 — no code change. Manus reads the backend's push-send path (look for `sendPushNotification` or similar in `server/`) and confirms whether the existing implementation accepts:
+- **Expo push tokens** (format: `ExponentPushToken[...]`) — this is what `expo-notifications` returns
+- **Raw APNs device tokens** (format: 64-char hex string) — this is what `@capacitor/push-notifications` returns
+
+If the backend currently only handles Expo tokens, that's fine for v1 — we're not wiring push notifications in v1. But Manus adds a note to `docs/superpowers/specs/` called `PUSH_NOTIFICATIONS_TODO.md` stating the current state and what the future follow-up spec will need to address.
+
+**Interface:** After this unit:
+- `curl -X OPTIONS https://solvr.com.au/api/trpc/portal.me -H "Origin: capacitor://localhost"` returns `Access-Control-Allow-Origin: capacitor://localhost` and `Access-Control-Allow-Credentials: true`
+- A fresh login from `capacitor://localhost` (simulated via `curl` or browser dev tools) receives a `Set-Cookie` header with `SameSite=None; Secure`
+- `PUSH_NOTIFICATIONS_TODO.md` exists with the push-token format audit
 
 **Dependencies:** None.
 
-**Verification:** Jayden opens `solvr.com.au/portal` on iPhone Safari after Manus deploys and confirms the bottom tab bar is present.
+**Verification (Claude Code runs these before starting Unit 2):**
 
-**Why separate from Capacitor work:** This is a web-UI concern, not a native-shell concern. Doing it first means the Capacitor-wrapped app gets proper nav from day one instead of requiring a second iteration.
+```bash
+# CORS preflight check
+curl -s -o /dev/null -w "%{http_code}\n" -X OPTIONS \
+  https://solvr.com.au/api/trpc/portal.me \
+  -H "Origin: capacitor://localhost" \
+  -H "Access-Control-Request-Method: POST"
+# Expect: 204 (or 200)
 
-### Unit 2: Capacitor installation and platform scaffolding
+# CORS header check
+curl -s -I -X OPTIONS \
+  https://solvr.com.au/api/trpc/portal.me \
+  -H "Origin: capacitor://localhost" \
+  -H "Access-Control-Request-Method: POST" \
+  | grep -i "access-control-allow-origin\|access-control-allow-credentials"
+# Expect both headers present
+```
 
-**Purpose:** Install Capacitor in `client/`, scaffold the iOS and Android native projects, configure bundle ID and basic metadata.
+**If Unit 0 verification fails, STOP.** Units 2-7 cannot proceed without this. Claude Code reports back to Jayden and waits for Manus to fix.
+
+---
+
+### Unit 1: Pre-migration web portal UI — bottom tab bar
+
+**Purpose:** Add a mobile-only bottom tab bar to the web portal so the first Capacitor build has proper mobile navigation.
+
+**Owner:** Manus (M) — web portal UI work.
+
+**What it does:** On mobile-sized viewports (`<768px` wide), replace the top-right hamburger menu with a fixed-bottom tab bar. Tabs: Dashboard, Calls, Jobs, Quotes, Settings. Keep the hamburger on desktop (`≥768px`).
+
+**Interface:** After Manus ships, `https://solvr.com.au/portal` on iPhone Safari shows the bottom tab bar. Desktop view unchanged. No backend changes.
+
+**Dependencies:** None. Can run in parallel with Unit 0.
+
+**Ordering/gating:**
+- Unit 1 is a hard blocker for Unit 7 (App Store submission) — the first public build should have proper mobile navigation.
+- Unit 1 is NOT a blocker for Units 2-5. Claude Code can scaffold Capacitor and wire plugins against the current hamburger-menu version of the portal, then rebuild once Manus ships the bottom tab bar.
+- **Parallelization rule:** Jayden sends the Manus prompt for Unit 1 at the same time as Claude Code starts Unit 2. Unit 1 typically completes before Claude Code reaches Unit 7.
+
+**Verification:** Jayden opens `solvr.com.au/portal` on iPhone Safari after Manus deploys and confirms the bottom tab bar appears below 768px width.
+
+---
+
+### Unit 2: Capacitor installation and iOS platform scaffolding
+
+**Purpose:** Install Capacitor in `client/`, scaffold the iOS native project, configure bundle ID and metadata.
+
+**Owner:** Claude Code (C).
 
 **What it does:**
-- `npm install @capacitor/core @capacitor/cli @capacitor/ios @capacitor/android` in `client/`
-- `npx cap init "Solvr" "com.solvr.mobile" --web-dir=dist`
-- `npx cap add ios`
-- `npx cap add android`
-- Configure `capacitor.config.ts`:
-  - `appId: "com.solvr.mobile"` (matches existing App Store Connect app)
-  - `appName: "Solvr"`
-  - `webDir: "dist"`
-  - `server.androidScheme: "https"` (required for Android cookie handling)
-  - `ios.contentInset: "always"` (proper safe area handling)
-- Add `client/ios/` and `client/android/` to `.gitignore`'s exceptions (we want these committed)
 
-**Interface:** After this unit, `npx cap sync` works and `npx cap open ios` launches Xcode with a buildable iOS project that shows a blank white screen.
+```bash
+cd ~/Developer/SOLVR/client
+npm install @capacitor/core @capacitor/cli @capacitor/ios
+npx cap init "Solvr" "com.solvr.mobile" --web-dir=dist
+npx cap add ios
+```
 
-**Dependencies:** Unit 1 not required (Capacitor can wrap any web build).
-
-**Verification:**
-- `npx cap doctor` reports no issues for both iOS and Android
-- `npx cap open ios` opens Xcode
-- Building + running in iOS Simulator shows a white screen with no crashes
-
-### Unit 3: Capacitor plugins for native features
-
-**Purpose:** Install and configure Capacitor plugins for every native feature the app needs.
-
-**Plugins to install:**
-
-| Plugin | Purpose | Replaces in RN |
-|---|---|---|
-| `@capacitor/camera` | Photo library + camera for job photos | `expo-image-picker` |
-| `@capacitor/push-notifications` | APNs + FCM push notifications | `expo-notifications` |
-| `@capacitor/preferences` | Encrypted key-value storage | `expo-secure-store` |
-| `@capacitor/status-bar` | Status bar style + color | `expo-status-bar` |
-| `@capacitor/splash-screen` | Splash screen control | `expo-splash-screen` |
-| `@capacitor/app` | App lifecycle events (background, foreground) | `expo-application` |
-| `@capacitor/haptics` | Haptic feedback on actions | `expo-haptics` |
-| `@capacitor-community/voice-recorder` | Audio recording for voice-to-quote | `expo-av` |
-| `@capacitor/live-updates` | Over-the-air JS updates | `expo-updates` |
-
-**What it does:** Each plugin gets `npm install`'d, then `npx cap sync` adds its native module to the iOS/Android projects. Each has a JS API the web portal calls conditionally (only when running inside Capacitor, detected via `Capacitor.isNativePlatform()`).
-
-**Interface:** The web portal imports `@capacitor/core` and checks `Capacitor.isNativePlatform()` at runtime. If true, it uses the plugin's native API. If false (running in a browser), it falls back to the existing web API (e.g., `MediaRecorder` for voice, `<input type="file">` for photos).
-
-**Dependencies:** Unit 2 (Capacitor installed).
-
-**Verification:** Each plugin has a smoke test screen or button in the web portal that calls the plugin API and shows the result. Smoke tests pass in iOS Simulator first, then on a real device.
-
-### Unit 4: Feature integration in the web portal
-
-**Purpose:** Wire the web portal's existing feature code to use Capacitor plugins when running on device, and fall back to web APIs when running in a browser.
-
-**Platform detection pattern:**
+Configure `client/capacitor.config.ts`:
 
 ```ts
-// client/src/lib/platform.ts
+import type { CapacitorConfig } from "@capacitor/cli";
+
+const config: CapacitorConfig = {
+  appId: "com.solvr.mobile",
+  appName: "Solvr",
+  webDir: "dist",
+  ios: {
+    contentInset: "always",  // respects safe areas (notch, Dynamic Island, home indicator)
+    backgroundColor: "#0A1628",  // matches app theme, no white flash on launch
+  },
+  server: {
+    // In production builds: serves local dist/ files (no server.url).
+    // In dev, Jayden can set CAPACITOR_SERVER_URL env var to point at a local Vite dev server.
+  },
+};
+
+export default config;
+```
+
+Update `client/.gitignore` to KEEP `ios/` committed (standard Capacitor practice — the iOS project files are part of the repo, only `Pods/` and `DerivedData/` are ignored):
+
+```
+# Keep ios/ committed
+!ios/
+ios/App/Pods/
+ios/DerivedData/
+ios/build/
+```
+
+**No Android scaffolding.** `npx cap add android` is NOT run in this unit. Android is deferred to a follow-up spec.
+
+**Interface:** After this unit:
+- `ls client/ios/App/App.xcworkspace` exists
+- `cd client && npx cap doctor` reports OK for iOS (no Android entry)
+- `cd client && npm run build && npx cap sync ios` exits 0
+- `npx cap open ios` launches Xcode
+
+**Dependencies:** Unit 0 (for CORS) should be complete or in progress. Unit 1 is NOT a dependency.
+
+**Verification:**
+1. Open Xcode via `npx cap open ios`
+2. Select a simulator (iPhone 15 Pro)
+3. Press Run — app launches in simulator showing whatever the current web portal renders (login page, probably)
+4. Log in with test credentials — dashboard loads (verifying Unit 0's CORS change is live)
+5. No crashes, no red error overlays
+
+**If step 4 fails with a CORS error, go back to Unit 0.** Do not proceed until login works in the simulator.
+
+---
+
+### Unit 3: Capacitor plugins (v1 plugin set only)
+
+**Purpose:** Install the Capacitor plugins needed for v1 features.
+
+**Owner:** Claude Code (C).
+
+**Plugins to install (v1):**
+
+| Plugin | Purpose | v1 scope |
+|---|---|---|
+| `@capacitor/camera` | Photo library + camera for job photos | ✅ wired in Unit 4 |
+| `@capacitor/preferences` | Key-value storage (small session bits if needed) | ✅ available |
+| `@capacitor/status-bar` | Status bar style and color | ✅ wired in Unit 5 |
+| `@capacitor/splash-screen` | Splash screen control | ✅ wired in Unit 5 |
+| `@capacitor/app` | App lifecycle events (background, foreground, open settings) | ✅ available for error fallback UIs |
+| `@capacitor/haptics` | Haptic feedback on tap/success | ✅ optional, wire if time permits |
+| `@capacitor-community/voice-recorder` | Audio recording for voice-to-quote | ✅ wired in Unit 4 |
+| `@capacitor/assets` (dev dependency) | Icon + splash image generator CLI | ✅ used in Unit 5 |
+
+**Plugins explicitly NOT installed in v1:**
+
+- `@capacitor/push-notifications` — deferred to v2 push spec
+- `@capgo/capacitor-updater` and `@capacitor/live-updates` — deferred to Live Updates follow-up spec
+
+**What it does:**
+
+```bash
+cd ~/Developer/SOLVR/client
+npm install @capacitor/camera @capacitor/preferences @capacitor/status-bar \
+            @capacitor/splash-screen @capacitor/app @capacitor/haptics \
+            @capacitor-community/voice-recorder
+npm install --save-dev @capacitor/assets
+npx cap sync ios
+```
+
+**Verification (lightweight, no temp debug screen):**
+
+Run the app in the simulator. Open the Safari Web Inspector → Console → paste:
+
+```js
+const { Capacitor } = await import("@capacitor/core");
+console.log("platform:", Capacitor.getPlatform());
+console.log("isNative:", Capacitor.isNativePlatform());
+
+const { StatusBar } = await import("@capacitor/status-bar");
+console.log("StatusBar available:", typeof StatusBar.setStyle);
+
+const { Camera } = await import("@capacitor/camera");
+console.log("Camera available:", typeof Camera.getPhoto);
+
+const { VoiceRecorder } = await import("capacitor-voice-recorder");
+console.log("VoiceRecorder available:", typeof VoiceRecorder.startRecording);
+```
+
+Each log should show the expected output. This verifies the plugins loaded without requiring any UI changes to the web portal.
+
+**No new routes, no debug screens, no UI added to the web portal in this unit.** Ownership of the web portal remains with Manus; Claude Code does not add files under `client/src/` during Unit 3.
+
+**Dependencies:** Unit 2.
+
+---
+
+### Unit 4: Feature integration — platform-aware abstractions
+
+**Purpose:** Add a `client/src/lib/native/` folder of platform-aware abstractions so existing feature code can call one function and get native behavior on device, web behavior in browsers.
+
+**Owner:** Claude Code (C), with one-line Manus coordination (see below).
+
+**Manus coordination note:** This unit DOES add files under `client/src/lib/native/` — which is Manus's territory. Before starting, Jayden informs Manus: "Claude Code is adding a `client/src/lib/native/` folder with platform-aware wrappers. Don't touch that folder unless explicitly asked." This is a one-sentence briefing, not a handover prompt.
+
+**Platform detection:**
+
+```ts
+// client/src/lib/native/platform.ts
 import { Capacitor } from "@capacitor/core";
 
 export const isNative = Capacitor.isNativePlatform();
-export const platform = Capacitor.getPlatform(); // "ios" | "android" | "web"
+export const platform = Capacitor.getPlatform(); // "ios" | "web"
 ```
 
-**Features to integrate:**
+**(a) Voice-to-quote abstraction:**
 
-**(a) Voice-to-quote** — currently uses web `MediaRecorder` in the portal.
-- Native: `VoiceRecorder.startRecording() → VoiceRecorder.stopRecording() → base64 WAV blob`
-- Web: unchanged `MediaRecorder` flow
-- Both paths POST the audio to `/api/portal/upload-audio`, then call `portal.quotes.processVoiceRecording` with the returned S3 URL.
+```ts
+// client/src/lib/native/voiceRecorder.ts
+import { isNative } from "./platform";
+import { VoiceRecorder } from "capacitor-voice-recorder";
 
-**(b) Photo uploads** — currently uses `<input type="file">` in the portal.
-- Native: `Camera.getPhoto({ source: CameraSource.Prompt })` — shows a native "Take Photo / Choose from Library" action sheet. Returns a base64-encoded image or file URI.
-- Web: unchanged `<input type="file">` with `accept="image/*"`
-- Both paths hit the same `portal.quotes.addPhoto` tRPC mutation (which already expects `imageDataUrl` base64 per recent Manus updates).
+/**
+ * Starts a voice recording. Returns a "stop" function that resolves with a base64-encoded
+ * audio blob + a suggested MIME type. Works on both web and native iOS.
+ */
+export async function startVoiceRecording(): Promise<{
+  stop: () => Promise<{ base64: string; mimeType: string; durationSeconds: number }>;
+}> {
+  if (isNative) {
+    const perm = await VoiceRecorder.requestAudioRecordingPermission();
+    if (!perm.value) throw new Error("Microphone permission denied");
+    await VoiceRecorder.startRecording();
+    const startTime = Date.now();
+    return {
+      stop: async () => {
+        const result = await VoiceRecorder.stopRecording();
+        return {
+          base64: result.value.recordDataBase64,
+          mimeType: result.value.mimeType,  // typically "audio/aac" on iOS
+          durationSeconds: Math.floor((Date.now() - startTime) / 1000),
+        };
+      },
+    };
+  }
 
-**(c) Push notifications** — currently not wired on the web portal at all.
-- Native only (no web fallback — web push is brittle on iOS Safari):
-  - On first login, call `PushNotifications.requestPermissions()`
-  - On grant, call `PushNotifications.register()` → receives a device token
-  - POST the token to `portal.registerPushToken` tRPC mutation (already exists on backend per commit `fcf2b2e`)
-  - Add `PushNotifications.addListener("pushNotificationReceived", ...)` for foreground notifications
-  - Add `PushNotifications.addListener("pushNotificationActionPerformed", ...)` for tap-to-open handling
-- Web: show a "Install the app for push notifications" banner. No web push.
+  // Web fallback — uses MediaRecorder (unchanged behavior from current web portal)
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const recorder = new MediaRecorder(stream);
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.start();
+  const startTime = Date.now();
+  return {
+    stop: () => new Promise((resolve) => {
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: recorder.mimeType });
+        const base64 = await blobToBase64(blob);
+        resolve({
+          base64,
+          mimeType: recorder.mimeType || "audio/webm",
+          durationSeconds: Math.floor((Date.now() - startTime) / 1000),
+        });
+      };
+      recorder.stop();
+    }),
+  };
+}
 
-**(d) Session persistence** — currently uses HTTP cookies in browser.
-- Native: Capacitor's `WKWebView` shares cookies across launches (persistent by default), so no code change needed. Verify with a logout-login-restart test.
-- Web: unchanged.
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]); // strip "data:audio/...;base64," prefix
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+```
 
-**Interface:** The web portal gains a `client/src/lib/native/` folder with one file per native feature. Each file exports a function that works on web + native, abstracting the platform difference. Existing feature code calls these abstractions instead of raw web APIs.
+**(b) Photo upload abstraction:**
 
-**Dependencies:** Unit 3 (plugins installed).
+```ts
+// client/src/lib/native/photoPicker.ts
+import { isNative } from "./platform";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
-**Verification:**
-- Voice-to-quote works end-to-end on a real iPhone (record, upload, transcribe, create quote)
-- Photo upload works (both camera and library) on a real iPhone
-- Push notification registration succeeds; test push via Expo Push tool OR Apple's test console delivers a notification
-- Logout → kill app → reopen → login page shown (session cleared)
-- Login → kill app → reopen → dashboard shown (session persisted)
+export async function pickPhoto(): Promise<{
+  base64: string;
+  mimeType: "image/jpeg" | "image/png" | "image/webp" | "image/heic";
+} | null> {
+  if (isNative) {
+    try {
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Prompt,
+        quality: 80,
+        allowEditing: false,
+      });
+      const mime = (`image/${photo.format}` as "image/jpeg" | "image/png" | "image/webp" | "image/heic");
+      return { base64: photo.base64String!, mimeType: mime };
+    } catch (err) {
+      // User cancelled or denied permission
+      return null;
+    }
+  }
 
-### Unit 5: Branding and first-launch polish
+  // Web fallback — use a hidden file input
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(null);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        const mimeType = (file.type || "image/jpeg") as "image/jpeg";
+        resolve({ base64, mimeType });
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+}
+```
 
-**Purpose:** Configure app icon, splash screen, name, status bar, safe areas — everything the user sees on first launch.
+**(c) Session persistence verification (not an abstraction — a verification step):**
+
+The v1 approach uses `WKWebView`'s native cookie handling with the cookie flags set in Unit 0 (`sameSite: None; secure`). No JS code change required. During Unit 4 verification, confirm this works end-to-end:
+
+1. In the simulator, log in
+2. Kill the app (Command+Shift+H, swipe up)
+3. Reopen the app → should land on dashboard (not login page)
+
+If this fails, **fallback plan**: rewrite the auth flow to use `@capacitor/preferences` for storing a bearer token, and have the backend accept `Authorization: Bearer <token>` as an alternative to the cookie. This is a 1-2 day detour and requires a small Manus task. Document as a contingency, not the primary plan.
+
+**(d) tRPC API base URL configuration:**
+
+The current web portal's tRPC client is at `client/src/lib/trpcClient.ts` (or equivalent). It currently uses a relative URL (`/api/trpc`) because the web portal is served from the same origin as the backend. In a Capacitor build, the app is served from `capacitor://localhost`, so the tRPC client needs an absolute URL.
+
+Add a build-time env var:
+
+```ts
+// client/src/lib/trpcClient.ts
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined" && window.location.origin === "capacitor://localhost"
+    ? "https://solvr.com.au"
+    : "");  // empty string = relative, used for browser builds
+
+export const trpc = createTRPCClient<AppRouter>({
+  links: [
+    httpBatchLink({
+      url: `${API_BASE_URL}/api/trpc`,
+      fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
+      transformer: superjson,
+    }),
+  ],
+});
+```
+
+The runtime `window.location.origin === "capacitor://localhost"` check is a safety net. The explicit `VITE_API_URL` env var is set in `client/.env.production` when building for Capacitor.
+
+**Manus coordination note:** This edits `client/src/lib/trpcClient.ts` (or wherever the tRPC client lives). Before Claude Code makes this edit, Jayden sends a one-sentence note to Manus: "Claude Code is adding a VITE_API_URL env var detection to the tRPC client for Capacitor builds. Pattern is `import.meta.env.VITE_API_URL || (capacitor detection) || relative`. Please don't overwrite."
+
+**Interface:** After this unit:
+- `client/src/lib/native/platform.ts`, `voiceRecorder.ts`, `photoPicker.ts` exist
+- Existing voice-to-quote code in the web portal imports `startVoiceRecording` from `lib/native/voiceRecorder.ts` (one-line swap)
+- Existing photo-upload code imports `pickPhoto` from `lib/native/photoPicker.ts` (one-line swap)
+- tRPC client uses the absolute API URL when running in Capacitor
+- Session persistence is verified working on the simulator
+
+**Dependencies:** Units 0, 2, 3.
+
+**Verification (on iOS Simulator first, then physical device):**
+1. Voice-to-quote: record a 5-second clip, verify transcript and draft quote appear
+2. Photo upload: attach a photo from library, verify it shows on the quote
+3. Photo upload: take a photo with camera (requires physical device, not simulator), verify
+4. Session persistence: login → kill app → reopen → still logged in
+5. Logout → kill app → reopen → login page shown
+
+---
+
+### Unit 5: Branding and first-launch polish (iOS only)
+
+**Purpose:** Configure app icon, splash screen, status bar, safe areas, and Info.plist permissions strings.
+
+**Owner:** Claude Code (C).
 
 **What it does:**
-- App icon: point `client/ios/App/App/Assets.xcassets/AppIcon.appiconset/` at the existing SOLVR dark-navy icon assets (already saved to `solvr-mobile/assets/icon.png`). Use Capacitor's `@capacitor/assets` CLI to generate all required sizes from a 1024×1024 source.
-- Splash screen: use the dark-navy SOLVR logo on `#0A1628` background. Generated via `@capacitor/assets`.
-- App name: "Solvr" (shown under the icon on home screen)
-- Status bar: dark background with light text (matches app theme), configured via `StatusBar.setStyle({ style: Style.Dark })` on app mount
-- Safe area insets: configured in `capacitor.config.ts` via `ios.contentInset: "always"` and verified on iPhone 15 Pro (Dynamic Island) + iPhone SE (home button)
-- iOS permissions strings (`Info.plist`):
-  - `NSMicrophoneUsageDescription`: "Solvr uses your microphone to record job details for voice-to-quote generation."
-  - `NSPhotoLibraryUsageDescription`: "Solvr needs access to your photo library so you can attach photos to your quotes."
-  - `NSCameraUsageDescription`: "Solvr uses the camera so you can take photos of job sites to attach to quotes."
-  - `ITSAppUsesNonExemptEncryption`: `false`
-- Android permissions: `RECORD_AUDIO`, `CAMERA`, `INTERNET`, `POST_NOTIFICATIONS`, `VIBRATE`
 
-**Interface:** After this unit, the installed app has: correct icon, dark splash, proper status bar, no permission dialog text that looks generic.
+**(a) Icon and splash generation:**
 
-**Dependencies:** Unit 2 (iOS/Android projects exist).
+```bash
+# Source images (1024×1024 icon, 2732×2732 splash)
+mkdir -p client/resources
+cp solvr-mobile/assets/icon.png client/resources/icon.png
+cp solvr-mobile/assets/splash-icon.png client/resources/splash.png
 
-**Verification:** Install on iPhone, force-quit, relaunch. Icon on home screen is the SOLVR dark-navy logo. Splash shows for 1-2 seconds on cold start. No white flash. Permission dialogs when requesting camera/mic/photos show SOLVR-branded copy.
+cd client
+npx capacitor-assets generate --ios
+```
 
-### Unit 6: Live Updates setup
+This generates all required iOS icon sizes into `client/ios/App/App/Assets.xcassets/` and splash screens into the appropriate iOS asset catalog.
 
-**Purpose:** Set up Capacitor Live Updates so JS changes ship instantly without App Store review.
+**(b) Status bar configuration:**
+
+Add to the web portal's root component (e.g., `client/src/App.tsx`):
+
+```ts
+import { StatusBar, Style } from "@capacitor/status-bar";
+import { SplashScreen } from "@capacitor/splash-screen";
+import { isNative } from "./lib/native/platform";
+
+useEffect(() => {
+  if (!isNative) return;
+  StatusBar.setStyle({ style: Style.Dark });
+  StatusBar.setBackgroundColor({ color: "#0A1628" }); // iOS ignores, Android uses
+  SplashScreen.hide({ fadeOutDuration: 300 });
+}, []);
+```
+
+**(c) Info.plist permission strings** (edited in `client/ios/App/App/Info.plist`):
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>Solvr uses your microphone to record job details for voice-to-quote generation.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Solvr needs access to your photo library so you can attach photos to your quotes.</string>
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>Solvr needs permission to save generated quote PDFs to your photo library.</string>
+<key>NSCameraUsageDescription</key>
+<string>Solvr uses the camera so you can take photos of job sites to attach to quotes.</string>
+<key>ITSAppUsesNonExemptEncryption</key>
+<false/>
+```
+
+**No push notification entitlement in v1** (`aps-environment` is NOT added to the entitlements file). This means the app cannot receive push notifications, which matches the v1 scope.
+
+**Interface:** After this unit, the installed app has:
+- SOLVR dark-navy icon on home screen
+- Dark navy splash screen with SOLVR logo that fades to app on launch
+- Dark status bar with light text
+- Proper safe area insets on iPhone 15 Pro (Dynamic Island) and iPhone SE
+- SOLVR-branded permission dialogs for camera/mic/photos
+
+**Dependencies:** Units 2, 3.
+
+**Verification:** Install on physical iPhone via Xcode, force-quit, relaunch. Icon on home screen is correct. Splash shows for 1-2 seconds on cold start. No white flash. Permission dialogs are branded correctly.
+
+---
+
+### Unit 6: Archive `solvr-mobile/`
+
+**Purpose:** Formally archive the React Native codebase and stop maintaining it.
+
+**Owner:** Claude Code (C).
 
 **What it does:**
-- Sign up for [Ionic Appflow](https://ionic.io/appflow) Live Updates service (there's a free tier — verify current pricing at implementation time)
-- OR use the open-source alternative `@capgo/capacitor-updater` which is self-hostable and free
-- Install the plugin in the web portal
-- Configure the update channel: `production` for App Store builds, `preview` for TestFlight
-- At app startup, the plugin checks for new updates and downloads them in the background
-- On next launch, the new JS bundle is active
-- Wire a GitHub Action that runs on every push to `main`:
-  1. `cd client && npm run build`
-  2. `npx cap-updater upload --channel production`
 
-**Decision needed at implementation time:** Appflow (paid, managed) vs. Capgo (free, self-hosted). Appflow is simpler but may cost $50-200/month at production scale. Capgo is free but requires running a bucket. **Leaning toward Capgo for v1** because we're a solo founder optimizing for cost, not ops simplicity.
+Create `solvr-mobile/ARCHIVED.md`:
 
-**Interface:** After this unit, pushing a change to `main` results in the mobile app showing the updated version on next launch (within 10-30 minutes of the push).
+```markdown
+# ARCHIVED — Do not maintain
 
-**Dependencies:** Unit 2 (Capacitor installed). Can be done in parallel with Units 3-5.
+This React Native / Expo mobile app has been replaced by a Capacitor-wrapped
+version of the web portal at `~/Developer/SOLVR/client/`. See the migration spec:
 
-**Verification:**
-- Make a trivial UI change (e.g., change a header text)
-- Push to main
-- GitHub Action succeeds
-- Kill app on phone, reopen, reopen again → new text appears
+`docs/superpowers/specs/2026-04-11-capacitor-migration.md`
 
-### Unit 7: App Store submission
+**Do not touch this directory.** Commits remain in git history for reference.
+All active mobile work happens in `client/` (the web portal + Capacitor shell).
 
-**Purpose:** Build a signed iOS `.ipa`, upload to App Store Connect, submit for Apple review.
+Archived: 2026-04-11
+```
+
+Commit the `ARCHIVED.md` file. No other changes.
+
+**Optional cleanup (for Jayden, manual):** Delete the EAS Build project from Expo's dashboard at https://expo.dev/accounts/solvr/projects/solvr-mobile. This is purely cosmetic — it doesn't affect anything. Not required for Unit 6 to be complete.
+
+**Interface:** After this unit, `solvr-mobile/ARCHIVED.md` exists and is committed.
+
+**Dependencies:** None. Can be done any time after Unit 2 (once Capacitor is installed and proven to work).
+
+---
+
+### Unit 7: TestFlight + App Store submission (iOS)
+
+**Purpose:** Build a signed iOS `.ipa`, upload to App Store Connect, distribute via TestFlight, submit for App Store review.
+
+**Owner:** Claude Code (C) for technical build steps, Jayden (J) for App Store Connect UI actions (screenshots, metadata, submit button).
 
 **What it does:**
-- Open `client/ios/App/App.xcworkspace` in Xcode
-- Set the bundle ID to `com.solvr.mobile` (should already be configured from Unit 2)
-- Set the signing team to Jayden's Apple Developer team (ID `L847929X9X`)
-- Archive: Xcode menu → Product → Archive
-- Upload to App Store Connect via the Organizer window
-- App Store Connect app ID `6761999026` receives the build
-- TestFlight review (automatic, ~1 hour): distribute to Jayden's iPhone for smoke test
-- Submit for App Store review: fill out screenshots, description, privacy policy URL
-- Wait 1-2 days for Apple review
-- Release to App Store
 
-**Interface:** After this unit, the SOLVR mobile app is live on the App Store and tradies can download it.
+**(a) Xcode signing configuration:**
 
-**Dependencies:** Units 1-5 complete. Unit 6 (Live Updates) can be done before or after — the first App Store build includes the current JS bundle, and Live Updates ship subsequent changes.
+1. Open `client/ios/App/App.xcworkspace` in Xcode
+2. Select the `App` target → Signing & Capabilities
+3. Team: Jayden Kowaider (Team ID `L847929X9X`)
+4. Bundle Identifier: `com.solvr.mobile` (should already be set from Unit 2)
+5. Automatic signing: ON (Xcode manages provisioning profile for distribution)
+
+**(b) Build number and version:**
+
+Update `client/ios/App/App/Info.plist`:
+- `CFBundleShortVersionString`: `1.0.0` (marketing version)
+- `CFBundleVersion`: auto-incremented per build (start at `1`)
+
+**(c) Archive and upload:**
+
+Xcode menu: Product → Archive. When the archive completes, the Organizer window opens. Choose "Distribute App" → "App Store Connect" → "Upload" → follow the prompts. The build appears in App Store Connect under app ID `6761999026` within ~10-15 minutes.
+
+**(d) TestFlight internal testing:**
+
+Jayden adds himself as an internal tester in App Store Connect → TestFlight → Internal Testing. Within ~1 hour (Apple processes the build), he receives a TestFlight invite and installs the app on his iPhone.
+
+**(e) Smoke test on TestFlight build (Jayden + Claude Code):**
+
+Full device smoke test, in order:
+
+1. Install from TestFlight → launch → SOLVR splash shows → login page appears
+2. Log in with real credentials → dashboard loads, no "Invalid Date"
+3. Tap each tab (Dashboard, Calls, Jobs, Quotes, Settings) — no crashes
+4. Create a job via Jobs → + → fill form → verify it appears
+5. Tap a job card — verify detail screen opens (this was broken in the RN build)
+6. Voice-to-quote: tap record → speak "New job for Smith, 3 hours labor at $120" → stop → verify transcript appears and draft quote is created with at least one line item
+7. Attach a photo to the draft quote from the library — verify it appears
+8. Attach a photo from the camera — verify it appears
+9. Sign out from Settings → verify login page returns
+10. Kill app → reopen → login page still there (no stale session)
+11. Log in again → verify session persists across a second kill+reopen
+
+If any of these fail, fix and re-archive before proceeding to App Store submission.
+
+**(f) App Store submission (Jayden):**
+
+In App Store Connect → App Information + In-App Purchases + App Privacy + Version details:
+- Screenshots: 6.5" iPhone screenshots (required). Take via simulator on iPhone 15 Pro Max, 3-5 screens.
+- App description: short (~300 char) + full (~3000 char). Copy from solvr.com.au landing page.
+- Keywords: "tradie, receptionist, ai, plumber, electrician, quote, invoice, job"
+- Support URL: `https://solvr.com.au/support` (or `https://solvr.com.au` if no dedicated page)
+- Privacy Policy URL: `https://solvr.com.au/privacy` **(required — if this page doesn't exist, Jayden must add it via Manus before submission)**
+- Primary category: Business
+- Age rating: 4+
+
+Submit for review. Apple typically reviews within 1-2 days. Common rejection reasons: missing privacy policy, broken deep links, placeholder content. All pre-checkable.
+
+**Interface:** After this unit, the app is live on the App Store (or in "In Review" status).
+
+**Dependencies:** Units 0-5. Unit 6 is not a blocker (can run in parallel).
 
 **Verification:**
-- Build number increments successfully in Xcode
-- Archive validation passes
-- Upload to App Store Connect succeeds
-- TestFlight build becomes available on Jayden's iPhone via the TestFlight app
-- Smoke test on TestFlight build: login, dashboard, each tab, voice-to-quote, photo upload, push notification test, logout
-- App Store submission: all required metadata present, no rejection from Apple's review
+- TestFlight build installs on Jayden's iPhone
+- All 11 smoke test items pass
+- App Store Connect shows "Ready for Review" status
+- Apple review passes (OR rejection notes are addressed and re-submitted)
 
 ---
 
 ## Data flow
 
-No backend changes. The data flow is unchanged from the current web portal:
+The data flow is essentially unchanged from the current web portal, with the exception of the three backend prereqs from Unit 0:
 
 ```
-User taps button in Capacitor app
+User taps button in Capacitor app (WKWebView on iOS)
   → React handler in client/src/...
   → tRPC client calls https://solvr.com.au/api/trpc/portal.X
+     (absolute URL from VITE_API_URL, configured in Unit 4)
   → HTTP request via WKWebView's network stack
-  → Cookie header attached automatically (WKWebView shared cookie storage)
+     (Origin: capacitor://localhost, allowed by CORS from Unit 0)
+  → Cookie header attached automatically
+     (solvr_portal_session cookie, SameSite=None; Secure from Unit 0)
   → Backend validates session, runs procedure, returns JSON
   → React state updates, re-render
 ```
 
-The ONLY difference vs. the current web portal is that some React handlers call Capacitor plugins (`Camera.getPhoto`, `VoiceRecorder.startRecording`, `PushNotifications.register`) when running on device, instead of web APIs.
+**Backend changes required (all in Unit 0):**
+1. CORS allowlist includes `capacitor://localhost`
+2. Session cookie uses `SameSite=None; Secure`
+3. `PUSH_NOTIFICATIONS_TODO.md` documents token format compatibility for v2
 
-Push notification flow:
+Native feature calls (voice, camera) go through the abstractions in `client/src/lib/native/`, which dispatch to Capacitor plugin APIs on device or web APIs in a browser.
 
-```
-Vapi webhook fires on backend (call completed)
-  → Backend looks up client's pushToken in crm_clients
-  → Backend calls Expo Push API OR Apple's APNs directly
-  → Apple delivers notification to device
-  → iOS shows notification in Notification Center
-  → User taps → app opens to relevant screen
-```
-
-Push notifications do NOT go through Expo's push service because we're no longer using Expo. Instead, we use APNs directly with Jayden's existing push key `X528824HRA`. The backend needs a small adjustment to call APNs directly instead of Expo's `/push/send` endpoint — OR we can keep using Expo's push service (it supports raw device tokens, not just Expo tokens, per Expo's docs). **Decision at implementation time — leaning toward "keep using Expo Push API" for simplicity because the backend code already exists.**
+**Push notification flow: not applicable in v1.** See the follow-up push notifications spec.
 
 ---
 
 ## Error handling
 
-Capacitor exposes errors via promise rejection, same as any JavaScript API. Each native feature integration wraps its call in a try/catch and falls back gracefully:
+Capacitor plugins expose errors via promise rejection. Each native feature integration wraps its call in a try/catch and falls back gracefully:
 
-- **Camera permission denied:** show a non-blocking banner "Enable camera access in Settings to add photos" with a button that deep-links to `App.openSettings()` (via `@capacitor/app` plugin)
+- **Camera permission denied:** show a non-blocking banner "Enable camera access in Settings to add photos" with a button that deep-links to `App.openSettings()` via `@capacitor/app`
 - **Microphone permission denied:** same pattern as camera
-- **Push notification registration fails:** silently fall back to no notifications — don't block the app
-- **Network failures for tRPC calls:** already handled by the web portal's existing tRPC error handling (unchanged)
-- **Capacitor plugin not loaded (running in browser):** the `isNative` check prevents this, but every call is double-guarded with a try/catch
-- **Live Update download fails:** fall back to the bundled JS that came with the .ipa — user gets an older version but the app still works
+- **Voice recording fails mid-session:** clear any partial recording state, show toast "Recording failed — try again"
+- **Photo picker cancelled by user:** treat as "no selection", no error shown
+- **Network failures for tRPC calls:** already handled by the existing web portal's error handling — no new work
+- **WKWebView fails to load local `dist/index.html`:** this would be a build-time bug; caught by Unit 2's simulator verification
+- **Capacitor plugin missing (running in browser dev):** the `isNative` check in every abstraction prevents this
+
+**Explicitly out of scope for v1 error handling:**
+- Push notification registration errors (push is deferred to v2)
+- Live Update rollback paths (Live Updates deferred)
+- Offline queueing (out of scope entirely)
 
 ---
 
 ## Testing strategy
 
-### Unit-level (where applicable)
+### Unit-level
 
-The web portal's existing test suite (if any) continues to work — Capacitor doesn't touch application logic. New abstractions in `client/src/lib/native/` get small unit tests that mock the `isNative` flag.
+The web portal's existing test suite continues to work — Capacitor doesn't touch application logic. New abstractions in `client/src/lib/native/` get small unit tests that mock the `isNative` flag and verify each branch.
 
-### Integration testing on device
+### Simulator testing (Claude Code runs these)
 
-Every Capacitor plugin requires manual testing on a real device (not just the simulator). Simulators don't support: camera hardware, push notification delivery, full audio recording fidelity. A device smoke-test script (manual checklist, not automated) for every build:
+After each of Units 2-5, the iOS Simulator runs with the current build. A minimum smoke test:
 
-1. Install from Xcode or TestFlight
-2. Launch → splash shows, then login page
-3. Login with test credentials → dashboard loads
-4. Tap each tab (Dashboard, Calls, Jobs, Quotes, Settings) — no crashes, data loads
-5. Create a job → verify it appears on backend (check `solvr.com.au/portal/jobs`)
-6. Record a voice-to-quote (at least 5 seconds) → verify transcript + quote created
-7. Attach a photo to a quote (camera) → verify photo appears on quote
-8. Attach a photo to a quote (library) → verify
-9. Send a test push notification → verify received, tap opens app
-10. Kill app → relaunch → still logged in
-11. Logout → kill → relaunch → login page (session cleared)
+1. Launch → web portal loads in the simulator
+2. Log in → dashboard renders (verifies CORS + cookies from Unit 0)
+3. Navigate every tab → no crashes
+4. For Units 3-4: run plugin verification scripts in Safari Web Inspector console
 
-### Live Updates verification
+Simulators do NOT test: camera hardware, audio recording fidelity (sometimes unreliable), push notifications (v2 only anyway).
 
-After Unit 6, a deliberate "test update" is pushed to verify the Live Update pipeline works end-to-end.
+### Device testing (Jayden + Claude Code collaborate)
+
+Camera, microphone, and true integration testing require a physical iPhone. After Unit 4 is complete, install a development build on Jayden's iPhone via Xcode (`npx cap run ios --target=<device-id>`) and run the 11-step smoke test from Unit 7, part (e). This is the gating check before Unit 7 submission.
+
+### Post-submission testing
+
+After Apple approves the TestFlight build, Jayden runs the same 11-step smoke test one more time on the TestFlight-installed version (as opposed to the Xcode development build). Only after this passes does Jayden submit the build for App Store review.
 
 ---
 
@@ -415,83 +832,107 @@ After Unit 6, a deliberate "test update" is pushed to verify the Live Update pip
 
 ### Migration path
 
-1. No production impact during Units 1-6 — the existing web portal continues to work unchanged on solvr.com.au, and the current React Native app remains installed on Jayden's phone (though it's broken).
-2. Unit 7 (App Store submission) is the cutover moment. Once Apple approves, Jayden announces the new app to tradies via email/SMS.
-3. The old React Native build (`solvr-mobile/` source) is archived — its commits stay in git, but `ARCHIVED.md` is added to the directory explaining not to touch it.
+1. **Zero production impact during Units 0-6.** The existing web portal at solvr.com.au continues to serve tradies via Safari. The broken React Native app on Jayden's iPhone is not actively used. No user-visible changes.
+2. **Unit 7 is the cutover moment.** Once Apple approves and the app is on the App Store, Jayden announces it via email/SMS to his tradie customers. They download the real SOLVR app; the old broken React Native build is removed from Jayden's personal phone and the Expo EAS Build project becomes dormant.
+3. **`solvr-mobile/` is archived but not deleted.** Commits remain in git history. `ARCHIVED.md` (added in Unit 6) explains the move and points readers to the Capacitor spec.
 
-### Rollback
+### Rollback paths
 
-If the Capacitor build has critical issues in production:
+**If something breaks in production after a Capacitor build is live:**
 
-- **Live Update rollback (fast):** push the previous JS bundle via Live Updates. Users get the old version on next launch, no App Store review.
-- **Native rollback (slow):** submit a new `.ipa` to App Store with the previous build number. Requires 1-2 day Apple review.
-- **Emergency:** expire the Live Update channel's latest bundle, forcing users back to the bundled JS that came with their installed .ipa.
+1. **Fast rollback — new build with previous code (1-2 days):** Check out the previous known-good commit, run `npm run build && npx cap sync ios && xcodebuild archive`, upload to App Store Connect, submit for Apple expedited review (sometimes granted for critical bugs). Apple review for a rollback is typically same-day to 24 hours.
+
+2. **Manus-driven fix — backend workaround (minutes to hours):** If the bug is in a backend shape Manus changed, Manus can ship a compatible version to the backend that satisfies both old and new clients. This is the same-origin advantage of the one-codebase architecture.
+
+3. **Live Updates fast rollback:** NOT available in v1 (deferred). This is the primary motivation for the Live Updates follow-up spec — add a rollback path that doesn't require Apple review.
+
+**There is no v1 "emergency rollback" path that completes in under an hour.** This is an accepted risk for v1 because (a) the TestFlight phase catches issues before public release, and (b) the user base is small enough in the early weeks that a 24-hour rollback window is acceptable.
 
 ---
 
 ## Dependencies and risks
 
-### New dependencies
+### New npm dependencies (v1)
 
-- `@capacitor/core` — stable, maintained by Ionic
-- `@capacitor/ios`, `@capacitor/android` — stable
-- `@capacitor/camera`, `@capacitor/push-notifications`, `@capacitor/preferences`, `@capacitor/status-bar`, `@capacitor/splash-screen`, `@capacitor/app`, `@capacitor/haptics` — all Capacitor-official, stable
-- `@capacitor-community/voice-recorder` — community-maintained; fallback is web `MediaRecorder` wrapped in a thin adapter
-- `@capgo/capacitor-updater` (tentative) — for Live Updates; alternative is Ionic Appflow (paid)
-- `@capacitor/assets` (CLI only) — generates icon and splash variants from source images
+| Package | Maintained by | Notes |
+|---|---|---|
+| `@capacitor/core` | Ionic (official) | Core runtime |
+| `@capacitor/cli` | Ionic | Command-line tooling |
+| `@capacitor/ios` | Ionic | iOS platform runtime |
+| `@capacitor/camera` | Ionic | Camera + photo library |
+| `@capacitor/preferences` | Ionic | Key-value storage |
+| `@capacitor/status-bar` | Ionic | Status bar style/color |
+| `@capacitor/splash-screen` | Ionic | Splash screen control |
+| `@capacitor/app` | Ionic | App lifecycle + openSettings |
+| `@capacitor/haptics` | Ionic | Haptic feedback |
+| `capacitor-voice-recorder` | Community | Audio recording — used for voice-to-quote |
+| `@capacitor/assets` (devDep) | Ionic | Icon + splash asset generator |
+
+**Dependencies NOT added in v1** (deferred to follow-up specs):
+- `@capacitor/push-notifications`
+- `@capgo/capacitor-updater` or `@capacitor/live-updates`
+- `@capacitor/android`
 
 ### Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Capacitor's WKWebView has different cookie behavior than Safari | Low | Medium | Test login/logout session persistence in Unit 4; fall back to `@capacitor/preferences` if cookies don't persist |
-| Voice recording plugin doesn't support the metering/waveform the web app uses | Medium | Low | Drop the waveform visual on native; just show a "Recording..." indicator with a timer. Tradies won't notice. |
-| Push notifications via Expo Push API require "Expo token" not raw device token | Low | Medium | Worst case, migrate backend to call APNs directly (1-2 hours of Manus work) |
-| Capgo or Appflow pricing changes | Low | Low | Self-host the Capgo server on Jayden's existing infrastructure |
-| Apple review rejects the app | Medium | Medium | Common rejection reasons: broken deep links, missing privacy policy URL, placeholder screenshots. All pre-checkable before submission. |
-| Bundle size balloons due to native projects being committed | Low | Low | `.gitignore` Xcode build artifacts (`DerivedData/`, `Pods/`). Only commit source files. |
-| Jayden's existing App Store Connect app ID can't be reassigned from Expo to Capacitor | Low | High | An App Store Connect app is just a listing + bundle ID. The build tool that produces the `.ipa` is irrelevant. Verified by reading Apple's docs before starting Unit 7. |
+| **Cross-origin cookies from `capacitor://localhost` to `solvr.com.au` don't work even with `SameSite=None; Secure`** | Medium | High | Unit 0 includes explicit verification via curl + browser. If verification fails, fall back to `@capacitor/preferences`-backed bearer token auth (new Manus task for backend, ~1-2 day detour). Identified BEFORE Unit 7. |
+| Voice recording plugin (`capacitor-voice-recorder`) returns an audio format the backend can't transcribe | Medium | Medium | Unit 4 verifies end-to-end transcription against the real backend. If format (e.g. `.aac`) isn't compatible with the existing `/api/portal/upload-audio` endpoint, add format conversion via ffmpeg.wasm or ask Manus to extend the backend to accept the new format |
+| Apple review rejects the app | Medium | Medium | Common reasons: missing privacy policy URL, broken deep links, placeholder content. All pre-checkable before submitting. Jayden reviews Apple's most common rejection list before Unit 7 |
+| Privacy Policy URL doesn't exist at `solvr.com.au/privacy` | High | Medium (blocks submission) | Unit 7 part (f) explicitly lists this as a Manus prerequisite. If missing, send a Manus prompt: "Add a simple privacy policy page at `/privacy` covering data collection (email, business details, call recordings), third-party processors (OpenAI, Vapi, AWS S3), and a support contact email" |
+| Web portal's current tRPC client uses a relative URL and can't be made absolute without breaking Vite dev | Low | Low | Unit 4 handles this by layering: explicit `VITE_API_URL` env var → Capacitor origin detection → relative fallback. Vite dev keeps working with the relative fallback. |
+| `solvr.com.au` has CSP headers that block `capacitor://localhost` fetches | Low | Medium | Verified in Unit 0 via curl. If CSP blocks, Manus adds an exception to the CSP policy for the Capacitor origin. |
+| Existing App Store Connect app ID can't be used with Capacitor (requires a "new app" entry) | Low | High | App Store Connect apps are identified by bundle ID, not by the build tool. As long as Capacitor builds with `com.solvr.mobile`, the existing app ID `6761999026` accepts the build. Verified via Apple's docs before Unit 7 starts. |
+| Git LFS needed for large iOS artifacts (build outputs, cached SDK files) | Low | Low | `.gitignore` the generated build outputs; commit only source files. iOS source files are small. |
+| `capacitor-voice-recorder` package is community-maintained and could become unmaintained | Low | Medium | Alternative: pure web `MediaRecorder` API works inside WKWebView with `getUserMedia` permission. If the community plugin is a problem, remove it and use `MediaRecorder` on native — same as the web fallback |
 
 ### Manus workflow changes
 
-Manus continues to build features in the web portal as it has been. The only change: Manus should be informed that the web portal now doubles as the mobile app, and to:
+After v1 ships, Manus continues to own the web portal. The changes to Manus's workflow:
 
-1. Test responsive layouts on mobile viewports before shipping
-2. Avoid introducing web-only dependencies that don't work in `WKWebView` (rare — most npm packages work fine)
-3. Use the `isNative` detection pattern when adding features that need native APIs
+1. **Check mobile viewport before shipping.** Any new feature must be tested at `<768px` width in browser dev tools before being marked complete. Manus briefing doc adds this as a rule.
+2. **Avoid incompatible dependencies.** Most npm packages work fine inside WKWebView, but a few (e.g., any package that uses Node.js APIs directly) don't. Manus briefing mentions this as a gotcha.
+3. **`isNative` pattern for new native features.** If Manus wants to add a new feature that uses native APIs (camera, mic, filesystem, etc.), Manus adds the feature to the `client/src/lib/native/` abstraction layer following the existing pattern, OR flags it as "needs Claude Code to add a Capacitor plugin."
+4. **Don't touch `client/ios/`.** The iOS native project belongs to Claude Code. Manus ignores this directory.
 
-A one-page "Mobile awareness" doc will be added to the Manus task briefing.
+A one-page `docs/manus-mobile-awareness.md` is added as part of Unit 4 to brief Manus on these rules.
 
 ---
 
 ## Success criteria
 
-This migration is successful when:
+This migration is successful when ALL of the following are true:
 
-1. **[Hard]** Jayden's iPhone has a SOLVR-branded app from TestFlight that he can open, log in, and use every feature (dashboard, calls, jobs, quotes, settings, voice-to-quote, photo uploads, push notifications) without crashes.
-2. **[Hard]** `solvr-mobile/` has an `ARCHIVED.md` file and no one is actively maintaining it.
-3. **[Hard]** Manus ships a feature change to the web portal → it appears in the mobile app within 30 minutes via Live Updates, without any manual Claude Code intervention.
-4. **[Hard]** Apple approves the app for the App Store and it's downloadable by the public.
+1. **[Hard]** Jayden's iPhone has a SOLVR-branded app from TestFlight that he can open, log in, and use all v1 features (dashboard, calls, jobs, quotes, settings, voice-to-quote, photo uploads) without crashes. **Push notifications are explicitly NOT in v1 success criteria.**
+2. **[Hard]** `solvr-mobile/ARCHIVED.md` exists; no active maintenance of the React Native code.
+3. **[Hard]** Apple approves the app for the App Store and it's downloadable by the public.
+4. **[Hard]** A full web-portal feature ships from Manus, and Claude Code rebuilds the mobile app (`npm run build && npx cap sync ios && xcodebuild archive && upload`) and verifies the feature appears in the TestFlight build within 1 working day. **Automated Live Updates are explicitly NOT in v1 success criteria.**
 5. **[Soft]** A tradie who installs the app from the App Store says it "feels like a real app" — no obvious "this is a web page" tells.
-6. **[Soft]** A follow-up spec for Google Play submission can be written using this one as a template, since Capacitor handles both platforms from the same codebase.
+6. **[Soft]** The Android follow-up spec can be written using this one as a template. Should be ~50% shorter because most decisions transfer.
+
+---
+
+## Deferred follow-up specs
+
+These are intentionally NOT part of this spec. Each will get its own spec when prioritized:
+
+1. **Live Updates for instant JS patching.** Includes provider choice (Capgo vs. Appflow vs. self-hosted), channel management, secret storage, GitHub Action, rollback tooling.
+2. **Push notifications (v2).** Includes `@capacitor/push-notifications` plugin wiring, backend token-format compatibility, deep-link routing on notification tap, permission UX, and APNs vs. Expo Push API decision.
+3. **Android support.** Includes `npx cap add android`, Play Console account setup, signing/keystore, adaptive icons, Android permissions, device smoke tests on a real Android phone.
+4. **Offline queueing.** Letting tradies draft quotes offline and sync when online. Requires service worker + background sync.
+5. **Biometric authentication.** Face ID / Touch ID for faster re-login.
+
+These are listed here so the current scope is unambiguous — if a feature isn't in Units 0-7, it's not in v1.
 
 ---
 
 ## Open questions for implementation time
 
-These are deliberately deferred because they have known answers that can be looked up, but resolving them during brainstorming would pad this spec without value:
+These are known-answerable details deferred to the implementation plan, not ambiguities in the design:
 
-1. **Live Updates provider:** Capgo (free, self-hosted) vs. Ionic Appflow (paid, managed). Decision point: Unit 6.
-2. **Push notification delivery path:** Expo Push API (existing backend code) vs. direct APNs (new backend work). Decision point: Unit 4.
-3. **Android app icon:** adaptive icon (foreground + background layers) requires slightly different source assets than iOS. Generate at Unit 5.
-4. **Privacy policy URL:** Apple requires one for App Store submission. Jayden needs to write/host one at `solvr.com.au/privacy` if it doesn't exist. Decision point: Unit 7.
-5. **TestFlight internal tester group:** Add Jayden as an internal tester on the App Store Connect side. Decision point: Unit 7.
-
----
-
-## What gets deleted / archived
-
-- `solvr-mobile/` — archived with `ARCHIVED.md` explaining why. Kept in git history.
-- `solvr-mobile/` from any build pipelines, CI, or deploy scripts — nothing to do here; there were no pipelines.
-- EAS Build project on Expo — abandoned. The project remains on Expo's servers but is no longer used. Optional: delete it from Expo's dashboard after Apple approves the Capacitor build.
-- `.easconfig.json` and `eas.json` in `solvr-mobile/` — kept with the archive.
+1. **Voice recorder audio format.** `capacitor-voice-recorder` produces AAC on iOS. Need to confirm the backend's `/api/portal/upload-audio` endpoint accepts AAC. If not, add format conversion or ask Manus to extend the endpoint. **Decision point:** Unit 4 verification.
+2. **Privacy policy URL content.** Exact wording depends on Jayden's legal preferences. Manus drafts a starting point; Jayden reviews before Unit 7 submission. **Decision point:** Unit 7 part (f).
+3. **TestFlight internal tester list.** Whether to add anyone besides Jayden for v1 (e.g., early tradie customers). **Decision point:** Unit 7 part (d).
+4. **App Store screenshot composition.** Which 3-5 screens to capture, in what order, with what captions. **Decision point:** Unit 7 part (f).
+5. **App description and keywords.** Copy for the App Store listing. **Decision point:** Unit 7 part (f).
