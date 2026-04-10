@@ -1074,3 +1074,22 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
 });
 export type TradieCustomer = typeof tradieCustomers.$inferSelect;
 export type InsertTradieCustomer = typeof tradieCustomers.$inferInsert;
+
+// ─── Push Subscriptions ───────────────────────────────────────────────────────
+/** Stores Web Push subscriptions for portal clients (tradies) */
+export const pushSubscriptions = mysqlTable("push_subscriptions", {
+  id: int("id").primaryKey().autoincrement(),
+  /** The portal client this subscription belongs to */
+  clientId: int("clientId").notNull(),
+  /** Web Push endpoint URL */
+  endpoint: text("endpoint").notNull(),
+  /** P256DH key (base64url) */
+  p256dh: text("p256dh").notNull(),
+  /** Auth secret (base64url) */
+  auth: text("auth").notNull(),
+  /** User agent hint for display */
+  userAgent: varchar("userAgent", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;

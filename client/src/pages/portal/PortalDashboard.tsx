@@ -13,11 +13,13 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { Button } from "@/components/ui/button";
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -94,17 +96,45 @@ export default function PortalDashboard() {
     retry: 1,
   });
 
+  const { isSupported, isSubscribed, isLoading: pushLoading, subscribe, unsubscribe } = usePushNotifications();
+
   return (
     <PortalLayout activeTab="dashboard">
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            G'day, {me?.contactName?.split(" ")[0] ?? me?.businessName} 👋
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Here's how your AI receptionist is performing.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              G'day, {me?.contactName?.split(" ")[0] ?? me?.businessName} 👋
+            </h1>
+            <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Here's how your AI receptionist is performing.
+            </p>
+          </div>
+          {isSupported && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={isSubscribed ? unsubscribe : subscribe}
+              disabled={pushLoading}
+              className="shrink-0 gap-2 text-xs"
+              style={{
+                background: isSubscribed ? "rgba(245,166,35,0.1)" : "rgba(255,255,255,0.05)",
+                borderColor: isSubscribed ? "rgba(245,166,35,0.4)" : "rgba(255,255,255,0.15)",
+                color: isSubscribed ? "#F5A623" : "rgba(255,255,255,0.6)",
+              }}
+              title={isSubscribed ? "Disable job alerts" : "Enable job alerts"}
+            >
+              {pushLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : isSubscribed ? (
+                <Bell className="w-3.5 h-3.5" />
+              ) : (
+                <BellOff className="w-3.5 h-3.5" />
+              )}
+              {isSubscribed ? "Alerts on" : "Enable alerts"}
+            </Button>
+          )}
         </div>
 
         {isLoading ? (

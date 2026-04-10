@@ -141,6 +141,13 @@
       "when": 1775825182523,
       "tag": "0019_superb_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1775834836233,
+      "tag": "0020_first_stellaris",
+      "breakpoints": true
     }
   ]
 }

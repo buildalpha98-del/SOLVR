@@ -59,6 +59,7 @@ import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { portalJobsProcedures } from "./portalJobs";
+import { portalPushProcedures } from "./portalPush";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -564,6 +565,9 @@ export const portalRouter = router({
 
   // ─── Extended Job Procedures ────────────────────────────────────────────────
   ...portalJobsProcedures,
+
+  // ─── Push Notifications ────────────────────────────────────────────────────
+  ...portalPushProcedures,
 
   // ─── Calendar ──────────────────────────────────────────────────────────────
 
