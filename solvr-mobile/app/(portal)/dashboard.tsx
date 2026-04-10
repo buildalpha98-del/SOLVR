@@ -15,30 +15,28 @@ import {
   borderRadius,
   LOGO,
 } from "../../lib/theme";
-import { Card, KPICard, Skeleton, PullRefreshScroll, Badge } from "../../components/ui";
+import { KPICard, Skeleton, PullRefreshScroll, Badge } from "../../components/ui";
 
 interface CallVolume {
   date: string;
   count: number;
 }
 
-interface RecentCall {
-  id: string;
-  type: string;
-  title: string;
-  body: string;
-  createdAt: string;
-}
-
+/**
+ * Mirrors server/routers/portal.ts → `getDashboard` procedure response.
+ * Keep in sync with that return object.
+ */
 interface DashboardData {
   totalCalls: number;
   callsThisMonth: number;
+  callVolumeChart: CallVolume[];
+  totalJobs: number;
   activeJobs: number;
   wonJobs: number;
+  potentialRevenue: number;
   wonRevenue: number;
-  pipelineRevenue: number;
-  callVolumeByDay: CallVolume[];
-  recentCalls: RecentCall[];
+  avgJobValue: number;
+  plan: string;
   features: string[];
 }
 
@@ -51,30 +49,6 @@ function formatCurrency(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
   return `$${value.toLocaleString()}`;
-}
-
-function formatRelativeDate(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function callTypeBadgeColor(type: string): string {
-  switch (type.toLowerCase()) {
-    case "inbound":
-      return colors.success;
-    case "outbound":
-      return colors.primary;
-    case "missed":
-      return colors.danger;
-    default:
-      return colors.textSecondary;
-  }
 }
 
 function CallVolumeChart({ data }: { data: CallVolume[] }) {
@@ -258,32 +232,32 @@ export default function DashboardScreen() {
               <View style={styles.kpiCell}>
                 <KPICard
                   label="Total Calls"
-                  value={dashboard.totalCalls.toLocaleString()}
+                  value={(dashboard.totalCalls ?? 0).toLocaleString()}
                 />
               </View>
               <View style={styles.kpiCell}>
                 <KPICard
                   label="This Month"
-                  value={dashboard.callsThisMonth.toLocaleString()}
+                  value={(dashboard.callsThisMonth ?? 0).toLocaleString()}
                 />
               </View>
               <View style={styles.kpiCell}>
                 <KPICard
                   label="Active Jobs"
-                  value={dashboard.activeJobs.toLocaleString()}
+                  value={(dashboard.activeJobs ?? 0).toLocaleString()}
                 />
               </View>
               <View style={styles.kpiCell}>
                 <KPICard
                   label="Won Revenue"
-                  value={formatCurrency(dashboard.wonRevenue)}
+                  value={formatCurrency(dashboard.wonRevenue ?? 0)}
                   color={colors.success}
                 />
               </View>
             </View>
 
-            {dashboard.callVolumeByDay.length > 0 && (
-              <CallVolumeChart data={dashboard.callVolumeByDay} />
+            {dashboard.callVolumeChart && dashboard.callVolumeChart.length > 0 && (
+              <CallVolumeChart data={dashboard.callVolumeChart} />
             )}
 
             {hasFeature("ai-insights") && insight && (
@@ -301,33 +275,6 @@ export default function DashboardScreen() {
                   })}
                 </Text>
               </View>
-            )}
-
-            <Text style={styles.sectionTitle}>Recent Calls</Text>
-            {dashboard.recentCalls.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No recent calls yet.</Text>
-              </View>
-            ) : (
-              dashboard.recentCalls.map((call) => (
-                <Card key={call.id} style={styles.callCard}>
-                  <View style={styles.callCardHeader}>
-                    <Text style={styles.callTitle} numberOfLines={1}>
-                      {call.title}
-                    </Text>
-                    <Badge
-                      label={call.type}
-                      color={callTypeBadgeColor(call.type)}
-                    />
-                  </View>
-                  <Text style={styles.callBody} numberOfLines={2}>
-                    {call.body}
-                  </Text>
-                  <Text style={styles.callTime}>
-                    {formatRelativeDate(call.createdAt)}
-                  </Text>
-                </Card>
-              ))
             )}
           </View>
         ) : null}
