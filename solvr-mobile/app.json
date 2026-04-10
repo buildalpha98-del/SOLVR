@@ -40,7 +40,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -80,6 +81,15 @@
           "microphonePermission": "Solvr uses your microphone to record job details for voice-to-quote generation."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": "https://solvr.com.au"
+      },
+      "eas": {
+        "projectId": "85aaa191-4fb0-49a3-b520-c5417145fd0c"
+      }
+    },
+    "owner": "solvr"
   }
 }
