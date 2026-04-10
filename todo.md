@@ -178,3 +178,9 @@
 - [ ] Build ConsoleReporting page (/console/reporting) with KPI cards, plan breakdown chart, MRR trend, churn table
 - [ ] Add Reporting nav item to ConsoleLayout sidebar
 - [ ] Add /console/reporting route to App.tsx
+
+## Invoice PDF Generation & Photo Upload (Apr 2026)
+- [x] Build invoice PDF template (bank details, ABN, line items, GST, cash paid flag)
+- [x] Upload invoice PDF to S3 and store URL on portalInvoices record
+- [x] Email invoice PDF to customer on generation
+- [x] Wire before/after photo upload UI in PortalJobDetail (S3 upload, preview, delete)

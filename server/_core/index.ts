@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe";
 import { handleVapiWebhook } from "../vapiWebhook";
 import { audioUploadRouter } from "../audioUpload";
+import { photoUploadRouter } from "../photoUpload";
 import { registerMonthlyCallReportCron } from "../cron/monthlyCallReport";
 import { registerSessionExpiryWarningCron } from "../cron/sessionExpiryWarning";
 import { scheduleInvoiceChasingCron } from "../cron/invoiceChasing";
@@ -49,6 +50,8 @@ async function startServer() {
   // Audio upload for Voice-to-Quote (multipart/form-data) — register BEFORE json middleware
   // Mount at /api so the full path becomes /api/portal/upload-audio (matching the frontend fetch call)
   app.use("/api", audioUploadRouter);
+  // Photo upload for job before/after photos
+  app.use("/api", photoUploadRouter);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

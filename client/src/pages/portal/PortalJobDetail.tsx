@@ -117,6 +117,110 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
   );
 }
 
+// ─── Photo Section ──────────────────────────────────────────────────────────
+type JobPhoto = { id: number; photoType: string; imageUrl: string; caption: string | null };
+
+function PhotoSection({
+  jobId,
+  beforePhotos,
+  afterPhotos,
+  onRefresh,
+}: {
+  jobId: number;
+  beforePhotos: JobPhoto[];
+  afterPhotos: JobPhoto[];
+  onRefresh: () => void;
+}) {
+  const [uploading, setUploading] = useState<"before" | "after" | null>(null);
+
+  const addPhoto = trpc.portal.addJobPhoto.useMutation({
+    onSuccess: () => { onRefresh(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const removePhoto = trpc.portal.removeJobPhoto.useMutation({
+    onSuccess: () => { onRefresh(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>, photoType: "before" | "after") {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB"); return; }
+    setUploading(photoType);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("photoType", photoType);
+      const res = await fetch("/api/portal/upload-photo", { method: "POST", credentials: "include", body: fd });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
+      const { url } = await res.json() as { url: string };
+      addPhoto.mutate({ jobId, photoType, imageUrl: url });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(null);
+      e.target.value = "";
+    }
+  }
+
+  function PhotoGrid({ photos, type }: { photos: JobPhoto[]; type: "before" | "after" }) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
+            {type === "before" ? "Before" : "After"} ({photos.length})
+          </p>
+          <label className="cursor-pointer">
+            <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
+            {uploading === type ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#F5A623" }} />
+            ) : (
+              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded" style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}>
+                <Plus className="w-3 h-3" /> Add
+              </span>
+            )}
+          </label>
+        </div>
+        {photos.length === 0 ? (
+          <label className="cursor-pointer block">
+            <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
+            <div className="rounded-lg flex flex-col items-center justify-center h-24 gap-1 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.25)" }}>
+              <Camera className="w-4 h-4" />
+              Click to upload
+            </div>
+          </label>
+        ) : (
+          <div className="grid grid-cols-2 gap-1.5">
+            {photos.map(p => (
+              <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "4/3" }}>
+                <img src={p.imageUrl} alt={p.caption ?? type} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => removePhoto.mutate({ id: p.id })}
+                  className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: "rgba(239,68,68,0.85)" }}
+                >
+                  <Trash2 className="w-2.5 h-2.5 text-white" />
+                </button>
+                {p.caption && <p className="absolute bottom-0 left-0 right-0 text-[10px] px-1.5 py-1 truncate" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>{p.caption}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+      <div className="grid grid-cols-2 gap-4">
+        <PhotoGrid photos={beforePhotos} type="before" />
+        <PhotoGrid photos={afterPhotos} type="after" />
+      </div>
+    </SectionCard>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PortalJobDetail() {
   const [, params] = useRoute("/portal/jobs/:id");
@@ -451,47 +555,12 @@ export default function PortalJobDetail() {
         </SectionCard>
 
         {/* ── Before/After Photos ── */}
-        <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Before ({beforePhotos.length})</p>
-              {beforePhotos.length === 0 ? (
-                <div className="rounded-lg flex items-center justify-center h-24 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.25)" }}>
-                  No before photos
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {beforePhotos.map(p => (
-                    <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "4/3" }}>
-                      <img src={p.imageUrl} alt={p.caption ?? "Before"} className="w-full h-full object-cover" />
-                      {p.caption && <p className="absolute bottom-0 left-0 right-0 text-[10px] px-1.5 py-1 truncate" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>{p.caption}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>After ({afterPhotos.length})</p>
-              {afterPhotos.length === 0 ? (
-                <div className="rounded-lg flex items-center justify-center h-24 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.25)" }}>
-                  No after photos
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-1.5">
-                  {afterPhotos.map(p => (
-                    <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "4/3" }}>
-                      <img src={p.imageUrl} alt={p.caption ?? "After"} className="w-full h-full object-cover" />
-                      {p.caption && <p className="absolute bottom-0 left-0 right-0 text-[10px] px-1.5 py-1 truncate" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>{p.caption}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          <p className="text-xs text-center pt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Photo upload coming soon — contact support to add photos manually.
-          </p>
-        </SectionCard>
+        <PhotoSection
+          jobId={jobId}
+          beforePhotos={beforePhotos}
+          afterPhotos={afterPhotos}
+          onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
+        />
 
         {/* ── Completion ── */}
         {(job.stage === "completed" || job.completedAt) ? (

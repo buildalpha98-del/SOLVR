@@ -4,9 +4,16 @@
  */
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import React from "react";
+import { renderToBuffer, Document } from "@react-pdf/renderer";
 import { publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getPortalClient } from "./portalAuth";
+import { storagePut } from "../storage";
+import { sendEmail } from "../_core/email";
+import { fetchImageBuffer } from "../_core/pdfGeneration";
+import { InvoiceDocument } from "../_core/InvoiceDocument";
+import { getClientProfile } from "../db";
 import {
   getPortalJob,
   updatePortalJob,
@@ -224,15 +231,20 @@ export const portalJobsProcedures = {
     }),
 
   /**
-   * Generate an invoice for a job — creates invoice number, sets invoiceStatus to 'draft'.
+   * Generate an invoice for a job — creates PDF, uploads to S3, optionally emails customer.
+   * Sets invoiceStatus to 'sent' if email is provided, otherwise 'draft'.
    */
   generateInvoice: publicProcedure
     .input(z.object({
       jobId: z.number(),
       customerName: z.string().optional(),
       customerEmail: z.string().optional(),
-      invoicedAmount: z.number().int().optional(),
+      invoicedAmount: z.number().int().optional(), // total in cents
       paymentMethod: z.enum(["bank_transfer", "cash", "stripe", "other"]).optional(),
+      isCashPaid: z.boolean().optional(),
+      notes: z.string().optional(),
+      dueDate: z.string().optional(), // ISO date string
+      sendEmail: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
@@ -242,18 +254,142 @@ export const portalJobsProcedures = {
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
       }
+
+      // Fetch client profile for branding + bank details
+      const profile = await getClientProfile(client.id);
+
+      // Fetch line items from linked quote
+      let lineItems: { description: string; quantity: string; unit: string | null; unitPrice: string | null; lineTotal: string | null }[] = [];
+      if (job.sourceQuoteId) {
+        const rawItems = await listQuoteLineItems(job.sourceQuoteId);
+        lineItems = rawItems.map((li) => ({
+          description: li.description,
+          quantity: String(li.quantity ?? 1),
+          unit: li.unit ?? null,
+          unitPrice: li.unitPrice ? String(li.unitPrice) : null,
+          lineTotal: li.lineTotal ? String(li.lineTotal) : null,
+        }));
+      }
+
+      // Fetch progress payments
+      const progressPayments = await listJobProgressPayments(input.jobId);
+
+      // Calculate totals
+      const totalCents = input.invoicedAmount ?? (job.actualValue ? Math.round(job.actualValue * 100) : 0);
+      const gstCents = Math.round(totalCents / 11); // GST inclusive (10% of 110%)
+      const subtotalCents = totalCents - gstCents;
+      const amountPaidCents = progressPayments.reduce((sum, p) => sum + p.amountCents, 0);
+      const balanceDueCents = Math.max(0, totalCents - amountPaidCents);
+
       const invoiceNumber = `INV-${String(Date.now()).slice(-6)}`;
+      const now = new Date();
+
+      // Fetch logo buffer if available
+      let logoBuffer: Buffer | null = null;
+      if (profile?.logoUrl) logoBuffer = await fetchImageBuffer(profile.logoUrl);
+
+      // Build PDF input
+      const pdfInput = {
+        invoice: {
+          invoiceNumber,
+          jobTitle: job.jobType ?? job.description ?? "Job",
+          jobDescription: job.description ?? null,
+          customerName: input.customerName ?? job.customerName ?? job.callerName ?? null,
+          customerEmail: input.customerEmail ?? job.customerEmail ?? null,
+          customerPhone: job.customerPhone ?? job.callerPhone ?? null,
+          customerAddress: job.customerAddress ?? job.location ?? null,
+          invoicedAt: now.toISOString(),
+          dueDate: input.dueDate ?? null,
+          subtotalCents,
+          gstCents,
+          totalCents,
+          amountPaidCents,
+          balanceDueCents,
+          paymentMethod: input.paymentMethod ?? "bank_transfer" as const,
+          isCashPaid: input.isCashPaid ?? false,
+          notes: input.notes ?? null,
+        },
+        lineItems,
+        progressPayments: progressPayments.map((p) => ({
+          label: p.label ?? null,
+          amountCents: p.amountCents,
+          method: p.method,
+          receivedAt: p.receivedAt instanceof Date ? p.receivedAt.toISOString() : String(p.receivedAt),
+        })),
+        branding: {
+          businessName: profile?.tradingName ?? client.businessName ?? "Your Business",
+          abn: profile?.abn ?? null,
+          phone: profile?.phone ?? null,
+          address: profile?.address ?? null,
+          logoBuffer,
+          primaryColor: profile?.primaryColor ?? "#1F2937",
+          secondaryColor: profile?.secondaryColor ?? "#2563EB",
+          bankName: profile?.bankName ?? null,
+          bankAccountName: profile?.bankAccountName ?? null,
+          bankBsb: profile?.bankBsb ?? null,
+          bankAccountNumber: profile?.bankAccountNumber ?? null,
+        },
+      };
+
+      // Render PDF
+      const element = React.createElement(InvoiceDocument, { input: pdfInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+      const pdfBuffer = Buffer.from(await renderToBuffer(element));
+
+      // Upload to S3
+      const { url: pdfUrl } = await storagePut(
+        `invoices/${client.id}/${invoiceNumber}-${Date.now()}.pdf`,
+        pdfBuffer,
+        "application/pdf",
+      );
+
+      // Determine invoice status
+      const recipientEmail = input.customerEmail ?? job.customerEmail ?? null;
+      const shouldSendEmail = input.sendEmail && !!recipientEmail;
+      const invoiceStatus = shouldSendEmail ? "sent" : (input.isCashPaid ? "paid" : "draft");
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await updatePortalJob(input.jobId, {
         invoiceNumber,
-        invoiceStatus: "draft",
-        invoicedAt: new Date(),
-        invoicedAmount: input.invoicedAmount ?? (job.actualValue ? job.actualValue * 100 : undefined),
+        invoiceStatus,
+        invoicedAt: now,
+        invoicedAmount: totalCents,
         paymentMethod: input.paymentMethod,
         customerName: input.customerName ?? job.customerName ?? undefined,
-        customerEmail: input.customerEmail ?? job.customerEmail ?? undefined,
+        customerEmail: recipientEmail ?? undefined,
+        invoicePdfUrl: pdfUrl,
+        paidAt: input.isCashPaid ? now : undefined,
+        amountPaid: input.isCashPaid ? totalCents : undefined,
       } as any);
-      return { success: true, invoiceNumber };
+
+      // Send email if requested
+      if (shouldSendEmail && recipientEmail) {
+        const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
+        const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
+<h2 style="color:#1F2937">Tax Invoice ${invoiceNumber}</h2>
+<p>Hi ${pdfInput.invoice.customerName ?? "there"},</p>
+<p>Please find your invoice attached for <strong>${pdfInput.invoice.jobTitle}</strong>.</p>
+<p><strong>Total: $${(totalCents / 100).toFixed(2)} (inc. GST)</strong></p>
+${balanceDueCents > 0 ? `<p><strong>Balance Due: $${(balanceDueCents / 100).toFixed(2)}</strong></p>` : "<p style='color:#16A34A'><strong>Paid in Full</strong></p>"}
+${profile?.bankBsb ? `<div style="background:#F0FDF4;border-left:4px solid #16A34A;padding:16px;border-radius:4px;margin:16px 0">
+<p style="margin:0 0 8px;font-weight:bold;color:#15803D">Payment Details</p>
+${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` : ""}
+<p style="margin:0 0 4px">Account Name: ${profile.bankAccountName}</p>
+<p style="margin:0 0 4px">BSB: ${profile.bankBsb}</p>
+<p style="margin:0 0 4px">Account Number: ${profile.bankAccountNumber}</p>
+<p style="margin:0;font-weight:bold">Reference: ${invoiceNumber}</p>
+</div>` : ""}
+<p style="color:#6B7280;font-size:13px">Powered by <a href="https://solvr.com.au" style="color:#6B7280">Solvr</a></p>
+</body></html>`;
+        await sendEmail({
+          to: recipientEmail,
+          subject: `Invoice ${invoiceNumber} from ${businessName}`,
+          html,
+          fromName: businessName,
+          attachments: [{ filename: `${invoiceNumber}.pdf`, content: pdfBuffer }],
+        });
+      }
+
+      return { success: true, invoiceNumber, pdfUrl, sent: shouldSendEmail };
     }),
 
   /**

@@ -120,6 +120,13 @@
       "when": 1775819253102,
       "tag": "0016_mighty_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1775820530532,
+      "tag": "0017_common_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

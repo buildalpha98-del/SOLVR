@@ -951,7 +951,17 @@ export const clientProfiles = mysqlTable("client_profiles", {
   validityDays: int("validityDays").default(30),
   defaultNotes: text("defaultNotes"),
 
-  // ── Meta ────────────────────────────────────────────────────────────────────
+  // ── Section 6: Banking & Payment Details ───────────────────────────────────────────────
+  /** BSB number for bank transfer payments (e.g. 062-000) */
+  bankBsb: varchar("bankBsb", { length: 20 }),
+  /** Bank account number */
+  bankAccountNumber: varchar("bankAccountNumber", { length: 50 }),
+  /** Account name as it appears on the bank account */
+  bankAccountName: varchar("bankAccountName", { length: 255 }),
+  /** Bank name (e.g. Commonwealth Bank, ANZ) */
+  bankName: varchar("bankName", { length: 100 }),
+
+  // ── Meta ────────────────────────────────────────────────────────────────────────────────
   /** Has the client completed the onboarding wizard? */
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
