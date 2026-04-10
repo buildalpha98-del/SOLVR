@@ -40,9 +40,14 @@ interface DashboardData {
   features: string[];
 }
 
+/**
+ * Backend `portal.getWeeklyInsight` currently returns `{ insight: string }` only.
+ * `generatedAt` is not returned — keep it optional so the "Generated ..." meta line
+ * quietly hides when missing.
+ */
 interface WeeklyInsightData {
   insight: string;
-  generatedAt: string;
+  generatedAt?: string;
 }
 
 function formatCurrency(value: number): string {
@@ -267,13 +272,15 @@ export default function DashboardScreen() {
                   <Badge label="AI" color={colors.primary} />
                 </View>
                 <Text style={styles.insightBody}>{insight.insight}</Text>
-                <Text style={styles.insightMeta}>
-                  Generated{" "}
-                  {new Date(insight.generatedAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </Text>
+                {insight.generatedAt ? (
+                  <Text style={styles.insightMeta}>
+                    Generated{" "}
+                    {new Date(insight.generatedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                ) : null}
               </View>
             )}
           </View>
