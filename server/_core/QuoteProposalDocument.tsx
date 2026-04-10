@@ -200,6 +200,41 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   notesText: { fontSize: 10, color: "#92400E", lineHeight: 1.5 },
+  // Signature block
+  signatureBlock: {
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    flexDirection: "row",
+    gap: 24,
+  },
+  signatureItem: { flex: 1 },
+  signatureLabel: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 8,
+    color: "#6B7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 20,
+  },
+  signatureLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#D1D5DB",
+    marginBottom: 4,
+  },
+  signatureSubLabel: { fontSize: 8, color: "#9CA3AF" },
+  // Accept CTA box
+  acceptBox: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  acceptBoxText: { fontSize: 9, color: "#FFFFFF", fontFamily: "Helvetica-Bold" },
+  acceptBoxUrl: { fontSize: 8, color: "rgba(255,255,255,0.75)" },
   // Footer
   footer: {
     position: "absolute",
@@ -266,7 +301,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: "#2563EB",
+    backgroundColor: "#2563EB", // overridden inline with accent
     alignItems: "center",
     justifyContent: "center",
   },
@@ -345,6 +380,7 @@ function formatDate(d: Date | string | null | undefined): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface QuoteProposalPdfInput {
+  acceptUrl?: string | null;
   quote: {
     quoteNumber: string;
     jobTitle: string;
@@ -511,6 +547,28 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {quote.notes && (
           <View style={styles.notesBox}>
             <Text style={styles.notesText}>{quote.notes}</Text>
+          </View>
+        )}
+
+        {/* Signature / Acceptance block */}
+        <View style={styles.signatureBlock}>
+          <View style={styles.signatureItem}>
+            <Text style={styles.signatureLabel}>Customer Signature</Text>
+            <View style={styles.signatureLine} />
+            <Text style={styles.signatureSubLabel}>Signature / Date</Text>
+          </View>
+          <View style={styles.signatureItem}>
+            <Text style={styles.signatureLabel}>Authorised By ({branding.businessName})</Text>
+            <View style={styles.signatureLine} />
+            <Text style={styles.signatureSubLabel}>Signature / Date</Text>
+          </View>
+        </View>
+
+        {/* Accept online CTA */}
+        {input.acceptUrl && (
+          <View style={[styles.acceptBox, { backgroundColor: accent }]}>
+            <Text style={styles.acceptBoxText}>✓  Accept this quote online</Text>
+            <Text style={styles.acceptBoxUrl}>{input.acceptUrl}</Text>
           </View>
         )}
       </View>

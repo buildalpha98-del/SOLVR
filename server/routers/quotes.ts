@@ -462,7 +462,13 @@ export const quotesRouter = router({
         ...photos.map((p) => fetchImageBuffer(p.imageUrl)),
       ]);
 
+      // Build the customer-facing accept URL so it appears in the PDF
+      const acceptUrl = quote.customerToken
+        ? `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`
+        : null;
+
       const pdfBuffer = await generateQuotePdf({
+        acceptUrl,
         quote: {
           quoteNumber: quote.quoteNumber,
           jobTitle: quote.jobTitle,

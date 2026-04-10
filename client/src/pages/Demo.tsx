@@ -764,7 +764,7 @@ export default function Home() {
               </div>
               <div className="p-4 min-h-[200px]">
                 {booking ? (
-                  <JobCard booking={booking} />
+                  <JobCard booking={booking} businessName={persona.businessName} ownerName={persona.ownerName} />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-40 gap-3 text-slate-600">
                     <div className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center">
