@@ -311,7 +311,7 @@ ios/build/
 - `cd client && npm run build && npx cap sync ios` exits 0
 - `npx cap open ios` launches Xcode
 
-**Dependencies:** Unit 0 (for CORS) should be complete or in progress. Unit 1 is NOT a dependency.
+**Dependencies:** Unit 0 **must be complete and verified** before Unit 2's verification step 4 (login in simulator). Unit 0 can be in progress in parallel with Unit 2's steps 1-3 (install/scaffold/open Xcode), but simulator login will fail with CORS errors if Unit 0 isn't deployed to production. Unit 1 is NOT a dependency.
 
 **Verification:**
 1. Open Xcode via `npx cap open ios`
@@ -340,7 +340,7 @@ ios/build/
 | `@capacitor/splash-screen` | Splash screen control | ✅ wired in Unit 5 |
 | `@capacitor/app` | App lifecycle events (background, foreground, open settings) | ✅ available for error fallback UIs |
 | `@capacitor/haptics` | Haptic feedback on tap/success | ✅ optional, wire if time permits |
-| `@capacitor-community/voice-recorder` | Audio recording for voice-to-quote | ✅ wired in Unit 4 |
+| `capacitor-voice-recorder` | Audio recording for voice-to-quote | ✅ wired in Unit 4 |
 | `@capacitor/assets` (dev dependency) | Icon + splash image generator CLI | ✅ used in Unit 5 |
 
 **Plugins explicitly NOT installed in v1:**
@@ -354,7 +354,7 @@ ios/build/
 cd ~/Developer/SOLVR/client
 npm install @capacitor/camera @capacitor/preferences @capacitor/status-bar \
             @capacitor/splash-screen @capacitor/app @capacitor/haptics \
-            @capacitor-community/voice-recorder
+            capacitor-voice-recorder
 npm install --save-dev @capacitor/assets
 npx cap sync ios
 ```
@@ -560,11 +560,27 @@ The runtime `window.location.origin === "capacitor://localhost"` check is a safe
 
 **Manus coordination note:** This edits `client/src/lib/trpcClient.ts` (or wherever the tRPC client lives). Before Claude Code makes this edit, Jayden sends a one-sentence note to Manus: "Claude Code is adding a VITE_API_URL env var detection to the tRPC client for Capacitor builds. Pattern is `import.meta.env.VITE_API_URL || (capacitor detection) || relative`. Please don't overwrite."
 
+**Finding the existing call sites to swap (execution-time discovery):**
+
+The spec does NOT name the existing files that need to be modified because they belong to Manus's web portal and may change as Manus ships features. At execution time, Claude Code locates them via:
+
+```bash
+cd ~/Developer/SOLVR/client
+# Voice recording call sites
+grep -rn "new MediaRecorder\|navigator\.mediaDevices\.getUserMedia" src/
+# Photo upload call sites
+grep -rn "<input[^>]*type=[\"']file[\"']\|accept=[\"']image" src/
+# tRPC client file
+grep -rn "createTRPCClient\|httpBatchLink" src/lib/
+```
+
+Each hit is migrated to use the new abstractions in the same commit so the web version continues to work identically while gaining native support in Capacitor builds.
+
 **Interface:** After this unit:
 - `client/src/lib/native/platform.ts`, `voiceRecorder.ts`, `photoPicker.ts` exist
-- Existing voice-to-quote code in the web portal imports `startVoiceRecording` from `lib/native/voiceRecorder.ts` (one-line swap)
-- Existing photo-upload code imports `pickPhoto` from `lib/native/photoPicker.ts` (one-line swap)
-- tRPC client uses the absolute API URL when running in Capacitor
+- The file(s) that previously instantiated `MediaRecorder` directly now call `startVoiceRecording` from `lib/native/voiceRecorder.ts`
+- The file(s) that previously used `<input type="file">` for image upload now call `pickPhoto` from `lib/native/photoPicker.ts`
+- The tRPC client file uses the absolute API URL when running in Capacitor
 - Session persistence is verified working on the simulator
 
 **Dependencies:** Units 0, 2, 3.
@@ -633,6 +649,8 @@ useEffect(() => {
 ```
 
 **No push notification entitlement in v1** (`aps-environment` is NOT added to the entitlements file). This means the app cannot receive push notifications, which matches the v1 scope.
+
+**iPad handling:** Capacitor builds run on iPad by default (universal app). The web portal's responsive layout means tradies with iPads get a larger working area, but the bottom tab bar (added in Unit 1 at `<768px`) only shows in portrait-phone widths; larger iPad viewports fall back to the hamburger menu, which is acceptable. If testing reveals iPad-specific layout bugs, add `UIDeviceFamily = [1]` to `Info.plist` to restrict v1 to iPhone-only and defer iPad polish to a follow-up spec. **Default: allow iPad, use the responsive layout, fix bugs if Apple review flags any.**
 
 **Interface:** After this unit, the installed app has:
 - SOLVR dark-navy icon on home screen
