@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Plus, DollarSign, X, Loader2, Lock, ChevronRight,
   LayoutGrid, List, Search, MapPin, Phone, Calendar,
+  Sparkles, ArrowRight,
 } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
@@ -332,15 +333,69 @@ export default function PortalJobs() {
   });
 
   if (!features.includes("jobs")) {
+    const jobFeatures = [
+      { icon: "📋", title: "Job Pipeline Board", desc: "Kanban view — drag leads from New → Quoted → Booked → Completed" },
+      { icon: "💰", title: "Revenue Tracking", desc: "Live pipeline value and revenue won at a glance" },
+      { icon: "📄", title: "Completion Reports", desc: "Auto-generated PDF reports you can send directly to customers" },
+      { icon: "🧾", title: "Invoice Generation", desc: "Create and send invoices from completed jobs in one click" },
+      { icon: "📸", title: "Before & After Photos", desc: "Attach job photos to build trust and win repeat business" },
+    ];
     return (
       <PortalLayout activeTab="jobs">
-        <div className="flex flex-col items-center justify-center py-24 text-center max-w-sm mx-auto">
-          <Lock className="w-12 h-12 mb-4" style={{ color: "#F5A623" }} />
-          <h2 className="text-xl font-bold text-white mb-2">Job Pipeline</h2>
-          <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Track every lead from first call to completed job. See your pipeline value, drag jobs between stages, and know exactly what's in the works.
-          </p>
-          <UpgradeButton plan="professional" label="Upgrade Your Plan" size="lg" />
+        <div className="max-w-2xl mx-auto py-10 space-y-6">
+          {/* Banner */}
+          <div
+            className="rounded-2xl p-6"
+            style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)" }}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "rgba(245,166,35,0.15)" }}
+              >
+                <Sparkles className="w-6 h-6" style={{ color: "#F5A623" }} />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-1">Unlock your Job Pipeline</h2>
+                <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Your AI receptionist is already capturing leads — upgrade to track every job from first call to paid invoice, all in one place.
+                </p>
+                <div className="mt-4">
+                  <UpgradeButton plan="professional" label="Upgrade to Starter — from $99/mo" size="lg" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature list */}
+          <div className="space-y-2">
+            {jobFeatures.map(f => (
+              <div
+                key={f.title}
+                className="flex items-start gap-3 rounded-xl px-4 py-3"
+                style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <span className="text-xl shrink-0 mt-0.5">{f.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-white">{f.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{f.desc}</p>
+                </div>
+                <Lock className="w-3.5 h-3.5 shrink-0 ml-auto mt-1" style={{ color: "rgba(255,255,255,0.2)" }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Secondary CTA */}
+          <div className="text-center">
+            <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>Questions? Chat with us anytime.</p>
+            <a
+              href="mailto:hello@solvr.com.au"
+              className="inline-flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: "#F5A623" }}
+            >
+              hello@solvr.com.au <ArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </PortalLayout>
     );

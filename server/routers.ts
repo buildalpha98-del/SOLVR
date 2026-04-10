@@ -24,6 +24,7 @@ import { checklistRouter } from "./routers/checklist";
 import { portalRouter } from "./routers/portal";
 import { referralRouter } from "./routers/referral";
 import { adminPortalRouter } from "./routers/adminPortal";
+import { adminReferralRouter } from "./routers/adminReferral";
 import { quotesRouter } from "./routers/quotes";
 import { publicQuotesRouter } from "./routers/publicQuotes";
 import { portalInvoiceChasingRouter, adminInvoiceChasingRouter } from "./routers/invoiceChasing";
@@ -1434,6 +1435,7 @@ export const appRouter = router({
   portal: portalRouter,
   referral: referralRouter,
   adminPortal: adminPortalRouter,
+  adminReferral: adminReferralRouter,
   quotes: quotesRouter,
   publicQuotes: publicQuotesRouter,
   invoiceChasing: portalInvoiceChasingRouter,

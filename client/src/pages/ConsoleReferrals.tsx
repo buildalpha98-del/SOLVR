@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle } from "lucide-react";
+import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award } from "lucide-react";
 
 const APP_ORIGIN = window.location.origin;
 
@@ -304,7 +304,120 @@ export default function ConsoleReferrals() {
         </div>
       </div>
 
+      {/* ─── Tradie-to-Tradie Referral Programme ─────────────────────────────── */}
+      <TradieProgrammeSection />
+
       <AddPartnerModal open={showAdd} onClose={() => setShowAdd(false)} onSuccess={() => utils.referral.listPartners.invalidate()} />
     </DashboardLayout>
+  );
+}
+
+// ─── Tradie Programme Section ─────────────────────────────────────────────────
+function statusBadge(status: string) {
+  if (status === "rewarded") return <Badge className="bg-green-100 text-green-700 border-green-200">Rewarded</Badge>;
+  if (status === "converted") return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Converted</Badge>;
+  return <Badge variant="secondary">Pending</Badge>;
+}
+
+function TradieProgrammeSection() {
+  const { data: summary, isLoading: summaryLoading } = trpc.adminReferral.getTradieProgrammeSummary.useQuery();
+  const { data: referrals = [], isLoading } = trpc.adminReferral.listTradieProgramme.useQuery();
+
+  return (
+    <div className="space-y-6 border-t pt-8">
+      {/* Section header */}
+      <div>
+        <h2 className="text-xl font-display font-bold flex items-center gap-2">
+          <Gift className="w-5 h-5 text-amber-500" />
+          Tradie Referral Programme
+        </h2>
+        <p className="text-muted-foreground text-sm mt-1">
+          Tradie-to-tradie referrals — when a referred tradie pays their first invoice, the referrer gets 20% off their next bill.
+        </p>
+      </div>
+
+      {/* Summary cards */}
+      {!summaryLoading && summary && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {[
+            { icon: Users, label: "Total Referred", value: summary.total },
+            { icon: Clock, label: "Pending", value: summary.pending },
+            { icon: TrendingUp, label: "Converted", value: summary.converted },
+            { icon: Award, label: "Rewarded", value: summary.rewarded },
+            { icon: Gift, label: "Pending Discounts", value: summary.clientsWithPendingDiscount },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border p-4 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs font-medium">
+                <s.icon className="w-3.5 h-3.5" />
+                {s.label}
+              </div>
+              <div className="text-2xl font-display font-bold">{s.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Referral table */}
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Referrer</TableHead>
+              <TableHead>Ref Code</TableHead>
+              <TableHead>Referee</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Pending Discount</TableHead>
+              <TableHead>Referred</TableHead>
+              <TableHead>Converted</TableHead>
+              <TableHead>Rewarded</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>
+            )}
+            {!isLoading && referrals.length === 0 && (
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No tradie referrals yet. Share the portal link with clients to get started.</TableCell></TableRow>
+            )}
+            {referrals.map((r) => (
+              <TableRow key={r.id}>
+                <TableCell>
+                  <div className="font-medium">{r.referrer?.businessName ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground">{r.referrer?.contactName ?? ""}</div>
+                </TableCell>
+                <TableCell>
+                  <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">
+                    {r.referrer?.referralCode ?? "—"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">{r.referee?.businessName ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground">{r.referee?.contactName ?? ""}</div>
+                </TableCell>
+                <TableCell>{statusBadge(r.status)}</TableCell>
+                <TableCell>
+                  {(r.referrer?.pendingDiscountPct ?? 0) > 0 ? (
+                    <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                      {r.referrer?.pendingDiscountPct}% off next invoice
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {fmtDate(r.createdAt)}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {r.convertedAt ? fmtDate(r.convertedAt) : "—"}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {r.rewardedAt ? fmtDate(r.rewardedAt) : "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 }
