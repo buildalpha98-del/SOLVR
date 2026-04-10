@@ -41,6 +41,13 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",
         "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
@@ -90,6 +97,12 @@
         "projectId": "85aaa191-4fb0-49a3-b520-c5417145fd0c"
       }
     },
-    "owner": "solvr"
+    "owner": "solvr",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/85aaa191-4fb0-49a3-b520-c5417145fd0c"
+    }
   }
 }
