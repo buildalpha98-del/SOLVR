@@ -3,9 +3,10 @@
  * Available on setup-monthly + full-managed plans.
  */
 import { useState } from "react";
+import { useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { Plus, DollarSign, X, Loader2, Lock } from "lucide-react";
+import { Plus, DollarSign, X, Loader2, Lock, ExternalLink } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 
@@ -36,10 +37,12 @@ function JobCard({
   job,
   onMove,
   onSetValue,
+  onOpen,
 }: {
   job: Job;
   onMove: (id: number, stage: JobStage) => void;
   onSetValue: (id: number, value: number) => void;
+  onOpen: (id: number) => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
   const [valueInput, setValueInput] = useState(
@@ -50,9 +53,18 @@ function JobCard({
 
   return (
     <div
-      className="rounded-lg p-3 space-y-2 cursor-default"
+      className="rounded-lg p-3 space-y-2 cursor-default relative group"
       style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
     >
+      {/* Open detail button */}
+      <button
+        onClick={() => onOpen(job.id)}
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+        style={{ color: "rgba(255,255,255,0.35)", background: "rgba(255,255,255,0.05)" }}
+        title="Open job detail"
+      >
+        <ExternalLink className="w-3 h-3" />
+      </button>
       {/* Job type tag + description */}
       <div>
         <span
@@ -215,7 +227,10 @@ function AddJobModal({
 
 export default function PortalJobs() {
   const [showAdd, setShowAdd] = useState(false);
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+
+  const handleOpen = (id: number) => navigate(`/portal/jobs/${id}`);
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const features = me?.features ?? [];
@@ -363,6 +378,7 @@ export default function PortalJobs() {
                           job={job}
                           onMove={handleMove}
                           onSetValue={handleSetValue}
+                          onOpen={handleOpen}
                         />
                       ))
                     )}
@@ -384,7 +400,7 @@ export default function PortalJobs() {
             </summary>
             <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {byStage("lost").map((job: Job) => (
-                <JobCard key={job.id} job={job} onMove={handleMove} onSetValue={handleSetValue} />
+                <JobCard key={job.id} job={job} onMove={handleMove} onSetValue={handleSetValue} onOpen={handleOpen} />
               ))}
             </div>
           </details>

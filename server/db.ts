@@ -775,3 +775,106 @@ export function buildMemoryContext(profile: ClientProfile, businessName: string)
 
   return lines.join("\n");
 }
+
+// ─── Job Progress Payments ────────────────────────────────────────────────────
+import {
+  jobProgressPayments, JobProgressPayment, InsertJobProgressPayment,
+  jobPhotos, JobPhoto, InsertJobPhoto,
+  tradieCustomers, TradieCustomer, InsertTradieCustomer,
+} from "../drizzle/schema";
+
+export async function listJobProgressPayments(jobId: number): Promise<JobProgressPayment[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobProgressPayments)
+    .where(eq(jobProgressPayments.jobId, jobId))
+    .orderBy(jobProgressPayments.receivedAt);
+}
+
+export async function createJobProgressPayment(data: InsertJobProgressPayment): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(jobProgressPayments).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function deleteJobProgressPayment(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobProgressPayments).where(eq(jobProgressPayments.id, id));
+}
+
+// ─── Job Photos ───────────────────────────────────────────────────────────────
+export async function listJobPhotos(jobId: number): Promise<JobPhoto[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobPhotos)
+    .where(eq(jobPhotos.jobId, jobId))
+    .orderBy(jobPhotos.photoType, jobPhotos.sortOrder);
+}
+
+export async function createJobPhoto(data: InsertJobPhoto): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(jobPhotos).values(data);
+}
+
+export async function deleteJobPhoto(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobPhotos).where(eq(jobPhotos.id, id));
+}
+
+export async function getJobPhoto(id: string): Promise<JobPhoto | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(jobPhotos).where(eq(jobPhotos.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+// ─── Tradie Customers ─────────────────────────────────────────────────────────
+export async function listTradieCustomers(clientId: number): Promise<TradieCustomer[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(tradieCustomers)
+    .where(eq(tradieCustomers.clientId, clientId))
+    .orderBy(desc(tradieCustomers.lastJobAt));
+}
+
+export async function getTradieCustomerByPhone(clientId: number, phone: string): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(tradieCustomers)
+    .where(and(eq(tradieCustomers.clientId, clientId), eq(tradieCustomers.phone, phone)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getTradieCustomerByEmail(clientId: number, email: string): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(tradieCustomers)
+    .where(and(eq(tradieCustomers.clientId, clientId), eq(tradieCustomers.email, email)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createTradieCustomer(data: InsertTradieCustomer): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(tradieCustomers).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function updateTradieCustomer(id: number, data: Partial<InsertTradieCustomer>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tradieCustomers).set(data).where(eq(tradieCustomers.id, id));
+}
+
+export async function getTradieCustomer(id: number): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(tradieCustomers).where(eq(tradieCustomers.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}

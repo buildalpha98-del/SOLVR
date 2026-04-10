@@ -5,6 +5,7 @@ import { getDb } from "./db";
 import { voiceAgentSubscriptions, clientProducts } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq } from "drizzle-orm";
+import { sendEmail } from "./_core/email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 

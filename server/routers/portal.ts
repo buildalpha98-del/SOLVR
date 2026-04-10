@@ -31,6 +31,19 @@ import {
   createPortalJob,
   updatePortalJob,
   deletePortalJob,
+  listJobProgressPayments,
+  createJobProgressPayment,
+  deleteJobProgressPayment,
+  listJobPhotos,
+  createJobPhoto,
+  deleteJobPhoto,
+  getJobPhoto,
+  listTradieCustomers,
+  createTradieCustomer,
+  updateTradieCustomer,
+  getTradieCustomerByPhone,
+  getTradieCustomerByEmail,
+  getTradieCustomer,
   listPortalCalendarEvents,
   createPortalCalendarEvent,
   updatePortalCalendarEvent,
@@ -45,6 +58,7 @@ import { invokeLLM } from "../_core/llm";
 import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { portalJobsProcedures } from "./portalJobs";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -547,6 +561,9 @@ export const portalRouter = router({
       await deletePortalJob(input.id);
       return { success: true };
     }),
+
+  // ─── Extended Job Procedures ────────────────────────────────────────────────
+  ...portalJobsProcedures,
 
   // ─── Calendar ──────────────────────────────────────────────────────────────
 

@@ -165,3 +165,16 @@
 - [x] Add Subscription nav item to PortalLayout
 - [x] Add /portal/subscription route to App.tsx
 - [ ] Add Billing section to PortalSettings (current plan summary + link to subscription page)
+
+## Automated Onboarding Email Sequence (Apr 2026)
+- [ ] Build onboarding email templates (welcome, checklist, 7-day check-in)
+- [ ] Build onboardingEmailSequence cron — scheduled emails at T+0, T+3days, T+7days
+- [ ] Add onboardingEmailsSent tracking to voiceAgentSubscriptions schema + migrate
+- [ ] Wire sequence trigger into Stripe webhook on checkout.session.completed
+- [ ] Write vitest tests for onboarding email sequence
+
+## Console Reporting Dashboard (Apr 2026)
+- [ ] Build reporting tRPC procedures (MRR breakdown, subscriber count, plan split, churn rate, outstanding invoices)
+- [ ] Build ConsoleReporting page (/console/reporting) with KPI cards, plan breakdown chart, MRR trend, churn table
+- [ ] Add Reporting nav item to ConsoleLayout sidebar
+- [ ] Add /console/reporting route to App.tsx

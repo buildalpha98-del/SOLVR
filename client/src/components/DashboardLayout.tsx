@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, GitBranch, CheckSquare, Bot, Wrench, Share2, ClipboardList, KeyRound, FileText, Receipt } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, GitBranch, CheckSquare, Bot, Wrench, Share2, ClipboardList, KeyRound, FileText, Receipt, BarChart2 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -38,6 +38,7 @@ const menuItems = [
   { icon: KeyRound, label: "Portal Access", path: "/console/portal-clients" },
   { icon: FileText, label: "Quotes", path: "/console/quotes" },
   { icon: Receipt, label: "Invoices", path: "/console/invoices" },
+  { icon: BarChart2, label: "Reporting", path: "/console/reporting" },
   { icon: Bot, label: "AI Assistant", path: "/console/ai" },
 ];
 

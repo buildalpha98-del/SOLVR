@@ -406,6 +406,10 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   stripeSessionId: varchar("stripeSessionId", { length: 128 }),
   /** FK to crmClients.id — set when a portal client upgrades via the portal upgrade checkout */
   clientId: int("clientId"),
+  /** Onboarding email sequence tracking */
+  welcomeEmailSentAt: timestamp("welcomeEmailSentAt"),
+  checklistEmailSentAt: timestamp("checklistEmailSentAt"),
+  checkinEmailSentAt: timestamp("checkinEmailSentAt"),
   /** Subscription status */
   status: mysqlEnum("status", ["trialing", "active", "cancelled", "past_due", "incomplete"]).default("trialing").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -560,6 +564,37 @@ export const portalJobs = mysqlTable("portal_jobs", {
   quotedAmount: decimal("quotedAmount", { precision: 10, scale: 2 }),
   /** FK to quotes.id — set when this job was created from an accepted quote */
   sourceQuoteId: varchar("sourceQuoteId", { length: 36 }),
+  // ── Customer details (editable on job card) ───────────────────────────────
+  customerName: varchar("customerName", { length: 255 }),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  customerAddress: varchar("customerAddress", { length: 512 }),
+  // ── Invoice ───────────────────────────────────────────────────────────────
+  /** Invoice number (e.g. INV-0001) — set when invoice is generated */
+  invoiceNumber: varchar("invoiceNumber", { length: 32 }),
+  /** Invoice status */
+  invoiceStatus: mysqlEnum("invoiceStatus", ["not_invoiced", "draft", "sent", "paid", "overdue"]).default("not_invoiced"),
+  /** Total invoiced amount in cents */
+  invoicedAmount: int("invoicedAmount"),
+  /** Total amount paid in cents (sum of progress payments + final payment) */
+  amountPaid: int("amountPaid").default(0),
+  /** Payment method used */
+  paymentMethod: mysqlEnum("paymentMethod", ["bank_transfer", "cash", "stripe", "other"]),
+  /** When the invoice was sent to the customer */
+  invoicedAt: timestamp("invoicedAt"),
+  /** When the job was fully paid */
+  paidAt: timestamp("paidAt"),
+  /** S3 URL of the generated invoice PDF */
+  invoicePdfUrl: varchar("invoicePdfUrl", { length: 512 }),
+  // ── Completion ────────────────────────────────────────────────────────────
+  /** When the job was marked complete by the tradie */
+  completedAt: timestamp("completedAt"),
+  /** Tradie's completion notes / what was actually done */
+  completionNotes: text("completionNotes"),
+  /** Any variations from the original quote */
+  variationNotes: text("variationNotes"),
+  /** Actual time spent on the job (hours, stored as decimal) */
+  actualHours: decimal("actualHours", { precision: 6, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -928,3 +963,100 @@ export const clientProfiles = mysqlTable("client_profiles", {
 });
 export type ClientProfile = typeof clientProfiles.$inferSelect;
 export type InsertClientProfile = typeof clientProfiles.$inferInsert;
+
+// ─── Job Progress Payments ────────────────────────────────────────────────────
+/**
+ * Progress payments recorded against a job.
+ * A job can have multiple progress payments (e.g. deposit, progress claim, final).
+ * These are manually recorded by the tradie — not connected to ATO or accounting software.
+ */
+export const jobProgressPayments = mysqlTable("job_progress_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id (the Solvr client / tradie who owns this job) */
+  clientId: int("clientId").notNull(),
+  /** Amount received in cents (e.g. 50000 = $500.00) */
+  amountCents: int("amountCents").notNull(),
+  /** Payment method */
+  method: mysqlEnum("method", ["bank_transfer", "cash", "stripe", "cheque", "other"]).notNull(),
+  /** Label for this payment (e.g. "Deposit", "Progress claim 1", "Final payment") */
+  label: varchar("label", { length: 255 }),
+  /** Optional note (e.g. "Paid via BSB on 10 Apr") */
+  note: text("note"),
+  /** When the payment was received */
+  receivedAt: timestamp("receivedAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type JobProgressPayment = typeof jobProgressPayments.$inferSelect;
+export type InsertJobProgressPayment = typeof jobProgressPayments.$inferInsert;
+
+// ─── Job Photos ───────────────────────────────────────────────────────────────
+/**
+ * Before and after photos for a job.
+ * Uploaded via the portal at quote stage (before) and completion stage (after).
+ * Included in the job completion report PDF.
+ */
+export const jobPhotos = mysqlTable("job_photos", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Whether this is a before or after photo */
+  photoType: mysqlEnum("photoType", ["before", "after", "during", "other"]).notNull(),
+  /** S3 URL of the full-resolution photo */
+  imageUrl: varchar("imageUrl", { length: 512 }).notNull(),
+  /** S3 key (for deletion) */
+  imageKey: varchar("imageKey", { length: 512 }).notNull(),
+  /** Optional caption */
+  caption: varchar("caption", { length: 255 }),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type JobPhoto = typeof jobPhotos.$inferSelect;
+export type InsertJobPhoto = typeof jobPhotos.$inferInsert;
+
+// ─── Tradie Customers ─────────────────────────────────────────────────────────
+/**
+ * Customer database for each tradie (Solvr client).
+ * Automatically populated when a job is marked as completed and paid.
+ * This is the tradie's own customer list — not connected to Solvr's CRM.
+ * Useful for repeat bookings, referrals, and future email marketing.
+ *
+ * One row per unique customer per Solvr client.
+ * If the same customer has multiple jobs, jobCount and totalSpentCents are updated.
+ */
+export const tradieCustomers = mysqlTable("tradie_customers", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — which Solvr client (tradie) this customer belongs to */
+  clientId: int("clientId").notNull(),
+  // ── Customer details ──────────────────────────────────────────────────────
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  phone: varchar("phone", { length: 50 }),
+  address: varchar("address", { length: 512 }),
+  suburb: varchar("suburb", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  postcode: varchar("postcode", { length: 10 }),
+  // ── Job history ───────────────────────────────────────────────────────────
+  /** Total number of completed jobs for this customer */
+  jobCount: int("jobCount").default(1).notNull(),
+  /** Total amount paid across all jobs in cents */
+  totalSpentCents: int("totalSpentCents").default(0).notNull(),
+  /** Date of first job */
+  firstJobAt: timestamp("firstJobAt"),
+  /** Date of most recent completed job */
+  lastJobAt: timestamp("lastJobAt"),
+  /** Most recent job type (for quick reference) */
+  lastJobType: varchar("lastJobType", { length: 255 }),
+  // ── Notes ─────────────────────────────────────────────────────────────────
+  /** Any notes the tradie has added about this customer */
+  notes: text("notes"),
+  /** Tags for segmentation (e.g. "repeat", "referral", "commercial") */
+  tags: json("tags").$type<string[]>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TradieCustomer = typeof tradieCustomers.$inferSelect;
+export type InsertTradieCustomer = typeof tradieCustomers.$inferInsert;

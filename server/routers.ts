@@ -711,6 +711,47 @@ const crmRouter = router({
     }
     return months;
   }),
+  /**
+   * Full reporting stats for the Console Reporting Dashboard.
+   */
+  getReportingStats: protectedProcedure.query(async () => {
+    const clients = await listCrmClients();
+    const active = clients.filter(c => c.stage === "active");
+    const onboarding = clients.filter(c => c.stage === "onboarding");
+    const churned = clients.filter(c => c.stage === "churned");
+    const churnRisk = clients.filter(c => {
+      // Flag as churn risk if paused, or if healthScore is low (< 40)
+      return c.stage === "paused" || (c.healthScore !== null && c.healthScore !== undefined && c.healthScore < 40);
+    });
+    const totalMrr = active.reduce((s, c) => s + (c.mrr || 0), 0);
+    const starterMrr = active.filter(c => (c.mrr || 0) <= 200).reduce((s, c) => s + (c.mrr || 0), 0);
+    const professionalMrr = active.filter(c => (c.mrr || 0) > 200).reduce((s, c) => s + (c.mrr || 0), 0);
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    const churnedThisMonth = churned.filter(c => new Date(c.updatedAt) > monthAgo).length;
+    const activeAtMonthStart = active.length + churnedThisMonth;
+    const churnRate = activeAtMonthStart > 0 ? Math.round((churnedThisMonth / activeAtMonthStart) * 100) : 0;
+    const arr = totalMrr * 12;
+    return {
+      totalMrr,
+      arr,
+      starterMrr,
+      professionalMrr,
+      activeClients: active.length,
+      onboardingClients: onboarding.length,
+      churnRiskClients: churnRisk.length,
+      churnedThisMonth,
+      churnRate,
+      totalClients: clients.length,
+      churnRiskList: churnRisk.slice(0, 5).map(c => ({
+        id: c.id,
+        name: c.contactName,
+        businessName: c.businessName,
+        mrr: c.mrr || 0,
+        stage: c.stage,
+      })),
+    };
+  }),
 });
 // ─────────────────────────────────────────────────────────────────────────────
 // SALES PIPELINEE
