@@ -1122,3 +1122,25 @@ export const clientReferrals = mysqlTable("client_referrals", {
 });
 export type ClientReferral = typeof clientReferrals.$inferSelect;
 export type InsertClientReferral = typeof clientReferrals.$inferInsert;
+
+// Referral Blast Log
+/**
+ * Tracks each time the referral programme announcement email was blasted to all active clients.
+ * Used to show "last sent" info in the console and prevent accidental double-sends.
+ */
+export const referralBlastLogs = mysqlTable("referral_blast_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Number of emails successfully sent */
+  sent: int("sent").notNull().default(0),
+  /** Number of emails that failed */
+  failed: int("failed").notNull().default(0),
+  /** Total eligible clients at time of blast */
+  total: int("total").notNull().default(0),
+  /** JSON array of error strings for failed sends */
+  errors: text("errors"),
+  /** Who triggered the blast (admin user name) */
+  triggeredBy: varchar("triggeredBy", { length: 255 }),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+});
+export type ReferralBlastLog = typeof referralBlastLogs.$inferSelect;
+export type InsertReferralBlastLog = typeof referralBlastLogs.$inferInsert;

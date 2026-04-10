@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -41,6 +42,24 @@ async function startServer() {
   // Trust the Manus reverse proxy so Set-Cookie headers work correctly in production
   // Without this, Express doesn't recognise the request as HTTPS and secure cookies fail
   app.set('trust proxy', 1);
+
+  // CORS — allow the Capacitor iOS origin and local dev in addition to production
+  const allowedOrigins = [
+    "https://solvr.com.au",
+    "https://www.solvr.com.au",
+    "capacitor://localhost",  // iOS Capacitor app
+    "http://localhost:5173",  // Vite dev server
+    "http://localhost:3000",  // Express dev server
+  ];
+  app.use(cors({
+    origin: (origin, cb) => {
+      // Allow requests with no origin (e.g. curl, server-to-server)
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS: origin '${origin}' not allowed`));
+    },
+    credentials: true,
+  }));
+
   // Stripe webhook MUST use raw body — register BEFORE json middleware
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 

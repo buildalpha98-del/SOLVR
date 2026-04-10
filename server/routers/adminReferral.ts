@@ -7,7 +7,7 @@
  */
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { crmClients, clientReferrals, voiceAgentSubscriptions } from "../../drizzle/schema";
+import { crmClients, clientReferrals, voiceAgentSubscriptions, referralBlastLogs } from "../../drizzle/schema";
 import { eq, desc, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -250,6 +250,31 @@ export const adminReferralRouter = router({
         }
       }
 
+      // Log this blast to the DB
+      try {
+        await db.insert(referralBlastLogs).values({
+          sent,
+          failed,
+          total: eligible.length,
+          errors: errors.length > 0 ? JSON.stringify(errors) : null,
+        });
+      } catch (logErr) {
+        console.error("[ReferralBlast] Failed to log blast:", logErr);
+      }
+
       return { sent, failed, total: eligible.length, errors };
     }),
+
+  /**
+   * Get the history of referral blast emails sent.
+   */
+  getBlastHistory: protectedProcedure.query(async () => {
+    const db = (await getDb())!;
+    const logs = await db
+      .select()
+      .from(referralBlastLogs)
+      .orderBy(desc(referralBlastLogs.sentAt))
+      .limit(20);
+    return logs;
+  }),
 });

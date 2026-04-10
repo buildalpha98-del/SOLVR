@@ -22,6 +22,10 @@ import { notifyOwner } from "../_core/notification";
 import { sendWelcomeEmailToClient, sendOnboardingFormToClient, sendGoLiveEmailToClient } from "../gmail";
 import { createVapiAssistant } from "../vapi";
 import crypto from "crypto";
+import { generateReferralCode } from "./portalReferral";
+import { getDb } from "../db";
+import { crmClients } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 // ─── Helper: generate a signed onboarding token ──────────────────────────────
 
@@ -465,7 +469,36 @@ Portal URL: ${portalUrl}`,
       // Set client stage to active
       await updateCrmClient(input.clientId, { stage: "active" });
 
-      // Mark client-live step as done
+      // Auto-generate a referral code if the client doesn't already have one
+      try {
+        const db = (await getDb())!;
+        const existing = await db
+          .select({ referralCode: crmClients.referralCode })
+          .from(crmClients)
+          .where(eq(crmClients.id, input.clientId))
+          .then((rows) => rows[0]?.referralCode ?? null);
+        if (!existing) {
+          let code = generateReferralCode(client.businessName);
+          for (let i = 0; i < 5; i++) {
+            const taken = await db
+              .select({ id: crmClients.id })
+              .from(crmClients)
+              .where(eq(crmClients.referralCode, code))
+              .limit(1);
+            if (taken.length === 0) break;
+            code = generateReferralCode(client.businessName);
+          }
+          await db
+            .update(crmClients)
+            .set({ referralCode: code })
+            .where(eq(crmClients.id, input.clientId));
+          console.log(`[GoLive] Referral code generated for ${client.businessName}: ${code}`);
+        }
+      } catch (refErr) {
+        console.error("[GoLive] Failed to generate referral code:", refErr);
+      }
+
+      // Mark client-live step as donee
       await updateChecklist(input.clientId, {
         clientLiveStatus: "done",
         clientLiveAt: new Date(),

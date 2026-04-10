@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail } from "lucide-react";
+import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail, History, AlertTriangle } from "lucide-react";
 
 const APP_ORIGIN = window.location.origin;
 
@@ -321,18 +321,22 @@ function statusBadge(status: string) {
 
 function TradieProgrammeSection() {
   const utils = trpc.useUtils();
+  const [showBlastConfirm, setShowBlastConfirm] = useState(false);
   const { data: summary, isLoading: summaryLoading } = trpc.adminReferral.getTradieProgrammeSummary.useQuery();
   const { data: referrals = [], isLoading } = trpc.adminReferral.listTradieProgramme.useQuery();
+  const { data: blastHistory = [] } = trpc.adminReferral.getBlastHistory.useQuery();
 
   const sendBlast = trpc.adminReferral.sendReferralBlast.useMutation({
     onSuccess: (d) => {
+      setShowBlastConfirm(false);
+      utils.adminReferral.getBlastHistory.invalidate();
       if (d.failed > 0) {
         toast.warning(`Sent ${d.sent}/${d.total} emails. ${d.failed} failed.`);
       } else {
         toast.success(`Referral programme email sent to ${d.sent} client${d.sent !== 1 ? "s" : ""}.`);
       }
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => { setShowBlastConfirm(false); toast.error(e.message); },
   });
 
   const applyDiscount = trpc.adminReferral.applyDiscountManually.useMutation({
@@ -360,7 +364,7 @@ function TradieProgrammeSection() {
         <Button
           size="sm"
           disabled={sendBlast.isPending}
-          onClick={() => sendBlast.mutate()}
+          onClick={() => setShowBlastConfirm(true)}
           className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-black font-semibold"
         >
           {sendBlast.isPending ? (
@@ -467,6 +471,82 @@ function TradieProgrammeSection() {
           </TableBody>
         </Table>
       </div>
+      {/* Blast history */}
+      {blastHistory.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+            <History className="w-4 h-4 text-muted-foreground" />
+            Blast History
+          </h3>
+          <div className="rounded-xl border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sent At</TableHead>
+                  <TableHead>Total Eligible</TableHead>
+                  <TableHead>Sent</TableHead>
+                  <TableHead>Failed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {blastHistory.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-sm">{fmtDate(log.sentAt)}</TableCell>
+                    <TableCell className="text-sm">{log.total}</TableCell>
+                    <TableCell>
+                      <Badge className="bg-green-100 text-green-700 border-green-200">{log.sent} sent</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {log.failed > 0 ? (
+                        <Badge className="bg-red-100 text-red-700 border-red-200">{log.failed} failed</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* Blast confirmation dialog */}
+      <Dialog open={showBlastConfirm} onOpenChange={setShowBlastConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Confirm Email Blast
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You are about to email <strong>all active clients with a referral code</strong> their unique referral link and the 20% offer.
+            </p>
+            {blastHistory.length > 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Last blast sent: <strong>{fmtDate(blastHistory[0].sentAt)}</strong> — {blastHistory[0].sent} emails sent.
+              </p>
+            )}
+            <p className="text-sm font-medium">Are you sure you want to proceed?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBlastConfirm(false)}>Cancel</Button>
+            <Button
+              className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+              disabled={sendBlast.isPending}
+              onClick={() => sendBlast.mutate()}
+            >
+              {sendBlast.isPending ? (
+                <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Sending...</>
+              ) : (
+                "Yes, Send Blast"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { crmClients, clientReferrals } from "../../drizzle/schema";
 import { eq, and, count } from "drizzle-orm";
 
 /** Generate a readable referral code from the business name, e.g. "JAYDEN20" */
-function generateReferralCode(businessName: string): string {
+export function generateReferralCode(businessName: string): string {
   const base = businessName
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
