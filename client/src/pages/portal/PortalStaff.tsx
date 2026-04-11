@@ -17,7 +17,8 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Link2, Copy, Check } from "lucide-react";
+import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Link2, Copy, Check, Download, Calendar } from "lucide-react";
+import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -76,6 +77,46 @@ export default function PortalStaff() {
     });
   }
   const [pinConfirm, setPinConfirm] = useState("");
+
+  // Timesheet export state
+  const [showExport, setShowExport] = useState(false);
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [exportTo, setExportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exportEnabled, setExportEnabled] = useState(false);
+
+  const { data: timesheetData, isFetching: exportLoading } = trpc.portal.exportTimesheets.useQuery(
+    { from: exportFrom, to: exportTo },
+    { enabled: exportEnabled }
+  );
+
+  // Trigger CSV download when data arrives
+  useEffect(() => {
+    if (!exportEnabled || !timesheetData?.csv) return;
+    setExportEnabled(false);
+    if (timesheetData.count === 0) {
+      toast.info("No time entries found for the selected period.");
+      return;
+    }
+    const blob = new Blob([timesheetData.csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `timesheets-${exportFrom}-to-${exportTo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${timesheetData.count} time entries.`);
+  }, [timesheetData, exportEnabled]);
+
+  function handleExport() {
+    if (!exportFrom || !exportTo) { toast.error("Please select a date range."); return; }
+    setExportEnabled(true);
+    setShowExport(false);
+    toast.info("Generating timesheet CSV…");
+  }
 
   const createMutation = trpc.portal.createStaff.useMutation({
     onSuccess: () => {
@@ -189,6 +230,16 @@ export default function PortalStaff() {
                 </Button>
               </>
             )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowExport(true)}
+              style={{ color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}
+              title="Export Timesheets"
+            >
+              <Download className="w-4 h-4 mr-1" />
+              Export
+            </Button>
             <Button
               size="sm"
               onClick={openCreate}
@@ -414,6 +465,58 @@ export default function PortalStaff() {
               {copied ? "Copied!" : "Copy Link"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Timesheets Dialog */}
+      <Dialog open={showExport} onOpenChange={setShowExport}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }} className="flex items-center gap-2">
+              <Download className="w-4 h-4" style={{ color: "#F5A623" }} />
+              Export Timesheets
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Download a CSV of all staff check-in/out records for the selected date range. Ready for payroll.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>From</Label>
+                <Input
+                  type="date"
+                  value={exportFrom}
+                  onChange={e => setExportFrom(e.target.value)}
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "white" }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>To</Label>
+                <Input
+                  type="date"
+                  value={exportTo}
+                  onChange={e => setExportTo(e.target.value)}
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "white" }}
+                />
+              </div>
+            </div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Columns: Staff Name, Job, Date, Check-in, Check-out, Duration (mins), Duration (hrs), Check-in GPS, Check-out GPS
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowExport(false)} style={{ color: "rgba(255,255,255,0.5)" }}>Cancel</Button>
+            <Button
+              onClick={handleExport}
+              disabled={exportLoading}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              {exportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {exportLoading ? "Generating…" : "Download CSV"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
