@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import {
   ChevronLeft, ChevronRight, Plus, CalendarClock,
   Clock, MapPin, Loader2, X, CheckCircle2, ChevronDown, ChevronUp,
+  Check, Ban,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,6 +45,8 @@ type ScheduleEntry = {
   status: string;
   notes: string | null;
   clientId: number;
+  staffConfirmedAt: Date | null;
+  staffDeclinedAt: Date | null;
 };
 
 type StaffMember = {
@@ -117,6 +120,13 @@ function ScheduleCard({
     data: { entry },
   });
 
+  // Confirmation badge: confirmed = green ✓, declined = red ✗, pending = nothing
+  const confirmBadge = entry.staffConfirmedAt
+    ? { icon: <Check className="w-2.5 h-2.5" />, color: "#22c55e", bg: "rgba(34,197,94,0.18)", title: "Confirmed" }
+    : entry.staffDeclinedAt
+    ? { icon: <Ban className="w-2.5 h-2.5" />, color: "#ef4444", bg: "rgba(239,68,68,0.18)", title: "Declined" }
+    : null;
+
   return (
     <div
       ref={setNodeRef}
@@ -134,7 +144,18 @@ function ScheduleCard({
         borderLeftColor: STATUS_COLORS[entry.status] ?? "#64748b",
       }}
     >
-      <p className="text-white text-sm font-semibold truncate leading-tight">{jobTitle}</p>
+      <div className="flex items-start justify-between gap-1">
+        <p className="text-white text-sm font-semibold truncate leading-tight flex-1">{jobTitle}</p>
+        {confirmBadge && (
+          <span
+            title={confirmBadge.title}
+            className="flex-shrink-0 flex items-center justify-center w-4 h-4 rounded-full mt-0.5"
+            style={{ background: confirmBadge.bg, color: confirmBadge.color }}
+          >
+            {confirmBadge.icon}
+          </span>
+        )}
+      </div>
       {jobAddress && (
         <p className="text-xs truncate mt-0.5 flex items-center gap-1" style={{ color: "rgba(255,255,255,0.45)" }}>
           <MapPin className="w-3 h-3 flex-shrink-0" />

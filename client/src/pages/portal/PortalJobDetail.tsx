@@ -3,7 +3,7 @@
  * Shows client info, location, linked quote, progress payments, before/after photos,
  * invoice generation, and job completion.
  */
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
@@ -13,6 +13,7 @@ import {
   DollarSign, CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
   Banknote, Receipt, Send, Copy, Check,
+  ChevronLeft, ChevronRight, ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +120,115 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
   );
 }
 
+// ─── Photo Lightbox ──────────────────────────────────────────────────────────
+type LightboxPhoto = { imageUrl: string; caption: string | null; photoType: string; uploadedByStaffName?: string | null };
+
+function PhotoLightbox({
+  photos,
+  initialIndex,
+  onClose,
+}: {
+  photos: LightboxPhoto[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+
+  const prev = useCallback(() => setIndex(i => (i - 1 + photos.length) % photos.length), [photos.length]);
+  const next = useCallback(() => setIndex(i => (i + 1) % photos.length), [photos.length]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prev, next, onClose]);
+
+  // Touch swipe
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const current = photos[index];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.92)" }}
+      onClick={onClose}
+    >
+      {/* Close */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 rounded-full"
+        style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
+      >
+        <X className="w-5 h-5" />
+      </button>
+
+      {/* Counter */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs font-medium px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>
+        {index + 1} / {photos.length}
+      </div>
+
+      {/* Prev */}
+      {photos.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); prev(); }}
+          className="absolute left-3 p-2 rounded-full"
+          style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Image */}
+      <div
+        className="max-w-[90vw] max-h-[80vh] flex flex-col items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+        onTouchEnd={(e) => {
+          if (touchStartX === null) return;
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (dx > 50) prev();
+          else if (dx < -50) next();
+          setTouchStartX(null);
+        }}
+      >
+        <img
+          src={current.imageUrl}
+          alt={current.caption ?? current.photoType}
+          className="rounded-xl object-contain"
+          style={{ maxWidth: "90vw", maxHeight: "70vh" }}
+        />
+        {(current.caption || current.uploadedByStaffName) && (
+          <div className="text-center space-y-0.5">
+            {current.uploadedByStaffName && (
+              <p className="text-xs font-semibold" style={{ color: "#F5A623" }}>{current.uploadedByStaffName}</p>
+            )}
+            {current.caption && (
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{current.caption}</p>
+            )}
+            <p className="text-xs capitalize" style={{ color: "rgba(255,255,255,0.35)" }}>{current.photoType}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Next */}
+      {photos.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); next(); }}
+          className="absolute right-3 p-2 rounded-full"
+          style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Photo Section ──────────────────────────────────────────────────────────
 type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null; uploadedByStaffName?: string | null };
 
@@ -136,6 +246,19 @@ function PhotoSection({
   onRefresh: () => void;
 }) {
   const [uploading, setUploading] = useState<"before" | "after" | null>(null);
+  const [lightbox, setLightbox] = useState<{ photos: LightboxPhoto[]; index: number } | null>(null);
+
+  // Build a combined flat list of all photos for lightbox navigation
+  const allPhotosForLightbox: LightboxPhoto[] = [
+    ...beforePhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
+    ...afterPhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
+    ...staffPhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
+  ];
+
+  function openLightbox(photo: JobPhoto) {
+    const idx = allPhotosForLightbox.findIndex(p => p.imageUrl === photo.imageUrl);
+    setLightbox({ photos: allPhotosForLightbox, index: idx >= 0 ? idx : 0 });
+  }
 
   const addPhoto = trpc.portal.addJobPhoto.useMutation({
     onSuccess: () => { onRefresh(); },
@@ -198,10 +321,19 @@ function PhotoSection({
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {photos.map(p => (
-              <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "4/3" }}>
-                <img src={p.imageUrl} alt={p.caption ?? type} className="w-full h-full object-cover" />
+              <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "4/3" }}>
+                <img
+                  src={p.imageUrl}
+                  alt={p.caption ?? type}
+                  className="w-full h-full object-cover"
+                  onClick={() => openLightbox(p)}
+                />
+                {/* Zoom hint */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}>
+                  <ZoomIn className="w-5 h-5 text-white" />
+                </div>
                 <button
-                  onClick={() => removePhoto.mutate({ id: p.id, jobId })}
+                  onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }}
                   className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ background: "rgba(239,68,68,0.85)" }}
                 >
@@ -217,38 +349,51 @@ function PhotoSection({
   }
 
   return (
-    <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-      <div className="grid grid-cols-2 gap-4">
-        <PhotoGrid photos={beforePhotos} type="before" />
-        <PhotoGrid photos={afterPhotos} type="after" />
-      </div>
-      {/* Staff-uploaded photos (during / other) */}
-      {staffPhotos.length > 0 && (
-        <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Staff Photos ({staffPhotos.length})</p>
-          <div className="grid grid-cols-3 gap-1.5">
-            {staffPhotos.map(p => (
-              <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "1" }}>
-                <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" />
-                <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1" style={{ background: "rgba(0,0,0,0.65)" }}>
-                  {p.uploadedByStaffName && (
-                    <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>
-                  )}
-                  <p className="text-[9px] capitalize" style={{ color: "rgba(255,255,255,0.6)" }}>{p.photoType}{p.caption ? ` — ${p.caption}` : ""}</p>
-                </div>
-                <button
-                  onClick={() => removePhoto.mutate({ id: p.id, jobId })}
-                  className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ background: "rgba(239,68,68,0.85)" }}
-                >
-                  <Trash2 className="w-2.5 h-2.5 text-white" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+    <>
+      {lightbox && (
+        <PhotoLightbox
+          photos={lightbox.photos}
+          initialIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
       )}
-    </SectionCard>
+      <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+        <div className="grid grid-cols-2 gap-4">
+          <PhotoGrid photos={beforePhotos} type="before" />
+          <PhotoGrid photos={afterPhotos} type="after" />
+        </div>
+        {/* Staff-uploaded photos (during / other) */}
+        {staffPhotos.length > 0 && (
+          <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Staff Photos ({staffPhotos.length})</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {staffPhotos.map(p => (
+                <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "1" }}>
+                  <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" onClick={() => openLightbox(p)} />
+                  {/* Zoom hint */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}>
+                    <ZoomIn className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1" style={{ background: "rgba(0,0,0,0.65)" }}>
+                    {p.uploadedByStaffName && (
+                      <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>
+                    )}
+                    <p className="text-[9px] capitalize" style={{ color: "rgba(255,255,255,0.6)" }}>{p.photoType}{p.caption ? ` — ${p.caption}` : ""}</p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }}
+                    className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ background: "rgba(239,68,68,0.85)" }}
+                  >
+                    <Trash2 className="w-2.5 h-2.5 text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+    </>
   );
 }
 
