@@ -23,6 +23,7 @@ import { randomBytes } from "crypto";
 import {
   listStaffMembers,
   getStaffMember,
+  updateStaffMember,
   createStaffSession,
   getStaffSessionByToken,
   deleteStaffSession,
@@ -315,4 +316,68 @@ export const staffPortalRouter = router({
       if (!session) return null;
       return getActiveCheckIn(session.staff.id, input.jobId);
     }),
+
+  /**
+   * Confirm a scheduled shift.
+   */
+  confirmShift: publicProcedure
+    .input(z.object({ scheduleId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { getScheduleEntry, updateScheduleEntry } = await import("../db");
+      const entry = await getScheduleEntry(input.scheduleId);
+      if (!entry || entry.staffId !== session.staff.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Shift not found." });
+      }
+      await updateScheduleEntry(input.scheduleId, {
+        status: "confirmed",
+        staffConfirmedAt: new Date(),
+        staffDeclinedAt: null,
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Decline a scheduled shift.
+   */
+  declineShift: publicProcedure
+    .input(z.object({ scheduleId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { getScheduleEntry, updateScheduleEntry } = await import("../db");
+      const entry = await getScheduleEntry(input.scheduleId);
+      if (!entry || entry.staffId !== session.staff.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Shift not found." });
+      }
+      await updateScheduleEntry(input.scheduleId, {
+        status: "pending",
+        staffDeclinedAt: new Date(),
+        staffConfirmedAt: null,
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Register a Web Push subscription for this staff member's device.
+   * Called after the browser grants notification permission.
+   */
+  registerPush: publicProcedure
+    .input(z.object({
+      subscription: z.string(), // JSON.stringify(PushSubscription)
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      await updateStaffMember(session.staff.id, { pushSubscription: input.subscription });
+      return { success: true };
+    }),
+
+  /**
+   * Return the VAPID public key so the client can subscribe.
+   */
+  vapidPublicKey: publicProcedure.query(() => {
+    return { key: process.env.VAPID_PUBLIC_KEY ?? null };
+  }),
 });

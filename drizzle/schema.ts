@@ -1353,6 +1353,8 @@ export const staffMembers = mysqlTable("staff_members", {
   isActive: boolean("isActive").default(true).notNull(),
   /** 4-digit PIN for staff portal login — hashed with bcrypt */
   staffPin: varchar("staffPin", { length: 72 }),
+  /** Web Push subscription JSON (stringified PushSubscription) for push notifications */
+  pushSubscription: text("pushSubscription"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1376,6 +1378,10 @@ export const jobSchedule = mysqlTable("job_schedule", {
   notes: text("notes"),
   /** Timestamp when push notification was sent to the staff member */
   notificationSentAt: timestamp("notificationSentAt"),
+  /** Timestamp when the staff member confirmed this shift */
+  staffConfirmedAt: timestamp("staffConfirmedAt"),
+  /** Timestamp when the staff member declined this shift */
+  staffDeclinedAt: timestamp("staffDeclinedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

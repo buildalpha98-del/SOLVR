@@ -1952,6 +1952,25 @@ export const portalRouter = router({
         notes: input.notes ?? null,
         status: "pending",
       });
+      // Fire push notification to assigned staff member (non-blocking)
+      void (async () => {
+        try {
+          const { sendPushToStaff } = await import("../pushNotifications");
+          const job = await getPortalJob(input.jobId);
+          const start = new Date(input.startTime);
+          const timeStr = start.toLocaleString("en-AU", {
+            weekday: "short", month: "short", day: "numeric",
+            hour: "numeric", minute: "2-digit", hour12: true,
+          });
+          await sendPushToStaff(input.staffId, {
+            title: "New shift assigned — " + (portalClient.client.businessName ?? "Solvr"),
+            body: `${job?.jobType ?? "Job"} — ${timeStr}`,
+            url: "/staff/today",
+          });
+        } catch (e) {
+          console.error("[Push] Failed to notify staff on schedule create:", e);
+        }
+      })();
       return { id: result.insertId };
     }),
 

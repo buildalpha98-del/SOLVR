@@ -38,9 +38,31 @@ export default function StaffLogin() {
     { enabled: !!clientId }
   );
 
+  const registerPushMutation = trpc.staffPortal.registerPush.useMutation();
+  const { data: vapidData } = trpc.staffPortal.vapidPublicKey.useQuery();
+
+  async function requestPushPermission() {
+    if (!vapidData?.key || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidData.key,
+      });
+      await registerPushMutation.mutateAsync({ subscription: JSON.stringify(sub) });
+    } catch (e) {
+      // Non-critical — silently ignore
+      console.warn("[Push] Could not register staff push subscription:", e);
+    }
+  }
+
   const loginMutation = trpc.staffPortal.login.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Welcome! Loading your jobs...");
+      // Request push permission after login (non-blocking)
+      await requestPushPermission();
       setTimeout(() => { window.location.href = "/staff/today"; }, 800);
     },
     onError: (err) => {

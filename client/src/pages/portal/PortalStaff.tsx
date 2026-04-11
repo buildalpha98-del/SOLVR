@@ -17,7 +17,8 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Share2 } from "lucide-react";
+import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Link2, Copy, Check } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -51,6 +52,7 @@ export default function PortalStaff() {
   const utils = trpc.useUtils();
 
   const { data: staffList, isLoading } = trpc.portal.listStaff.useQuery();
+  const { data: me } = trpc.portal.me.useQuery();
 
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
@@ -58,6 +60,21 @@ export default function PortalStaff() {
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
   const [pinTarget, setPinTarget] = useState<StaffMember | null>(null);
   const [pinValue, setPinValue] = useState("");
+  const [showQr, setShowQr] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const staffLoginUrl = me?.clientId
+    ? `${window.location.origin}/staff?c=${me.clientId}`
+    : null;
+
+  function copyStaffLink() {
+    if (!staffLoginUrl) return;
+    navigator.clipboard.writeText(staffLoginUrl).then(() => {
+      setCopied(true);
+      toast.success("Staff login link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
   const [pinConfirm, setPinConfirm] = useState("");
 
   const createMutation = trpc.portal.createStaff.useMutation({
@@ -157,15 +174,31 @@ export default function PortalStaff() {
               Manage your team members — assign them to jobs and track their hours.
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={openCreate}
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-            className="font-semibold"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Staff
-          </Button>
+          <div className="flex items-center gap-2">
+            {staffLoginUrl && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowQr(true)}
+                  style={{ color: "rgba(245,166,35,0.8)", border: "1px solid rgba(245,166,35,0.3)" }}
+                  title="Staff Login QR Code"
+                >
+                  <Link2 className="w-4 h-4 mr-1" />
+                  Staff Link
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              onClick={openCreate}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Staff
+            </Button>
+          </div>
         </div>
 
         {/* Staff list */}
@@ -348,6 +381,39 @@ export default function PortalStaff() {
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingStaff ? "Save Changes" : "Add Staff Member"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Staff Login Link / QR Code Dialog */}
+      <Dialog open={showQr} onOpenChange={setShowQr}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }}>Staff Login Link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 flex flex-col items-center">
+            <p className="text-sm text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Share this link or QR code with your staff. They select their name and enter their PIN to log in.
+            </p>
+            {staffLoginUrl && (
+              <div className="p-3 rounded-xl" style={{ background: "white" }}>
+                <QRCodeSVG value={staffLoginUrl} size={180} />
+              </div>
+            )}
+            <div
+              className="w-full rounded-lg px-3 py-2 text-xs font-mono break-all"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              {staffLoginUrl}
+            </div>
+            <Button
+              onClick={copyStaffLink}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold w-full"
+            >
+              {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+              {copied ? "Copied!" : "Copy Link"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -1,11 +1,13 @@
 /**
  * StaffRoster — weekly schedule view for the logged-in staff member.
  * Shows Mon–Sun with job cards per day. Can navigate weeks.
+ * Staff can confirm or decline pending shifts.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import StaffLayout from "./StaffLayout";
-import { Loader2, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { toast } from "sonner";
 
 function getMonday(date: Date): Date {
   const d = new Date(date);
@@ -45,7 +47,26 @@ export default function StaffRoster() {
   const monday = addDays(baseMonday, weekOffset * 7);
   const weekOf = monday.toISOString().split("T")[0];
 
+  const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.staffPortal.weekRoster.useQuery({ weekOf });
+
+  const confirmMutation = trpc.staffPortal.confirmShift.useMutation({
+    onSuccess: () => {
+      toast.success("Shift confirmed!");
+      utils.staffPortal.weekRoster.invalidate();
+      utils.staffPortal.todayJobs.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const declineMutation = trpc.staffPortal.declineShift.useMutation({
+    onSuccess: () => {
+      toast.info("Shift declined.");
+      utils.staffPortal.weekRoster.invalidate();
+      utils.staffPortal.todayJobs.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
 
@@ -123,13 +144,14 @@ export default function StaffRoster() {
                 ) : (
                   <div className="divide-y divide-white/5">
                     {jobs.map((entry) => (
-                      <div key={entry.scheduleId} className="px-4 py-3 space-y-1">
+                      <div key={entry.scheduleId} className="px-4 py-3 space-y-1.5">
                         <div className="flex items-center gap-2 text-amber-400/80 text-xs">
                           <Clock size={11} />
                           <span>{formatTime(entry.startTime)} – {formatTime(entry.endTime)}</span>
                           <span className={`ml-auto px-2 py-0.5 rounded-full text-xs ${
                             entry.status === "completed" ? "bg-green-500/20 text-green-400" :
                             entry.status === "confirmed" ? "bg-amber-500/20 text-amber-400" :
+                            entry.status === "in_progress" ? "bg-blue-500/20 text-blue-400" :
                             "bg-white/10 text-white/40"
                           }`}>
                             {entry.status.replace("_", " ")}
@@ -151,6 +173,28 @@ export default function StaffRoster() {
                         )}
                         {entry.notes && (
                           <p className="text-white/40 text-xs italic">{entry.notes}</p>
+                        )}
+
+                        {/* Confirm / Decline buttons — only show for pending shifts */}
+                        {entry.status === "pending" && (
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={() => confirmMutation.mutate({ scheduleId: entry.scheduleId })}
+                              disabled={confirmMutation.isPending}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                            >
+                              <CheckCircle2 size={13} />
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => declineMutation.mutate({ scheduleId: entry.scheduleId })}
+                              disabled={declineMutation.isPending}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                            >
+                              <XCircle size={13} />
+                              Can't make it
+                            </button>
+                          </div>
                         )}
                       </div>
                     ))}
