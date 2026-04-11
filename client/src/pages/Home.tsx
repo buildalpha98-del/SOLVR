@@ -1185,6 +1185,7 @@ export default function Home() {
                 <Link href="/portal/forgot-password" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Forgot Password</Link>
                 <a href="#sectors" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Industries</a>
                 <a href="#book" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Book a Call</a>
+                <Link href="/console" className="block font-body text-sm transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.28)", textDecoration: "none" }}>Admin Console ↗</Link>
               </div>
             </div>
           </div>
