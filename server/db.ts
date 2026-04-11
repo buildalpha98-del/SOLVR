@@ -916,6 +916,9 @@ import {
   quoteFollowUps,
   type QuoteFollowUp,
   type InsertQuoteFollowUp,
+  complianceDocuments,
+  type ComplianceDocument,
+  type InsertComplianceDocument,
 } from "../drizzle/schema";
 
 export async function listJobCostItems(jobId: number): Promise<JobCostItem[]> {
@@ -1013,3 +1016,34 @@ export async function listActiveQuoteFollowUps(): Promise<QuoteFollowUp[]> {
     .orderBy(quoteFollowUps.nextFollowUpAt);
 }
 
+
+// ── Compliance Documents ──────────────────────────────────────────────────────
+export async function createComplianceDocument(data: InsertComplianceDocument): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(complianceDocuments).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+export async function getComplianceDocument(id: string): Promise<ComplianceDocument | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(complianceDocuments).where(eq(complianceDocuments.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+export async function updateComplianceDocument(id: string, data: Partial<InsertComplianceDocument>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(complianceDocuments).set(data).where(eq(complianceDocuments.id, id));
+}
+export async function listComplianceDocuments(clientId: number): Promise<ComplianceDocument[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(complianceDocuments)
+    .where(eq(complianceDocuments.clientId, clientId))
+    .orderBy(complianceDocuments.createdAt);
+}
+export async function deleteComplianceDocument(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(complianceDocuments).where(eq(complianceDocuments.id, id));
+}

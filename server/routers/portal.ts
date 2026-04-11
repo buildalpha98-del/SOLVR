@@ -58,6 +58,15 @@ import {
 import { invokeLLM } from "../_core/llm";
 import Stripe from "stripe";
 import { getPaymentLinkByToken, updatePaymentLink } from "../db";
+import {
+  createComplianceDocument,
+  getComplianceDocument,
+  listComplianceDocuments,
+  deleteComplianceDocument,
+  updateComplianceDocument,
+} from "../db";
+import { generateComplianceDocument, type ComplianceDocType } from "../_core/complianceDocGeneration";
+import { storagePut } from "../storage";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { extractOnboardingData, getMissingRequiredFields } from "../_core/onboardingExtraction";
 import { autoGeneratePromptForClient } from "../autoGeneratePrompt";
@@ -1602,5 +1611,165 @@ export const portalRouter = router({
       });
 
       return { url: session.url };
+    }),
+
+  // ─── Licence & Insurance ────────────────────────────────────────────────────
+  /**
+   * Save/update the client's licence and insurance details.
+   * Stored on the clientProfile row.
+   */
+  saveLicenceInsurance: publicProcedure
+    .input(z.object({
+      licenceNumber: z.string().max(100).optional(),
+      licenceType: z.string().max(100).optional(),
+      licenceAuthority: z.string().max(255).optional(),
+      licenceExpiryDate: z.string().max(20).optional(),
+      abn: z.string().max(20).optional(),
+      insurerName: z.string().max(255).optional(),
+      insurancePolicyNumber: z.string().max(100).optional(),
+      insuranceCoverageAud: z.number().int().min(0).optional(),
+      insuranceExpiryDate: z.string().max(20).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = portalClient;
+      await updateClientProfile(client.id, {
+        licenceNumber: input.licenceNumber ?? null,
+        licenceType: input.licenceType ?? null,
+        licenceAuthority: input.licenceAuthority ?? null,
+        licenceExpiryDate: input.licenceExpiryDate ?? null,
+        abn: input.abn ?? null,
+        insurerName: input.insurerName ?? null,
+        insurancePolicyNumber: input.insurancePolicyNumber ?? null,
+        insuranceCoverageAud: input.insuranceCoverageAud ?? null,
+        insuranceExpiryDate: input.insuranceExpiryDate ?? null,
+      });
+      return { success: true };
+    }),
+
+  // ─── Compliance Documents ────────────────────────────────────────────────────
+  /**
+   * Generate a compliance document (SWMS, Safety Cert, JSA, Site Induction).
+   * Uses LLM to produce the content, then stores it and generates a PDF.
+   */
+  generateComplianceDoc: publicProcedure
+    .input(z.object({
+      docType: z.enum(["swms", "safety_cert", "site_induction", "jsa"]),
+      jobDescription: z.string().min(10).max(2000),
+      siteAddress: z.string().max(500).optional(),
+      jobId: z.number().int().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = portalClient;
+
+      // Get or create the client profile for licence/insurance data
+      const profile = await getOrCreateClientProfile(client.id);
+
+      // Create a placeholder record first so the UI can show "generating..."
+      const docId = randomUUID();
+      const businessName = profile?.tradingName ?? client.businessName;
+      await createComplianceDocument({
+        id: docId,
+        clientId: client.id,
+        jobId: input.jobId ?? null,
+        docType: input.docType,
+        title: `${input.docType.toUpperCase()} — ${businessName}`,
+        jobDescription: input.jobDescription,
+        status: "generating",
+      });
+
+      // Generate asynchronously — don't block the response
+      (async () => {
+        try {
+          const result = await generateComplianceDocument({
+            docType: input.docType as import("../_core/complianceDocGeneration").ComplianceDocType,
+            jobDescription: input.jobDescription,
+            siteAddress: input.siteAddress,
+            profile: profile ?? {
+              id: 0, clientId: client.id, tradingName: null, abn: null,
+              phone: null, address: null, email: null, website: null,
+              industryType: client.tradeType ?? null,
+              yearsInBusiness: null, teamSize: null,
+              servicesOffered: null, callOutFee: null, hourlyRate: null,
+              minimumCharge: null, afterHoursMultiplier: null,
+              serviceArea: null, operatingHours: null,
+              emergencyAvailable: false, emergencyFee: null,
+              logoUrl: null, primaryColor: null, secondaryColor: null,
+              brandFont: null, tagline: null, toneOfVoice: null,
+              aiContext: null, commonFaqs: null, competitorNotes: null,
+              bookingInstructions: null, escalationInstructions: null,
+              gstRate: "10.00", paymentTerms: null, validityDays: 30, defaultNotes: null,
+              bankBsb: null, bankAccountNumber: null, bankAccountName: null, bankName: null,
+              licenceNumber: null, licenceType: null, licenceAuthority: null, licenceExpiryDate: null,
+              insurerName: null, insurancePolicyNumber: null, insuranceCoverageAud: null, insuranceExpiryDate: null,
+              onboardingCompleted: false, onboardingCompletedAt: null, onboardingStep: null,
+              voiceOnboardingTranscript: null,
+              notifyEmailNewCall: true, notifyPushNewCall: true,
+              notifyEmailNewQuote: true, notifyPushNewQuote: true,
+              notifyEmailQuoteAccepted: true, notifyPushQuoteAccepted: true,
+              notifyEmailJobUpdate: false, notifyPushJobUpdate: true,
+              notifyEmailWeeklySummary: true,
+              vapiAgentId: null,
+              createdAt: new Date(), updatedAt: new Date(),
+            },
+            businessName,
+          });
+
+          await updateComplianceDocument(docId, {
+            title: result.title,
+            content: result.content,
+            status: "ready",
+          });
+        } catch (err) {
+          console.error("[ComplianceDoc] Generation failed:", err);
+          await updateComplianceDocument(docId, { status: "error" });
+        }
+      })();
+
+      return { docId, status: "generating" };
+    }),
+
+  /**
+   * Poll the status of a compliance document generation.
+   */
+  getComplianceDoc: publicProcedure
+    .input(z.object({ docId: z.string().uuid() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const doc = await getComplianceDocument(input.docId);
+      if (!doc || doc.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+      }
+      return doc;
+    }),
+
+  /**
+   * List all compliance documents for the current portal client.
+   */
+  listComplianceDocs: publicProcedure
+    .query(async ({ ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listComplianceDocuments(portalClient.client.id);
+    }),
+
+  /**
+   * Delete a compliance document.
+   */
+  deleteComplianceDoc: publicProcedure
+    .input(z.object({ docId: z.string().uuid() }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const doc = await getComplianceDocument(input.docId);
+      if (!doc || doc.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+      }
+      await deleteComplianceDocument(input.docId);
+      return { success: true };
     }),
 });

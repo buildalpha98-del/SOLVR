@@ -63,6 +63,7 @@ import PortalSubscription from "./pages/portal/PortalSubscription";
 import PortalReferral from "./pages/portal/PortalReferral";
 import PortalCustomers from "./pages/portal/PortalCustomers";
 import PortalAIInsights from "./pages/portal/PortalAIInsights";
+import PortalCompliance from "./pages/portal/PortalCompliance";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
@@ -147,6 +148,7 @@ function Router() {
       <Route path="/portal/referral" component={PortalReferral} />
       <Route path="/portal/customers" component={PortalCustomers} />
       <Route path="/portal/insights" component={PortalAIInsights} />
+      <Route path="/portal/compliance" component={PortalCompliance} />
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />

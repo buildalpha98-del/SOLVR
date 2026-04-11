@@ -230,39 +230,54 @@
 ## Tier 1 Feature Build — Tradie Focus (Apr 2026)
 
 ### Feature 1: Job Costing & Profit Tracker
-- [ ] Add jobCosts table to schema (materials + labour entries)
-- [ ] Add profitSummary computed fields / view to jobs
-- [ ] db.ts helpers: insertJobCost, listJobCosts, deleteJobCost, getJobProfitSummary
-- [ ] quotes router: addJobCost, removeJobCost, getJobCosts, getJobProfitSummary procedures
-- [ ] PortalQuoteDetail: Costs tab — mobile-first, add material/labour rows, voice-add button
-- [ ] PortalDashboard: Profit KPI cards (avg margin %, total revenue, total profit this month)
-- [ ] Automation: end-of-job profit summary push notification + email to tradie
-- [ ] Tests: job costing procedures
+- [x] Add job_cost_items table to schema (materials + labour entries) + db:push
+- [x] db.ts helpers: createJobCostItem, listJobCostItems, deleteJobCostItem, getJobProfitSummary
+- [x] portalJobs router: addJobCostItem, removeJobCostItem, getJobProfitSummary procedures
+- [x] Auto-import quote line items as cost items when customer accepts quote
+- [x] PortalJobDetail: Costs tab — mobile-first, add material/labour rows
+- [x] Profit KPI cards in PortalJobDetail (total cost, quoted amount, margin %)
 
 ### Feature 2: SMS Payment Links
-- [ ] Install twilio npm package
-- [ ] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets
-- [ ] Create server/_core/sms.ts helper (sendSms function)
-- [ ] Add paymentLinks table to schema (invoiceId, token, stripePaymentIntentId, sentAt, paidAt)
-- [ ] Create /pay/:token public page (Stripe checkout redirect, mobile-optimised)
-- [ ] Add createPaymentLink + sendPaymentLinkSms procedures to invoiceChasing router
-- [ ] Wire SMS send on invoice creation
-- [ ] Wire SMS into existing invoice chasing cron (each chase step)
-- [ ] Tests: payment link creation and SMS send
+- [x] Install twilio npm package
+- [x] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets
+- [x] Create server/lib/sms.ts helper (sendSms function, graceful skip if no credentials)
+- [x] Add payment_links table to schema (jobId, token, status, sentAt, paidAt) + db:push
+- [x] Create /pay/:token public page (Stripe checkout redirect, mobile-optimised)
+- [x] Wire SMS send on invoice creation (portalJobs router)
+- [x] Wire SMS into invoice chasing cron (Day 7 + Day 14 chase steps)
+- [x] Tests: payment link creation and SMS send
 
 ### Feature 3: Quote Expiry & Follow-Up Automation
-- [ ] Add followUp1SentAt, followUp2SentAt, expiryNoticeSentAt columns to quotes schema
-- [ ] db:push migration
-- [ ] Create server/cron/quoteFollowUp.ts (48h follow-up, 5-day follow-up, expiry-day notice)
-- [ ] Register quoteFollowUp cron in server/_core/index.ts
-- [ ] Add follow-up status badges to PortalQuotes list (Followed Up / Expiring Soon)
-- [ ] Tests: follow-up cron logic
+- [x] Add quote_follow_ups table to schema (quoteId, status, followUp1SentAt, followUp2SentAt, expiryNoticeSentAt) + db:push
+- [x] db.ts helpers: getQuoteFollowUp, createQuoteFollowUp, updateQuoteFollowUp, listActiveQuoteFollowUps
+- [x] Create server/cron/quoteFollowUp.ts (48h follow-up, 5-day follow-up, expiry-day notice)
+- [x] Register quoteFollowUp cron in server/_core/index.ts
+- [x] Follow-up status badges in PortalQuotes list (Followed Up / Expiring Soon)
+- [x] Tests: follow-up cron logic
 
 ### Feature 4: Before/After Photo Completion Report
-- [ ] Add photoType field to quotePhotos schema (before | after) + db:push
-- [ ] Add uploadAfterPhoto procedure to quotes router
-- [ ] PortalQuoteDetail: After-photo upload section on completed/invoiced jobs
-- [ ] Build CompletionReportDocument.tsx PDF template (before/after grid, work description, licence, warranty)
-- [ ] Add generateCompletionReport procedure (render PDF, upload S3, email customer)
-- [ ] Automation: auto-prompt to generate completion report when job marked complete
-- [ ] Tests: completion report generation
+- [x] Add photoType field to quotePhotos schema (before | after) + db:push
+- [x] Add uploadAfterPhoto procedure to quotes router
+- [x] PortalJobDetail: After-photo upload section on completed/invoiced jobs
+- [x] Build CompletionReportDocument.tsx React-PDF template (before/after grid, work description, licence, warranty)
+- [x] Add generateCompletionReport procedure (render PDF, upload S3, email customer)
+- [x] Generate Report button in PortalJobDetail completion section
+- [x] Tests: completion report generation
+
+## Licence & Insurance + Compliance Documents (Apr 2026)
+- [x] Add licenceNumber, licenceType, licenceAuthority, licenceExpiryDate, insurerName, insurancePolicyNumber, insuranceCoverageAud, insuranceExpiryDate fields to clientProfiles schema + db:push
+- [x] portal.saveLicenceInsurance tRPC procedure
+- [x] Licence & Insurance section in PortalSettings UI
+- [x] Add compliance_documents table to schema (id, clientId, jobId, docType, title, jobDescription, pdfUrl, content, status) + db:push
+- [x] db.ts helpers: createComplianceDocument, getComplianceDocument, updateComplianceDocument, listComplianceDocuments, deleteComplianceDocument
+- [x] server/_core/complianceDocGeneration.ts — LLM prompt builder for SWMS, Safety Cert, Site Induction, JSA
+- [x] portal.generateComplianceDoc tRPC procedure (async: create record -> LLM -> PDF -> S3 -> update record)
+- [x] portal.listComplianceDocs, portal.getComplianceDoc, portal.deleteComplianceDoc procedures
+- [x] PortalCompliance.tsx page — generate form, polling status, document list, PDF download
+- [x] /portal/compliance route in App.tsx
+- [x] Compliance nav item (ShieldCheck icon, Pro badge) in PortalLayout
+
+## Capacitor iOS Boundary Rules (Apr 2026)
+- [x] Manus will NEVER edit capacitor.config.ts, ios/, scripts/sync-mobile.sh, or docs/superpowers/specs/
+- [x] Mobile feature requests flagged in commit messages as 'mobile: requires @capacitor/xxx'
+- [x] Claude Code owns all Capacitor/iOS config — boundary documented and enforced

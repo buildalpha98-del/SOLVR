@@ -16,6 +16,7 @@ import {
   updatePortalJob,
   createPortalCalendarEvent,
   getPortalSessionByClientId,
+  createJobCostItem,
 } from "../db";
 import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
@@ -23,7 +24,6 @@ import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
 import { crmClients, portalJobs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { randomUUID } from "crypto";
 
 export const publicQuotesRouter = router({
   /**
@@ -169,6 +169,33 @@ export const publicQuotesRouter = router({
           .where(eq(portalJobs.id, jobId))
           .limit(1);
         const _job = jobRows[0]; // available for future use
+
+        // ── Auto-import quote line items as job cost items ──────────────────────
+        // Pre-populate the job costing panel with the quoted items so the tradie
+        // can track actuals against the quote without re-entering everything.
+        try {
+          const lineItems = await listQuoteLineItems(quote.id);
+          for (const item of lineItems) {
+            if (!item.description) continue;
+            // Convert quoted unit price × quantity to cents for cost tracking
+            const unitPriceCents = Math.round(parseFloat(item.unitPrice ?? "0") * 100);
+            const qty = parseFloat(item.quantity ?? "1");
+            const amountCents = Math.round(unitPriceCents * qty);
+            if (amountCents <= 0) continue;
+            await createJobCostItem({
+              jobId,
+              clientId: quote.clientId,
+              category: "materials", // default — tradie can recategorise
+              description: item.description,
+              amountCents,
+              reference: `Q:${quote.quoteNumber}`,
+            });
+          }
+          console.log(`[QuoteAccept] Imported ${lineItems.length} line items as cost items for job ${jobId}`);
+        } catch (importErr) {
+          // Non-fatal — job is still created even if cost import fails
+          console.error(`[QuoteAccept] Failed to import cost items for job ${jobId}:`, importErr);
+        }
 
         // ── Create a calendar event for the accepted quote ──────────────────────
         // Default to 7 days from now at 9am if no preferred date was captured

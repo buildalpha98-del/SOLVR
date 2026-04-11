@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
-  Bell, ExternalLink, RefreshCw,
+  Bell, ExternalLink, RefreshCw, ShieldCheck,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import { toast } from "sonner";
@@ -548,6 +548,9 @@ export default function PortalSettings() {
           </form>
         </SectionCard>
 
+        {/* ─── Licence & Insurance ──────────────────────────────────────────── */}
+        <LicenceInsuranceSection />
+
         {/* ─── Billing ──────────────────────────────────────────────────────────── */}
         <BillingSection />
 
@@ -561,7 +564,183 @@ export default function PortalSettings() {
   );
 }
 
-// ─── Billing Section ────────────────────────────────────────────────────
+// // ─── Licence & Insurance Section ─────────────────────────────────────────
+function LicenceInsuranceSection() {
+  const profileQuery = trpc.portal.getBusinessProfile.useQuery();
+  const saveMutation = trpc.portal.saveLicenceInsurance.useMutation({
+    onSuccess: () => {
+      toast.success("Licence & insurance details saved.");
+      profileQuery.refetch();
+    },
+    onError: (err) => toast.error(err.message ?? "Failed to save."),
+  });
+
+  const [form, setForm] = useState({
+    licenceNumber: "",
+    licenceType: "",
+    licenceAuthority: "",
+    licenceExpiryDate: "",
+    abn: "",
+    insurerName: "",
+    insurancePolicyNumber: "",
+    insuranceCoverageAud: "",
+    insuranceExpiryDate: "",
+  });
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const d = profileQuery.data as any;
+    if (d && !loaded) {
+      setForm({
+        licenceNumber: d.licenceNumber ?? "",
+        licenceType: d.licenceType ?? "",
+        licenceAuthority: d.licenceAuthority ?? "",
+        licenceExpiryDate: d.licenceExpiryDate ?? "",
+        abn: d.abn ?? "",
+        insurerName: d.insurerName ?? "",
+        insurancePolicyNumber: d.insurancePolicyNumber ?? "",
+        insuranceCoverageAud: d.insuranceCoverageAud ? String(d.insuranceCoverageAud) : "",
+        insuranceExpiryDate: d.insuranceExpiryDate ?? "",
+      });
+      setLoaded(true);
+    }
+  }, [profileQuery.data, loaded]);
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    saveMutation.mutate({
+      licenceNumber: form.licenceNumber || undefined,
+      licenceType: form.licenceType || undefined,
+      licenceAuthority: form.licenceAuthority || undefined,
+      licenceExpiryDate: form.licenceExpiryDate || undefined,
+      abn: form.abn || undefined,
+      insurerName: form.insurerName || undefined,
+      insurancePolicyNumber: form.insurancePolicyNumber || undefined,
+      insuranceCoverageAud: form.insuranceCoverageAud ? parseInt(form.insuranceCoverageAud, 10) : undefined,
+      insuranceExpiryDate: form.insuranceExpiryDate || undefined,
+    });
+  }
+
+  return (
+    <SectionCard
+      icon={ShieldCheck}
+      title="Licence & Insurance"
+      subtitle="Used on compliance documents (SWMS, safety certs) and quotes."
+    >
+      {profileQuery.isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-4">
+          {/* Licence */}
+          <div>
+            <p className="text-xs font-semibold mb-3" style={{ color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Contractor Licence</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Licence Number</Label>
+                <Input
+                  placeholder="e.g. 123456C"
+                  value={form.licenceNumber}
+                  onChange={(e) => setForm(p => ({ ...p, licenceNumber: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Licence Type / Class</Label>
+                <Input
+                  placeholder="e.g. Unrestricted Electrical"
+                  value={form.licenceType}
+                  onChange={(e) => setForm(p => ({ ...p, licenceType: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Issuing Authority</Label>
+                <Input
+                  placeholder="e.g. NSW Fair Trading"
+                  value={form.licenceAuthority}
+                  onChange={(e) => setForm(p => ({ ...p, licenceAuthority: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Expiry Date</Label>
+                <Input
+                  type="date"
+                  value={form.licenceExpiryDate}
+                  onChange={(e) => setForm(p => ({ ...p, licenceExpiryDate: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Insurance */}
+          <div className="pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <p className="text-xs font-semibold mb-3 mt-3" style={{ color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Public Liability Insurance</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Insurer Name</Label>
+                <Input
+                  placeholder="e.g. CGU Insurance"
+                  value={form.insurerName}
+                  onChange={(e) => setForm(p => ({ ...p, insurerName: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Policy Number</Label>
+                <Input
+                  placeholder="e.g. PLI-2024-00123"
+                  value={form.insurancePolicyNumber}
+                  onChange={(e) => setForm(p => ({ ...p, insurancePolicyNumber: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Coverage Amount (AUD)</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 20000000"
+                  value={form.insuranceCoverageAud}
+                  onChange={(e) => setForm(p => ({ ...p, insuranceCoverageAud: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Insurance Expiry Date</Label>
+                <Input
+                  type="date"
+                  value={form.insuranceExpiryDate}
+                  onChange={(e) => setForm(p => ({ ...p, insuranceExpiryDate: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={saveMutation.isPending}
+              className="w-full font-semibold"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {saveMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+              ) : (
+                <><Save className="w-4 h-4 mr-2" /> Save Licence & Insurance</>
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── Billing Section ──────────────────────────────────────────────
 function BillingSection() {
   const { data: sub, isLoading } = trpc.portal.getSubscriptionStatus.useQuery(undefined, {
     staleTime: 30_000,

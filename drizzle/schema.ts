@@ -977,6 +977,24 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Bank name (e.g. Commonwealth Bank, ANZ) */
   bankName: varchar("bankName", { length: 100 }),
 
+  // Section 7: Licence & Insurance
+  /** Contractor/trade licence number (e.g. NSW Plumbing Licence No.) */
+  licenceNumber: varchar("licenceNumber", { length: 100 }),
+  /** Licence type / class (e.g. Unrestricted Electrical, Grade A Plumbing) */
+  licenceType: varchar("licenceType", { length: 100 }),
+  /** Issuing authority (e.g. NSW Fair Trading, Energy Safe Victoria) */
+  licenceAuthority: varchar("licenceAuthority", { length: 255 }),
+  /** Licence expiry date */
+  licenceExpiryDate: varchar("licenceExpiryDate", { length: 20 }),
+  /** Name of public liability insurer */
+  insurerName: varchar("insurerName", { length: 255 }),
+  /** Insurance policy number */
+  insurancePolicyNumber: varchar("insurancePolicyNumber", { length: 100 }),
+  /** Insurance expiry date */
+  insuranceExpiryDate: varchar("insuranceExpiryDate", { length: 20 }),
+  /** Coverage amount in AUD (e.g. 20000000 = $20M) */
+  insuranceCoverageAud: int("insuranceCoverageAud"),
+
   // Meta
   /** Has the client completed the onboarding wizard? */
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
@@ -1262,3 +1280,23 @@ export const quoteFollowUps = mysqlTable("quote_follow_ups", {
 });
 export type QuoteFollowUp = typeof quoteFollowUps.$inferSelect;
 export type InsertQuoteFollowUp = typeof quoteFollowUps.$inferInsert;
+
+// ─── Compliance Documents ─────────────────────────────────────────────────────
+/**
+ * AI-generated compliance documents (SWMS, Safety Certs) for tradies.
+ * Generated from the client licence/insurance data + job context.
+ */
+export const complianceDocuments = mysqlTable("compliance_documents", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  clientId: int("clientId").notNull(),
+  jobId: int("jobId"),
+  docType: mysqlEnum("docType", ["swms", "safety_cert", "site_induction", "jsa"]).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  jobDescription: text("jobDescription"),
+  pdfUrl: text("pdfUrl"),
+  content: text("content"),
+  status: mysqlEnum("status_comp", ["generating", "ready", "error"]).default("generating").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ComplianceDocument = typeof complianceDocuments.$inferSelect;
+export type InsertComplianceDocument = typeof complianceDocuments.$inferInsert;
