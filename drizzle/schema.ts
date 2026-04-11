@@ -978,6 +978,8 @@ export const clientProfiles = mysqlTable("client_profiles", {
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
   /** Which step the client is currently on (0-indexed, null = not started) */
   onboardingStep: int("onboardingStep"),
+  /** Raw Whisper transcript from voice-first onboarding (stored for Console review + prompt improvement) */
+  voiceOnboardingTranscript: text("voiceOnboardingTranscript"),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

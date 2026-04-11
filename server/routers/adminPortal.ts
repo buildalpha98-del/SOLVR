@@ -13,7 +13,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb, getOrCreateClientProfile, updateClientProfile } from "../db";
+import { getDb, getOrCreateClientProfile, updateClientProfile, getClientProfile } from "../db";
 import {
   crmClients,
   portalSessions,
@@ -296,6 +296,20 @@ export const adminPortalRouter = router({
       );
       await updateClientProfile(clientId, data);
       return { success: true };
+    }),
+
+  /**
+   * Fetch the raw voice onboarding transcript for a client (Console view).
+   * Returns null if the client completed onboarding via the form (no voice recording).
+   */
+  getVoiceOnboardingTranscript: protectedProcedure
+    .input(z.object({ clientId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const profile = await getClientProfile(input.clientId);
+      return {
+        transcript: profile?.voiceOnboardingTranscript ?? null,
+        onboardingCompletedAt: profile?.onboardingCompletedAt ?? null,
+      };
     }),
 
   /**

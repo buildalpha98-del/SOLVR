@@ -4,7 +4,7 @@
  * Flow:
  *   1. RECORD   — Tap to talk. Tradie speaks freely about their business.
  *   2. PROCESS  — Audio uploads → Whisper transcribes → LLM extracts fields.
- *   3. REVIEW   — Pre-filled form. Missing required fields highlighted. Confirm.
+ *   3. REVIEW   — Pre-filled form. Per-section re-record mic. Missing fields highlighted.
  *
  * Replaces the 4-step wizard for new clients. Existing clients who have
  * already completed onboarding are redirected to /portal/settings.
@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  Mic, MicOff, Loader2, CheckCircle2, ChevronRight,
-  AlertCircle, Volume2, Sparkles, Edit3,
+  Mic, MicOff, Loader2, CheckCircle2,
+  AlertCircle, Volume2, Sparkles, Square,
 } from "lucide-react";
 import type { OnboardingExtraction } from "../../../../server/_core/onboardingExtraction";
 
@@ -54,20 +54,20 @@ const INDUSTRY_OPTIONS = [
 ];
 
 type Stage = "record" | "uploading" | "processing" | "review" | "saving" | "done";
-
+type SectionKey = "basics" | "pricing" | "capacity" | "area" | "hours" | "ai";
 type MissingField = { key: string; label: string; type: "text" | "tel" | "email" | "number" };
 
 // ─── Waveform animation ───────────────────────────────────────────────────────
 function Waveform({ active }: { active: boolean }) {
   return (
-    <div className="flex items-center justify-center gap-[3px] h-10">
-      {Array.from({ length: 9 }).map((_, i) => (
+    <div className="flex items-center justify-center gap-[3px] h-8">
+      {Array.from({ length: 7 }).map((_, i) => (
         <div
           key={i}
           className="w-[3px] rounded-full"
           style={{
             background: active ? "#F5A623" : "rgba(255,255,255,0.2)",
-            height: active ? `${20 + Math.sin(i * 0.8) * 14}px` : "6px",
+            height: active ? `${14 + Math.sin(i * 0.8) * 10}px` : "4px",
             transition: `height 0.3s ease ${i * 40}ms, background 0.3s ease`,
             animation: active ? `wave-${i % 3} 0.8s ease-in-out infinite alternate` : "none",
           }}
@@ -82,9 +82,234 @@ function RecordTimer({ seconds }: { seconds: number }) {
   const m = Math.floor(seconds / 60).toString().padStart(2, "0");
   const s = (seconds % 60).toString().padStart(2, "0");
   return (
-    <span className="font-mono text-2xl font-bold text-white tabular-nums">
+    <span className="font-mono text-xl font-bold text-white tabular-nums">
       {m}:{s}
     </span>
+  );
+}
+
+// ─── Inline section re-recorder ───────────────────────────────────────────────
+/**
+ * A compact inline recorder that appears inside a Section when the tradie
+ * taps the mic icon. On stop, it uploads the audio and calls extractVoiceOnboarding,
+ * then merges the extracted fields back into the parent form via onPatch.
+ */
+function SectionReRecorder({
+  sectionKey,
+  onPatch,
+  onClose,
+}: {
+  sectionKey: SectionKey;
+  onPatch: (patch: Partial<OnboardingExtraction>) => void;
+  onClose: () => void;
+}) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [status, setStatus] = useState<"idle" | "recording" | "uploading" | "processing" | "done">("idle");
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const extractMutation = trpc.portal.extractVoiceOnboarding.useMutation();
+
+  const SECTION_PROMPTS: Record<SectionKey, string> = {
+    basics: "Tell us your business name, industry, how long you've been operating, team size, and address.",
+    pricing: "Tell us your call-out fee, hourly rate, minimum charge, and after-hours rates.",
+    capacity: "How many jobs can you take per day and per week?",
+    area: "What suburbs or areas do you cover? How far are you willing to travel?",
+    hours: "What are your operating hours — Monday to Friday, Saturday, Sunday, and public holidays?",
+    ai: "Any specific booking instructions, or anything else your AI receptionist should know about your business?",
+  };
+
+  const SECTION_FIELDS: Record<SectionKey, (keyof OnboardingExtraction)[]> = {
+    basics: ["tradingName", "industryType", "yearsInBusiness", "teamSize", "address", "website"],
+    pricing: ["callOutFee", "hourlyRate", "minimumCharge", "afterHoursMultiplier", "emergencyAvailable", "emergencyFee"],
+    capacity: ["maxJobsPerDay", "maxJobsPerWeek"],
+    area: ["serviceArea"],
+    hours: ["operatingHours"],
+    ai: ["bookingInstructions", "aiContext", "tagline", "toneOfVoice", "paymentTerms"],
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.start(250);
+      setIsRecording(true);
+      setStatus("recording");
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    } catch {
+      toast.error("Microphone access denied");
+    }
+  };
+
+  const stopRecording = () => {
+    if (!mediaRecorderRef.current || !isRecording) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsRecording(false);
+
+    mediaRecorderRef.current.onstop = async () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunksRef.current, { type: mediaRecorderRef.current?.mimeType ?? "audio/webm" });
+      if (blob.size < 500) { toast.error("Too short — try again"); setStatus("idle"); return; }
+
+      try {
+        setStatus("uploading");
+        const fd = new FormData();
+        fd.append("file", blob, "section.webm");
+        const up = await fetch("/api/upload-audio", { method: "POST", body: fd, credentials: "include" });
+        if (!up.ok) throw new Error("Upload failed");
+        const { url } = await up.json();
+
+        setStatus("processing");
+        const result = await extractMutation.mutateAsync({ audioUrl: url });
+
+        // Only patch the fields relevant to this section
+        const relevantKeys = SECTION_FIELDS[sectionKey];
+        const patch: Partial<OnboardingExtraction> = {};
+        for (const key of relevantKeys) {
+          const val = (result.extraction as unknown as Record<string, unknown>)[key];
+          if (val !== null && val !== undefined) {
+            (patch as Record<string, unknown>)[key] = val;
+          }
+        }
+
+        onPatch(patch);
+        setStatus("done");
+        toast.success("Section updated!", { description: `${Object.keys(patch).length} field(s) refreshed.` });
+        setTimeout(onClose, 1200);
+      } catch (err) {
+        toast.error("Re-record failed", { description: err instanceof Error ? err.message : "Try again" });
+        setStatus("idle");
+      }
+    };
+
+    mediaRecorderRef.current.stop();
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  return (
+    <div
+      className="mt-3 p-3 rounded-xl flex flex-col gap-2"
+      style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)" }}
+    >
+      <p className="text-amber-300/70 text-xs leading-relaxed">{SECTION_PROMPTS[sectionKey]}</p>
+
+      {status === "idle" && (
+        <button
+          onClick={startRecording}
+          className="flex items-center gap-2 text-amber-400 text-xs font-semibold hover:text-amber-300 transition-colors"
+        >
+          <Mic className="w-3.5 h-3.5" /> Tap to re-record this section
+        </button>
+      )}
+
+      {status === "recording" && (
+        <div className="flex items-center gap-3">
+          <Waveform active />
+          <RecordTimer seconds={seconds} />
+          <button
+            onClick={stopRecording}
+            className="flex items-center gap-1 text-red-400 text-xs font-semibold hover:text-red-300 transition-colors ml-auto"
+          >
+            <Square className="w-3 h-3 fill-current" /> Stop
+          </button>
+        </div>
+      )}
+
+      {(status === "uploading" || status === "processing") && (
+        <div className="flex items-center gap-2 text-amber-300/60 text-xs">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          {status === "uploading" ? "Uploading…" : "Extracting…"}
+        </div>
+      )}
+
+      {status === "done" && (
+        <div className="flex items-center gap-2 text-green-400 text-xs">
+          <CheckCircle2 className="w-3.5 h-3.5" /> Done!
+        </div>
+      )}
+
+      {status !== "done" && (
+        <button
+          onClick={onClose}
+          className="text-white/20 text-xs hover:text-white/40 transition-colors self-start"
+        >
+          Cancel
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Section with re-record button ───────────────────────────────────────────
+function Section({
+  title,
+  sectionKey,
+  children,
+  onPatch,
+}: {
+  title: string;
+  sectionKey: SectionKey;
+  children: React.ReactNode;
+  onPatch: (patch: Partial<OnboardingExtraction>) => void;
+}) {
+  const [showReRecord, setShowReRecord] = useState(false);
+
+  return (
+    <div
+      className="p-4 rounded-2xl space-y-3"
+      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-white/50 text-xs font-semibold uppercase tracking-wider">{title}</p>
+        <button
+          onClick={() => setShowReRecord((v) => !v)}
+          title="Re-record this section"
+          className={`flex items-center gap-1 text-xs transition-colors ${
+            showReRecord ? "text-amber-400" : "text-white/20 hover:text-amber-400/60"
+          }`}
+        >
+          <Mic className="w-3 h-3" />
+          <span className="hidden sm:inline">{showReRecord ? "Cancel" : "Re-record"}</span>
+        </button>
+      </div>
+
+      {showReRecord && (
+        <SectionReRecorder
+          sectionKey={sectionKey}
+          onPatch={onPatch}
+          onClose={() => setShowReRecord(false)}
+        />
+      )}
+
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-white/60 text-xs">{label}</Label>
+      {children}
+    </div>
   );
 }
 
@@ -119,59 +344,50 @@ export default function VoiceOnboarding() {
     }
   }, [profileData, navigate]);
 
+  // Callback for per-section patches
+  const handleSectionPatch = useCallback((patch: Partial<OnboardingExtraction>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    // Re-check missing fields after patch
+    setMissingFields((prev) => prev.filter((mf) => {
+      const newVal = (patch as Record<string, unknown>)[mf.key];
+      return newVal === null || newVal === undefined || (typeof newVal === "string" && newVal.trim() === "");
+    }));
+  }, []);
+
   // ── Recording ──────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-
-      // Prefer webm/opus, fall back to whatever the browser supports
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/mp4";
-
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      recorder.start(250); // collect chunks every 250ms
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.start(250);
       setIsRecording(true);
       setRecordSeconds(0);
-
-      timerRef.current = setInterval(() => {
-        setRecordSeconds((s) => s + 1);
-      }, 1000);
-    } catch (err) {
+      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch {
       toast.error("Microphone access denied", { description: "Please allow microphone access in your browser settings and try again." });
     }
   }, []);
 
   const stopRecording = useCallback(() => {
     if (!mediaRecorderRef.current || !isRecording) return;
-
     if (timerRef.current) clearInterval(timerRef.current);
     setIsRecording(false);
 
     mediaRecorderRef.current.onstop = async () => {
-      // Stop all tracks
       streamRef.current?.getTracks().forEach((t) => t.stop());
-
-      const blob = new Blob(chunksRef.current, {
-        type: mediaRecorderRef.current?.mimeType ?? "audio/webm",
-      });
-
+      const blob = new Blob(chunksRef.current, { type: mediaRecorderRef.current?.mimeType ?? "audio/webm" });
       if (blob.size < 1000) {
         toast.error("Recording too short", { description: "Please speak for at least a few seconds." });
         setStage("record");
         return;
       }
-
       await processAudio(blob);
     };
 
@@ -182,40 +398,26 @@ export default function VoiceOnboarding() {
   // ── Upload + extract ───────────────────────────────────────────────────────
   const processAudio = async (blob: Blob) => {
     try {
-      // Step 1: Upload audio
       setStage("uploading");
       const formData = new FormData();
       formData.append("file", blob, "onboarding.webm");
-
-      const uploadRes = await fetch("/api/upload-audio", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-
+      const uploadRes = await fetch("/api/upload-audio", { method: "POST", body: formData, credentials: "include" });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
         throw new Error(err.error ?? "Upload failed");
       }
-
       const { url } = await uploadRes.json();
 
-      // Step 2: Transcribe + extract
       setStage("processing");
       const result = await extractMutation.mutateAsync({ audioUrl: url });
 
       setTranscript(result.transcript);
       setExtraction(result.extraction);
       setMissingFields(result.missingFields as MissingField[]);
-
-      // Pre-fill form from extraction
       setForm({ ...result.extraction });
-
-      // Pre-fill missing values map
       const mv: Record<string, string> = {};
       for (const f of result.missingFields) mv[f.key] = "";
       setMissingValues(mv);
-
       setStage("review");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
@@ -228,13 +430,14 @@ export default function VoiceOnboarding() {
   const handleSave = async () => {
     setStage("saving");
     try {
-      // Merge missing field values into form
       const merged = { ...form };
       for (const [key, val] of Object.entries(missingValues)) {
         if (val.trim()) (merged as Record<string, unknown>)[key] = val.trim();
       }
-
-      await saveMutation.mutateAsync(merged as Parameters<typeof saveMutation.mutateAsync>[0]);
+      await saveMutation.mutateAsync({
+        ...(merged as Parameters<typeof saveMutation.mutateAsync>[0]),
+        voiceOnboardingTranscript: transcript || undefined,
+      });
       setStage("done");
       setTimeout(() => navigate("/portal"), 2000);
     } catch (err: unknown) {
@@ -244,13 +447,15 @@ export default function VoiceOnboarding() {
     }
   };
 
-  // ── Cleanup on unmount ─────────────────────────────────────────────────────
+  // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
+
+  const inputCls = "bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm";
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -272,37 +477,33 @@ export default function VoiceOnboarding() {
               <h1 className="text-2xl font-bold text-white mb-2">Tell us about your business</h1>
               <p className="text-white/50 text-sm leading-relaxed">
                 Just talk naturally — we'll pull out everything we need.
-                Mention your business name, what you do, where you work, your rates, and anything else.
+                Mention your business name, what you do, where you work, your rates, and anything else that matters.
               </p>
             </div>
 
             {/* Prompt card */}
             <div
-              className="text-left p-4 rounded-2xl space-y-2"
-              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.15)" }}
+              className="p-4 rounded-2xl text-left space-y-2"
+              style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}
             >
-              <p className="text-amber-400 text-xs font-semibold uppercase tracking-wider mb-3">What to cover</p>
-              {[
-                "Your business name and what trade you're in",
-                "How long you've been operating and your team size",
-                "The services you offer and your typical prices",
-                "Your call-out fee and hourly rate",
-                "Which suburbs or areas you cover",
-                "Your working hours and emergency availability",
-                "How customers should book with you",
-              ].map((tip, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className="text-amber-400/60 text-xs mt-0.5">•</span>
-                  <p className="text-white/60 text-xs">{tip}</p>
-                </div>
-              ))}
+              <p className="text-amber-400/80 text-xs font-semibold uppercase tracking-wider">Try saying…</p>
+              <p className="text-white/60 text-sm leading-relaxed italic">
+                "Hi, I'm Jake from Jake's Plumbing. I've been running the business for 8 years, just me and one other bloke.
+                We're based in Penrith and cover all of Western Sydney — about 40 ks from home.
+                My call-out fee is $80, hourly rate is $95. We do blocked drains, hot water systems, and general plumbing.
+                I can take about 3 jobs a day. We work Monday to Friday, 7 till 5, and Saturday mornings.
+                My ABN is 12 345 678 901."
+              </p>
             </div>
 
-            {/* Record button */}
+            {/* Mic button */}
             <div className="flex flex-col items-center gap-4">
-              <Waveform active={isRecording} />
-
-              {isRecording && <RecordTimer seconds={recordSeconds} />}
+              {isRecording && (
+                <>
+                  <Waveform active />
+                  <RecordTimer seconds={recordSeconds} />
+                </>
+              )}
 
               <button
                 onClick={isRecording ? stopRecording : startRecording}
@@ -311,12 +512,8 @@ export default function VoiceOnboarding() {
                   background: isRecording
                     ? "rgba(239,68,68,0.15)"
                     : "rgba(245,166,35,0.15)",
-                  border: isRecording
-                    ? "2px solid rgba(239,68,68,0.6)"
-                    : "2px solid rgba(245,166,35,0.4)",
-                  boxShadow: isRecording
-                    ? "0 0 0 8px rgba(239,68,68,0.08)"
-                    : "0 0 0 8px rgba(245,166,35,0.06)",
+                  border: `2px solid ${isRecording ? "#ef4444" : "#F5A623"}`,
+                  boxShadow: isRecording ? "0 0 24px rgba(239,68,68,0.3)" : "0 0 24px rgba(245,166,35,0.2)",
                 }}
               >
                 {isRecording
@@ -325,17 +522,16 @@ export default function VoiceOnboarding() {
                 }
               </button>
 
-              <p className="text-white/40 text-xs">
-                {isRecording ? "Tap to stop recording" : "Tap to start recording"}
+              <p className="text-white/30 text-xs">
+                {isRecording ? "Tap to stop" : "Tap to start recording"}
               </p>
             </div>
 
-            {/* Skip to form */}
             <button
-              onClick={() => navigate("/portal/onboarding")}
-              className="text-white/30 text-xs hover:text-white/50 transition-colors"
+              onClick={() => navigate("/portal/onboarding/form")}
+              className="text-white/20 text-xs hover:text-white/40 transition-colors"
             >
-              Prefer to fill in a form instead →
+              Prefer to type? Use the form instead →
             </button>
           </div>
         )}
@@ -344,8 +540,7 @@ export default function VoiceOnboarding() {
         {stage === "uploading" && (
           <div className="text-center space-y-4">
             <Loader2 className="w-10 h-10 text-amber-400 animate-spin mx-auto" />
-            <p className="text-white font-semibold">Uploading recording…</p>
-            <p className="text-white/40 text-sm">This only takes a moment.</p>
+            <p className="text-white/60 text-sm">Uploading your recording…</p>
           </div>
         )}
 
@@ -354,33 +549,30 @@ export default function VoiceOnboarding() {
           <div className="text-center space-y-4">
             <Sparkles className="w-10 h-10 text-amber-400 mx-auto" />
             <p className="text-white font-semibold">AI is reading your recording…</p>
-            <p className="text-white/40 text-sm">Extracting your business details. Usually takes 10–20 seconds.</p>
-            <div className="flex justify-center gap-1 pt-2">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-2 h-2 rounded-full bg-amber-400"
-                  style={{ animation: `pulse 1.2s ease-in-out ${i * 0.3}s infinite` }}
-                />
-              ))}
-            </div>
+            <p className="text-white/40 text-sm">Extracting your business details. This takes about 10–15 seconds.</p>
+            <Loader2 className="w-6 h-6 text-amber-400/50 animate-spin mx-auto" />
           </div>
         )}
 
         {/* ── STAGE: REVIEW ─────────────────────────────────────────────── */}
         {(stage === "review" || stage === "saving") && extraction && (
-          <div className="w-full space-y-6">
-            <div className="text-center">
-              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <h1 className="text-xl font-bold text-white">Here's what we found</h1>
-              <p className="text-white/50 text-sm mt-1">Review and correct anything, then confirm.</p>
+          <div className="w-full space-y-5">
+            {/* Header */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+                <h1 className="text-lg font-bold text-white">Looking good!</h1>
+              </div>
+              <p className="text-white/40 text-sm">
+                We've filled in what we could. Review each section — tap the mic icon to re-record just that part.
+              </p>
             </div>
 
             {/* Transcript toggle */}
             {transcript && (
               <button
                 onClick={() => setShowTranscript((v) => !v)}
-                className="flex items-center gap-2 text-white/40 text-xs hover:text-white/60 transition-colors mx-auto"
+                className="flex items-center gap-2 text-white/40 text-xs hover:text-white/60 transition-colors"
               >
                 <Volume2 className="w-3 h-3" />
                 {showTranscript ? "Hide transcript" : "Show transcript"}
@@ -399,7 +591,7 @@ export default function VoiceOnboarding() {
             <div className="space-y-5">
 
               {/* Business Basics */}
-              <Section title="Business Basics">
+              <Section title="Business Basics" sectionKey="basics" onPatch={handleSectionPatch}>
                 <Field label="Business / Trading Name">
                   <Input
                     value={form.tradingName ?? ""}
@@ -462,7 +654,7 @@ export default function VoiceOnboarding() {
               </Section>
 
               {/* Pricing */}
-              <Section title="Pricing">
+              <Section title="Pricing" sectionKey="pricing" onPatch={handleSectionPatch}>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Call-out Fee ($)">
                     <Input
@@ -526,7 +718,7 @@ export default function VoiceOnboarding() {
               </Section>
 
               {/* Job Capacity */}
-              <Section title="Job Capacity">
+              <Section title="Job Capacity" sectionKey="capacity" onPatch={handleSectionPatch}>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Max Jobs / Day">
                     <Input
@@ -550,7 +742,7 @@ export default function VoiceOnboarding() {
               </Section>
 
               {/* Service Area */}
-              <Section title="Service Area">
+              <Section title="Service Area" sectionKey="area" onPatch={handleSectionPatch}>
                 <Field label="Suburbs / Coverage Area">
                   <Textarea
                     value={form.serviceArea ?? ""}
@@ -563,7 +755,7 @@ export default function VoiceOnboarding() {
               </Section>
 
               {/* Operating Hours */}
-              <Section title="Operating Hours">
+              <Section title="Operating Hours" sectionKey="hours" onPatch={handleSectionPatch}>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Mon–Fri">
                     <Input
@@ -601,7 +793,7 @@ export default function VoiceOnboarding() {
               </Section>
 
               {/* AI Context */}
-              <Section title="AI Receptionist Notes">
+              <Section title="AI Receptionist Notes" sectionKey="ai" onPatch={handleSectionPatch}>
                 <Field label="Booking Instructions">
                   <Textarea
                     value={form.bookingInstructions ?? ""}
@@ -662,12 +854,12 @@ export default function VoiceOnboarding() {
               )}
             </Button>
 
-            {/* Re-record */}
+            {/* Full re-record */}
             <button
               onClick={() => { setStage("record"); setExtraction(null); setTranscript(""); }}
               className="flex items-center gap-1 text-white/30 text-xs hover:text-white/50 transition-colors mx-auto"
             >
-              <Mic className="w-3 h-3" /> Record again
+              <Mic className="w-3 h-3" /> Record everything again
             </button>
           </div>
         )}
@@ -681,30 +873,6 @@ export default function VoiceOnboarding() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ─── Small helpers ────────────────────────────────────────────────────────────
-const inputCls = "bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm";
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div
-      className="p-4 rounded-2xl space-y-3"
-      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-    >
-      <p className="text-white/50 text-xs font-semibold uppercase tracking-wider">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-white/60 text-xs">{label}</Label>
-      {children}
     </div>
   );
 }

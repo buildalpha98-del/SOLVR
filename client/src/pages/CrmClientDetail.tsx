@@ -13,7 +13,7 @@ import {
   Phone, Mail, Globe, MapPin, Zap, MessageSquare, PhoneCall,
   MailIcon, Video, Calendar, Headphones, Settings, Pin, PinOff,
   LogOut, Wand2, Users, DollarSign, Building2, Save, X, Check,
-  ExternalLink, ClipboardList,
+  ExternalLink, ClipboardList, Volume2, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 type Stage = "lead" | "qualified" | "onboarding" | "active" | "churned" | "paused";
@@ -68,6 +68,62 @@ function timeAgo(date: Date | string) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/**
+ * Collapsible panel showing the raw voice onboarding transcript for this client.
+ * Only renders when a transcript exists (client used voice onboarding).
+ */
+function VoiceTranscriptPanel({ clientId }: { clientId: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data, isLoading } = trpc.adminPortal.getVoiceOnboardingTranscript.useQuery(
+    { clientId },
+    { enabled: !!clientId }
+  );
+
+  if (isLoading) return null;
+  if (!data?.transcript) return null;
+
+  const completedAt = data.onboardingCompletedAt
+    ? new Date(data.onboardingCompletedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  return (
+    <div className="border border-amber-500/20 rounded-xl bg-amber-500/5 p-5">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          <Volume2 size={12} className="text-amber-400" />
+          <span className="font-mono text-[10px] text-amber-400/80 uppercase tracking-widest">
+            Voice Onboarding Transcript
+          </span>
+          {completedAt && (
+            <span className="text-[10px] text-slate-500 ml-1">· {completedAt}</span>
+          )}
+        </div>
+        {expanded
+          ? <ChevronUp size={12} className="text-slate-500" />
+          : <ChevronDown size={12} className="text-slate-500" />}
+      </button>
+
+      {expanded && (
+        <div className="mt-3">
+          <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{data.transcript}</p>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(data.transcript!);
+              toast.success("Transcript copied");
+            }}
+            className="mt-3 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            Copy to clipboard
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CrmClientDetail() {
@@ -394,6 +450,9 @@ export default function CrmClientDetail() {
                 </div>
               )}
             </div>
+
+            {/* Voice Onboarding Transcript */}
+            <VoiceTranscriptPanel clientId={clientId} />
 
             {/* Summary */}
             <div className="border border-white/10 rounded-xl bg-[#0D1E35] p-5">

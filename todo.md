@@ -198,3 +198,6 @@
 - [x] portal.extractVoiceOnboarding tRPC procedure — transcribe + extract + return missing fields
 - [x] portal.saveVoiceOnboarding tRPC procedure — persist extracted data + mark onboarding complete
 - [x] /portal/onboarding now routes to VoiceOnboarding; /portal/onboarding/form keeps old wizard as fallback
+- [x] Per-section re-record mic on VoiceOnboarding review screen
+- [x] Console CRM voice onboarding transcript viewer (collapsible amber panel)
+- [x] Auto-trigger generatePrompt (Vapi prompt) after saveVoiceOnboarding completes

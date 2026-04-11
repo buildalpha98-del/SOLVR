@@ -162,6 +162,13 @@
       "when": 1775859302729,
       "tag": "0022_unusual_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1775876042793,
+      "tag": "0023_natural_diamondback",
+      "breakpoints": true
     }
   ]
 }

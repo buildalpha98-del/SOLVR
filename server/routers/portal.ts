@@ -58,6 +58,7 @@ import {
 import { invokeLLM } from "../_core/llm";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { extractOnboardingData, getMissingRequiredFields } from "../_core/onboardingExtraction";
+import { autoGeneratePromptForClient } from "../autoGeneratePrompt";
 import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
@@ -1368,6 +1369,8 @@ export const portalRouter = router({
       aiContext: z.string().max(5000).optional().nullable(),
       bookingInstructions: z.string().max(2000).optional().nullable(),
       paymentTerms: z.string().max(255).optional().nullable(),
+      /** Raw transcript from the voice recording — stored for Console review */
+      voiceOnboardingTranscript: z.string().optional().nullable(),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
@@ -1389,6 +1392,7 @@ export const portalRouter = router({
         "afterHoursMultiplier", "emergencyAvailable", "emergencyFee",
         "serviceArea", "operatingHours",
         "tagline", "toneOfVoice", "aiContext", "bookingInstructions", "paymentTerms",
+        "voiceOnboardingTranscript",
       ] as const;
       for (const key of fields) {
         const val = (input as Record<string, unknown>)[key];
@@ -1406,6 +1410,13 @@ export const portalRouter = router({
       if (Object.keys(syncData).length > 0) {
         await updateCrmClient(client.id, syncData as any);
       }
+
+      // Auto-generate the Vapi prompt in the background.
+      // Non-fatal: if it fails, onboarding still completes successfully.
+      // The tradie can always regenerate from the Console checklist.
+      autoGeneratePromptForClient(client.id).catch((err) => {
+        console.error(`[saveVoiceOnboarding] Auto-prompt generation failed for client ${client.id}:`, err);
+      });
 
       return { success: true };
     }),
