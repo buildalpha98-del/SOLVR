@@ -226,3 +226,43 @@
 - [ ] "Path to 10 clients" milestone progress bar in Console Reporting header
 - [ ] Portal referral page at /portal/referral — unique link, referred count, reward status
 - [ ] Add Referral nav item to portal More drawer
+
+## Tier 1 Feature Build — Tradie Focus (Apr 2026)
+
+### Feature 1: Job Costing & Profit Tracker
+- [ ] Add jobCosts table to schema (materials + labour entries)
+- [ ] Add profitSummary computed fields / view to jobs
+- [ ] db.ts helpers: insertJobCost, listJobCosts, deleteJobCost, getJobProfitSummary
+- [ ] quotes router: addJobCost, removeJobCost, getJobCosts, getJobProfitSummary procedures
+- [ ] PortalQuoteDetail: Costs tab — mobile-first, add material/labour rows, voice-add button
+- [ ] PortalDashboard: Profit KPI cards (avg margin %, total revenue, total profit this month)
+- [ ] Automation: end-of-job profit summary push notification + email to tradie
+- [ ] Tests: job costing procedures
+
+### Feature 2: SMS Payment Links
+- [ ] Install twilio npm package
+- [ ] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets
+- [ ] Create server/_core/sms.ts helper (sendSms function)
+- [ ] Add paymentLinks table to schema (invoiceId, token, stripePaymentIntentId, sentAt, paidAt)
+- [ ] Create /pay/:token public page (Stripe checkout redirect, mobile-optimised)
+- [ ] Add createPaymentLink + sendPaymentLinkSms procedures to invoiceChasing router
+- [ ] Wire SMS send on invoice creation
+- [ ] Wire SMS into existing invoice chasing cron (each chase step)
+- [ ] Tests: payment link creation and SMS send
+
+### Feature 3: Quote Expiry & Follow-Up Automation
+- [ ] Add followUp1SentAt, followUp2SentAt, expiryNoticeSentAt columns to quotes schema
+- [ ] db:push migration
+- [ ] Create server/cron/quoteFollowUp.ts (48h follow-up, 5-day follow-up, expiry-day notice)
+- [ ] Register quoteFollowUp cron in server/_core/index.ts
+- [ ] Add follow-up status badges to PortalQuotes list (Followed Up / Expiring Soon)
+- [ ] Tests: follow-up cron logic
+
+### Feature 4: Before/After Photo Completion Report
+- [ ] Add photoType field to quotePhotos schema (before | after) + db:push
+- [ ] Add uploadAfterPhoto procedure to quotes router
+- [ ] PortalQuoteDetail: After-photo upload section on completed/invoiced jobs
+- [ ] Build CompletionReportDocument.tsx PDF template (before/after grid, work description, licence, warranty)
+- [ ] Add generateCompletionReport procedure (render PDF, upload S3, email customer)
+- [ ] Automation: auto-prompt to generate completion report when job marked complete
+- [ ] Tests: completion report generation

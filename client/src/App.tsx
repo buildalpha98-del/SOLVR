@@ -69,6 +69,7 @@ import PublicQuote from "./pages/PublicQuote";
 
 // ── Public completion report page (no auth) ──────────────────────────────────
 import PublicCompletionReport from "./pages/PublicCompletionReport";
+import PaymentLink from "./pages/PaymentLink";
 
 function Router() {
   return (
@@ -152,6 +153,9 @@ function Router() {
 
       {/* ── Public completion report (no auth, token-based) ──────────────── */}
       <Route path="/report/:token" component={PublicCompletionReport} />
+
+      {/* SMS payment link public page */}
+      <Route path="/pay/:token" component={PaymentLink} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

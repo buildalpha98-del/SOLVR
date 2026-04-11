@@ -56,6 +56,8 @@ import {
   buildMemoryContext,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
+import Stripe from "stripe";
+import { getPaymentLinkByToken, updatePaymentLink } from "../db";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { extractOnboardingData, getMissingRequiredFields } from "../_core/onboardingExtraction";
 import { autoGeneratePromptForClient } from "../autoGeneratePrompt";
@@ -1503,5 +1505,102 @@ export const portalRouter = router({
         await updateClientProfile(client.id, updatePayload as any);
       }
       return { success: true };
+    }),
+
+  /**
+   * Get payment link details by token — public, no auth required.
+   * Used by the /pay/:token page to show invoice summary.
+   */
+  getPaymentLink: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const link = await getPaymentLinkByToken(input.token);
+      if (!link) throw new TRPCError({ code: "NOT_FOUND", message: "Payment link not found." });
+
+      // Check expiry
+      if (link.expiresAt && new Date(link.expiresAt) < new Date() && link.status === "pending") {
+        await updatePaymentLink(link.id, { status: "expired" });
+        return { ...link, status: "expired" as const };
+      }
+
+      // Fetch business branding from client profile
+      const profile = await getClientProfile(link.clientId);
+      const client = await getCrmClientById(link.clientId);
+
+      // Fetch job title if available
+      let jobTitle: string | null = null;
+      if (link.jobId) {
+        const job = await getPortalJob(link.jobId);
+        jobTitle = job?.jobType ?? job?.description ?? null;
+      }
+
+      return {
+        id: link.id,
+        token: link.token,
+        status: link.status,
+        amountCents: link.amountCents,
+        invoiceNumber: link.invoiceNumber,
+        customerName: link.customerName,
+        expiresAt: link.expiresAt,
+        jobTitle,
+        businessName: profile?.tradingName ?? client?.businessName ?? "Your Service Provider",
+        businessLogo: profile?.logoUrl ?? null,
+        businessPhone: profile?.phone ?? client?.contactPhone ?? null,
+      };
+    }),
+
+  /**
+   * Create a Stripe Checkout Session for a payment link.
+   * Called when the customer clicks "Pay" on the /pay/:token page.
+   */
+  createPaymentLinkCheckout: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      origin: z.string().url(),
+    }))
+    .mutation(async ({ input }) => {
+      const link = await getPaymentLinkByToken(input.token);
+      if (!link) throw new TRPCError({ code: "NOT_FOUND", message: "Payment link not found." });
+      if (link.status !== "pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: link.status === "paid" ? "This invoice has already been paid." : "This payment link has expired." });
+      }
+      if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+        await updatePaymentLink(link.id, { status: "expired" });
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This payment link has expired." });
+      }
+
+      const profile = await getClientProfile(link.clientId);
+      const client = await getCrmClientById(link.clientId);
+      const businessName = profile?.tradingName ?? client?.businessName ?? "Your Service Provider";
+
+      const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      const session = await stripeInstance.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [{
+          price_data: {
+            currency: "aud",
+            product_data: {
+              name: `Invoice ${link.invoiceNumber ?? ""} — ${businessName}`,
+              description: link.customerName ? `Payment from ${link.customerName}` : undefined,
+            },
+            unit_amount: link.amountCents,
+          },
+          quantity: 1,
+        }],
+        customer_email: link.customerEmail ?? undefined,
+        allow_promotion_codes: false,
+        client_reference_id: link.id,
+        metadata: {
+          payment_link_id: link.id,
+          payment_link_token: link.token,
+          client_id: String(link.clientId),
+          invoice_number: link.invoiceNumber ?? "",
+        },
+        success_url: `${input.origin}/pay/${link.token}?success=1`,
+        cancel_url: `${input.origin}/pay/${link.token}?cancelled=1`,
+      });
+
+      return { url: session.url };
     }),
 });

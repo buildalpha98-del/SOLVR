@@ -342,6 +342,26 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             }
           }
         }
+        // ── Payment Link completion — mark the payment link as paid ──────────
+        if (session.metadata?.payment_link_token) {
+          const token = session.metadata.payment_link_token;
+          try {
+            const { getPaymentLinkByToken, updatePaymentLink } = await import("./db");
+            const link = await getPaymentLinkByToken(token);
+            if (link && link.status === "pending") {
+              await updatePaymentLink(link.id, {
+                status: "paid",
+                paidAt: new Date(),
+                stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : undefined,
+              });
+              console.log(`[Webhook] Payment link ${token} marked as paid via session ${session.id}`);
+            }
+          } catch (err) {
+            console.error(`[Webhook] Failed to mark payment link ${token} as paid:`, err);
+          }
+          break; // payment link checkout — skip subscription logic
+        }
+
         // ── Referral reward: apply 20% discount to referrer's next invoice ──
         if (session.metadata?.clientId) {
           const newClientId = parseInt(session.metadata.clientId, 10);

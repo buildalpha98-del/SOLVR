@@ -190,6 +190,13 @@
       "when": 1775901381055,
       "tag": "0026_brief_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1775903416129,
+      "tag": "0027_sleepy_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }

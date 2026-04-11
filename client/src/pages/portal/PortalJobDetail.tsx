@@ -223,7 +223,219 @@ function PhotoSection({
   );
 }
 
-// ─── Copy Report Link Button ─────────────────────────────────────────────────
+// ─── Job Costing Section ───────────────────────────────────────────────────────────────
+type CostItem = { id: number; category: string; description: string; amountCents: number; supplier?: string | null; reference?: string | null };
+
+const COST_CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
+  materials:     { bg: "rgba(59,130,246,0.12)",  text: "#3b82f6" },
+  labour:        { bg: "rgba(245,166,35,0.12)",  text: "#F5A623" },
+  subcontractor: { bg: "rgba(139,92,246,0.12)",  text: "#8b5cf6" },
+  equipment:     { bg: "rgba(20,184,166,0.12)",  text: "#14b8a6" },
+  other:         { bg: "rgba(255,255,255,0.06)", text: "rgba(255,255,255,0.5)" },
+};
+
+function JobCostingSection({
+  jobId,
+  costItems,
+  totalCostCents,
+  invoicedCents,
+  grossProfitCents,
+  grossMarginPct,
+  onRefresh,
+}: {
+  jobId: number;
+  costItems: CostItem[];
+  totalCostCents: number;
+  invoicedCents: number;
+  grossProfitCents: number;
+  grossMarginPct: number | null;
+  onRefresh: () => void;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [category, setCategory] = useState<"materials" | "labour" | "subcontractor" | "equipment" | "other">("materials");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [reference, setReference] = useState("");
+
+  const addCost = trpc.portal.addJobCostItem.useMutation({
+    onSuccess: () => { onRefresh(); setShowAdd(false); setDescription(""); setAmount(""); setSupplier(""); setReference(""); toast.success("Cost item added"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteCost = trpc.portal.deleteJobCostItem.useMutation({
+    onSuccess: () => { onRefresh(); toast.success("Cost item removed"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const isProfitable = grossProfitCents >= 0;
+  const marginColor = grossMarginPct === null ? "rgba(255,255,255,0.4)" : grossMarginPct >= 30 ? "#4ade80" : grossMarginPct >= 15 ? "#F5A623" : "#ef4444";
+
+  return (
+    <SectionCard
+      title="Job Costing & Profit"
+      action={
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5"
+          style={{ color: "#F5A623" }}
+        >
+          <Plus className="w-3.5 h-3.5" /> Add Cost
+        </button>
+      }
+    >
+      {/* Profit Summary */}
+      <div className="grid grid-cols-3 gap-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Revenue</p>
+          <p className="text-base font-bold text-white">{centsToAud(invoicedCents)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Total Costs</p>
+          <p className="text-base font-bold" style={{ color: "#ef4444" }}>{centsToAud(totalCostCents)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Gross Profit</p>
+          <p className="text-base font-bold" style={{ color: isProfitable ? "#4ade80" : "#ef4444" }}>
+            {isProfitable ? "+" : ""}{centsToAud(grossProfitCents)}
+          </p>
+        </div>
+      </div>
+
+      {/* Margin indicator */}
+      {grossMarginPct !== null && (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div
+              className="h-1.5 rounded-full transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, grossMarginPct))}%`, background: marginColor }}
+            />
+          </div>
+          <span className="text-xs font-semibold" style={{ color: marginColor }}>{grossMarginPct}% margin</span>
+        </div>
+      )}
+
+      {/* Cost items list */}
+      {costItems.length === 0 && !showAdd ? (
+        <p className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No costs recorded yet. Add materials, labour, or subcontractor costs.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {costItems.map(item => {
+            const catStyle = COST_CATEGORY_COLORS[item.category] ?? COST_CATEGORY_COLORS.other;
+            return (
+              <div key={item.id} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0" style={{ background: catStyle.bg, color: catStyle.text }}>
+                    {item.category}
+                  </span>
+                  <span className="text-white truncate">{item.description}</span>
+                  {item.supplier && <span className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.35)" }}>{item.supplier}</span>}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="font-medium" style={{ color: "#ef4444" }}>{centsToAud(item.amountCents)}</span>
+                  <button
+                    onClick={() => deleteCost.mutate({ id: item.id })}
+                    className="hover:text-red-400 transition-colors"
+                    style={{ color: "rgba(255,255,255,0.2)" }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add cost form */}
+      {showAdd && (
+        <div className="pt-2 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Category</label>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value as typeof category)}
+                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                <option value="materials">Materials</option>
+                <option value="labour">Labour</option>
+                <option value="subcontractor">Subcontractor</option>
+                <option value="equipment">Equipment</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount (AUD)</label>
+              <input
+                type="number"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Description *</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="e.g. 20m copper pipe, 3 hrs labour"
+              className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
+              style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Supplier (optional)</label>
+              <input
+                type="text"
+                value={supplier}
+                onChange={e => setSupplier(e.target.value)}
+                placeholder="e.g. Reece Plumbing"
+                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Reference (optional)</label>
+              <input
+                type="text"
+                value={reference}
+                onChange={e => setReference(e.target.value)}
+                placeholder="e.g. INV-001"
+                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                const cents = Math.round(parseFloat(amount) * 100);
+                if (!cents || isNaN(cents) || cents < 1) { toast.error("Enter a valid amount"); return; }
+                if (!description.trim()) { toast.error("Enter a description"); return; }
+                addCost.mutate({ jobId, category, description: description.trim(), amountCents: cents, supplier: supplier || undefined, reference: reference || undefined });
+              }}
+              disabled={addCost.isPending}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {addCost.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Add Cost"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── Copy Report Link Button ───────────────────────────────────────────────────────────────
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const publicUrl = `${window.location.origin}/report/${token}`;
@@ -592,6 +804,17 @@ export default function PortalJobDetail() {
             </div>
           )}
         </SectionCard>
+
+        {/* ── Job Costing & Profit Tracker ── */}
+        <JobCostingSection
+          jobId={jobId}
+          costItems={(data as any).costItems ?? []}
+          totalCostCents={(data as any).totalCostCents ?? 0}
+          invoicedCents={invoicedCents}
+          grossProfitCents={(data as any).grossProfitCents ?? 0}
+          grossMarginPct={(data as any).grossMarginPct ?? null}
+          onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
+        />
 
         {/* ── Before/After Photos ── */}
         <PhotoSection
