@@ -3,6 +3,7 @@
  * Sections: Business Profile, Change Password.
  */
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
-  Bell, ExternalLink, RefreshCw, ShieldCheck,
+  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
+import GoogleReviewSection from "./GoogleReviewSection";
 import { toast } from "sonner";
 
 // ─── Shared input style ──────────────────────────────────────────────────────
@@ -58,6 +60,20 @@ function SectionCard({
 }
 
 export default function PortalSettings() {
+  const [, navigate] = useLocation();
+
+  // ─── Logout ──────────────────────────────────────────────────────────────
+  const logoutMutation = trpc.portal.logout.useMutation({
+    onSuccess: () => {
+      toast.success("Logged out successfully.");
+      navigate("/portal");
+    },
+    onError: () => {
+      // Clear locally even if server call fails
+      navigate("/portal");
+    },
+  });
+
   // ─── Business Profile state ──────────────────────────────────────────────
   const profileQuery = trpc.portal.getBusinessProfile.useQuery();
   const updateProfile = trpc.portal.updateBusinessProfile.useMutation({
@@ -554,8 +570,31 @@ export default function PortalSettings() {
         {/* ─── Billing ──────────────────────────────────────────────────────────── */}
         <BillingSection />
 
+        {/* ─── Google Reviews ───────────────────────────────────────────────────── */}
+        <GoogleReviewSection />
+
         {/* ─── Notifications ────────────────────────────────────────────────────── */}
         <NotificationsSection />
+
+        {/* ─── Log Out ──────────────────────────────────────────────────────────── */}
+        <SectionCard
+          icon={LogOut}
+          title="Log Out"
+          subtitle="Sign out of your Solvr portal on this device."
+        >
+          <Button
+            variant="outline"
+            className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-400 font-semibold"
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+          >
+            {logoutMutation.isPending ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Logging out...</>
+            ) : (
+              <><LogOut className="w-4 h-4 mr-2" />Log Out</>  
+            )}
+          </Button>
+        </SectionCard>
 
         {/* ─── Delete Account ───────────────────────────────────────────────────── */}
         <DeleteAccountSection />

@@ -281,3 +281,105 @@
 - [x] Manus will NEVER edit capacitor.config.ts, ios/, scripts/sync-mobile.sh, or docs/superpowers/specs/
 - [x] Mobile feature requests flagged in commit messages as 'mobile: requires @capacitor/xxx'
 - [x] Claude Code owns all Capacitor/iOS config — boundary documented and enforced
+
+## Feature 6: Drag-and-Drop Scheduler + Staff GPS Check-In (Apr 2026) ✅
+
+### Schema & Migration
+- [x] Add staff_members table (id, clientId, name, mobile, trade, licenceNumber, isActive, createdAt) + db:push
+- [x] Add job_schedule table (id, clientId, jobId, staffId, startTime, endTime, status, notes, createdAt) + db:push
+- [x] Add time_entries table (id, clientId, jobId, staffId, scheduleId, checkInAt, checkOutAt, gpsLat, gpsLng, durationMinutes, createdAt) + db:push
+
+### Server
+- [x] db.ts helpers: createStaffMember, getStaffMember, listStaffMembers, updateStaffMember, deleteStaffMember
+- [x] db.ts helpers: createScheduleEntry, getScheduleEntry, listScheduleEntries (by week/clientId), updateScheduleEntry, deleteScheduleEntry
+- [x] db.ts helpers: createTimeEntry, getTimeEntry, listTimeEntries (by job/staff), updateTimeEntry, getActiveCheckIn
+- [x] portal router: listStaff, createStaff, updateStaff, deleteStaff procedures
+- [x] portal router: listScheduleWeek, createScheduleEntry, updateScheduleEntry, deleteScheduleEntry procedures
+- [x] portal router: checkIn, checkOut, getActiveCheckIn, listTimeEntries, getTimesheetSummary procedures
+
+### Portal UI
+- [x] PortalStaff.tsx page (/portal/staff) — staff list, add/edit/delete, mobile + trade + licence fields
+- [x] Staff nav item (Users icon) added to PortalLayout
+- [x] /portal/staff route added to App.tsx
+- [x] PortalSchedule.tsx page (/portal/schedule) — weekly calendar with @dnd-kit drag-and-drop
+- [x] Schedule nav item (CalendarClock icon) added to PortalLayout
+- [x] /portal/schedule route added to App.tsx
+- [x] PortalStaffCheckIn.tsx — staff-facing GPS check-in/check-out page (/portal/checkin)
+- [x] /portal/checkin route added to App.tsx
+
+### Automations
+- [x] server/cron/staffTimesheet.ts — end-of-day cron (11:30pm daily): completed time_entries → job_cost_items (labour hours × rate)
+- [x] Weekly timesheet email cron (Monday 7am AEST): per-staff hours summary to tradie owner
+- [x] Register staffTimesheet crons in server/_core/index.ts
+
+### Tests & Fixes
+- [x] Fix flaky voiceOnboarding UNAUTHORIZED test (timeout → 15000ms)
+- [x] 121/121 vitest tests passing, 0 TypeScript errors
+
+## Bug Fixes (Apr 11 2026)
+- [x] Fix 1: Compliance doc output — convert from .md download to branded PDF via @react-pdf/renderer
+  - [x] Created server/_core/ComplianceDocumentPDF.tsx — branded React-PDF component (header, sections, hazard table, signature block, footer)
+  - [x] Updated complianceDocGeneration.ts LLM prompt to output structured JSON (scope, hazards, controls, signatures)
+  - [x] Updated complianceDocGeneration.ts to renderToBuffer + upload to S3 at compliance-docs/{clientId}/{docId}.pdf
+  - [x] Updated PortalCompliance.tsx to open returned PDF URL in new tab
+- [x] Fix 2: Inline edit for PortalJobDetail — customer + job fields
+  - [x] Extended portal.updateJob zod schema to include callerName, callerPhone, jobType, description, location, preferredDate, customerName/Email/Phone/Address
+  - [x] updatePortalJob db helper already accepts Partial<InsertPortalJob> — no changes needed
+  - [x] Inline EditableField components with pencil icons already live on all required fields in PortalJobDetail.tsx
+  - [x] updateJobDetail in portalJobs.ts already accepted all fields — confirmed no gaps
+- [x] 121/121 vitest tests passing, 0 TypeScript errors
+
+## Feature 7 — Google Review Automation (Apr 11 2026)
+- [x] Schema: add googleReviewLink + reviewRequestEnabled columns to clientProfiles
+- [x] Schema: new google_review_requests table (id, clientId, jobId, customerName, customerPhone, customerEmail, channel, sentAt, status, errorMessage)
+- [x] DB: pnpm db:push migration
+- [x] DB helpers: insertReviewRequest, listReviewRequests, getReviewRequestStats
+- [x] tRPC: portal.saveGoogleReviewSettings
+- [x] tRPC: portal.listReviewRequests
+- [x] tRPC: portal.resendReviewRequest
+- [x] tRPC: portal.getReviewRequestStats
+- [x] Trigger: markJobComplete fires sendGoogleReviewRequest helper (SMS + email, non-fatal)
+- [x] Portal Settings: Google Reviews section
+- [x] Portal page: /portal/reviews — review request history + resend
+- [x] Sidebar nav: Reviews entry
+- [x] Console Reporting: review requests widget
+- [x] Tests: 11 vitest tests (all passing)
+
+## Feature 7 Enhancements — Send Delay + Admin Review Count (Apr 11 2026)
+
+- [x] Schema: add reviewRequestDelayMinutes (int, default 30) to clientProfiles
+- [x] Schema: add scheduledSendAt (timestamp, nullable) + "pending" status to googleReviewRequests
+- [x] DB: pnpm db:push migration
+- [x] DB helpers: listPendingReviewRequests, updateReviewRequestStatus, getReviewRequestCountByClient
+- [x] googleReview.ts: refactored to scheduleGoogleReviewRequest (stores pending) + processScheduledReviewRequests (cron dispatch)
+- [x] Cron: reviewRequestDispatch — runs every 5 min, fires due pending requests
+- [x] Portal Settings: delay selector dropdown (0/15/30/60/120/240/480/1440 min options)
+- [x] Portal Settings: delay selector saved via saveGoogleReviewSettings + returned by getGoogleReviewSettings
+- [x] Portal Reviews: "Scheduled" badge for pending status
+- [x] Console Portal Clients: Reviews Sent column with amber star + count
+
+## Bug Fixes (Jayden prompts — Apr 11 2026)
+
+- [x] Bug: voice-to-quote Zod validation error (String doesn't match expected pattern)
+- [x] Bug: missing logout button in portal settings + mobile nav
+
+## Bug Fixes + Apple Demo Account (Apr 11 2026)
+
+- [x] Bug 1: Voice-to-quote Zod error — add sanitiseExtracted() helper to strip invalid emails/phones from LLM output before insertQuote
+- [x] Bug 1: Relax customerEmail Zod schema in createDraft + update procedures to use z.string().email().nullish() with pre-validation strip
+- [x] Bug 1: Add unit test reproducing the invalid-email LLM output shape
+- [x] Bug 2: Add Log Out button to PortalSettings (destructive, confirm dialog, clears cache, redirects to /portal/login)
+- [x] Bug 2: Add Log Out item to portal mobile More drawer
+- [x] Bug 2: Wire portal.logout tRPC procedure (or confirm existing one clears server-side session)
+- [x] Demo: Create Apple reviewer account apple.review@solvr.com.au in portal DB
+
+## Apple App Store Screenshots — Test Data Seeding (Apr 11 2026)
+
+- [x] Add Log Out button to PortalSettings (top of Danger Zone section, amber/outline style)
+- [x] Add Log Out item to PortalLayout mobile More drawer
+- [x] Create Apple reviewer account apple.review@solvr.com.au in portal DB (strong password: AppleReview2026!)
+- [x] Seed 15 CRM interactions (calls) for jay.kowaider@hotmail.com client — realistic Vapi call data with transcripts, durations, caller names
+- [x] Seed 6 quotes (mix of draft/sent/accepted) with line items for plumbing/electrical/carpentry jobs
+- [x] Seed 8 portal jobs (mix of pending/in-progress/completed) linked to accepted quotes
+- [x] Seed calendar events for jobs (scheduled dates spread across current month)
+- [x] Verify dashboard KPIs reflect seeded data (call volume, job counts, revenue)

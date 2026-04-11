@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Activity,
   ClipboardList,
+  Star,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
 import {
@@ -88,6 +89,7 @@ export default function ConsoleDashboard() {
   const { data: mrrHistory } = trpc.crm.getMrrHistory.useQuery();
   // P3-C: Flagged quotes widget
   const { data: flaggedQuotes } = trpc.crm.getFlaggedQuotes.useQuery();
+  const { data: reviewStats } = trpc.ai.reviewStats.useQuery();
 
   const generateBriefing = trpc.ai.dailyBriefing.useMutation({
     onSuccess: () => {
@@ -174,6 +176,13 @@ export default function ConsoleDashboard() {
             sub="clients"
             color="blue"
             href="/console/onboarding"
+          />
+          <KpiCard
+            icon={Star}
+            label="Review Requests"
+            value={reviewStats?.totalSentThisMonth ?? "—"}
+            sub="sent this month"
+            color="amber"
           />
         </div>
 

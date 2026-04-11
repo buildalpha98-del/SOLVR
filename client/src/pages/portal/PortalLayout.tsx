@@ -13,7 +13,8 @@ import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck
+  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
+  CalendarClock, UserCog, Star
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -38,6 +39,9 @@ const ALL_TABS: NavTab[] = [
   { key: "customers", label: "Customers", href: "/portal/customers", icon: <Users className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "insights", label: "AI Insights", href: "/portal/insights", icon: <Sparkles className="w-4 h-4" />, feature: "ai-insights", badge: "Managed" },
   { key: "compliance", label: "Compliance", href: "/portal/compliance", icon: <ShieldCheck className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "staff", label: "Staff", href: "/portal/staff", icon: <UserCog className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "schedule", label: "Schedule", href: "/portal/schedule", icon: <CalendarClock className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "reviews", label: "Reviews", href: "/portal/reviews", icon: <Star className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
 ];
 
 // ─── Mobile bottom tab bar ───────────────────────────────────────────────────
@@ -45,7 +49,7 @@ const ALL_TABS: NavTab[] = [
 // Priority order: Dashboard, Calls, Jobs, Quotes. Falls back to first 4 unlocked.
 const PRIMARY_TAB_KEYS = ["dashboard", "calls", "jobs", "quotes"];
 
-function BottomTabBar({ features, currentTab }: { features: string[]; currentTab: string }) {
+function BottomTabBar({ features, currentTab, onLogout, isLoggingOut }: { features: string[]; currentTab: string; onLogout: () => void; isLoggingOut: boolean }) {
   const [showMore, setShowMore] = useState(false);
   // Swipe-to-close state
   const [dragStartY, setDragStartY] = useState<number | null>(null);
@@ -199,6 +203,19 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
                 <Settings className="w-4 h-4" /> Settings
               </span>
             </Link>
+            <button
+              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium w-full"
+              style={{ color: "#F5A623" }}
+              onClick={() => { setShowMore(false); onLogout(); }}
+              disabled={isLoggingOut}
+            >
+              {isLoggingOut ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <LogOut className="w-4 h-4" />
+              )}
+              Log Out
+            </button>
             <button
               className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium w-full"
               style={{ color: "rgba(255,255,255,0.5)" }}
@@ -479,7 +496,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
         }}
       >
         {/* Show the 4 most important unlocked tabs + a More option */}
-        <BottomTabBar features={features} currentTab={currentTab} />
+        <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} />
       </nav>
     </div>
   );

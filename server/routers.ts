@@ -15,6 +15,7 @@ import {
   insertTask, listTasks, updateTask, deleteTask,
   getConsoleStats,
   getChecklistByToken, updateChecklist,
+  getReviewRequestStatsAllClients,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { invokeLLM } from "./_core/llm";
@@ -1417,6 +1418,9 @@ Recent interactions: ${interactions.slice(0, 5).map(i => `[${i.type}] ${i.title}
 
   /** Console stats for home dashboard */
   stats: protectedProcedure.query(async () => getConsoleStats()),
+
+  /** Google Review request stats across all clients */
+  reviewStats: protectedProcedure.query(async () => getReviewRequestStatsAllClients()),
 
   /** General AI chat with business context */
   chat: protectedProcedure

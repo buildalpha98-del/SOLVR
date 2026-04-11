@@ -127,6 +127,61 @@ const QUOTE_EXTRACTION_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * Sanitise LLM-extracted quote data before it touches the DB.
+ *
+ * The LLM occasionally returns placeholder strings like "not provided",
+ * "N/A", "unknown", or malformed emails/phones. This helper nullifies any
+ * field that doesn't pass a basic format check so Zod and the DB never see
+ * invalid values.
+ */
+export function sanitiseExtracted(extracted: QuoteExtraction): QuoteExtraction {
+  // Basic RFC-5322 email check — must contain @ with at least one dot after it
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Australian phone: 10 digits, optionally with spaces/dashes/parens, or +61 prefix
+  const PHONE_RE = /^(\+?61|0)[\d\s\-().]{7,18}$/;
+  // Strings the LLM returns when it has no value
+  const NULL_STRINGS = new Set([
+    "not provided", "n/a", "na", "none", "unknown", "null",
+    "not mentioned", "not stated", "not given", "not available",
+    "no email", "no phone", "no address", "not specified",
+  ]);
+
+  function nullifyIfEmpty(val: string | null): string | null {
+    if (!val) return null;
+    const trimmed = val.trim();
+    if (!trimmed) return null;
+    if (NULL_STRINGS.has(trimmed.toLowerCase())) return null;
+    return trimmed;
+  }
+
+  const email = nullifyIfEmpty(extracted.customerEmail);
+  const phone = nullifyIfEmpty(extracted.customerPhone);
+
+  return {
+    ...extracted,
+    customerName: nullifyIfEmpty(extracted.customerName),
+    customerEmail: email && EMAIL_RE.test(email) ? email : null,
+    customerPhone: phone && PHONE_RE.test(phone.replace(/\s/g, "")) ? phone : null,
+    customerAddress: nullifyIfEmpty(extracted.customerAddress),
+    jobDescription: nullifyIfEmpty(extracted.jobDescription),
+    paymentTerms: nullifyIfEmpty(extracted.paymentTerms),
+    notes: nullifyIfEmpty(extracted.notes),
+    // Coerce validityDays to null if LLM returned 0 or negative
+    validityDays:
+      typeof extracted.validityDays === "number" && extracted.validityDays > 0
+        ? extracted.validityDays
+        : null,
+    // Ensure lineItems have valid quantities and prices
+    lineItems: extracted.lineItems.map((li) => ({
+      ...li,
+      quantity: typeof li.quantity === "number" && li.quantity > 0 ? li.quantity : 1,
+      unitPrice:
+        typeof li.unitPrice === "number" && li.unitPrice >= 0 ? li.unitPrice : null,
+    })),
+  };
+}
+
 export async function extractQuoteData(
   transcript: string,
   clientBusinessName: string,

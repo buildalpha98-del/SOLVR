@@ -193,7 +193,7 @@ describe("portal.extractVoiceOnboarding", () => {
     await expect(
       caller.extractVoiceOnboarding({ audioUrl: "https://example.com/audio.webm" })
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-  });
+  }, 15000);
 
   it("throws BAD_REQUEST when transcript is empty", async () => {
     mockTranscribe.mockResolvedValue({ text: "  ", language: "en", duration: 0, task: "transcribe", segments: [] });

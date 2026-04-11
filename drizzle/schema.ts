@@ -1024,11 +1024,45 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Receive weekly summary email (call volume, quotes, revenue) */
   notifyEmailWeeklySummary: boolean("notifyEmailWeeklySummary").default(true).notNull(),
 
+  // ── Google Review Automation ─────────────────────────────────────────────────
+  /** Direct Google Maps review link (e.g. https://g.page/r/xxx/review) */
+  googleReviewLink: varchar("googleReviewLink", { length: 512 }),
+  /** Whether to auto-send a review request when a job is marked complete */
+  reviewRequestEnabled: boolean("reviewRequestEnabled").default(true).notNull(),
+  /** Delay in minutes before the review request is sent after job completion (default 30) */
+  reviewRequestDelayMinutes: int("reviewRequestDelayMinutes").default(30).notNull(),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type ClientProfile = typeof clientProfiles.$inferSelect;
 export type InsertClientProfile = typeof clientProfiles.$inferInsert;
+
+// ─── Google Review Requests ──────────────────────────────────────────────────
+/**
+ * Log of every review request sent after job completion.
+ * Allows the tradie to track who was asked, resend, and see conversion.
+ */
+export const googleReviewRequests = mysqlTable("google_review_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  jobId: int("jobId"),
+  customerName: varchar("customerName", { length: 255 }),
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  /** sms | email | both */
+  channel: mysqlEnum("review_channel", ["sms", "email", "both"]).default("both").notNull(),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+  /** pending | sent | failed | skipped */
+  status: mysqlEnum("review_status", ["pending", "sent", "failed", "skipped"]).default("sent").notNull(),
+  /** When the request is scheduled to be sent (null = send immediately) */
+  scheduledSendAt: timestamp("scheduledSendAt"),
+  /** Error message if status = failed */
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type GoogleReviewRequest = typeof googleReviewRequests.$inferSelect;
+export type InsertGoogleReviewRequest = typeof googleReviewRequests.$inferInsert;
 
 //  Job Progress Payments 
 /**
@@ -1300,3 +1334,78 @@ export const complianceDocuments = mysqlTable("compliance_documents", {
 });
 export type ComplianceDocument = typeof complianceDocuments.$inferSelect;
 export type InsertComplianceDocument = typeof complianceDocuments.$inferInsert;
+
+
+// ─── Staff Members ────────────────────────────────────────────────────────────
+/**
+ * Staff/employees belonging to a tradie client.
+ * Used for scheduling, time tracking, and compliance docs.
+ */
+export const staffMembers = mysqlTable("staff_members", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  mobile: varchar("mobile", { length: 20 }),
+  trade: varchar("trade", { length: 100 }),
+  licenceNumber: varchar("licenceNumber", { length: 100 }),
+  /** Hourly labour rate in AUD for job costing auto-calculation */
+  hourlyRate: decimal("hourlyRate", { precision: 10, scale: 2 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StaffMember = typeof staffMembers.$inferSelect;
+export type InsertStaffMember = typeof staffMembers.$inferInsert;
+
+// ─── Job Schedule ─────────────────────────────────────────────────────────────
+/**
+ * Scheduled job assignments — maps a job to a staff member for a time slot.
+ * Drives the weekly drag-and-drop calendar view.
+ */
+export const jobSchedule = mysqlTable("job_schedule", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  jobId: int("jobId").notNull(),
+  staffId: int("staffId").notNull(),
+  startTime: timestamp("startTime").notNull(),
+  endTime: timestamp("endTime").notNull(),
+  /** pending | confirmed | in_progress | completed | cancelled */
+  status: mysqlEnum("sched_status", ["pending", "confirmed", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
+  notes: text("notes"),
+  /** Timestamp when push notification was sent to the staff member */
+  notificationSentAt: timestamp("notificationSentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobScheduleEntry = typeof jobSchedule.$inferSelect;
+export type InsertJobScheduleEntry = typeof jobSchedule.$inferInsert;
+
+// ─── Time Entries ─────────────────────────────────────────────────────────────
+/**
+ * GPS-verified check-in/check-out records for staff on jobs.
+ * Auto-converts to job_cost_items (labour) via end-of-day cron.
+ */
+export const timeEntries = mysqlTable("time_entries", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  jobId: int("jobId").notNull(),
+  staffId: int("staffId").notNull(),
+  /** Optional link to the schedule entry that triggered this check-in */
+  scheduleId: int("scheduleId"),
+  checkInAt: timestamp("checkInAt").notNull(),
+  checkOutAt: timestamp("checkOutAt"),
+  /** GPS coordinates at check-in */
+  checkInLat: decimal("checkInLat", { precision: 10, scale: 7 }),
+  checkInLng: decimal("checkInLng", { precision: 10, scale: 7 }),
+  /** GPS coordinates at check-out */
+  checkOutLat: decimal("checkOutLat", { precision: 10, scale: 7 }),
+  checkOutLng: decimal("checkOutLng", { precision: 10, scale: 7 }),
+  /** Calculated duration in minutes (set on checkout) */
+  durationMinutes: int("durationMinutes"),
+  /** Whether this entry has been converted to a job_cost_items labour row */
+  convertedToJobCost: boolean("convertedToJobCost").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TimeEntry = typeof timeEntries.$inferSelect;
+export type InsertTimeEntry = typeof timeEntries.$inferInsert;
