@@ -647,6 +647,39 @@ function ReportPage({
           </>
         )}
 
+        {/* Inclusions & Exclusions */}
+        {report.inclusionsExclusions && report.inclusionsExclusions.length > 0 && (
+          <>
+            <Text style={styles.reportSectionTitle}>Inclusions & Exclusions</Text>
+            <View style={{ flexDirection: "row", gap: 16, marginBottom: 8 }}>
+              {/* Inclusions */}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.stepTitle, { color: "#166534", marginBottom: 4 }]}>✓ Included</Text>
+                {report.inclusionsExclusions
+                  .filter((ie) => ie.type === "inclusion")
+                  .map((ie, i) => (
+                    <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+                      <Text style={{ fontSize: 9, color: "#166534", marginRight: 4 }}>•</Text>
+                      <Text style={{ fontSize: 9, color: "#374151", flex: 1, lineHeight: 1.4 }}>{ie.item}</Text>
+                    </View>
+                  ))}
+              </View>
+              {/* Exclusions */}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.stepTitle, { color: "#991B1B", marginBottom: 4 }]}>✗ Excluded</Text>
+                {report.inclusionsExclusions
+                  .filter((ie) => ie.type === "exclusion")
+                  .map((ie, i) => (
+                    <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
+                      <Text style={{ fontSize: 9, color: "#991B1B", marginRight: 4 }}>•</Text>
+                      <Text style={{ fontSize: 9, color: "#374151", flex: 1, lineHeight: 1.4 }}>{ie.item}</Text>
+                    </View>
+                  ))}
+              </View>
+            </View>
+          </>
+        )}
+
         {/* Site Observations */}
         {report.siteObservations && (
           <>
@@ -673,6 +706,24 @@ function ReportPage({
                 );
               })}
             </View>
+          </>
+        )}
+
+        {/* Warranty & Guarantee */}
+        {report.warrantyAndGuarantee && (
+          <>
+            <Text style={styles.reportSectionTitle}>Warranty & Guarantee</Text>
+            <View style={[styles.materialRow, { borderLeftColor: "#2563EB", borderLeftWidth: 3, paddingLeft: 10 }]}>
+              <Text style={styles.materialText}>{report.warrantyAndGuarantee}</Text>
+            </View>
+          </>
+        )}
+
+        {/* Why Choose Us */}
+        {report.whyChooseUs && (
+          <>
+            <Text style={styles.reportSectionTitle}>Why Choose Us</Text>
+            <Text style={styles.reportBodyText}>{report.whyChooseUs}</Text>
           </>
         )}
 

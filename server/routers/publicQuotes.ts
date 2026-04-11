@@ -16,13 +16,14 @@ import {
   updatePortalJob,
   createPortalCalendarEvent,
   getPortalSessionByClientId,
+  createJobCostItem,
 } from "../db";
 import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
+import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
-import { crmClients } from "../../drizzle/schema";
+import { crmClients, portalJobs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { randomUUID } from "crypto";
 
 export const publicQuotesRouter = router({
   /**
@@ -109,10 +110,13 @@ export const publicQuotesRouter = router({
     .mutation(async ({ input }) => {
       const quote = await getQuoteByToken(input.token);
       if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
-      if (quote.status !== "sent" && quote.status !== "draft") {
+      // P1-B: Only sent quotes can be accepted — draft quotes are not yet ready for customer response
+      if (quote.status !== "sent") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Quote cannot be accepted (status: ${quote.status})`,
+          message: quote.status === "draft"
+            ? "This quote is still being prepared and has not been sent yet."
+            : `Quote cannot be accepted (status: ${quote.status})`,
         });
       }
 
@@ -151,19 +155,50 @@ export const publicQuotesRouter = router({
         ? Number((jobResult as unknown as { insertId: bigint }).insertId)
         : null;
 
-       if (jobId) {
+      if (jobId) {
         await updateQuote(quote.id, { convertedJobId: jobId });
 
-        // ── Create a calendar event for the accepted quote ──────────────────
-        // Default to 7 days from now at 9am if no preferred date was captured
-        const _db = await getDb();
-        if (!_db) throw new Error("Database not available");
-        const jobRows = await _db
+        // ── Single DB connection for all post-acceptance queries ────────────────────
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // Fetch the newly created job (for any metadata needed downstream)
+        const jobRows = await db
           .select()
-          .from((await import("../../drizzle/schema")).portalJobs)
-          .where(eq((await import("../../drizzle/schema")).portalJobs.id, jobId))
+          .from(portalJobs)
+          .where(eq(portalJobs.id, jobId))
           .limit(1);
-        const job = jobRows[0];
+        const _job = jobRows[0]; // available for future use
+
+        // ── Auto-import quote line items as job cost items ──────────────────────
+        // Pre-populate the job costing panel with the quoted items so the tradie
+        // can track actuals against the quote without re-entering everything.
+        try {
+          const lineItems = await listQuoteLineItems(quote.id);
+          for (const item of lineItems) {
+            if (!item.description) continue;
+            // Convert quoted unit price × quantity to cents for cost tracking
+            const unitPriceCents = Math.round(parseFloat(item.unitPrice ?? "0") * 100);
+            const qty = parseFloat(item.quantity ?? "1");
+            const amountCents = Math.round(unitPriceCents * qty);
+            if (amountCents <= 0) continue;
+            await createJobCostItem({
+              jobId,
+              clientId: quote.clientId,
+              category: "materials", // default — tradie can recategorise
+              description: item.description,
+              amountCents,
+              reference: `Q:${quote.quoteNumber}`,
+            });
+          }
+          console.log(`[QuoteAccept] Imported ${lineItems.length} line items as cost items for job ${jobId}`);
+        } catch (importErr) {
+          // Non-fatal — job is still created even if cost import fails
+          console.error(`[QuoteAccept] Failed to import cost items for job ${jobId}:`, importErr);
+        }
+
+        // ── Create a calendar event for the accepted quote ──────────────────────
+        // Default to 7 days from now at 9am if no preferred date was captured
         const startAt = new Date();
         startAt.setDate(startAt.getDate() + 7);
         startAt.setHours(9, 0, 0, 0);
@@ -182,15 +217,13 @@ export const publicQuotesRouter = router({
           color: "green",
         });
 
-        // ── Send push notification to the client's mobile app ───────────────
+        // ── Send push notification to the client's mobile app ───────────────────
         const portalSession = await getPortalSessionByClientId(quote.clientId);
         if (portalSession) {
-          const db = await getDb();
-          if (!db) throw new Error("Database not available");
           const clientRows = await db
-            .select({ pushToken: (await import("../../drizzle/schema")).crmClients.pushToken })
-            .from((await import("../../drizzle/schema")).crmClients)
-            .where(eq((await import("../../drizzle/schema")).crmClients.id, quote.clientId))
+            .select({ pushToken: crmClients.pushToken })
+            .from(crmClients)
+            .where(eq(crmClients.id, quote.clientId))
             .limit(1);
           const pushToken = clientRows[0]?.pushToken;
           if (pushToken) {
@@ -205,6 +238,18 @@ export const publicQuotesRouter = router({
           }
         }
       }
+      // Web push (VAPID) — for browser/PWA subscribers
+      try {
+        await sendPushToClient(quote.clientId, {
+          title: "Quote Accepted! 🎉",
+          body: `${quote.customerName ?? "A client"} accepted ${quote.quoteNumber} — ${quote.jobTitle}`,
+          url: `/portal/quotes`,
+          icon: "/icon-192.png",
+        });
+      } catch (pushErr) {
+        console.error("[PublicQuotes] Web push failed:", pushErr);
+      }
+
       // Notify the tradie by email
       if (client) {
         const notifyEmail = client.quoteReplyToEmail ?? client.contactEmail;
@@ -245,10 +290,13 @@ export const publicQuotesRouter = router({
     .mutation(async ({ input }) => {
       const quote = await getQuoteByToken(input.token);
       if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
-      if (quote.status !== "sent" && quote.status !== "draft") {
+      // P1-B: Only sent quotes can be declined — draft quotes are not yet ready for customer response
+      if (quote.status !== "sent") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Quote cannot be declined (status: ${quote.status})`,
+          message: quote.status === "draft"
+            ? "This quote is still being prepared and has not been sent yet."
+            : `Quote cannot be declined (status: ${quote.status})`,
         });
       }
 

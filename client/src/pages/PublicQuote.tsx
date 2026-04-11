@@ -4,8 +4,13 @@
  * Accessible at /quote/:token (no auth required).
  * Allows the customer to:
  * - View the full quote with line items, report, and photos
- * - Accept or decline the quote
+ * - Accept or decline the quote (with structured reason + optional note)
  * - Download the PDF
+ *
+ * P1-A fix: Decline form now uses radio buttons for the enum reason field
+ *           plus a separate optional freetext customerNote field.
+ * P1-B fix: Draft quotes show a "not yet available" banner instead of
+ *           accept/decline buttons (server also blocks draft acceptance).
  */
 import { useState } from "react";
 import { useParams } from "wouter";
@@ -15,8 +20,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
-  CheckCircle, XCircle, Download, Loader2, FileText, ExternalLink,
+  CheckCircle, XCircle, Download, Loader2, FileText,
 } from "lucide-react";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtAUD(val: string | null | undefined) {
   if (!val) return "—";
@@ -32,6 +39,18 @@ function fmtDate(val: Date | string | null | undefined) {
   });
 }
 
+// ── Decline reason options (mirrors the backend enum exactly) ─────────────────
+
+const DECLINE_REASONS: { value: "price" | "timing" | "scope" | "found_someone_else" | "other"; label: string; description: string }[] = [
+  { value: "price", label: "Price", description: "The quote was outside my budget" },
+  { value: "timing", label: "Timing", description: "The timeline doesn't work for me right now" },
+  { value: "scope", label: "Scope", description: "The work described doesn't match what I need" },
+  { value: "found_someone_else", label: "Found someone else", description: "I've decided to go with another provider" },
+  { value: "other", label: "Other", description: "Another reason not listed above" },
+];
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function PublicQuote() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -40,7 +59,9 @@ export default function PublicQuote() {
   const acceptMutation = trpc.publicQuotes.accept.useMutation();
   const declineMutation = trpc.publicQuotes.decline.useMutation();
 
-  const [declineReason, setDeclineReason] = useState("");
+  // P1-A: Separate state for structured reason (enum) vs freetext note
+  const [declineReason, setDeclineReason] = useState<"price" | "timing" | "scope" | "found_someone_else" | "other" | "">("");
+  const [customerNote, setCustomerNote] = useState("");
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [actionDone, setActionDone] = useState<"accepted" | "declined" | null>(null);
 
@@ -70,6 +91,8 @@ export default function PublicQuote() {
   const accent = brandColour ?? "#F5A623";
   const isExpired = (quote.status as string) === "expired";
   const isClosed = ["accepted", "declined", "cancelled"].includes(quote.status);
+  // P1-B: Draft quotes are not yet ready for customer response
+  const isDraft = quote.status === "draft";
 
   async function handleAccept() {
     try {
@@ -82,8 +105,16 @@ export default function PublicQuote() {
   }
 
   async function handleDecline() {
+    if (!declineReason) {
+      toast.error("Please select a reason for declining.");
+      return;
+    }
     try {
-      await declineMutation.mutateAsync({ token, reason: (declineReason as "price" | "timing" | "scope" | "found_someone_else" | "other") || undefined });
+      await declineMutation.mutateAsync({
+        token,
+        reason: declineReason,
+        customerNote: customerNote.trim() || undefined,
+      });
       setActionDone("declined");
       setShowDeclineForm(false);
       toast("Quote declined. Thank you for letting us know.");
@@ -92,7 +123,8 @@ export default function PublicQuote() {
     }
   }
 
-  // ── Accepted / declined confirmation screens ──────────────────────────────
+  // ── Confirmation screens ──────────────────────────────────────────────────
+
   if (actionDone === "accepted") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -147,11 +179,19 @@ export default function PublicQuote() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {/* ── Status banner ──────────────────────────────────────────── */}
+        {/* ── Status banners ─────────────────────────────────────────── */}
         {isExpired && (
           <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
             <p className="text-amber-700 font-medium text-sm">
               This quote has expired. Please contact {businessName} for an updated quote.
+            </p>
+          </div>
+        )}
+        {/* P1-B: Draft quotes show a clear "not yet sent" banner */}
+        {isDraft && (
+          <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-center">
+            <p className="text-blue-700 font-medium text-sm">
+              This quote is still being prepared. {businessName} will send it to you shortly.
             </p>
           </div>
         )}
@@ -216,6 +256,41 @@ export default function PublicQuote() {
               <div>
                 <h2 className="text-lg font-bold text-gray-900 mb-2">Scope of Work</h2>
                 <p className="text-gray-600 leading-relaxed">{reportContent.scopeOfWork as string}</p>
+              </div>
+            )}
+            {/* Inclusions & Exclusions */}
+            {(reportContent.inclusionsExclusions as { inclusions?: string[]; exclusions?: string[] }) && (
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Inclusions & Exclusions</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {((reportContent.inclusionsExclusions as any).inclusions ?? []).length > 0 && (
+                    <div className="bg-green-50 rounded-xl p-4">
+                      <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-2">✓ Included</p>
+                      <ul className="space-y-1">
+                        {((reportContent.inclusionsExclusions as any).inclusions as string[]).map((item: string, i: number) => (
+                          <li key={i} className="text-sm text-green-800">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {((reportContent.inclusionsExclusions as any).exclusions ?? []).length > 0 && (
+                    <div className="bg-red-50 rounded-xl p-4">
+                      <p className="text-xs font-semibold text-red-700 uppercase tracking-wider mb-2">✗ Not Included</p>
+                      <ul className="space-y-1">
+                        {((reportContent.inclusionsExclusions as any).exclusions as string[]).map((item: string, i: number) => (
+                          <li key={i} className="text-sm text-red-800">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* Warranty & Guarantee */}
+            {(reportContent.warrantyAndGuarantee as string) && (
+              <div className="bg-blue-50 rounded-xl p-4">
+                <h2 className="text-sm font-semibold text-blue-800 mb-1">Warranty & Guarantee</h2>
+                <p className="text-sm text-blue-700 leading-relaxed">{reportContent.warrantyAndGuarantee as string}</p>
               </div>
             )}
             {(reportContent.whyChooseUs as string) && (
@@ -310,7 +385,8 @@ export default function PublicQuote() {
         )}
 
         {/* ── Accept / Decline ───────────────────────────────────────── */}
-        {!isClosed && !isExpired && (
+        {/* P1-B: Only show response buttons for sent quotes, not draft/expired/closed */}
+        {!isClosed && !isExpired && !isDraft && (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Your Response</h2>
             <p className="text-sm text-gray-500 mb-5">
@@ -341,31 +417,72 @@ export default function PublicQuote() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
+              /* P1-A: Structured decline form — radio buttons + separate note field */
+              <div className="space-y-5">
+                <div>
+                  <Label className="text-gray-700 text-sm font-semibold mb-3 block">
+                    Why are you declining? <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="space-y-2">
+                    {DECLINE_REASONS.map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                          declineReason === opt.value
+                            ? "border-gray-400 bg-gray-50"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="declineReason"
+                          value={opt.value}
+                          checked={declineReason === opt.value}
+                          onChange={() => setDeclineReason(opt.value)}
+                          className="mt-0.5 accent-gray-800"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{opt.label}</p>
+                          <p className="text-xs text-gray-500">{opt.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <Label className="text-gray-600 text-sm mb-1.5 block">
-                    Reason for declining (optional)
+                    Additional comments <span className="text-gray-400">(optional)</span>
                   </Label>
                   <Textarea
-                    value={declineReason}
-                    onChange={(e) => setDeclineReason(e.target.value)}
-                    placeholder="Let us know why you're declining so we can improve…"
+                    value={customerNote}
+                    onChange={(e) => setCustomerNote(e.target.value)}
+                    placeholder="Any other details that might help the team improve…"
                     className="resize-none"
                     rows={3}
+                    maxLength={1000}
                   />
+                  {customerNote.length > 0 && (
+                    <p className="text-xs text-gray-400 mt-1 text-right">{customerNote.length}/1000</p>
+                  )}
                 </div>
+
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
                     className="flex-1 border-gray-200 text-gray-500"
-                    onClick={() => setShowDeclineForm(false)}
+                    onClick={() => {
+                      setShowDeclineForm(false);
+                      setDeclineReason("");
+                      setCustomerNote("");
+                    }}
                   >
                     Back
                   </Button>
                   <Button
                     className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-semibold"
                     onClick={handleDecline}
-                    disabled={declineMutation.isPending}
+                    disabled={declineMutation.isPending || !declineReason}
                   >
                     {declineMutation.isPending ? (
                       <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Declining…</>

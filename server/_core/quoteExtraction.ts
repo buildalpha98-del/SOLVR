@@ -16,37 +16,82 @@ export interface QuoteExtraction {
   paymentTerms: string | null;
   validityDays: number | null;
   notes: string | null;
+  /** Flags set when the model detects something worth reviewing */
+  extractionWarnings: string[];
 }
 
-const QUOTE_EXTRACTION_SYSTEM_PROMPT = `You are a quote data extraction assistant for Australian tradespeople. Your job is to take a raw voice transcript from a tradie describing a job and extract structured quote data.
+const QUOTE_EXTRACTION_SYSTEM_PROMPT = `You are an expert quote data extraction assistant for Australian tradespeople, built into the Solvr platform.
 
-RULES:
-1. Extract only information explicitly stated in the transcript. If a price, quantity, or detail is not mentioned, set the field to null — NEVER guess or hallucinate values.
-2. Understand Australian trade terminology:
-   - "hot water unit" / "HWU" = hot water system
-   - "flexi hose" / "flexi" = flexible braided hose
-   - "supply and install" = materials + labour combined
-   - "labour only" = no materials, labour charge only
-   - "first fix" / "second fix" = rough-in vs fit-off stage
-   - "per lin metre" / "per lineal" = per linear metre
-   - "call out" / "callout fee" = attendance/service fee
-   - "arvo" = afternoon
-   - "sparky" = electrician, "chippy" = carpenter, "bricky" = bricklayer
-   - Prices are in AUD. GST is always 10%.
-3. If the tradie mentions a total price for a job without breaking it into parts, create a single line item with that total as the unitPrice and quantity 1.
-4. If the tradie gives a range (e.g. "between 800 and 1200"), use the HIGHER figure as the unitPrice and add a note mentioning the range.
-5. Payment terms default to "Due on completion" if not mentioned.
-6. Validity defaults to 30 days if not mentioned.
-7. If the tradie mentions the customer's name, extract it. Otherwise set customerName to null.
-8. The jobTitle should be a concise 3-8 word summary of the overall job.
-9. Line item descriptions should be clear and professional — clean up casual speech but preserve technical accuracy.
-10. Set the unit field appropriately: "each", "hr", "m", "m²", "L", "lot", etc. Default to "each" if unclear.`;
+Your job is to take a raw voice transcript from a tradie describing a job and extract structured quote data. When a Business Profile (Memory File) is provided, you MUST use it as the authoritative source for default pricing, payment terms, and service details — the transcript overrides the memory file only when the tradie explicitly states a different value.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE EXTRACTION RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. NEVER hallucinate or guess values. If a price, quantity, or detail is not in the transcript AND not in the memory file, set the field to null.
+
+2. MEMORY FILE PRIORITY — when a memory file is provided:
+   - If the tradie says "standard callout", "usual rate", "normal fee", "our standard", or similar → use the callOutFee or hourlyRate from the memory file.
+   - If the tradie names a service that matches one in servicesOffered → use that service's typicalPrice as the unitPrice.
+   - If payment terms are not stated in the transcript → use the memory file's paymentTerms.
+   - If the tradie says "the usual" or "same as last time" → apply the closest matching memory file value.
+   - NEVER use memory file values for line items the tradie explicitly priced differently.
+
+3. PRICE RANGE HANDLING — if the tradie gives a range (e.g. "between 800 and 1200"):
+   - Use the HIGHER figure as unitPrice.
+   - Add a note: "Price range quoted: $[low] – $[high]. Higher figure used."
+
+4. PRICE ANOMALY DETECTION — if a memory file is provided and an extracted price is more than 50% above or below the memory file's equivalent rate, add a warning to extractionWarnings (e.g. "Labour rate of $250/hr is significantly above the standard $95/hr from memory file — please review.").
+
+5. AUSTRALIAN TRADE TERMINOLOGY — understand and correctly map:
+   - "hot water unit" / "HWU" / "hot water system" → Hot Water System
+   - "flexi hose" / "flexi" → Flexible Braided Hose
+   - "supply and install" → materials + labour combined (single line item unless broken out)
+   - "labour only" → no materials, labour charge only
+   - "first fix" / "rough-in" → rough-in stage; "second fix" / "fit-off" → fit-off stage
+   - "per lin metre" / "per lineal" → per linear metre (unit: "m")
+   - "call out" / "callout fee" / "service fee" / "attendance fee" → call-out charge
+   - "arvo" → afternoon; "arvo job" → afternoon booking
+   - "sparky" → electrician; "chippy" → carpenter; "bricky" → bricklayer; "plumbie" → plumber
+   - "time and a half" → 1.5× standard rate; "double time" → 2× standard rate
+   - "SWMS" → Safe Work Method Statement; "PC items" → Prime Cost items
+   - "provisional sum" / "PS" → provisional cost allowance (note in line item description)
+   - "variation" / "VO" → variation order (create a separate line item)
+   - Prices are always AUD. GST is always 10% unless stated otherwise.
+
+6. LINE ITEM CONSTRUCTION:
+   - If the tradie gives a total job price without breakdown → single line item, unitPrice = total, quantity = 1, unit = "lot".
+   - If the tradie breaks the job into parts → one line item per part.
+   - Descriptions must be professional and clear — clean up casual speech but preserve technical accuracy.
+   - Unit values: "each", "hr", "m", "m²", "m³", "L", "lot", "visit", "day", "set", "pair". Default to "each" if unclear.
+   - If a line item has no price and the memory file has a matching service price, use it and note the source.
+
+7. CUSTOMER DETAILS:
+   - Extract name, phone, email, and address if mentioned.
+   - Normalise phone to Australian format (e.g. "0412 345 678").
+   - If the tradie says "the Smiths at 14 Main Street" → customerName = "The Smiths", customerAddress = "14 Main Street".
+
+8. JOB TITLE: Concise 3–8 word summary of the overall job (e.g. "Hot Water System Replacement", "Bathroom Renovation — Rough-In Stage").
+
+9. JOB DESCRIPTION: A professional 2–4 sentence scope summary suitable for a customer-facing quote. Expand on the job title with key scope details. If the tradie gave a very brief description, flesh it out based on the line items.
+
+10. PAYMENT TERMS: Use transcript value if stated. Otherwise use memory file value. Otherwise default to "Due on completion".
+
+11. VALIDITY: Use transcript value if stated. Otherwise use memory file value. Otherwise default to 30 days.
+
+12. NOTES: Include any special conditions, access requirements, exclusions, or customer-specific notes the tradie mentioned. If the tradie mentioned a price range, include it here.
+
+13. EXTRACTION WARNINGS: Add a warning string for each of the following:
+    - A price that seems anomalous vs the memory file (>50% variance)
+    - A line item with no price where a memory file price exists but wasn't applied (explain why)
+    - Any ambiguity in the transcript that required a judgement call
+    - Leave the array empty [] if no warnings apply.`;
 
 const QUOTE_EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
     jobTitle: { type: "string", description: "Concise 3-8 word job title" },
-    jobDescription: { type: ["string", "null"], description: "Longer scope of works or null" },
+    jobDescription: { type: ["string", "null"], description: "Professional 2-4 sentence scope summary, or null" },
     customerName: { type: ["string", "null"] },
     customerPhone: { type: ["string", "null"] },
     customerEmail: { type: ["string", "null"] },
@@ -68,11 +113,16 @@ const QUOTE_EXTRACTION_SCHEMA = {
     paymentTerms: { type: ["string", "null"] },
     validityDays: { type: ["integer", "null"] },
     notes: { type: ["string", "null"] },
+    extractionWarnings: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of anomalies, ambiguities, or review flags. Empty array if none.",
+    },
   },
   required: [
     "jobTitle", "jobDescription", "customerName", "customerPhone",
     "customerEmail", "customerAddress", "lineItems", "paymentTerms",
-    "validityDays", "notes",
+    "validityDays", "notes", "extractionWarnings",
   ],
   additionalProperties: false,
 };
@@ -83,15 +133,32 @@ export async function extractQuoteData(
   memoryContext?: string,
 ): Promise<QuoteExtraction> {
   const userContent = memoryContext
-    ? `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---\n\n--- BUSINESS PROFILE (Memory File) ---\n${memoryContext}\n--- END MEMORY FILE ---\n\nUse the business profile to fill in default pricing, payment terms, and service details where the tradie didn't explicitly state them in the transcript. For example, if the tradie mentions "standard callout" and the memory file has a callout fee of $80, use $80 as the unit price. Extract the structured quote data. Return valid JSON only.`
-    : `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---\n\nExtract the structured quote data. Return valid JSON only.`;
+    ? `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":
+---
+${transcript}
+---
+
+--- BUSINESS PROFILE (Memory File) ---
+${memoryContext}
+--- END MEMORY FILE ---
+
+Instructions:
+1. Extract all quote data from the transcript above.
+2. Where the tradie uses shorthand like "standard callout", "usual rate", or "the normal fee", look up the exact value from the Memory File and use it as the unitPrice.
+3. Where the transcript does not specify payment terms or validity, use the Memory File defaults.
+4. Flag any price anomalies (>50% variance from Memory File rates) in extractionWarnings.
+5. Return valid JSON only — no markdown, no explanation.`
+    : `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":
+---
+${transcript}
+---
+
+Extract all quote data from the transcript. Return valid JSON only — no markdown, no explanation.`;
+
   const response = await invokeLLM({
     messages: [
       { role: "system" as const, content: QUOTE_EXTRACTION_SYSTEM_PROMPT },
-      {
-        role: "user" as const,
-        content: userContent,
-      },
+      { role: "user" as const, content: userContent },
     ],
     response_format: {
       type: "json_schema",

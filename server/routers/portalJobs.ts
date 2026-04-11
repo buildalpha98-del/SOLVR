@@ -11,6 +11,7 @@ import { TRPCError } from "@trpc/server";
 import { getPortalClient } from "./portalAuth";
 import { storagePut } from "../storage";
 import { sendEmail } from "../_core/email";
+import { sendSms } from "../lib/sms";
 import { fetchImageBuffer } from "../_core/pdfGeneration";
 import { InvoiceDocument } from "../_core/InvoiceDocument";
 import { CompletionReportDocument } from "../_core/CompletionReportDocument";
@@ -34,6 +35,12 @@ import {
   getTradieCustomer,
   getQuoteById,
   listQuoteLineItems,
+  listJobCostItems,
+  createJobCostItem,
+  deleteJobCostItem,
+  getJobCostItem,
+  sumJobCosts,
+  createPaymentLink,
 } from "../db";
 
 
@@ -52,9 +59,10 @@ export const portalJobsProcedures = {
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
       }
-      const [progressPayments, photos] = await Promise.all([
+      const [progressPayments, photos, costItems] = await Promise.all([
         listJobProgressPayments(job.id),
         listJobPhotos(job.id),
+        listJobCostItems(job.id),
       ]);
       // Fetch linked quote if any
       let quote = null;
@@ -65,7 +73,12 @@ export const portalJobsProcedures = {
       }
       // Check if client has Quote Engine add-on active
       const hasQuoteEngine = await hasFeature(client.id, "quote-engine");
-      return { job, progressPayments, photos, quote, lineItems, hasQuoteEngine };
+      // Calculate profit metrics
+      const totalCostCents = costItems.reduce((sum, c) => sum + c.amountCents, 0);
+      const invoicedCents = job.invoicedAmount ?? 0;
+      const grossProfitCents = invoicedCents - totalCostCents;
+      const grossMarginPct = invoicedCents > 0 ? Math.round((grossProfitCents / invoicedCents) * 100) : null;
+      return { job, progressPayments, photos, quote, lineItems, hasQuoteEngine, costItems, totalCostCents, grossProfitCents, grossMarginPct };
     }),
 
   /**
@@ -393,7 +406,38 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
         });
       }
 
-      return { success: true, invoiceNumber, pdfUrl, sent: shouldSendEmail };
+      // Create SMS payment link if customer has a phone number and balance is due
+      let paymentLinkUrl: string | null = null;
+      const customerPhone = job.customerPhone ?? job.callerPhone ?? null;
+      if (customerPhone && balanceDueCents > 0 && !input.isCashPaid) {
+        try {
+          const token = randomUUID().replace(/-/g, "");
+          const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          await createPaymentLink({
+            id: randomUUID(),
+            clientId: client.id,
+            jobId: input.jobId,
+            token,
+            amountCents: balanceDueCents,
+            customerName: pdfInput.invoice.customerName ?? undefined,
+            customerPhone,
+            customerEmail: recipientEmail ?? undefined,
+            invoiceNumber,
+            expiresAt: sevenDaysFromNow,
+          });
+          const origin = (ctx.req as any).headers?.origin ?? "https://solvr.com.au";
+          paymentLinkUrl = `${origin}/pay/${token}`;
+          const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
+          const smsBody = `Hi ${pdfInput.invoice.customerName ?? "there"}, your invoice ${invoiceNumber} from ${businessName} for $${(balanceDueCents / 100).toFixed(2)} is ready. Pay securely: ${paymentLinkUrl}`;
+          await sendSms({ to: customerPhone, body: smsBody });
+          console.log(`[Invoice] Payment link SMS sent to ${customerPhone} for invoice ${invoiceNumber}`);
+        } catch (smsErr) {
+          console.error("[Invoice] Failed to create/send payment link:", smsErr);
+          // Non-fatal — invoice is still generated
+        }
+      }
+
+      return { success: true, invoiceNumber, pdfUrl, sent: shouldSendEmail, paymentLinkUrl };
     }),
 
   /**
@@ -665,5 +709,83 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       const { id, ...data } = input;
       await updateTradieCustomer(id, data);
       return { success: true };
+    }),
+
+  // ── Job Costing ──────────────────────────────────────────────────────────────
+
+  /**
+   * Add a cost item to a job (materials, labour, subcontractor, equipment, other).
+   */
+  addJobCostItem: publicProcedure
+    .input(z.object({
+      jobId: z.number(),
+      category: z.enum(["materials", "labour", "subcontractor", "equipment", "other"]),
+      description: z.string().min(1).max(500),
+      amountCents: z.number().int().min(1),
+      supplier: z.string().max(255).optional(),
+      reference: z.string().max(100).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      const { insertId } = await createJobCostItem({
+        jobId: input.jobId,
+        clientId: client.id,
+        category: input.category,
+        description: input.description,
+        amountCents: input.amountCents,
+        supplier: input.supplier ?? null,
+        reference: input.reference ?? null,
+      });
+      return { id: insertId };
+    }),
+
+  /**
+   * Delete a cost item from a job.
+   */
+  deleteJobCostItem: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const item = await getJobCostItem(input.id);
+      if (!item || item.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Cost item not found." });
+      }
+      await deleteJobCostItem(input.id);
+      return { success: true };
+    }),
+
+  /**
+   * Get profit summary for a job.
+   */
+  getJobProfitSummary: publicProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      const costItems = await listJobCostItems(input.jobId);
+      const totalCostCents = costItems.reduce((sum, c) => sum + c.amountCents, 0);
+      const invoicedCents = job.invoicedAmount ?? 0;
+      const grossProfitCents = invoicedCents - totalCostCents;
+      const grossMarginPct = invoicedCents > 0 ? Math.round((grossProfitCents / invoicedCents) * 100) : null;
+      return {
+        costItems,
+        totalCostCents,
+        invoicedCents,
+        grossProfitCents,
+        grossMarginPct,
+      };
     }),
 };

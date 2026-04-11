@@ -86,6 +86,8 @@ export default function ConsoleDashboard() {
   const { data: deals } = trpc.pipeline.list.useQuery();
   const { data: clients } = trpc.crm.listClients.useQuery();
   const { data: mrrHistory } = trpc.crm.getMrrHistory.useQuery();
+  // P3-C: Flagged quotes widget
+  const { data: flaggedQuotes } = trpc.crm.getFlaggedQuotes.useQuery();
 
   const generateBriefing = trpc.ai.dailyBriefing.useMutation({
     onSuccess: () => {
@@ -347,7 +349,7 @@ export default function ConsoleDashboard() {
         </Card>
 
         {/* Bottom row */}
-        <div className="grid lg:grid-cols-2 gap-4">
+        <div className="grid lg:grid-cols-3 gap-4">
           {/* Open pipeline deals */}
           <Card className="bg-[#0d1f38] border-white/10">
             <CardHeader className="pb-3">
@@ -448,6 +450,52 @@ export default function ConsoleDashboard() {
                         }`}>
                           {client.stage}
                         </Badge>
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+          {/* Flagged Quotes — P3-C */}
+          <Card className="bg-[#0d1f38] border-amber-400/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white text-sm font-semibold flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-amber-400" />
+                  Flagged Quotes
+                  {flaggedQuotes && flaggedQuotes.length > 0 && (
+                    <span className="text-[10px] bg-amber-400/20 text-amber-400 px-1.5 py-0.5 rounded-full font-bold">
+                      {flaggedQuotes.length}
+                    </span>
+                  )}
+                </CardTitle>
+                <Link href="/console/crm">
+                  <button className="text-white/30 hover:text-white text-xs flex items-center gap-0.5">
+                    CRM <ArrowRight size={10} />
+                  </button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {!flaggedQuotes || flaggedQuotes.length === 0 ? (
+                <div className="text-center py-4">
+                  <CheckSquare size={20} className="text-green-400/40 mx-auto mb-2" />
+                  <p className="text-white/30 text-xs">No flagged quotes in the last 30 days</p>
+                </div>
+              ) : (
+                flaggedQuotes.map((item, idx) => (
+                  <Link key={idx} href={`/console/crm/${item.clientId}`}>
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-amber-400/5 hover:bg-amber-400/10 transition-colors cursor-pointer border border-amber-400/10">
+                      <AlertTriangle size={12} className="text-amber-400 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-xs font-medium truncate">{item.businessName}</p>
+                        <p className="text-white/40 text-[10px] truncate">{item.interactionTitle}</p>
+                        <p className="text-white/25 text-[10px]">
+                          {new Date(item.interactionDate).toLocaleDateString("en-AU", {
+                            day: "numeric", month: "short",
+                          })}
+                        </p>
                       </div>
                     </div>
                   </Link>

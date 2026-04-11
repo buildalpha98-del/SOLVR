@@ -526,6 +526,8 @@ export const portalSessions = mysqlTable("portal_sessions", {
   lastAccessedAt: timestamp("lastAccessedAt"),
   /** When the portal access email was last sent to the client */
   lastEmailSentAt: timestamp("lastEmailSentAt"),
+  /** When the session expiry warning email was last sent — prevents duplicate warnings on repeated cron runs */
+  expiryWarningSentAt: timestamp("expiryWarningSentAt"),
   isRevoked: boolean("isRevoked").default(false).notNull(),
   /** Token for password reset emails (hex, 1-hour expiry) */
   passwordResetToken: varchar("passwordResetToken", { length: 128 }),
@@ -762,6 +764,9 @@ export const quotes = mysqlTable("quotes", {
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** S3 key of the generated PDF */
   pdfKey: varchar("pdfKey", { length: 512 }),
+  //  Warnings 
+  /** Set to true once the tradie has reviewed and dismissed AI extraction warnings */
+  warningsAcknowledged: boolean("warningsAcknowledged").default(false).notNull(),
   //  Timestamps 
   sentAt: timestamp("sentAt"),
   issuedAt: timestamp("issuedAt"),
@@ -972,12 +977,52 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Bank name (e.g. Commonwealth Bank, ANZ) */
   bankName: varchar("bankName", { length: 100 }),
 
+  // Section 7: Licence & Insurance
+  /** Contractor/trade licence number (e.g. NSW Plumbing Licence No.) */
+  licenceNumber: varchar("licenceNumber", { length: 100 }),
+  /** Licence type / class (e.g. Unrestricted Electrical, Grade A Plumbing) */
+  licenceType: varchar("licenceType", { length: 100 }),
+  /** Issuing authority (e.g. NSW Fair Trading, Energy Safe Victoria) */
+  licenceAuthority: varchar("licenceAuthority", { length: 255 }),
+  /** Licence expiry date */
+  licenceExpiryDate: varchar("licenceExpiryDate", { length: 20 }),
+  /** Name of public liability insurer */
+  insurerName: varchar("insurerName", { length: 255 }),
+  /** Insurance policy number */
+  insurancePolicyNumber: varchar("insurancePolicyNumber", { length: 100 }),
+  /** Insurance expiry date */
+  insuranceExpiryDate: varchar("insuranceExpiryDate", { length: 20 }),
+  /** Coverage amount in AUD (e.g. 20000000 = $20M) */
+  insuranceCoverageAud: int("insuranceCoverageAud"),
+
   // Meta
   /** Has the client completed the onboarding wizard? */
   onboardingCompleted: boolean("onboardingCompleted").default(false).notNull(),
   onboardingCompletedAt: timestamp("onboardingCompletedAt"),
   /** Which step the client is currently on (0-indexed, null = not started) */
   onboardingStep: int("onboardingStep"),
+  /** Raw Whisper transcript from voice-first onboarding (stored for Console review + prompt improvement) */
+  voiceOnboardingTranscript: text("voiceOnboardingTranscript"),
+
+  // ── Notification Preferences ────────────────────────────────────────────────
+  /** Receive email when a new call is logged */
+  notifyEmailNewCall: boolean("notifyEmailNewCall").default(true).notNull(),
+  /** Receive push notification when a new call is logged */
+  notifyPushNewCall: boolean("notifyPushNewCall").default(true).notNull(),
+  /** Receive email when a new quote is created */
+  notifyEmailNewQuote: boolean("notifyEmailNewQuote").default(true).notNull(),
+  /** Receive push notification when a new quote is created */
+  notifyPushNewQuote: boolean("notifyPushNewQuote").default(true).notNull(),
+  /** Receive email when a quote is accepted by a customer */
+  notifyEmailQuoteAccepted: boolean("notifyEmailQuoteAccepted").default(true).notNull(),
+  /** Receive push notification when a quote is accepted */
+  notifyPushQuoteAccepted: boolean("notifyPushQuoteAccepted").default(true).notNull(),
+  /** Receive email when a job status changes */
+  notifyEmailJobUpdate: boolean("notifyEmailJobUpdate").default(false).notNull(),
+  /** Receive push notification when a job status changes */
+  notifyPushJobUpdate: boolean("notifyPushJobUpdate").default(true).notNull(),
+  /** Receive weekly summary email (call volume, quotes, revenue) */
+  notifyEmailWeeklySummary: boolean("notifyEmailWeeklySummary").default(true).notNull(),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -1082,6 +1127,33 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
 export type TradieCustomer = typeof tradieCustomers.$inferSelect;
 export type InsertTradieCustomer = typeof tradieCustomers.$inferInsert;
 
+// ─── Job Cost Items ──────────────────────────────────────────────────────────
+/**
+ * Line-level cost items for a job — materials, labour, subcontractors, other.
+ * Tracked separately from the quote line items (which are the customer-facing price).
+ * The difference between the quoted/invoiced amount and total costs = gross profit.
+ */
+export const jobCostItems = mysqlTable("job_cost_items", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Category of cost */
+  category: mysqlEnum("category", ["materials", "labour", "subcontractor", "equipment", "other"]).notNull(),
+  /** Description of the cost item */
+  description: varchar("description", { length: 500 }).notNull(),
+  /** Amount in cents */
+  amountCents: int("amountCents").notNull(),
+  /** Optional supplier or subcontractor name */
+  supplier: varchar("supplier", { length: 255 }),
+  /** Optional receipt/invoice reference */
+  reference: varchar("reference", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type JobCostItem = typeof jobCostItems.$inferSelect;
+export type InsertJobCostItem = typeof jobCostItems.$inferInsert;
+
 // ─── Push Subscriptions ───────────────────────────────────────────────────────
 /** Stores Web Push subscriptions for portal clients (tradies) */
 export const pushSubscriptions = mysqlTable("push_subscriptions", {
@@ -1144,3 +1216,87 @@ export const referralBlastLogs = mysqlTable("referral_blast_logs", {
 });
 export type ReferralBlastLog = typeof referralBlastLogs.$inferSelect;
 export type InsertReferralBlastLog = typeof referralBlastLogs.$inferInsert;
+
+// ─── Payment Links ────────────────────────────────────────────────────────────
+/**
+ * SMS payment links — short-lived tokens that let customers pay invoices via Stripe.
+ * Created when an invoice is generated; sent via SMS to the customer's mobile.
+ * One link per invoice (re-generated on each send).
+ */
+export const paymentLinks = mysqlTable("payment_links", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crmClients.id — the Solvr client (tradie) who owns this link */
+  clientId: int("clientId").notNull(),
+  /** FK to portalJobs.id — the job this payment link is for */
+  jobId: int("jobId").notNull(),
+  /** Public token for the /pay/:token URL (no auth required) */
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  /** Amount to charge in cents */
+  amountCents: int("amountCents").notNull(),
+  /** Customer name (for Stripe pre-fill) */
+  customerName: varchar("customerName", { length: 255 }),
+  /** Customer phone (where SMS was sent) */
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  /** Customer email (for Stripe receipt) */
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  /** Invoice number for reference */
+  invoiceNumber: varchar("invoiceNumber", { length: 32 }),
+  /** Status of the payment link */
+  status: mysqlEnum("status", ["pending", "paid", "expired", "cancelled"]).default("pending").notNull(),
+  /** Stripe payment intent ID (set when customer initiates payment) */
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  /** When the SMS was sent */
+  smsSentAt: timestamp("smsSentAt"),
+  /** When the customer paid */
+  paidAt: timestamp("paidAt"),
+  /** When this link expires (default 7 days) */
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PaymentLink = typeof paymentLinks.$inferSelect;
+export type InsertPaymentLink = typeof paymentLinks.$inferInsert;
+
+// ─── Quote Follow-Ups ─────────────────────────────────────────────────────────
+/**
+ * Tracks automated follow-up emails sent for unanswered quotes.
+ * One row per quote being followed up. Sequence: 48h → 5 days → expiry.
+ */
+export const quoteFollowUps = mysqlTable("quote_follow_ups", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to quotes.id */
+  quoteId: varchar("quoteId", { length: 36 }).notNull().unique(),
+  /** How many follow-up emails have been sent (0–3) */
+  followUpCount: int("followUpCount").default(0).notNull(),
+  /** When the last follow-up was sent */
+  lastFollowUpAt: timestamp("lastFollowUpAt"),
+  /** When the next follow-up is scheduled */
+  nextFollowUpAt: timestamp("nextFollowUpAt"),
+  /** Status of the follow-up sequence */
+  status: mysqlEnum("status", ["active", "stopped", "converted", "expired"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type QuoteFollowUp = typeof quoteFollowUps.$inferSelect;
+export type InsertQuoteFollowUp = typeof quoteFollowUps.$inferInsert;
+
+// ─── Compliance Documents ─────────────────────────────────────────────────────
+/**
+ * AI-generated compliance documents (SWMS, Safety Certs) for tradies.
+ * Generated from the client licence/insurance data + job context.
+ */
+export const complianceDocuments = mysqlTable("compliance_documents", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  clientId: int("clientId").notNull(),
+  jobId: int("jobId"),
+  docType: mysqlEnum("docType", ["swms", "safety_cert", "site_induction", "jsa"]).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  jobDescription: text("jobDescription"),
+  pdfUrl: text("pdfUrl"),
+  content: text("content"),
+  status: mysqlEnum("status_comp", ["generating", "ready", "error"]).default("generating").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ComplianceDocument = typeof complianceDocuments.$inferSelect;
+export type InsertComplianceDocument = typeof complianceDocuments.$inferInsert;

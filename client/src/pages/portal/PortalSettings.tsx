@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
+  Bell, ExternalLink, RefreshCw, ShieldCheck,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import { toast } from "sonner";
@@ -547,10 +548,413 @@ export default function PortalSettings() {
           </form>
         </SectionCard>
 
-        {/* ─── Delete Account ─────────────────────────────────────── */}
+        {/* ─── Licence & Insurance ──────────────────────────────────────────── */}
+        <LicenceInsuranceSection />
+
+        {/* ─── Billing ──────────────────────────────────────────────────────────── */}
+        <BillingSection />
+
+        {/* ─── Notifications ────────────────────────────────────────────────────── */}
+        <NotificationsSection />
+
+        {/* ─── Delete Account ───────────────────────────────────────────────────── */}
         <DeleteAccountSection />
       </div>
     </PortalLayout>
+  );
+}
+
+// // ─── Licence & Insurance Section ─────────────────────────────────────────
+function LicenceInsuranceSection() {
+  const profileQuery = trpc.portal.getBusinessProfile.useQuery();
+  const saveMutation = trpc.portal.saveLicenceInsurance.useMutation({
+    onSuccess: () => {
+      toast.success("Licence & insurance details saved.");
+      profileQuery.refetch();
+    },
+    onError: (err) => toast.error(err.message ?? "Failed to save."),
+  });
+
+  const [form, setForm] = useState({
+    licenceNumber: "",
+    licenceType: "",
+    licenceAuthority: "",
+    licenceExpiryDate: "",
+    abn: "",
+    insurerName: "",
+    insurancePolicyNumber: "",
+    insuranceCoverageAud: "",
+    insuranceExpiryDate: "",
+  });
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const d = profileQuery.data as any;
+    if (d && !loaded) {
+      setForm({
+        licenceNumber: d.licenceNumber ?? "",
+        licenceType: d.licenceType ?? "",
+        licenceAuthority: d.licenceAuthority ?? "",
+        licenceExpiryDate: d.licenceExpiryDate ?? "",
+        abn: d.abn ?? "",
+        insurerName: d.insurerName ?? "",
+        insurancePolicyNumber: d.insurancePolicyNumber ?? "",
+        insuranceCoverageAud: d.insuranceCoverageAud ? String(d.insuranceCoverageAud) : "",
+        insuranceExpiryDate: d.insuranceExpiryDate ?? "",
+      });
+      setLoaded(true);
+    }
+  }, [profileQuery.data, loaded]);
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    saveMutation.mutate({
+      licenceNumber: form.licenceNumber || undefined,
+      licenceType: form.licenceType || undefined,
+      licenceAuthority: form.licenceAuthority || undefined,
+      licenceExpiryDate: form.licenceExpiryDate || undefined,
+      abn: form.abn || undefined,
+      insurerName: form.insurerName || undefined,
+      insurancePolicyNumber: form.insurancePolicyNumber || undefined,
+      insuranceCoverageAud: form.insuranceCoverageAud ? parseInt(form.insuranceCoverageAud, 10) : undefined,
+      insuranceExpiryDate: form.insuranceExpiryDate || undefined,
+    });
+  }
+
+  return (
+    <SectionCard
+      icon={ShieldCheck}
+      title="Licence & Insurance"
+      subtitle="Used on compliance documents (SWMS, safety certs) and quotes."
+    >
+      {profileQuery.isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-4">
+          {/* Licence */}
+          <div>
+            <p className="text-xs font-semibold mb-3" style={{ color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Contractor Licence</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Licence Number</Label>
+                <Input
+                  placeholder="e.g. 123456C"
+                  value={form.licenceNumber}
+                  onChange={(e) => setForm(p => ({ ...p, licenceNumber: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Licence Type / Class</Label>
+                <Input
+                  placeholder="e.g. Unrestricted Electrical"
+                  value={form.licenceType}
+                  onChange={(e) => setForm(p => ({ ...p, licenceType: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Issuing Authority</Label>
+                <Input
+                  placeholder="e.g. NSW Fair Trading"
+                  value={form.licenceAuthority}
+                  onChange={(e) => setForm(p => ({ ...p, licenceAuthority: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Expiry Date</Label>
+                <Input
+                  type="date"
+                  value={form.licenceExpiryDate}
+                  onChange={(e) => setForm(p => ({ ...p, licenceExpiryDate: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Insurance */}
+          <div className="pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <p className="text-xs font-semibold mb-3 mt-3" style={{ color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Public Liability Insurance</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Insurer Name</Label>
+                <Input
+                  placeholder="e.g. CGU Insurance"
+                  value={form.insurerName}
+                  onChange={(e) => setForm(p => ({ ...p, insurerName: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Policy Number</Label>
+                <Input
+                  placeholder="e.g. PLI-2024-00123"
+                  value={form.insurancePolicyNumber}
+                  onChange={(e) => setForm(p => ({ ...p, insurancePolicyNumber: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Coverage Amount (AUD)</Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 20000000"
+                  value={form.insuranceCoverageAud}
+                  onChange={(e) => setForm(p => ({ ...p, insuranceCoverageAud: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-white/70 text-sm">Insurance Expiry Date</Label>
+                <Input
+                  type="date"
+                  value={form.insuranceExpiryDate}
+                  onChange={(e) => setForm(p => ({ ...p, insuranceExpiryDate: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={saveMutation.isPending}
+              className="w-full font-semibold"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {saveMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+              ) : (
+                <><Save className="w-4 h-4 mr-2" /> Save Licence & Insurance</>
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── Billing Section ──────────────────────────────────────────────
+function BillingSection() {
+  const { data: sub, isLoading } = trpc.portal.getSubscriptionStatus.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const billingPortal = trpc.portal.createBillingPortalSession.useMutation({
+    onSuccess: ({ url }) => {
+      window.open(url, "_blank");
+    },
+    onError: (err) => {
+      toast.error(err.message ?? "Could not open billing portal.");
+    },
+  });
+
+  const planLabel = sub?.plan === "professional" ? "Professional" : sub?.plan === "starter" ? "Starter" : "Setup";
+  const cycleLabel = sub?.billingCycle === "annual" ? "Annual" : "Monthly";
+  const statusLabel = sub?.status === "active" ? "Active" : sub?.status === "trialing" ? "Trial" : sub?.status ?? "Unknown";
+  const statusColor = sub?.status === "active" ? "#4ade80" : sub?.status === "trialing" ? "#F5A623" : "#f87171";
+
+  const nextBilling = sub?.nextBillingDate
+    ? new Date(sub.nextBillingDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+  const trialEnd = sub?.trialEndDate
+    ? new Date(sub.trialEndDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  return (
+    <SectionCard
+      icon={CreditCard}
+      title="Billing & Subscription"
+      subtitle="Manage your plan, payment method, and invoices."
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      ) : !sub ? (
+        <div className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+          No active subscription found. Contact{" "}
+          <a href="mailto:hello@solvr.com.au" className="underline" style={{ color: "#F5A623" }}>hello@solvr.com.au</a>{" "}
+          for assistance.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Plan summary row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div
+              className="rounded-lg p-3 text-center"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Plan</div>
+              <div className="text-sm font-semibold text-white">{planLabel}</div>
+            </div>
+            <div
+              className="rounded-lg p-3 text-center"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Billing</div>
+              <div className="text-sm font-semibold text-white">{cycleLabel}</div>
+            </div>
+            <div
+              className="rounded-lg p-3 text-center"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Status</div>
+              <div className="text-sm font-semibold" style={{ color: statusColor }}>{statusLabel}</div>
+            </div>
+          </div>
+
+          {/* Dates */}
+          {(nextBilling || trialEnd) && (
+            <div className="text-sm space-y-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+              {trialEnd && (
+                <div>Trial ends: <span className="text-white font-medium">{trialEnd}</span></div>
+              )}
+              {nextBilling && (
+                <div>Next billing: <span className="text-white font-medium">{nextBilling}</span></div>
+              )}
+            </div>
+          )}
+
+          {/* Manage button */}
+          <Button
+            onClick={() => billingPortal.mutate({ origin: window.location.origin })}
+            disabled={billingPortal.isPending}
+            className="w-full flex items-center justify-center gap-2"
+            style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
+          >
+            {billingPortal.isPending ? (
+              <><RefreshCw className="w-4 h-4 animate-spin" /> Opening...</>
+            ) : (
+              <><ExternalLink className="w-4 h-4" /> Manage Billing &amp; Invoices</>
+            )}
+          </Button>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+            Opens the Stripe billing portal in a new tab. Update your card, download invoices, or cancel your subscription.
+          </p>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── Notifications Section ──────────────────────────────────────────────
+function NotificationsSection() {
+  const { data: prefs, isLoading } = trpc.portal.getNotificationPrefs.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const updatePrefs = trpc.portal.updateNotificationPrefs.useMutation({
+    onSuccess: () => toast.success("Notification preferences saved."),
+    onError: () => toast.error("Failed to save preferences."),
+  });
+  const utils = trpc.useUtils();
+
+  function toggle(field: string, value: boolean) {
+    updatePrefs.mutate(
+      { [field]: value } as Parameters<typeof updatePrefs.mutate>[0],
+      { onSuccess: () => utils.portal.getNotificationPrefs.invalidate() }
+    );
+  }
+
+  type PrefRow = { label: string; emailKey: string | null; pushKey: string | null };
+  const rows: PrefRow[] = [
+    { label: "New call logged", emailKey: "notifyEmailNewCall", pushKey: "notifyPushNewCall" },
+    { label: "New quote created", emailKey: "notifyEmailNewQuote", pushKey: "notifyPushNewQuote" },
+    { label: "Quote accepted by customer", emailKey: "notifyEmailQuoteAccepted", pushKey: "notifyPushQuoteAccepted" },
+    { label: "Job status update", emailKey: "notifyEmailJobUpdate", pushKey: "notifyPushJobUpdate" },
+    { label: "Weekly summary email", emailKey: "notifyEmailWeeklySummary", pushKey: null },
+  ];
+
+  return (
+    <SectionCard
+      icon={Bell}
+      title="Notification Preferences"
+      subtitle="Choose how you want to be notified about activity."
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {/* Column headers */}
+          <div className="grid grid-cols-[1fr_56px_56px] gap-2 pb-2 mb-1" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Event</div>
+            <div className="text-xs text-center" style={{ color: "rgba(255,255,255,0.35)" }}>Email</div>
+            <div className="text-xs text-center" style={{ color: "rgba(255,255,255,0.35)" }}>Push</div>
+          </div>
+          {rows.map((row) => (
+            <div key={row.label} className="grid grid-cols-[1fr_56px_56px] gap-2 items-center py-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+              <span className="text-sm text-white">{row.label}</span>
+              {/* Email toggle */}
+              {row.emailKey ? (
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => toggle(row.emailKey!, !(prefs as Record<string, boolean>)?.[row.emailKey!])}
+                    disabled={updatePrefs.isPending}
+                    className="w-10 h-5 rounded-full transition-colors relative"
+                    style={{
+                      background: (prefs as Record<string, boolean>)?.[row.emailKey!]
+                        ? "rgba(245,166,35,0.8)"
+                        : "rgba(255,255,255,0.12)",
+                    }}
+                  >
+                    <span
+                      className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                      style={{
+                        transform: (prefs as Record<string, boolean>)?.[row.emailKey!]
+                          ? "translateX(22px)"
+                          : "translateX(2px)",
+                      }}
+                    />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-center">
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
+                </div>
+              )}
+              {/* Push toggle */}
+              {row.pushKey ? (
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => { const k = row.pushKey!; toggle(k, !(prefs as Record<string, boolean>)?.[k]); }}
+                    disabled={updatePrefs.isPending}
+                    className="w-10 h-5 rounded-full transition-colors relative"
+                    style={{
+                      background: (prefs as Record<string, boolean>)?.[row.pushKey]
+                        ? "rgba(245,166,35,0.8)"
+                        : "rgba(255,255,255,0.12)",
+                    }}
+                  >
+                    <span
+                      className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                      style={{
+                        transform: (prefs as Record<string, boolean>)?.[row.pushKey]
+                          ? "translateX(22px)"
+                          : "translateX(2px)",
+                      }}
+                    />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex justify-center">
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
+                </div>
+              )}
+            </div>
+          ))}
+          <p className="text-xs pt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+            Push notifications require the Solvr app to be installed and notifications to be enabled in your device settings.
+          </p>
+        </div>
+      )}
+    </SectionCard>
   );
 }
 

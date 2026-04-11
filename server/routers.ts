@@ -725,8 +725,12 @@ const crmRouter = router({
       return c.stage === "paused" || (c.healthScore !== null && c.healthScore !== undefined && c.healthScore < 40);
     });
     const totalMrr = active.reduce((s, c) => s + (c.mrr || 0), 0);
-    const starterMrr = active.filter(c => (c.mrr || 0) <= 200).reduce((s, c) => s + (c.mrr || 0), 0);
-    const professionalMrr = active.filter(c => (c.mrr || 0) > 200).reduce((s, c) => s + (c.mrr || 0), 0);
+    const starterClients = active.filter(c => (c.mrr || 0) <= 200);
+    const professionalClients = active.filter(c => (c.mrr || 0) > 200);
+    const starterMrr = starterClients.reduce((s, c) => s + (c.mrr || 0), 0);
+    const professionalMrr = professionalClients.reduce((s, c) => s + (c.mrr || 0), 0);
+    const starterCount = starterClients.length;
+    const professionalCount = professionalClients.length;
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     const churnedThisMonth = churned.filter(c => new Date(c.updatedAt) > monthAgo).length;
@@ -738,6 +742,8 @@ const crmRouter = router({
       arr,
       starterMrr,
       professionalMrr,
+      starterCount,
+      professionalCount,
       activeClients: active.length,
       onboardingClients: onboarding.length,
       churnRiskClients: churnRisk.length,
@@ -752,6 +758,51 @@ const crmRouter = router({
         stage: c.stage,
       })),
     };
+  }),
+
+  /**
+   * P3-C: Return clients with unresolved AI extraction warning interactions
+   * from the last 30 days. Used by the Solvr admin dashboard Flagged Quotes widget.
+   */
+  getFlaggedQuotes: protectedProcedure.query(async () => {
+    const clients = await listCrmClients();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const flagged: {
+      clientId: number;
+      businessName: string;
+      contactName: string;
+      interactionTitle: string;
+      interactionDate: Date;
+    }[] = [];
+
+    await Promise.all(
+      clients.map(async (client) => {
+        const interactions = await listCrmInteractionsByClient(client.id);
+        const warningInteractions = interactions.filter((i) => {
+          const isWarning =
+            i.type === "system" &&
+            i.title.includes("extraction warnings");
+          const isRecent = new Date(i.createdAt) >= thirtyDaysAgo;
+          return isWarning && isRecent;
+        });
+        for (const interaction of warningInteractions) {
+          flagged.push({
+            clientId: client.id,
+            businessName: client.businessName,
+            contactName: client.contactName,
+            interactionTitle: interaction.title,
+            interactionDate: new Date(interaction.createdAt),
+          });
+        }
+      }),
+    );
+
+    // Sort by most recent first, cap at 10
+    return flagged
+      .sort((a, b) => b.interactionDate.getTime() - a.interactionDate.getTime())
+      .slice(0, 10);
   }),
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1409,6 +1460,53 @@ Be direct, specific, and actionable. Use an Australian business tone. Format res
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SUPPORT ROUTER
+// ─────────────────────────────────────────────────────────────────────────────
+const supportRouter = router({
+  submitRequest: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      subject: z.string().min(1),
+      message: z.string().min(10),
+    }))
+    .mutation(async ({ input }) => {
+      const { sendEmail } = await import("./_core/email");
+      await sendEmail({
+        to: "hello@solvr.com.au",
+        subject: `[Support] ${input.subject} — ${input.name}`,
+        html: `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px;">
+            <h2 style="color:#0F1F3D;">New Support Request</h2>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Name</td><td style="padding:8px;border:1px solid #e2e8f0;">${input.name}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Email</td><td style="padding:8px;border:1px solid #e2e8f0;"><a href="mailto:${input.email}">${input.email}</a></td></tr>
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Subject</td><td style="padding:8px;border:1px solid #e2e8f0;">${input.subject}</td></tr>
+            </table>
+            <div style="background:#f7fafc;border-radius:8px;padding:16px;">
+              <p style="margin:0;white-space:pre-wrap;color:#2d3748;">${input.message}</p>
+            </div>
+          </div>
+        `,
+        replyTo: input.email,
+      });
+      await sendEmail({
+        to: input.email,
+        subject: "We've received your message — Solvr Support",
+        html: `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px;">
+            <h2 style="color:#0F1F3D;">Thanks, ${input.name}!</h2>
+            <p>We've received your support request and will get back to you within 1 business day.</p>
+            <p style="background:#f7fafc;border-radius:8px;padding:16px;color:#4a5568;"><strong>Your message:</strong><br/>${input.message}</p>
+            <p style="color:#718096;font-size:13px;">Solvr · hello@solvr.com.au · solvr.com.au</p>
+          </div>
+        `,
+      });
+      return { success: true };
+    }),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // APP ROUTER
 // ─────────────────────────────────────────────────────────────────────────────
 export const appRouter = router({
@@ -1440,6 +1538,7 @@ export const appRouter = router({
   publicQuotes: publicQuotesRouter,
   invoiceChasing: portalInvoiceChasingRouter,
   adminInvoiceChasing: adminInvoiceChasingRouter,
+  support: supportRouter,
 });
 
 export type AppRouter = typeof appRouter;

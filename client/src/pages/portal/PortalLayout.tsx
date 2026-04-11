@@ -10,9 +10,10 @@
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users
+  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -36,6 +37,7 @@ const ALL_TABS: NavTab[] = [
   { key: "invoices", label: "Invoice Chasing", href: "/portal/invoices", icon: <Receipt className="w-4 h-4" />, feature: "invoice-chasing", badge: "Pro" },
   { key: "customers", label: "Customers", href: "/portal/customers", icon: <Users className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "insights", label: "AI Insights", href: "/portal/insights", icon: <Sparkles className="w-4 h-4" />, feature: "ai-insights", badge: "Managed" },
+  { key: "compliance", label: "Compliance", href: "/portal/compliance", icon: <ShieldCheck className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
 ];
 
 // ─── Mobile bottom tab bar ───────────────────────────────────────────────────
@@ -45,10 +47,30 @@ const PRIMARY_TAB_KEYS = ["dashboard", "calls", "jobs", "quotes"];
 
 function BottomTabBar({ features, currentTab }: { features: string[]; currentTab: string }) {
   const [showMore, setShowMore] = useState(false);
+  // Swipe-to-close state
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+  const [dragDeltaY, setDragDeltaY] = useState(0);
 
   // Resolve which tabs to show in the bar (up to 4 primary + More)
   const primaryTabs = ALL_TABS.filter((t) => PRIMARY_TAB_KEYS.includes(t.key));
   const overflowTabs = ALL_TABS.filter((t) => !PRIMARY_TAB_KEYS.includes(t.key));
+
+  function handleDragStart(clientY: number) {
+    setDragStartY(clientY);
+    setDragDeltaY(0);
+  }
+
+  function handleDragMove(clientY: number) {
+    if (dragStartY === null) return;
+    const delta = clientY - dragStartY;
+    if (delta > 0) setDragDeltaY(delta); // only allow dragging down
+  }
+
+  function handleDragEnd() {
+    if (dragDeltaY > 60) setShowMore(false); // swipe down 60px+ closes
+    setDragStartY(null);
+    setDragDeltaY(0);
+  }
 
   return (
     <>
@@ -62,7 +84,7 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
               className="flex-1"
             >
               <span
-                className="flex flex-col items-center justify-center gap-0.5 h-full w-full text-[10px] font-medium transition-colors"
+                className="flex flex-col items-center justify-center gap-0.5 h-full w-full text-[10px] font-medium transition-colors relative"
                 style={{ color: isActive ? "#F5A623" : unlocked ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)" }}
               >
                 {/* Icon — scale up slightly for touch targets */}
@@ -70,6 +92,13 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
                   {unlocked ? tab.icon : <Lock className="w-5 h-5" />}
                 </span>
                 {tab.label}
+                {/* Active indicator dot */}
+                {isActive && (
+                  <span
+                    className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                    style={{ background: "#F5A623" }}
+                  />
+                )}
               </span>
             </Link>
           );
@@ -94,11 +123,30 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
             style={{ background: "rgba(0,0,0,0.55)" }}
             onClick={() => setShowMore(false)}
           />
-          {/* Drawer */}
+          {/* Drawer — supports swipe-down to close */}
           <div
             className="fixed bottom-[60px] left-0 right-0 z-50 border-t rounded-t-2xl px-4 py-4 space-y-1"
-            style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.10)" }}
+            style={{
+              background: "#0F1F3D",
+              borderColor: "rgba(255,255,255,0.10)",
+              transform: dragDeltaY > 0 ? `translateY(${dragDeltaY}px)` : undefined,
+              transition: dragStartY === null ? "transform 0.2s ease" : "none",
+            }}
+            onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+            onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+            onTouchEnd={handleDragEnd}
+            onMouseDown={(e) => handleDragStart(e.clientY)}
+            onMouseMove={(e) => dragStartY !== null && handleDragMove(e.clientY)}
+            onMouseUp={handleDragEnd}
+            onMouseLeave={handleDragEnd}
           >
+            {/* Drag handle */}
+            <div className="flex justify-center mb-3 -mt-1">
+              <div
+                className="w-10 h-1 rounded-full"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+              />
+            </div>
             <p className="text-[11px] uppercase tracking-widest font-semibold mb-3" style={{ color: "rgba(255,255,255,0.3)" }}>More</p>
             {overflowTabs.map((tab) => {
               const unlocked = features.includes(tab.feature);
@@ -129,6 +177,18 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
               );
             })}
             {/* Settings + Subscription in overflow */}
+            <Link href="/portal/referral" onClick={() => setShowMore(false)}>
+              <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
+                <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
+                <span>Refer a Tradie</span>
+                <span
+                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                >
+                  20% off
+                </span>
+              </span>
+            </Link>
             <Link href="/portal/subscription" onClick={() => setShowMore(false)}>
               <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
                 <CreditCard className="w-4 h-4" /> Subscription &amp; Billing
@@ -193,12 +253,27 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
   const currentTab = resolvedActiveTab;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#0B1629", color: "#F5F5F0" }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        background: "#0B1629",
+        color: "#F5F5F0",
+        // Landscape iPhone: pad content away from side bezels/home indicator
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+      }}
+    >
       {/* ── Top nav ─────────────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-40 border-b"
-        style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.08)" }}
+        style={{
+          background: "#0F1F3D",
+          borderColor: "rgba(255,255,255,0.08)",
+          // Push header content below the iOS status bar / Dynamic Island
+          paddingTop: "env(safe-area-inset-top)",
+        }}
       >
+        {/* px-4 + safe-area side insets already applied on outer wrapper */}
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           {/* Logo + business name */}
           <div className="flex items-center gap-3">
@@ -375,9 +450,13 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
         )}
       </header>
 
+      {/* ── Session expiry warning banner ──────────────────────────────── */}
+      <SessionExpiryBanner sessionExpiresAt={me?.sessionExpiresAt} />
+
       {/* ── Page content ────────────────────────────────────────────────── */}
       {/* Add bottom padding on mobile so content isn't hidden behind the tab bar */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 pb-24 md:pb-6">
+      {/* pt-4 on mobile (safe-area already pushes header down); py-6 on desktop */}
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 pt-4 pb-24 md:py-6 md:pb-6">
         {children}
       </main>
 

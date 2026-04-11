@@ -54,6 +54,16 @@ vi.mock("./db", () => ({
     notes: null, hasCalendarEvent: false,
     createdAt: new Date(), updatedAt: new Date(),
   }]),
+  listPortalJobsWithQuote: vi.fn().mockResolvedValue([{
+    id: 1, clientId: 1, interactionId: null,
+    callerName: "John Smith", callerPhone: "0412 111 222",
+    jobType: "Hot water repair", description: "Hot water system not working",
+    location: "Parramatta", stage: "new_lead",
+    estimatedValue: 1200, actualValue: null, preferredDate: null,
+    notes: null, hasCalendarEvent: false,
+    createdAt: new Date(), updatedAt: new Date(),
+    sourceQuoteNumber: null, sourceQuoteStatus: null,
+  }]),
   getPortalJob: vi.fn().mockImplementation((id: number) => {
     if (id === 1) return Promise.resolve({
       id: 1, clientId: 1, interactionId: null,

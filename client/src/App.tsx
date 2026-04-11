@@ -18,6 +18,7 @@ import VoiceAgent from "./pages/VoiceAgent";
 import VoiceAgentSuccess from "./pages/VoiceAgentSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import Support from "./pages/Support";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
@@ -56,16 +57,20 @@ import PortalQuoteDetail from "./pages/portal/PortalQuoteDetail";
 import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
 import PortalSettings from "./pages/portal/PortalSettings";
 import PortalOnboarding from "./pages/portal/PortalOnboarding";
+import VoiceOnboarding from "./pages/portal/VoiceOnboarding";
 import PortalInvoices from "./pages/portal/PortalInvoices";
 import PortalSubscription from "./pages/portal/PortalSubscription";
+import PortalReferral from "./pages/portal/PortalReferral";
 import PortalCustomers from "./pages/portal/PortalCustomers";
 import PortalAIInsights from "./pages/portal/PortalAIInsights";
+import PortalCompliance from "./pages/portal/PortalCompliance";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
 
 // ── Public completion report page (no auth) ──────────────────────────────────
 import PublicCompletionReport from "./pages/PublicCompletionReport";
+import PaymentLink from "./pages/PaymentLink";
 
 function Router() {
   return (
@@ -84,6 +89,7 @@ function Router() {
       <Route path="/voice-agent/success" component={VoiceAgentSuccess} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/support" component={Support} />
 
       {/* ── Voice agent demo (shareable with prospects) ───────────────────── */}
       <Route path="/demo" component={Demo} />
@@ -133,18 +139,25 @@ function Router() {
       <Route path="/portal/quotes" component={PortalQuotes} />
       <Route path="/portal/quotes/settings" component={PortalQuoteSettings} />
       <Route path="/portal/quotes/:id" component={PortalQuoteDetail} />
-      <Route path="/portal/onboarding" component={PortalOnboarding} />
+      <Route path="/portal/onboarding/voice" component={VoiceOnboarding} />
+      <Route path="/portal/onboarding" component={VoiceOnboarding} />
+      <Route path="/portal/onboarding/form" component={PortalOnboarding} />
       <Route path="/portal/settings" component={PortalSettings} />
       <Route path="/portal/invoices" component={PortalInvoices} />
       <Route path="/portal/subscription" component={PortalSubscription} />
+      <Route path="/portal/referral" component={PortalReferral} />
       <Route path="/portal/customers" component={PortalCustomers} />
       <Route path="/portal/insights" component={PortalAIInsights} />
+      <Route path="/portal/compliance" component={PortalCompliance} />
 
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />
 
       {/* ── Public completion report (no auth, token-based) ──────────────── */}
       <Route path="/report/:token" component={PublicCompletionReport} />
+
+      {/* SMS payment link public page */}
+      <Route path="/pay/:token" component={PaymentLink} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

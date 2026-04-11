@@ -457,6 +457,7 @@ import {
   portalJobs, PortalJob, InsertPortalJob,
   portalCalendarEvents, PortalCalendarEvent, InsertPortalCalendarEvent,
 } from "../drizzle/schema";
+import { quotes as quotesTable } from "../drizzle/schema";
 
 // ─ Sessions ──────────────────────────────────────────────────────────────────
 export async function createPortalSession(data: InsertPortalSession): Promise<void> {
@@ -505,6 +506,31 @@ export async function listPortalJobs(clientId: number): Promise<PortalJob[]> {
   return db.select().from(portalJobs)
     .where(eq(portalJobs.clientId, clientId))
     .orderBy(desc(portalJobs.createdAt));
+}
+
+export type PortalJobWithQuote = PortalJob & {
+  sourceQuoteNumber: string | null;
+  sourceQuoteStatus: string | null;
+};
+
+export async function listPortalJobsWithQuote(clientId: number): Promise<PortalJobWithQuote[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select({
+      job: portalJobs,
+      quoteNumber: quotesTable.quoteNumber,
+      quoteStatus: quotesTable.status,
+    })
+    .from(portalJobs)
+    .leftJoin(quotesTable, eq(portalJobs.sourceQuoteId, quotesTable.id))
+    .where(eq(portalJobs.clientId, clientId))
+    .orderBy(desc(portalJobs.createdAt));
+  return rows.map(r => ({
+    ...r.job,
+    sourceQuoteNumber: r.quoteNumber ?? null,
+    sourceQuoteStatus: r.quoteStatus ?? null,
+  }));
 }
 
 export async function getPortalJob(id: number): Promise<PortalJob | null> {
@@ -877,4 +903,147 @@ export async function getTradieCustomer(id: number): Promise<TradieCustomer | nu
   if (!db) throw new Error("Database not available");
   const result = await db.select().from(tradieCustomers).where(eq(tradieCustomers.id, id)).limit(1);
   return result.length > 0 ? result[0] : null;
+}
+
+// ── Job Cost Items ────────────────────────────────────────────────────────────
+import {
+  jobCostItems,
+  type JobCostItem,
+  type InsertJobCostItem,
+  paymentLinks,
+  type PaymentLink,
+  type InsertPaymentLink,
+  quoteFollowUps,
+  type QuoteFollowUp,
+  type InsertQuoteFollowUp,
+  complianceDocuments,
+  type ComplianceDocument,
+  type InsertComplianceDocument,
+} from "../drizzle/schema";
+
+export async function listJobCostItems(jobId: number): Promise<JobCostItem[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobCostItems)
+    .where(eq(jobCostItems.jobId, jobId))
+    .orderBy(jobCostItems.createdAt);
+}
+
+export async function createJobCostItem(data: InsertJobCostItem): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(jobCostItems).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function deleteJobCostItem(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobCostItems).where(eq(jobCostItems.id, id));
+}
+
+export async function getJobCostItem(id: number): Promise<JobCostItem | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(jobCostItems).where(eq(jobCostItems.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+/** Sum all cost items for a job — returns total in cents */
+export async function sumJobCosts(jobId: number): Promise<number> {
+  const items = await listJobCostItems(jobId);
+  return items.reduce((sum, item) => sum + item.amountCents, 0);
+}
+
+// ── Payment Links ─────────────────────────────────────────────────────────────
+export async function createPaymentLink(data: InsertPaymentLink): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(paymentLinks).values(data);
+}
+
+export async function getPaymentLinkByToken(token: string): Promise<PaymentLink | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(paymentLinks).where(eq(paymentLinks.token, token)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getPaymentLinkByJobId(jobId: number): Promise<PaymentLink | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(paymentLinks)
+    .where(and(eq(paymentLinks.jobId, jobId), eq(paymentLinks.status, "pending")))
+    .orderBy(desc(paymentLinks.createdAt))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updatePaymentLink(id: string, data: Partial<InsertPaymentLink>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(paymentLinks).set(data).where(eq(paymentLinks.id, id));
+}
+
+// ── Quote Follow-Ups ──────────────────────────────────────────────────────────
+export async function getQuoteFollowUp(quoteId: string): Promise<QuoteFollowUp | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(quoteFollowUps).where(eq(quoteFollowUps.quoteId, quoteId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createQuoteFollowUp(data: InsertQuoteFollowUp): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(quoteFollowUps).values(data);
+}
+
+export async function updateQuoteFollowUp(id: string, data: Partial<InsertQuoteFollowUp>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(quoteFollowUps).set(data).where(eq(quoteFollowUps.id, id));
+}
+
+export async function listActiveQuoteFollowUps(): Promise<QuoteFollowUp[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const now = new Date();
+  return db.select().from(quoteFollowUps)
+    .where(and(
+      eq(quoteFollowUps.status, "active"),
+    ))
+    .orderBy(quoteFollowUps.nextFollowUpAt);
+}
+
+
+// ── Compliance Documents ──────────────────────────────────────────────────────
+export async function createComplianceDocument(data: InsertComplianceDocument): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(complianceDocuments).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+export async function getComplianceDocument(id: string): Promise<ComplianceDocument | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(complianceDocuments).where(eq(complianceDocuments.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+export async function updateComplianceDocument(id: string, data: Partial<InsertComplianceDocument>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(complianceDocuments).set(data).where(eq(complianceDocuments.id, id));
+}
+export async function listComplianceDocuments(clientId: number): Promise<ComplianceDocument[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(complianceDocuments)
+    .where(eq(complianceDocuments.clientId, clientId))
+    .orderBy(complianceDocuments.createdAt);
+}
+export async function deleteComplianceDocument(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(complianceDocuments).where(eq(complianceDocuments.id, id));
 }

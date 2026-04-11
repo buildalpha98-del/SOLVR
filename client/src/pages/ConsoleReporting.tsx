@@ -3,16 +3,17 @@
  * Single-view for MRR, ARR, plan breakdown, churn risk, and outstanding invoices.
  * Uses data from crm.getReportingStats, crm.getMrrHistory, and adminInvoiceChasing.stats.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, LineChart, Line, Legend,
+  PieChart, Pie, Label as RechartsLabel,
 } from "recharts";
 import {
   TrendingUp, Users, AlertTriangle, DollarSign,
-  ArrowUpRight, ArrowDownRight, Loader2, Receipt,
+  ArrowUpRight, ArrowDownRight, Loader2, Receipt, Target,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -79,13 +80,17 @@ export default function ConsoleReporting() {
     staleTime: 2 * 60 * 1000,
   });
 
+  const [planTab, setPlanTab] = useState<"subscribers" | "mrr">("subscribers");
+
   const planBreakdown = useMemo(() => {
     if (!stats) return [];
     return [
-      { name: "Starter", mrr: stats.starterMrr },
-      { name: "Professional", mrr: stats.professionalMrr },
-    ].filter(p => p.mrr > 0);
+      { name: "Starter", mrr: stats.starterMrr, count: (stats as any).starterCount ?? 0 },
+      { name: "Professional", mrr: stats.professionalMrr, count: (stats as any).professionalCount ?? 0 },
+    ].filter(p => p.mrr > 0 || p.count > 0);
   }, [stats]);
+
+  const totalSubscribers = planBreakdown.reduce((s, p) => s + p.count, 0);
 
   const isLoading = statsLoading || mrrLoading || invoiceLoading;
 
@@ -107,11 +112,81 @@ export default function ConsoleReporting() {
       <div className="space-y-6 pb-12">
 
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-white">Reporting Dashboard</h1>
-          <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Revenue, subscribers, churn risk, and invoice recovery — all in one view.
-          </p>
+        <div className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Reporting Dashboard</h1>
+            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Revenue, subscribers, churn risk, and invoice recovery — all in one view.
+            </p>
+          </div>
+
+          {/* Path to 10 clients milestone tracker */}
+          {(() => {
+            const MILESTONE = 10;
+            const current = stats?.activeClients ?? 0;
+            const pct = Math.min(100, Math.round((current / MILESTONE) * 100));
+            const remaining = Math.max(0, MILESTONE - current);
+            const milestoneReached = current >= MILESTONE;
+            return (
+              <div
+                className="rounded-xl p-4"
+                style={{
+                  background: milestoneReached
+                    ? "rgba(34,197,94,0.08)"
+                    : "rgba(245,166,35,0.06)",
+                  border: `1px solid ${
+                    milestoneReached ? "rgba(34,197,94,0.25)" : "rgba(245,166,35,0.18)"
+                  }`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Target
+                      className="w-4 h-4"
+                      style={{ color: milestoneReached ? "#22c55e" : "#F5A623" }}
+                    />
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: milestoneReached ? "#22c55e" : "#F5A623" }}
+                    >
+                      Path to 10 Clients
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    {current} / {MILESTONE}
+                    {milestoneReached && (
+                      <span className="ml-2" style={{ color: "#22c55e" }}>🎉 Milestone reached!</span>
+                    )}
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div
+                  className="w-full rounded-full overflow-hidden"
+                  style={{ height: 8, background: "rgba(255,255,255,0.08)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${pct}%`,
+                      background: milestoneReached
+                        ? "#22c55e"
+                        : `linear-gradient(90deg, #F5A623 0%, #f97316 100%)`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    {pct}% complete
+                  </span>
+                  {!milestoneReached && (
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      {remaining} client{remaining !== 1 ? "s" : ""} to go
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Top KPI row */}
@@ -184,14 +259,84 @@ export default function ConsoleReporting() {
             className="rounded-xl p-5"
             style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
           >
-            <h2 className="text-sm font-semibold text-white mb-4">MRR by Plan</h2>
+            {/* Header + tab toggle */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">Plan Breakdown</h2>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                {(["subscribers", "mrr"] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setPlanTab(tab)}
+                    className="px-3 py-1 text-xs font-medium"
+                    style={{
+                      background: planTab === tab ? "#F5A623" : "transparent",
+                      color: planTab === tab ? "#0F1F3D" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {tab === "subscribers" ? "Subs" : "MRR"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {planBreakdown.length === 0 ? (
               <div className="flex items-center justify-center h-48">
                 <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
                   No active subscribers yet.
                 </p>
               </div>
+            ) : planTab === "subscribers" ? (
+              /* Subscriber count doughnut */
+              <>
+                <div style={{ height: 160 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={planBreakdown}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={46}
+                        outerRadius={70}
+                        paddingAngle={3}
+                        strokeWidth={0}
+                      >
+                        {planBreakdown.map((_, i) => (
+                          <Cell key={i} fill={PLAN_COLORS[i % PLAN_COLORS.length]} />
+                        ))}
+                        <RechartsLabel
+                          value={totalSubscribers}
+                          position="center"
+                          style={{ fontSize: 22, fontWeight: 700, fill: "#fff" }}
+                        />
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }}
+                        formatter={(v: number, name: string) => [`${v} subscriber${v !== 1 ? "s" : ""}`, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {planBreakdown.map((p, i) => (
+                    <div key={p.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: PLAN_COLORS[i % PLAN_COLORS.length] }} />
+                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{p.name}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-white">
+                        {p.count} sub{p.count !== 1 ? "s" : ""}
+                        <span className="ml-1 font-normal" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          ({totalSubscribers > 0 ? Math.round((p.count / totalSubscribers) * 100) : 0}%)
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
+              /* MRR bar chart */
               <>
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={planBreakdown} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>

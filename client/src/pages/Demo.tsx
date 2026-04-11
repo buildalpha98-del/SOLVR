@@ -400,11 +400,34 @@ function PersonaSwitcher({ persona, onChange, disabled }: PersonaSwitcherProps) 
   );
 }
 
+const PERSONA_STORAGE_KEY = "solvr_demo_persona";
+
+function loadSavedPersona(): PersonaConfig | null {
+  try {
+    const raw = localStorage.getItem(PERSONA_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersonaConfig;
+    // Validate it has the required fields
+    if (parsed && typeof parsed.businessName === "string") return parsed;
+  } catch {
+    // ignore corrupt storage
+  }
+  return null;
+}
+
+function savePersona(p: PersonaConfig) {
+  try {
+    localStorage.setItem(PERSONA_STORAGE_KEY, JSON.stringify(p));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 // ── Main Page ──────────────────────────────────────────────────
 export default function Home() {
-  // Initialise persona and prospect from URL params
+  // Initialise persona: URL param > localStorage > default
   const [persona, setPersona] = useState<PersonaConfig>(
-    () => getPersonaFromUrl() ?? PRESET_PERSONAS[0].config
+    () => getPersonaFromUrl() ?? loadSavedPersona() ?? PRESET_PERSONAS[0].config
   );
   const [prospect] = useState<string | null>(() => getProspectFromUrl());
   const [showScenario, setShowScenario] = useState(false);
@@ -430,7 +453,7 @@ export default function Home() {
     if (booking) setJobsCount((c) => c + 1);
   }, [booking]);
 
-  // Update URL when persona changes (for share link)
+  // Update URL + localStorage when persona changes
   useEffect(() => {
     const url = new URL(window.location.href);
     if (persona.businessName) {
@@ -443,7 +466,9 @@ export default function Home() {
       url.searchParams.set("prospect", prospect);
     }
     window.history.replaceState({}, "", url.toString());
-  }, [persona.businessName, prospect]);
+    // Persist selection so returning visitors see their last persona
+    savePersona(persona);
+  }, [persona, prospect]);
 
   // Post-call CTA: auto-open booking modal 3s after call ends
   useEffect(() => {

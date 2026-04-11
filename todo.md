@@ -191,3 +191,93 @@
 - [ ] Build CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
 - [ ] Add generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
 - [ ] Wire Generate Report button in PortalJobDetail completion section
+
+## Voice-First Onboarding (Apr 2026)
+- [x] VoiceOnboarding.tsx — record → Whisper → LLM extract → review form → save
+- [x] server/_core/onboardingExtraction.ts — ultra-detailed LLM prompt + JSON schema for all profile fields
+- [x] portal.extractVoiceOnboarding tRPC procedure — transcribe + extract + return missing fields
+- [x] portal.saveVoiceOnboarding tRPC procedure — persist extracted data + mark onboarding complete
+- [x] /portal/onboarding now routes to VoiceOnboarding; /portal/onboarding/form keeps old wizard as fallback
+- [x] Per-section re-record mic on VoiceOnboarding review screen
+- [x] Console CRM voice onboarding transcript viewer (collapsible amber panel)
+- [x] Auto-trigger generatePrompt (Vapi prompt) after saveVoiceOnboarding completes
+- [x] Owner notification (Manus) after autoGeneratePromptForClient completes
+- [x] Vapi auto-provisioning chained after voice onboarding prompt generation (zero-touch)
+- [x] Console CRM memory file read/edit modal (view/edit clientProfiles from CRM client detail)
+
+## Weekly Summary Email (Apr 2026)
+- [x] Weekly summary data query (calls, quotes sent, jobs won, revenue for the week per clientId)
+- [x] buildWeeklySummaryEmail() HTML template — Friday digest with stats + portal CTA
+- [x] weeklySummaryEmail.ts cron — Friday 4pm AEST, respects notifyEmailWeeklySummary opt-out
+- [x] Register cron in server/_core/index.ts
+- [x] Vitest tests for weekly summary cron (12 tests)
+
+## Payment Details, Completion Report & Reporting Chart (Apr 2026)
+- [x] Add payment details fields to clientProfiles schema (bsb, accountNumber, accountName, bankName) + db:push
+- [x] portal.getPaymentDetails + portal.updatePaymentDetails tRPC procedures
+- [x] Payment Details section in PortalSettings UI
+- [x] Wire bank details into invoice PDF footer
+- [x] CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
+- [x] generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
+- [x] Generate Report button in PortalJobDetail completion section
+- [ ] Subscriber plan split doughnut chart in ConsoleReporting (Starter vs Professional counts)
+
+## Milestone Tracker + Referral Page (Apr 2026)
+- [ ] "Path to 10 clients" milestone progress bar in Console Reporting header
+- [ ] Portal referral page at /portal/referral — unique link, referred count, reward status
+- [ ] Add Referral nav item to portal More drawer
+
+## Tier 1 Feature Build — Tradie Focus (Apr 2026)
+
+### Feature 1: Job Costing & Profit Tracker
+- [x] Add job_cost_items table to schema (materials + labour entries) + db:push
+- [x] db.ts helpers: createJobCostItem, listJobCostItems, deleteJobCostItem, getJobProfitSummary
+- [x] portalJobs router: addJobCostItem, removeJobCostItem, getJobProfitSummary procedures
+- [x] Auto-import quote line items as cost items when customer accepts quote
+- [x] PortalJobDetail: Costs tab — mobile-first, add material/labour rows
+- [x] Profit KPI cards in PortalJobDetail (total cost, quoted amount, margin %)
+
+### Feature 2: SMS Payment Links
+- [x] Install twilio npm package
+- [x] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets
+- [x] Create server/lib/sms.ts helper (sendSms function, graceful skip if no credentials)
+- [x] Add payment_links table to schema (jobId, token, status, sentAt, paidAt) + db:push
+- [x] Create /pay/:token public page (Stripe checkout redirect, mobile-optimised)
+- [x] Wire SMS send on invoice creation (portalJobs router)
+- [x] Wire SMS into invoice chasing cron (Day 7 + Day 14 chase steps)
+- [x] Tests: payment link creation and SMS send
+
+### Feature 3: Quote Expiry & Follow-Up Automation
+- [x] Add quote_follow_ups table to schema (quoteId, status, followUp1SentAt, followUp2SentAt, expiryNoticeSentAt) + db:push
+- [x] db.ts helpers: getQuoteFollowUp, createQuoteFollowUp, updateQuoteFollowUp, listActiveQuoteFollowUps
+- [x] Create server/cron/quoteFollowUp.ts (48h follow-up, 5-day follow-up, expiry-day notice)
+- [x] Register quoteFollowUp cron in server/_core/index.ts
+- [x] Follow-up status badges in PortalQuotes list (Followed Up / Expiring Soon)
+- [x] Tests: follow-up cron logic
+
+### Feature 4: Before/After Photo Completion Report
+- [x] Add photoType field to quotePhotos schema (before | after) + db:push
+- [x] Add uploadAfterPhoto procedure to quotes router
+- [x] PortalJobDetail: After-photo upload section on completed/invoiced jobs
+- [x] Build CompletionReportDocument.tsx React-PDF template (before/after grid, work description, licence, warranty)
+- [x] Add generateCompletionReport procedure (render PDF, upload S3, email customer)
+- [x] Generate Report button in PortalJobDetail completion section
+- [x] Tests: completion report generation
+
+## Licence & Insurance + Compliance Documents (Apr 2026)
+- [x] Add licenceNumber, licenceType, licenceAuthority, licenceExpiryDate, insurerName, insurancePolicyNumber, insuranceCoverageAud, insuranceExpiryDate fields to clientProfiles schema + db:push
+- [x] portal.saveLicenceInsurance tRPC procedure
+- [x] Licence & Insurance section in PortalSettings UI
+- [x] Add compliance_documents table to schema (id, clientId, jobId, docType, title, jobDescription, pdfUrl, content, status) + db:push
+- [x] db.ts helpers: createComplianceDocument, getComplianceDocument, updateComplianceDocument, listComplianceDocuments, deleteComplianceDocument
+- [x] server/_core/complianceDocGeneration.ts — LLM prompt builder for SWMS, Safety Cert, Site Induction, JSA
+- [x] portal.generateComplianceDoc tRPC procedure (async: create record -> LLM -> PDF -> S3 -> update record)
+- [x] portal.listComplianceDocs, portal.getComplianceDoc, portal.deleteComplianceDoc procedures
+- [x] PortalCompliance.tsx page — generate form, polling status, document list, PDF download
+- [x] /portal/compliance route in App.tsx
+- [x] Compliance nav item (ShieldCheck icon, Pro badge) in PortalLayout
+
+## Capacitor iOS Boundary Rules (Apr 2026)
+- [x] Manus will NEVER edit capacitor.config.ts, ios/, scripts/sync-mobile.sh, or docs/superpowers/specs/
+- [x] Mobile feature requests flagged in commit messages as 'mobile: requires @capacitor/xxx'
+- [x] Claude Code owns all Capacitor/iOS config — boundary documented and enforced

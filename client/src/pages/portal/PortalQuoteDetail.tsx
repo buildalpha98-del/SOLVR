@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Send, FileText, Sparkles, Camera, Trash2,
   Loader2, CheckCircle, Download, Plus, XCircle, RefreshCw,
-  ExternalLink,
+  ExternalLink, AlertTriangle,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -82,6 +82,15 @@ export default function PortalQuoteDetail() {
   const deletePhotoMutation = trpc.quotes.deletePhoto.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
   });
+  // P3-B: Dismiss extraction warnings
+  const dismissWarningsMutation = trpc.quotes.dismissWarnings.useMutation({
+    onSuccess: () => {
+      utils.quotes.get.invalidate({ id: quoteId });
+      utils.quotes.list.invalidate();
+      toast.success("Warnings dismissed — quote removed from warnings filter.");
+    },
+    onError: () => toast.error("Failed to dismiss warnings"),
+  });
 
   // Local edit state
   const [editingLineItems, setEditingLineItems] = useState(false);
@@ -118,7 +127,7 @@ export default function PortalQuoteDetail() {
     );
   }
 
-  const { quote, lineItems: savedLineItems, photos } = data;
+  const { quote, lineItems: savedLineItems, photos, extractionWarnings } = data;
   const isDraft = quote.status === "draft";
   const reportContent = quote.reportContent as Record<string, unknown> | null;
 
@@ -260,6 +269,49 @@ export default function PortalQuoteDetail() {
               </div>
             )}
           </div>
+
+          {/* Extraction Warnings Banner — hidden once warningsAcknowledged=true */}
+          {extractionWarnings && extractionWarnings.length > 0 && !quote.warningsAcknowledged && (
+            <div
+              className="rounded-xl border p-4"
+              style={{ borderColor: "rgba(245,166,35,0.35)", background: "rgba(245,166,35,0.06)" }}
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#F5A623" }} />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-sm font-semibold" style={{ color: "#F5A623" }}>
+                      AI Extraction Warnings — please review before sending
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-6 px-2"
+                      style={{ color: "rgba(245,166,35,0.7)" }}
+                      disabled={dismissWarningsMutation.isPending}
+                      onClick={() => dismissWarningsMutation.mutate({ id: quoteId })}
+                    >
+                      {dismissWarningsMutation.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        "Dismiss"
+                      )}
+                    </Button>
+                  </div>
+                  <ul className="space-y-1">
+                    {extractionWarnings.map((w, i) => (
+                      <li key={i} className="text-sm" style={{ color: "rgba(245,166,35,0.85)" }}>
+                        • {w}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs mt-2" style={{ color: "rgba(245,166,35,0.5)" }}>
+                    Once you’ve reviewed and corrected the line items above, click Dismiss to clear this banner.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Line items */}
           <div

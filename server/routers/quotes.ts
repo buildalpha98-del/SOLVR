@@ -39,6 +39,7 @@ import {
   updateCrmClient,
   getClientProfile,
   buildMemoryContext,
+  insertCrmInteraction,
 } from "../db";
 import { randomUUID, randomBytes } from "crypto";
 import type { QuoteReportContent } from "../_core/reportGeneration";
@@ -76,13 +77,41 @@ function addDays(days: number): Date {
 export const quotesRouter = router({
   /**
    * List all quotes for the authenticated portal client.
+   * Enriches each quote with a `hasWarnings` boolean derived from the
+   * linked voice recording's extractedJson.extractionWarnings array.
+   * Quotes where warningsAcknowledged=true are treated as having no warnings.
    */
   list: publicProcedure.query(async ({ ctx }) => {
     const portalAuth = await getPortalClient(ctx.req);
     if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
     const clientId = portalAuth.client.id;
     await requireFeature(clientId, "quote-engine");
-    return listQuotesByClient(clientId);
+    const rawQuotes = await listQuotesByClient(clientId);
+
+    // Batch-load voice recordings for quotes that have one
+    const recordingIds = rawQuotes
+      .map((q) => q.voiceRecordingId)
+      .filter((id): id is string => !!id);
+
+    const recordingMap = new Map<string, { extractionWarnings?: string[] }>();
+    if (recordingIds.length > 0) {
+      await Promise.all(
+        recordingIds.map(async (id) => {
+          const rec = await getQuoteVoiceRecordingById(id);
+          if (rec) {
+            const json = rec.extractedJson as { extractionWarnings?: string[] } | null;
+            recordingMap.set(id, { extractionWarnings: json?.extractionWarnings ?? [] });
+          }
+        }),
+      );
+    }
+
+    return rawQuotes.map((q) => {
+      const rec = q.voiceRecordingId ? recordingMap.get(q.voiceRecordingId) : undefined;
+      const warnings = rec?.extractionWarnings ?? [];
+      const hasWarnings = !q.warningsAcknowledged && warnings.length > 0;
+      return { ...q, hasWarnings };
+    });
   }),
 
   /**
@@ -100,11 +129,17 @@ export const quotesRouter = router({
       if (!quote || quote.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
-      const [lineItems, photos] = await Promise.all([
+      const [lineItems, photos, recording] = await Promise.all([
         listQuoteLineItems(input.id),
         listQuotePhotos(input.id),
+        quote.voiceRecordingId ? getQuoteVoiceRecordingById(quote.voiceRecordingId) : Promise.resolve(null),
       ]);
-      return { quote, lineItems, photos };
+
+      // Surface extractionWarnings from the voice recording extracted JSON
+      const extractedJson = recording?.extractedJson as { extractionWarnings?: string[] } | null;
+      const extractionWarnings: string[] = extractedJson?.extractionWarnings ?? [];
+
+      return { quote, lineItems, photos, extractionWarnings };
     }),
 
   /**
@@ -285,6 +320,29 @@ export const quotesRouter = router({
         });
 
         await insertQuoteLineItems(lineItemsWithTotals);
+
+        // Log extractionWarnings to the CRM timeline if any were flagged
+        if (extracted.extractionWarnings && extracted.extractionWarnings.length > 0) {
+          try {
+            await insertCrmInteraction({
+              clientId,
+              type: "system",
+              title: `Quote ${quoteNumber} — AI extraction warnings (${extracted.extractionWarnings.length})`,
+              body: [
+                `Job: ${extracted.jobTitle}`,
+                `Customer: ${extracted.customerName ?? "Unknown"}`,
+                `Total: $${financials.totalAmount}`,
+                "",
+                "Warnings flagged by AI during extraction:",
+                ...extracted.extractionWarnings.map((w: string) => `• ${w}`),
+              ].join("\n"),
+              isPinned: false,
+            });
+          } catch {
+            // Non-fatal — don't block quote creation if CRM logging fails
+          }
+        }
+
         return { quoteId, quoteNumber, transcript: transcription.text, extracted };
       } catch (err) {
         await updateQuoteVoiceRecording(recordingId, {
@@ -405,25 +463,41 @@ export const quotesRouter = router({
 
       const client = portalAuth.client;
 
-      const [lineItems, photos, recording] = await Promise.all([
+      const [lineItems, photos, recording, profile] = await Promise.all([
         listQuoteLineItems(input.id),
         listQuotePhotos(input.id),
         quote.voiceRecordingId ? getQuoteVoiceRecordingById(quote.voiceRecordingId) : Promise.resolve(null),
+        getClientProfile(clientId),
       ]);
+
+      const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : null;
 
       const report = await generateQuoteReport({
         jobTitle: quote.jobTitle,
         jobDescription: quote.jobDescription,
+        customerName: quote.customerName,
+        customerPhone: quote.customerPhone,
+        customerEmail: quote.customerEmail,
+        customerAddress: quote.customerAddress,
         lineItems: lineItems.map((li) => ({
           description: li.description,
           quantity: parseFloat(li.quantity),
           unit: li.unit ?? "each",
           unitPrice: li.unitPrice ? parseFloat(li.unitPrice) : null,
+          lineTotal: li.lineTotal ? parseFloat(li.lineTotal) : null,
         })),
+        subtotal: quote.subtotal,
+        gstAmount: quote.gstAmount,
+        totalAmount: quote.totalAmount,
+        gstRate: quote.gstRate,
+        paymentTerms: quote.paymentTerms,
+        validityDays: quote.validityDays,
+        notes: quote.notes,
         transcript: recording?.transcript ?? "",
         photos: photos.map((p) => ({ caption: p.caption, aiDescription: p.aiDescription ?? "" })),
         businessName: client.businessName,
         tradeType: client.tradeType,
+        memoryContext,
       });
 
       await updateQuote(input.id, {
@@ -700,13 +774,27 @@ export const quotesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
 
-      const photos = await listQuotePhotos(input.quoteId);
+      const client = portalAuth.client;
+      const [photos, lineItems] = await Promise.all([
+        listQuotePhotos(input.quoteId),
+        listQuoteLineItems(input.quoteId),
+      ]);
       const unanalysed = photos.filter((p) => !p.aiDescription);
       if (unanalysed.length === 0) return { analysed: 0 };
 
       const descriptions = await analyseQuotePhotos(
         unanalysed.map((p) => ({ imageUrl: p.imageUrl, caption: p.caption })),
-        quote.jobTitle,
+        {
+          jobTitle: quote.jobTitle,
+          jobDescription: quote.jobDescription,
+          tradeType: client.tradeType,
+          customerAddress: quote.customerAddress,
+          lineItems: lineItems.map((li) => ({
+            description: li.description,
+            quantity: parseFloat(li.quantity),
+            unit: li.unit ?? "each",
+          })),
+        },
       );
 
       await Promise.all(
@@ -794,6 +882,27 @@ export const quotesRouter = router({
       if (Object.keys(updateData).length > 0) {
         await updateCrmClient(clientId, updateData as any);
       }
+      return { success: true };
+    }),
+
+  /**
+   * P3-B: Dismiss extraction warnings for a quote.
+   * Sets warningsAcknowledged=true so the banner is hidden and the quote
+   * no longer appears in the "warnings" filter on the list page.
+   */
+  dismissWarnings: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
+      await requireFeature(clientId, "quote-engine");
+
+      const quote = await getQuoteById(input.id);
+      if (!quote || quote.clientId !== clientId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
+      }
+      await updateQuote(input.id, { warningsAcknowledged: true });
       return { success: true };
     }),
 });

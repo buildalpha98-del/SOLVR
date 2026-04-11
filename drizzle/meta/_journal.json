@@ -162,6 +162,62 @@
       "when": 1775859302729,
       "tag": "0022_unusual_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1775876042793,
+      "tag": "0023_natural_diamondback",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1775881016693,
+      "tag": "0024_breezy_nightmare",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1775900907612,
+      "tag": "0025_spooky_forgotten_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1775901381055,
+      "tag": "0026_brief_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1775903416129,
+      "tag": "0027_sleepy_lady_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1775905653583,
+      "tag": "0028_wide_bromley",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1775906026072,
+      "tag": "0029_chief_santa_claus",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1775906466182,
+      "tag": "0030_workable_warbound",
+      "breakpoints": true
     }
   ]
 }

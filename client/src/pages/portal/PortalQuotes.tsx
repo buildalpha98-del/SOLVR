@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Mic, StopCircle, Plus, FileText, Eye, Trash2,
-  Loader2, CheckCircle, XCircle, Pencil,
+  Loader2, CheckCircle, XCircle, Pencil, AlertTriangle,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -185,6 +185,19 @@ export default function PortalQuotes() {
   const [newMode, setNewMode] = useState<"voice" | "manual" | null>(null);
   const [processingVoice, setProcessingVoice] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
+  // P3-A: Warnings filter
+  const [showWarningsOnly, setShowWarningsOnly] = useState(false);
+  const warningCount = (quotes ?? []).filter((q) => (q as typeof q & { hasWarnings?: boolean }).hasWarnings).length;
+
+  // Multi-stage progress for voice processing
+  type VoiceStage = "idle" | "uploading" | "transcribing" | "extracting" | "done";
+  const [voiceStage, setVoiceStage] = useState<VoiceStage>("idle");
+  const VOICE_STAGES: { key: VoiceStage; label: string; detail: string }[] = [
+    { key: "uploading",    label: "Uploading audio",      detail: "Sending your recording securely…" },
+    { key: "transcribing", label: "Transcribing speech",   detail: "Converting your voice to text…" },
+    { key: "extracting",   label: "Extracting quote data", detail: "AI is reading job details, items & pricing…" },
+    { key: "done",         label: "Quote created!",        detail: "Redirecting to your new quote…" },
+  ];
 
   // Manual form
   const [manualForm, setManualForm] = useState({
@@ -205,6 +218,7 @@ export default function PortalQuotes() {
   async function handleVoiceProcess() {
     if (!voice.audioBlob) return;
     setUploadingAudio(true);
+    setVoiceStage("uploading");
     try {
       // Upload audio to S3 via the portal upload endpoint
       // Use the correct file extension for the detected MIME type (iOS uses audio/mp4)
@@ -233,13 +247,22 @@ export default function PortalQuotes() {
       if (!audioUrl) throw new Error("Upload succeeded but no URL was returned — please try again.");
       setUploadingAudio(false);
       setProcessingVoice(true);
+      // Advance to transcribing stage — the server does transcription first
+      setVoiceStage("transcribing");
+      // Simulate stage advancement: transcription typically takes 5–15s, extraction 10–30s
+      // We advance to "extracting" after a 12-second delay as a UX hint
+      const extractingTimer = setTimeout(() => setVoiceStage("extracting"), 12_000);
 
       const result = await processVoiceMutation.mutateAsync({
         audioUrl,
         durationSeconds: voice.durationSeconds,
       });
+      clearTimeout(extractingTimer);
+      setVoiceStage("done");
       await utils.quotes.list.invalidate();
       toast.success(`Quote ${result.quoteNumber} created!`);
+      // Brief pause so the user sees the "done" state
+      await new Promise(r => setTimeout(r, 800));
       setShowNewModal(false);
       voice.reset();
       navigate(`/portal/quotes/${result.quoteId}`);
@@ -248,6 +271,7 @@ export default function PortalQuotes() {
     } finally {
       setUploadingAudio(false);
       setProcessingVoice(false);
+      setVoiceStage("idle");
     }
   }
 
@@ -333,6 +357,25 @@ export default function PortalQuotes() {
         </div>
       ) : null}
 
+      {/* ── Warnings filter bar ─────────────────────────────────────────── */}
+      {!quotesError && warningCount > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={() => setShowWarningsOnly((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all"
+            style={{
+              borderColor: showWarningsOnly ? "#F5A623" : "rgba(245,166,35,0.3)",
+              background: showWarningsOnly ? "rgba(245,166,35,0.15)" : "transparent",
+              color: showWarningsOnly ? "#F5A623" : "rgba(245,166,35,0.7)",
+            }}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            {warningCount} quote{warningCount !== 1 ? "s" : ""} need review
+            {showWarningsOnly && " · Show all"}
+          </button>
+        </div>
+      )}
+
       {/* ── Quote list ─────────────────────────────────────────────────── */}
       {!quotesError && isLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -359,17 +402,35 @@ export default function PortalQuotes() {
         </div>
       ) : (
         <div className="space-y-2">
-          {(quotes ?? []).map((q: NonNullable<typeof quotes>[number]) => (
+          {(quotes ?? [])
+            .filter((q) => !showWarningsOnly || (q as typeof q & { hasWarnings?: boolean }).hasWarnings)
+            .map((q: NonNullable<typeof quotes>[number]) => (
             <div
               key={q.id}
               className="rounded-xl border p-4 flex items-center gap-4 group"
-              style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
+              style={{
+                borderColor: (q as typeof q & { hasWarnings?: boolean }).hasWarnings
+                  ? "rgba(245,166,35,0.3)"
+                  : "rgba(255,255,255,0.08)",
+                background: (q as typeof q & { hasWarnings?: boolean }).hasWarnings
+                  ? "rgba(245,166,35,0.04)"
+                  : "rgba(255,255,255,0.02)",
+              }}
             >
               {/* Quote number + title */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-xs font-mono text-white/40">{q.quoteNumber}</span>
                   {statusBadge(q.status)}
+                  {(q as typeof q & { hasWarnings?: boolean }).hasWarnings && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide flex items-center gap-0.5"
+                      style={{ background: "rgba(245,166,35,0.2)", color: "#F5A623" }}
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      Review
+                    </span>
+                  )}
                 </div>
                 <p className="font-semibold text-white truncate">{q.jobTitle}</p>
                 {q.customerName && (
@@ -532,16 +593,46 @@ export default function PortalQuotes() {
                 >
                   Back
                 </Button>
+{/* Multi-stage progress indicator */}
+                {(uploadingAudio || processingVoice) && voiceStage !== "idle" && (
+                  <div className="w-full mb-3 rounded-xl p-4" style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
+                    <div className="flex gap-1 mb-3">
+                      {VOICE_STAGES.map((s, i) => {
+                        const stageIndex = VOICE_STAGES.findIndex(x => x.key === voiceStage);
+                        const isDone = i < stageIndex || voiceStage === "done";
+                        const isActive = s.key === voiceStage;
+                        return (
+                          <div key={s.key} className="flex-1 h-1 rounded-full transition-all duration-500"
+                            style={{ background: isDone || isActive ? "#F5A623" : "rgba(255,255,255,0.1)" }} />
+                        );
+                      })}
+                    </div>
+                    {(() => {
+                      const current = VOICE_STAGES.find(s => s.key === voiceStage);
+                      return current ? (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            {voiceStage === "done"
+                              ? <CheckCircle className="w-4 h-4" style={{ color: "#4ADE80" }} />
+                              : <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#F5A623" }} />}
+                            <span className="text-sm font-semibold" style={{ color: voiceStage === "done" ? "#4ADE80" : "#F5A623" }}>
+                              {current.label}
+                            </span>
+                          </div>
+                          <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>{current.detail}</p>
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
                 <Button
                   onClick={handleVoiceProcess}
                   disabled={!voice.audioBlob || uploadingAudio || processingVoice}
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
                   className="font-semibold"
                 >
-                  {uploadingAudio ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading…</>
-                  ) : processingVoice ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing…</>
+                  {(uploadingAudio || processingVoice) ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Working…</>
                   ) : (
                     "Process Recording"
                   )}

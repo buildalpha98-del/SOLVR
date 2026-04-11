@@ -39,7 +39,18 @@ interface Job {
   actualValue: number | null;
   notes: string | null;
   createdAt: Date;
+  sourceQuoteNumber?: string | null;
+  sourceQuoteStatus?: string | null;
 }
+
+const QUOTE_STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+  draft:    { color: "#94a3b8", bg: "rgba(148,163,184,0.1)",  label: "Draft" },
+  sent:     { color: "#60a5fa", bg: "rgba(96,165,250,0.1)",   label: "Sent" },
+  accepted: { color: "#4ade80", bg: "rgba(74,222,128,0.1)",   label: "Accepted" },
+  declined: { color: "#f87171", bg: "rgba(248,113,113,0.1)",  label: "Declined" },
+  expired:  { color: "#fb923c", bg: "rgba(251,146,60,0.1)",   label: "Expired" },
+  cancelled:{ color: "#94a3b8", bg: "rgba(148,163,184,0.1)",  label: "Cancelled" },
+};
 
 // ─── Job Card (board view) ────────────────────────────────────────────────────
 function JobCard({
@@ -93,6 +104,26 @@ function JobCard({
           </p>
         )}
       </div>
+
+      {job.sourceQuoteNumber && (() => {
+        const qs = QUOTE_STATUS_STYLE[job.sourceQuoteStatus ?? ""] ?? QUOTE_STATUS_STYLE.draft;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+              style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623" }}
+            >
+              {job.sourceQuoteNumber}
+            </span>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+              style={{ background: qs.bg, color: qs.color }}
+            >
+              {qs.label}
+            </span>
+          </div>
+        );
+      })()}
 
       <div className="flex items-center gap-2">
         <DollarSign className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
@@ -206,6 +237,19 @@ function JobRow({ job, onOpen }: { job: Job; onOpen: (id: number) => void }) {
 
       {/* Value + stage + chevron */}
       <div className="flex items-center gap-3 flex-shrink-0">
+        {job.sourceQuoteNumber && (() => {
+          const qs = QUOTE_STATUS_STYLE[job.sourceQuoteStatus ?? ""] ?? QUOTE_STATUS_STYLE.draft;
+          return (
+            <div className="hidden sm:flex items-center gap-1">
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623" }}>
+                {job.sourceQuoteNumber}
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: qs.bg, color: qs.color }}>
+                {qs.label}
+              </span>
+            </div>
+          );
+        })()}
         {displayValue != null && (
           <span className="text-sm font-semibold" style={{ color: job.stage === "completed" ? "#4ade80" : "#F5A623" }}>
             ${displayValue.toLocaleString()}

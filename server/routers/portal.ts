@@ -27,6 +27,7 @@ import {
   createPortalSession,
   updatePortalSession,
   listPortalJobs,
+  listPortalJobsWithQuote,
   getPortalJob,
   createPortalJob,
   updatePortalJob,
@@ -55,6 +56,20 @@ import {
   buildMemoryContext,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
+import Stripe from "stripe";
+import { getPaymentLinkByToken, updatePaymentLink } from "../db";
+import {
+  createComplianceDocument,
+  getComplianceDocument,
+  listComplianceDocuments,
+  deleteComplianceDocument,
+  updateComplianceDocument,
+} from "../db";
+import { generateComplianceDocument, type ComplianceDocType } from "../_core/complianceDocGeneration";
+import { storagePut } from "../storage";
+import { transcribeAudio } from "../_core/voiceTranscription";
+import { extractOnboardingData, getMissingRequiredFields } from "../_core/onboardingExtraction";
+import { autoGeneratePromptForClient } from "../autoGeneratePrompt";
 import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
@@ -336,7 +351,7 @@ export const portalRouter = router({
     .query(async ({ ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) return null;
-      const { client } = result;
+      const { client, session } = result;
       const plan = (client.package ?? "setup-monthly") as SolvrPlan;
       // Check onboarding status
       const profile = await getClientProfile(client.id);
@@ -365,6 +380,8 @@ export const portalRouter = router({
         replyToEmail: client.quoteReplyToEmail ?? null,
         validityDays: client.quoteValidityDays ?? 30,
         onboardingCompleted,
+        // Session expiry — used by the frontend to show the expiry warning banner
+        sessionExpiresAt: session?.sessionExpiresAt ?? null,
       };
     }),
 
@@ -492,7 +509,7 @@ export const portalRouter = router({
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
-      return listPortalJobs(client.id);
+      return listPortalJobsWithQuote(client.id);
     }),
 
   /**
@@ -1280,6 +1297,479 @@ export const portalRouter = router({
         `,
       });
 
+      return { success: true };
+    }),
+
+  /**
+   * Voice-first onboarding extraction.
+   *
+   * Accepts a pre-uploaded audio URL (from /api/upload-audio), transcribes it
+   * via Whisper, then runs the LLM extraction to pull out every business profile
+   * field it can find. Returns the extracted data + a list of missing required
+   * fields so the frontend can render a targeted completion form.
+   */
+  extractVoiceOnboarding: publicProcedure
+    .input(z.object({
+      /** Pre-signed or CDN URL of the uploaded audio file */
+      audioUrl: z.string().url(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+
+      // Step 1: Transcribe
+      const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
+      if ("error" in transcriptionResult) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: transcriptionResult.details ?? transcriptionResult.error ?? "Transcription failed",
+        });
+      }
+      const transcript = transcriptionResult.text?.trim() ?? "";
+      if (!transcript) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No speech detected in the recording. Please try again." });
+      }
+
+      // Step 2: LLM extraction
+      const extraction = await extractOnboardingData(transcript);
+
+      // Step 3: Identify missing required fields
+      const missingFields = getMissingRequiredFields(extraction);
+
+      return {
+        transcript,
+        extraction,
+        missingFields,
+      };
+    }),
+
+  /**
+   * Save voice onboarding result — persists the extracted + user-corrected data
+   * to the client profile and marks onboarding complete.
+   */
+  saveVoiceOnboarding: publicProcedure
+    .input(z.object({
+      tradingName: z.string().max(255).optional().nullable(),
+      abn: z.string().max(50).optional().nullable(),
+      phone: z.string().max(50).optional().nullable(),
+      address: z.string().max(512).optional().nullable(),
+      email: z.string().max(320).optional().nullable(),
+      website: z.string().max(512).optional().nullable(),
+      industryType: z.string().optional().nullable(),
+      yearsInBusiness: z.number().int().min(0).max(200).optional().nullable(),
+      teamSize: z.number().int().min(0).max(10000).optional().nullable(),
+      servicesOffered: z.array(z.object({
+        name: z.string(),
+        description: z.string(),
+        typicalPrice: z.number().nullable(),
+        unit: z.string(),
+      })).optional(),
+      callOutFee: z.string().optional().nullable(),
+      hourlyRate: z.string().optional().nullable(),
+      minimumCharge: z.string().optional().nullable(),
+      afterHoursMultiplier: z.string().optional().nullable(),
+      emergencyAvailable: z.boolean().optional(),
+      emergencyFee: z.string().optional().nullable(),
+      serviceArea: z.string().max(2000).optional().nullable(),
+      operatingHours: z.object({
+        monFri: z.string(),
+        sat: z.string(),
+        sun: z.string(),
+        publicHolidays: z.string(),
+      }).optional().nullable(),
+      tagline: z.string().max(255).optional().nullable(),
+      toneOfVoice: z.string().optional().nullable(),
+      aiContext: z.string().max(5000).optional().nullable(),
+      bookingInstructions: z.string().max(2000).optional().nullable(),
+      paymentTerms: z.string().max(255).optional().nullable(),
+      /** Raw transcript from the voice recording — stored for Console review */
+      voiceOnboardingTranscript: z.string().optional().nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+
+      // P1-C: Completion gate — validate required fields before marking onboarding complete.
+      // The AI receptionist cannot function without these six fields.
+      const REQUIRED: { key: keyof typeof input; label: string }[] = [
+        { key: "tradingName", label: "Business name" },
+        { key: "phone",       label: "Phone number" },
+        { key: "email",       label: "Email address" },
+        { key: "abn",         label: "ABN" },
+        { key: "industryType",label: "Industry type" },
+        { key: "serviceArea", label: "Service area" },
+      ];
+      const missingLabels = REQUIRED
+        .filter(({ key }) => !input[key] || String(input[key]).trim() === "")
+        .map(({ label }) => label);
+      if (missingLabels.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Please fill in the following required fields before going live: ${missingLabels.join(", ")}.`,
+        });
+      }
+
+      await getOrCreateClientProfile(client.id);
+
+      // Build update payload — strip nulls for optional fields
+      const updatePayload: Record<string, unknown> = {
+        onboardingCompleted: true,
+        onboardingCompletedAt: new Date(),
+        onboardingStep: 3,
+      };
+      const fields = [
+        "tradingName", "abn", "phone", "address", "email", "website",
+        "industryType", "yearsInBusiness", "teamSize",
+        "servicesOffered", "callOutFee", "hourlyRate", "minimumCharge",
+        "afterHoursMultiplier", "emergencyAvailable", "emergencyFee",
+        "serviceArea", "operatingHours",
+        "tagline", "toneOfVoice", "aiContext", "bookingInstructions", "paymentTerms",
+        "voiceOnboardingTranscript",
+      ] as const;
+      for (const key of fields) {
+        const val = (input as Record<string, unknown>)[key];
+        if (val !== undefined && val !== null) updatePayload[key] = val;
+      }
+      await updateClientProfile(client.id, updatePayload as any);
+
+      // Sync key fields back to crm_clients for quote/branding
+      const syncData: Record<string, unknown> = {};
+      if (input.tradingName) syncData.quoteTradingName = input.tradingName;
+      if (input.abn) syncData.quoteAbn = input.abn;
+      if (input.phone) syncData.quotePhone = input.phone;
+      if (input.address) syncData.quoteAddress = input.address;
+      if (input.email) syncData.quoteReplyToEmail = input.email;
+      if (Object.keys(syncData).length > 0) {
+        await updateCrmClient(client.id, syncData as any);
+      }
+
+      // Auto-generate the Vapi prompt in the background.
+      // Non-fatal: if it fails, onboarding still completes successfully.
+      // The tradie can always regenerate from the Console checklist.
+       autoGeneratePromptForClient(client.id).catch((err) => {
+        console.error(`[saveVoiceOnboarding] Auto-prompt generation failed for client ${client.id}:`, err);
+      });
+      return { success: true };
+    }),
+
+  // ── Notification Preferences ────────────────────────────────────────────────────
+
+  /**
+   * Returns the current notification preferences for the authenticated portal client.
+   */
+  getNotificationPrefs: publicProcedure.query(async ({ ctx }) => {
+    const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+    if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+    const { client } = result;
+    const profile = await getClientProfile(client.id);
+    return {
+      notifyEmailNewCall: profile?.notifyEmailNewCall ?? true,
+      notifyPushNewCall: profile?.notifyPushNewCall ?? true,
+      notifyEmailNewQuote: profile?.notifyEmailNewQuote ?? true,
+      notifyPushNewQuote: profile?.notifyPushNewQuote ?? true,
+      notifyEmailQuoteAccepted: profile?.notifyEmailQuoteAccepted ?? true,
+      notifyPushQuoteAccepted: profile?.notifyPushQuoteAccepted ?? true,
+      notifyEmailJobUpdate: profile?.notifyEmailJobUpdate ?? false,
+      notifyPushJobUpdate: profile?.notifyPushJobUpdate ?? true,
+      notifyEmailWeeklySummary: profile?.notifyEmailWeeklySummary ?? true,
+    };
+  }),
+
+  /**
+   * Updates notification preferences for the authenticated portal client.
+   */
+  updateNotificationPrefs: publicProcedure
+    .input(
+      z.object({
+        notifyEmailNewCall: z.boolean().optional(),
+        notifyPushNewCall: z.boolean().optional(),
+        notifyEmailNewQuote: z.boolean().optional(),
+        notifyPushNewQuote: z.boolean().optional(),
+        notifyEmailQuoteAccepted: z.boolean().optional(),
+        notifyPushQuoteAccepted: z.boolean().optional(),
+        notifyEmailJobUpdate: z.boolean().optional(),
+        notifyPushJobUpdate: z.boolean().optional(),
+        notifyEmailWeeklySummary: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      // Build update payload from only the fields provided
+      const updatePayload: Record<string, boolean> = {};
+      const fields = [
+        "notifyEmailNewCall", "notifyPushNewCall",
+        "notifyEmailNewQuote", "notifyPushNewQuote",
+        "notifyEmailQuoteAccepted", "notifyPushQuoteAccepted",
+        "notifyEmailJobUpdate", "notifyPushJobUpdate",
+        "notifyEmailWeeklySummary",
+      ] as const;
+      for (const key of fields) {
+        const val = input[key];
+        if (val !== undefined) updatePayload[key] = val;
+      }
+      if (Object.keys(updatePayload).length > 0) {
+        await updateClientProfile(client.id, updatePayload as any);
+      }
+      return { success: true };
+    }),
+
+  /**
+   * Get payment link details by token — public, no auth required.
+   * Used by the /pay/:token page to show invoice summary.
+   */
+  getPaymentLink: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const link = await getPaymentLinkByToken(input.token);
+      if (!link) throw new TRPCError({ code: "NOT_FOUND", message: "Payment link not found." });
+
+      // Check expiry
+      if (link.expiresAt && new Date(link.expiresAt) < new Date() && link.status === "pending") {
+        await updatePaymentLink(link.id, { status: "expired" });
+        return { ...link, status: "expired" as const };
+      }
+
+      // Fetch business branding from client profile
+      const profile = await getClientProfile(link.clientId);
+      const client = await getCrmClientById(link.clientId);
+
+      // Fetch job title if available
+      let jobTitle: string | null = null;
+      if (link.jobId) {
+        const job = await getPortalJob(link.jobId);
+        jobTitle = job?.jobType ?? job?.description ?? null;
+      }
+
+      return {
+        id: link.id,
+        token: link.token,
+        status: link.status,
+        amountCents: link.amountCents,
+        invoiceNumber: link.invoiceNumber,
+        customerName: link.customerName,
+        expiresAt: link.expiresAt,
+        jobTitle,
+        businessName: profile?.tradingName ?? client?.businessName ?? "Your Service Provider",
+        businessLogo: profile?.logoUrl ?? null,
+        businessPhone: profile?.phone ?? client?.contactPhone ?? null,
+      };
+    }),
+
+  /**
+   * Create a Stripe Checkout Session for a payment link.
+   * Called when the customer clicks "Pay" on the /pay/:token page.
+   */
+  createPaymentLinkCheckout: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      origin: z.string().url(),
+    }))
+    .mutation(async ({ input }) => {
+      const link = await getPaymentLinkByToken(input.token);
+      if (!link) throw new TRPCError({ code: "NOT_FOUND", message: "Payment link not found." });
+      if (link.status !== "pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: link.status === "paid" ? "This invoice has already been paid." : "This payment link has expired." });
+      }
+      if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
+        await updatePaymentLink(link.id, { status: "expired" });
+        throw new TRPCError({ code: "BAD_REQUEST", message: "This payment link has expired." });
+      }
+
+      const profile = await getClientProfile(link.clientId);
+      const client = await getCrmClientById(link.clientId);
+      const businessName = profile?.tradingName ?? client?.businessName ?? "Your Service Provider";
+
+      const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      const session = await stripeInstance.checkout.sessions.create({
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [{
+          price_data: {
+            currency: "aud",
+            product_data: {
+              name: `Invoice ${link.invoiceNumber ?? ""} — ${businessName}`,
+              description: link.customerName ? `Payment from ${link.customerName}` : undefined,
+            },
+            unit_amount: link.amountCents,
+          },
+          quantity: 1,
+        }],
+        customer_email: link.customerEmail ?? undefined,
+        allow_promotion_codes: false,
+        client_reference_id: link.id,
+        metadata: {
+          payment_link_id: link.id,
+          payment_link_token: link.token,
+          client_id: String(link.clientId),
+          invoice_number: link.invoiceNumber ?? "",
+        },
+        success_url: `${input.origin}/pay/${link.token}?success=1`,
+        cancel_url: `${input.origin}/pay/${link.token}?cancelled=1`,
+      });
+
+      return { url: session.url };
+    }),
+
+  // ─── Licence & Insurance ────────────────────────────────────────────────────
+  /**
+   * Save/update the client's licence and insurance details.
+   * Stored on the clientProfile row.
+   */
+  saveLicenceInsurance: publicProcedure
+    .input(z.object({
+      licenceNumber: z.string().max(100).optional(),
+      licenceType: z.string().max(100).optional(),
+      licenceAuthority: z.string().max(255).optional(),
+      licenceExpiryDate: z.string().max(20).optional(),
+      abn: z.string().max(20).optional(),
+      insurerName: z.string().max(255).optional(),
+      insurancePolicyNumber: z.string().max(100).optional(),
+      insuranceCoverageAud: z.number().int().min(0).optional(),
+      insuranceExpiryDate: z.string().max(20).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = portalClient;
+      await updateClientProfile(client.id, {
+        licenceNumber: input.licenceNumber ?? null,
+        licenceType: input.licenceType ?? null,
+        licenceAuthority: input.licenceAuthority ?? null,
+        licenceExpiryDate: input.licenceExpiryDate ?? null,
+        abn: input.abn ?? null,
+        insurerName: input.insurerName ?? null,
+        insurancePolicyNumber: input.insurancePolicyNumber ?? null,
+        insuranceCoverageAud: input.insuranceCoverageAud ?? null,
+        insuranceExpiryDate: input.insuranceExpiryDate ?? null,
+      });
+      return { success: true };
+    }),
+
+  // ─── Compliance Documents ────────────────────────────────────────────────────
+  /**
+   * Generate a compliance document (SWMS, Safety Cert, JSA, Site Induction).
+   * Uses LLM to produce the content, then stores it and generates a PDF.
+   */
+  generateComplianceDoc: publicProcedure
+    .input(z.object({
+      docType: z.enum(["swms", "safety_cert", "site_induction", "jsa"]),
+      jobDescription: z.string().min(10).max(2000),
+      siteAddress: z.string().max(500).optional(),
+      jobId: z.number().int().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = portalClient;
+
+      // Get or create the client profile for licence/insurance data
+      const profile = await getOrCreateClientProfile(client.id);
+
+      // Create a placeholder record first so the UI can show "generating..."
+      const docId = randomUUID();
+      const businessName = profile?.tradingName ?? client.businessName;
+      await createComplianceDocument({
+        id: docId,
+        clientId: client.id,
+        jobId: input.jobId ?? null,
+        docType: input.docType,
+        title: `${input.docType.toUpperCase()} — ${businessName}`,
+        jobDescription: input.jobDescription,
+        status: "generating",
+      });
+
+      // Generate asynchronously — don't block the response
+      (async () => {
+        try {
+          const result = await generateComplianceDocument({
+            docType: input.docType as import("../_core/complianceDocGeneration").ComplianceDocType,
+            jobDescription: input.jobDescription,
+            siteAddress: input.siteAddress,
+            profile: profile ?? {
+              id: 0, clientId: client.id, tradingName: null, abn: null,
+              phone: null, address: null, email: null, website: null,
+              industryType: client.tradeType ?? null,
+              yearsInBusiness: null, teamSize: null,
+              servicesOffered: null, callOutFee: null, hourlyRate: null,
+              minimumCharge: null, afterHoursMultiplier: null,
+              serviceArea: null, operatingHours: null,
+              emergencyAvailable: false, emergencyFee: null,
+              logoUrl: null, primaryColor: null, secondaryColor: null,
+              brandFont: null, tagline: null, toneOfVoice: null,
+              aiContext: null, commonFaqs: null, competitorNotes: null,
+              bookingInstructions: null, escalationInstructions: null,
+              gstRate: "10.00", paymentTerms: null, validityDays: 30, defaultNotes: null,
+              bankBsb: null, bankAccountNumber: null, bankAccountName: null, bankName: null,
+              licenceNumber: null, licenceType: null, licenceAuthority: null, licenceExpiryDate: null,
+              insurerName: null, insurancePolicyNumber: null, insuranceCoverageAud: null, insuranceExpiryDate: null,
+              onboardingCompleted: false, onboardingCompletedAt: null, onboardingStep: null,
+              voiceOnboardingTranscript: null,
+              notifyEmailNewCall: true, notifyPushNewCall: true,
+              notifyEmailNewQuote: true, notifyPushNewQuote: true,
+              notifyEmailQuoteAccepted: true, notifyPushQuoteAccepted: true,
+              notifyEmailJobUpdate: false, notifyPushJobUpdate: true,
+              notifyEmailWeeklySummary: true,
+              vapiAgentId: null,
+              createdAt: new Date(), updatedAt: new Date(),
+            },
+            businessName,
+          });
+
+          await updateComplianceDocument(docId, {
+            title: result.title,
+            content: result.content,
+            status: "ready",
+          });
+        } catch (err) {
+          console.error("[ComplianceDoc] Generation failed:", err);
+          await updateComplianceDocument(docId, { status: "error" });
+        }
+      })();
+
+      return { docId, status: "generating" };
+    }),
+
+  /**
+   * Poll the status of a compliance document generation.
+   */
+  getComplianceDoc: publicProcedure
+    .input(z.object({ docId: z.string().uuid() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const doc = await getComplianceDocument(input.docId);
+      if (!doc || doc.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+      }
+      return doc;
+    }),
+
+  /**
+   * List all compliance documents for the current portal client.
+   */
+  listComplianceDocs: publicProcedure
+    .query(async ({ ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listComplianceDocuments(portalClient.client.id);
+    }),
+
+  /**
+   * Delete a compliance document.
+   */
+  deleteComplianceDoc: publicProcedure
+    .input(z.object({ docId: z.string().uuid() }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const doc = await getComplianceDocument(input.docId);
+      if (!doc || doc.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+      }
+      await deleteComplianceDocument(input.docId);
       return { success: true };
     }),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `client_profiles` ADD `licenceType` varchar(100);
