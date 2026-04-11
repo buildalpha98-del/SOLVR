@@ -76,6 +76,25 @@ import { getSessionCookieOptions } from "../_core/cookies";
 import { portalJobsProcedures } from "./portalJobs";
 import { portalPushProcedures } from "./portalPush";
 import { portalReferralProcedures } from "./portalReferral";
+import {
+  createStaffMember,
+  getStaffMember,
+  listStaffMembers,
+  updateStaffMember,
+  deleteStaffMember,
+  createScheduleEntry,
+  getScheduleEntry,
+  listScheduleEntriesForWeek,
+  listScheduleEntriesForJob,
+  updateScheduleEntry,
+  deleteScheduleEntry,
+  createTimeEntry,
+  getTimeEntry,
+  getActiveCheckIn,
+  updateTimeEntry,
+  listTimeEntriesForJob,
+  listTimeEntriesForStaff,
+} from "../db";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -1771,5 +1790,280 @@ export const portalRouter = router({
       }
       await deleteComplianceDocument(input.docId);
       return { success: true };
+    }),
+
+  // ─── Staff Members ────────────────────────────────────────────────────────────
+
+  listStaff: publicProcedure
+    .query(async ({ ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listStaffMembers(portalClient.client.id);
+    }),
+
+  createStaff: publicProcedure
+    .input(z.object({
+      name: z.string().min(1).max(255),
+      mobile: z.string().max(20).optional(),
+      trade: z.string().max(100).optional(),
+      licenceNumber: z.string().max(100).optional(),
+      hourlyRate: z.number().min(0).max(9999).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const result = await createStaffMember({
+        clientId: portalClient.client.id,
+        name: input.name,
+        mobile: input.mobile ?? null,
+        trade: input.trade ?? null,
+        licenceNumber: input.licenceNumber ?? null,
+        hourlyRate: input.hourlyRate !== undefined ? String(input.hourlyRate) : null,
+        isActive: true,
+      });
+      return { id: result.insertId };
+    }),
+
+  updateStaff: publicProcedure
+    .input(z.object({
+      id: z.number().int(),
+      name: z.string().min(1).max(255).optional(),
+      mobile: z.string().max(20).optional(),
+      trade: z.string().max(100).optional(),
+      licenceNumber: z.string().max(100).optional(),
+      hourlyRate: z.number().min(0).max(9999).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const member = await getStaffMember(input.id);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      const update: Record<string, unknown> = {};
+      if (input.name !== undefined) update.name = input.name;
+      if (input.mobile !== undefined) update.mobile = input.mobile;
+      if (input.trade !== undefined) update.trade = input.trade;
+      if (input.licenceNumber !== undefined) update.licenceNumber = input.licenceNumber;
+      if (input.hourlyRate !== undefined) update.hourlyRate = String(input.hourlyRate);
+      await updateStaffMember(input.id, update);
+      return { success: true };
+    }),
+
+  deleteStaff: publicProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const member = await getStaffMember(input.id);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      await deleteStaffMember(input.id);
+      return { success: true };
+    }),
+
+  // ─── Job Schedule ─────────────────────────────────────────────────────────────
+
+  listScheduleWeek: publicProcedure
+    .input(z.object({ weekStart: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const start = new Date(input.weekStart);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return listScheduleEntriesForWeek(portalClient.client.id, start, end);
+    }),
+
+  listScheduleForJob: publicProcedure
+    .input(z.object({ jobId: z.number().int() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listScheduleEntriesForJob(input.jobId);
+    }),
+
+  createSchedule: publicProcedure
+    .input(z.object({
+      jobId: z.number().int(),
+      staffId: z.number().int(),
+      startTime: z.string(),
+      endTime: z.string(),
+      notes: z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const result = await createScheduleEntry({
+        clientId: portalClient.client.id,
+        jobId: input.jobId,
+        staffId: input.staffId,
+        startTime: new Date(input.startTime),
+        endTime: new Date(input.endTime),
+        notes: input.notes ?? null,
+        status: "pending",
+      });
+      return { id: result.insertId };
+    }),
+
+  updateSchedule: publicProcedure
+    .input(z.object({
+      id: z.number().int(),
+      startTime: z.string().optional(),
+      endTime: z.string().optional(),
+      staffId: z.number().int().optional(),
+      status: z.enum(["pending", "confirmed", "in_progress", "completed", "cancelled"]).optional(),
+      notes: z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const entry = await getScheduleEntry(input.id);
+      if (!entry || entry.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Schedule entry not found." });
+      }
+      const update: Record<string, unknown> = {};
+      if (input.startTime) update.startTime = new Date(input.startTime);
+      if (input.endTime) update.endTime = new Date(input.endTime);
+      if (input.staffId !== undefined) update.staffId = input.staffId;
+      if (input.status) update.status = input.status;
+      if (input.notes !== undefined) update.notes = input.notes;
+      await updateScheduleEntry(input.id, update);
+      return { success: true };
+    }),
+
+  deleteSchedule: publicProcedure
+    .input(z.object({ id: z.number().int() }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const entry = await getScheduleEntry(input.id);
+      if (!entry || entry.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Schedule entry not found." });
+      }
+      await deleteScheduleEntry(input.id);
+      return { success: true };
+    }),
+
+  // ─── Time Entries (GPS Check-In / Check-Out) ──────────────────────────────────
+
+  checkIn: publicProcedure
+    .input(z.object({
+      jobId: z.number().int(),
+      staffId: z.number().int(),
+      scheduleId: z.number().int().optional(),
+      lat: z.number().optional(),
+      lng: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const existing = await getActiveCheckIn(input.staffId, input.jobId);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "Already checked in to this job." });
+      }
+      const result = await createTimeEntry({
+        clientId: portalClient.client.id,
+        jobId: input.jobId,
+        staffId: input.staffId,
+        scheduleId: input.scheduleId ?? null,
+        checkInAt: new Date(),
+        checkInLat: input.lat !== undefined ? String(input.lat) : null,
+        checkInLng: input.lng !== undefined ? String(input.lng) : null,
+        convertedToJobCost: false,
+      });
+      if (input.scheduleId) {
+        await updateScheduleEntry(input.scheduleId, { status: "in_progress" });
+      }
+      return { id: result.insertId, checkedInAt: new Date().toISOString() };
+    }),
+
+  checkOut: publicProcedure
+    .input(z.object({
+      timeEntryId: z.number().int(),
+      lat: z.number().optional(),
+      lng: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const entry = await getTimeEntry(input.timeEntryId);
+      if (!entry || entry.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found." });
+      }
+      if (entry.checkOutAt) {
+        throw new TRPCError({ code: "CONFLICT", message: "Already checked out." });
+      }
+      const now = new Date();
+      const durationMs = now.getTime() - entry.checkInAt.getTime();
+      const durationMinutes = Math.round(durationMs / 60000);
+      await updateTimeEntry(input.timeEntryId, {
+        checkOutAt: now,
+        checkOutLat: input.lat !== undefined ? String(input.lat) : null,
+        checkOutLng: input.lng !== undefined ? String(input.lng) : null,
+        durationMinutes,
+      });
+      if (entry.scheduleId) {
+        await updateScheduleEntry(entry.scheduleId, { status: "completed" });
+      }
+      return { durationMinutes, checkedOutAt: now.toISOString() };
+    }),
+
+  getActiveCheckIn: publicProcedure
+    .input(z.object({ staffId: z.number().int(), jobId: z.number().int() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return getActiveCheckIn(input.staffId, input.jobId);
+    }),
+
+  listTimeEntriesForJob: publicProcedure
+    .input(z.object({ jobId: z.number().int() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listTimeEntriesForJob(input.jobId);
+    }),
+
+  listTimeEntriesForStaff: publicProcedure
+    .input(z.object({ staffId: z.number().int() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listTimeEntriesForStaff(input.staffId, portalClient.client.id);
+    }),
+
+  weeklyTimesheet: publicProcedure
+    .input(z.object({ weekStart: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const start = new Date(input.weekStart);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      const staff = await listStaffMembers(portalClient.client.id);
+      const { gte, lte, and: andOp, eq: eqOp } = await import("drizzle-orm");
+      const { getDb } = await import("../db");
+      const { timeEntries: te } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available." });
+      const entries = await db.select().from(te)
+        .where(andOp(
+          eqOp(te.clientId, portalClient.client.id),
+          gte(te.checkInAt, start),
+          lte(te.checkInAt, end)
+        ));
+      const summary = staff.map(s => {
+        const staffEntries = entries.filter(e => e.staffId === s.id && e.durationMinutes !== null);
+        const totalMinutes = staffEntries.reduce((sum, e) => sum + (e.durationMinutes ?? 0), 0);
+        const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
+        return { staffId: s.id, staffName: s.name, totalHours, entries: staffEntries };
+      });
+      return { weekStart: input.weekStart, summary };
     }),
 });

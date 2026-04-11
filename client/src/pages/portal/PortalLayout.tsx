@@ -13,7 +13,8 @@ import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck
+  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
+  CalendarClock, UserCog
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -38,6 +39,8 @@ const ALL_TABS: NavTab[] = [
   { key: "customers", label: "Customers", href: "/portal/customers", icon: <Users className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "insights", label: "AI Insights", href: "/portal/insights", icon: <Sparkles className="w-4 h-4" />, feature: "ai-insights", badge: "Managed" },
   { key: "compliance", label: "Compliance", href: "/portal/compliance", icon: <ShieldCheck className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "staff", label: "Staff", href: "/portal/staff", icon: <UserCog className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "schedule", label: "Schedule", href: "/portal/schedule", icon: <CalendarClock className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
 ];
 
 // ─── Mobile bottom tab bar ───────────────────────────────────────────────────

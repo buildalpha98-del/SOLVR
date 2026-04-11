@@ -919,6 +919,15 @@ import {
   complianceDocuments,
   type ComplianceDocument,
   type InsertComplianceDocument,
+  staffMembers,
+  type StaffMember,
+  type InsertStaffMember,
+  jobSchedule,
+  type JobScheduleEntry,
+  type InsertJobScheduleEntry,
+  timeEntries,
+  type TimeEntry,
+  type InsertTimeEntry,
 } from "../drizzle/schema";
 
 export async function listJobCostItems(jobId: number): Promise<JobCostItem[]> {
@@ -1046,4 +1055,130 @@ export async function deleteComplianceDocument(id: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(complianceDocuments).where(eq(complianceDocuments.id, id));
+}
+
+// ── Staff Members ─────────────────────────────────────────────────────────────
+export async function createStaffMember(data: InsertStaffMember): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(staffMembers).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+export async function getStaffMember(id: number): Promise<StaffMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(staffMembers).where(eq(staffMembers.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+export async function listStaffMembers(clientId: number): Promise<StaffMember[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(staffMembers)
+    .where(and(eq(staffMembers.clientId, clientId), eq(staffMembers.isActive, true)))
+    .orderBy(staffMembers.name);
+}
+export async function updateStaffMember(id: number, data: Partial<InsertStaffMember>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(staffMembers).set(data).where(eq(staffMembers.id, id));
+}
+export async function deleteStaffMember(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(staffMembers).set({ isActive: false }).where(eq(staffMembers.id, id));
+}
+
+// ── Job Schedule ──────────────────────────────────────────────────────────────
+export async function createScheduleEntry(data: InsertJobScheduleEntry): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(jobSchedule).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+export async function getScheduleEntry(id: number): Promise<JobScheduleEntry | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(jobSchedule).where(eq(jobSchedule.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+export async function listScheduleEntriesForWeek(
+  clientId: number, weekStart: Date, weekEnd: Date
+): Promise<JobScheduleEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { gte, lte } = await import("drizzle-orm");
+  return db.select().from(jobSchedule)
+    .where(and(
+      eq(jobSchedule.clientId, clientId),
+      gte(jobSchedule.startTime, weekStart),
+      lte(jobSchedule.startTime, weekEnd)
+    ))
+    .orderBy(jobSchedule.startTime);
+}
+export async function updateScheduleEntry(id: number, data: Partial<InsertJobScheduleEntry>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(jobSchedule).set(data).where(eq(jobSchedule.id, id));
+}
+export async function deleteScheduleEntry(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobSchedule).where(eq(jobSchedule.id, id));
+}
+export async function listScheduleEntriesForJob(jobId: number): Promise<JobScheduleEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobSchedule)
+    .where(eq(jobSchedule.jobId, jobId))
+    .orderBy(jobSchedule.startTime);
+}
+
+// ── Time Entries ──────────────────────────────────────────────────────────────
+export async function createTimeEntry(data: InsertTimeEntry): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(timeEntries).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+export async function getTimeEntry(id: number): Promise<TimeEntry | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(timeEntries).where(eq(timeEntries.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+export async function getActiveCheckIn(staffId: number, jobId: number): Promise<TimeEntry | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(timeEntries)
+    .where(and(eq(timeEntries.staffId, staffId), eq(timeEntries.jobId, jobId)))
+    .orderBy(desc(timeEntries.checkInAt))
+    .limit(1);
+  const entry = result.length > 0 ? result[0] : null;
+  return entry && !entry.checkOutAt ? entry : null;
+}
+export async function updateTimeEntry(id: number, data: Partial<InsertTimeEntry>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(timeEntries).set(data).where(eq(timeEntries.id, id));
+}
+export async function listTimeEntriesForJob(jobId: number): Promise<TimeEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(timeEntries)
+    .where(eq(timeEntries.jobId, jobId))
+    .orderBy(desc(timeEntries.checkInAt));
+}
+export async function listTimeEntriesForStaff(staffId: number, clientId: number): Promise<TimeEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(timeEntries)
+    .where(and(eq(timeEntries.staffId, staffId), eq(timeEntries.clientId, clientId)))
+    .orderBy(desc(timeEntries.checkInAt));
+}
+export async function listAllUnconvertedTimeEntries(): Promise<TimeEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(timeEntries)
+    .where(eq(timeEntries.convertedToJobCost, false))
+    .orderBy(timeEntries.checkInAt);
 }

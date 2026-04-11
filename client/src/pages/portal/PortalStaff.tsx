@@ -1,0 +1,357 @@
+/**
+ * PortalStaff — Staff management page for tradies.
+ * Add, edit, and deactivate staff members. Each staff member can be
+ * assigned to job schedule entries and check in/out via GPS.
+ */
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import PortalLayout from "./PortalLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users } from "lucide-react";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+
+type StaffMember = {
+  id: number;
+  name: string;
+  mobile: string | null;
+  trade: string | null;
+  licenceNumber: string | null;
+  hourlyRate: string | null;
+  isActive: boolean;
+};
+
+type StaffFormData = {
+  name: string;
+  mobile: string;
+  trade: string;
+  licenceNumber: string;
+  hourlyRate: string;
+};
+
+const emptyForm: StaffFormData = {
+  name: "",
+  mobile: "",
+  trade: "",
+  licenceNumber: "",
+  hourlyRate: "",
+};
+
+export default function PortalStaff() {
+  const utils = trpc.useUtils();
+
+  const { data: staffList, isLoading } = trpc.portal.listStaff.useQuery();
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [form, setForm] = useState<StaffFormData>(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+
+  const createMutation = trpc.portal.createStaff.useMutation({
+    onSuccess: () => {
+      utils.portal.listStaff.invalidate();
+      setShowForm(false);
+      setForm(emptyForm);
+      toast.success(`${form.name} has been added to your team.`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateMutation = trpc.portal.updateStaff.useMutation({
+    onSuccess: () => {
+      utils.portal.listStaff.invalidate();
+      setEditingStaff(null);
+      setForm(emptyForm);
+      toast.success("Staff member updated.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.portal.deleteStaff.useMutation({
+    onSuccess: () => {
+      utils.portal.listStaff.invalidate();
+      setDeleteTarget(null);
+      toast.success("Staff member removed.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function openCreate() {
+    setEditingStaff(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  }
+
+  function openEdit(member: StaffMember) {
+    setEditingStaff(member);
+    setForm({
+      name: member.name,
+      mobile: member.mobile ?? "",
+      trade: member.trade ?? "",
+      licenceNumber: member.licenceNumber ?? "",
+      hourlyRate: member.hourlyRate ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSubmit() {
+    if (!form.name.trim()) {
+      toast.error("Name is required.");
+      return;
+    }
+    const hourlyRate = form.hourlyRate ? parseFloat(form.hourlyRate) : undefined;
+    if (form.hourlyRate && isNaN(hourlyRate!)) {
+      toast.error("Hourly rate must be a number.");
+      return;
+    }
+    const payload = {
+      name: form.name.trim(),
+      mobile: form.mobile.trim() || undefined,
+      trade: form.trade.trim() || undefined,
+      licenceNumber: form.licenceNumber.trim() || undefined,
+      hourlyRate,
+    };
+    if (editingStaff) {
+      updateMutation.mutate({ id: editingStaff.id, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  }
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  return (
+    <PortalLayout activeTab="staff">
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <UserCog className="w-5 h-5" style={{ color: "#F5A623" }} />
+              Staff
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Manage your team members — assign them to jobs and track their hours.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={openCreate}
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
+            className="font-semibold"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Add Staff
+          </Button>
+        </div>
+
+        {/* Staff list */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
+          </div>
+        ) : !staffList || staffList.length === 0 ? (
+          <div
+            className="rounded-2xl border p-10 text-center"
+            style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.08)" }}
+          >
+            <Users className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
+            <p className="text-white font-medium mb-1">No staff members yet</p>
+            <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Add your first team member to start scheduling and tracking hours.
+            </p>
+            <Button
+              size="sm"
+              onClick={openCreate}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add First Staff Member
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {staffList.map((member) => (
+              <div
+                key={member.id}
+                className="rounded-2xl border p-4 flex items-center gap-4"
+                style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
+              >
+                {/* Avatar */}
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                >
+                  {member.name.charAt(0).toUpperCase()}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">{member.name}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {member.trade && (
+                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        <Wrench className="w-3 h-3" /> {member.trade}
+                      </span>
+                    )}
+                    {member.mobile && (
+                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        <Phone className="w-3 h-3" /> {member.mobile}
+                      </span>
+                    )}
+                    {member.licenceNumber && (
+                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        <Hash className="w-3 h-3" /> {member.licenceNumber}
+                      </span>
+                    )}
+                    {member.hourlyRate && (
+                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        <DollarSign className="w-3 h-3" /> ${member.hourlyRate}/hr
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => openEdit(member)}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ color: "rgba(255,255,255,0.4)" }}
+                    title="Edit"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(member)}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ color: "rgba(255,100,100,0.5)" }}
+                    title="Remove"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingStaff(null); setForm(emptyForm); } }}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }}>
+              {editingStaff ? "Edit Staff Member" : "Add Staff Member"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Full Name *</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Jake Smith"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Mobile</Label>
+                <Input
+                  value={form.mobile}
+                  onChange={(e) => setForm(f => ({ ...f, mobile: e.target.value }))}
+                  placeholder="04xx xxx xxx"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Trade</Label>
+                <Input
+                  value={form.trade}
+                  onChange={(e) => setForm(f => ({ ...f, trade: e.target.value }))}
+                  placeholder="e.g. Plumber"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Licence Number</Label>
+                <Input
+                  value={form.licenceNumber}
+                  onChange={(e) => setForm(f => ({ ...f, licenceNumber: e.target.value }))}
+                  placeholder="e.g. PL12345"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Hourly Rate ($)</Label>
+                <Input
+                  value={form.hourlyRate}
+                  onChange={(e) => setForm(f => ({ ...f, hourlyRate: e.target.value }))}
+                  placeholder="e.g. 45"
+                  type="number"
+                  min="0"
+                  step="0.50"
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setShowForm(false); setEditingStaff(null); setForm(emptyForm); }}
+              style={{ color: "rgba(255,255,255,0.5)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={isSaving}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingStaff ? "Save Changes" : "Add Staff Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "white" }}>Remove {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+              This will deactivate them from your team. Their historical time entries will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteMutation.mutate({ id: deleteTarget.id })}
+              style={{ background: "#ef4444", color: "white" }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PortalLayout>
+  );
+}

@@ -281,3 +281,37 @@
 - [x] Manus will NEVER edit capacitor.config.ts, ios/, scripts/sync-mobile.sh, or docs/superpowers/specs/
 - [x] Mobile feature requests flagged in commit messages as 'mobile: requires @capacitor/xxx'
 - [x] Claude Code owns all Capacitor/iOS config — boundary documented and enforced
+
+## Feature 6: Drag-and-Drop Scheduler + Staff GPS Check-In (Apr 2026) ✅
+
+### Schema & Migration
+- [x] Add staff_members table (id, clientId, name, mobile, trade, licenceNumber, isActive, createdAt) + db:push
+- [x] Add job_schedule table (id, clientId, jobId, staffId, startTime, endTime, status, notes, createdAt) + db:push
+- [x] Add time_entries table (id, clientId, jobId, staffId, scheduleId, checkInAt, checkOutAt, gpsLat, gpsLng, durationMinutes, createdAt) + db:push
+
+### Server
+- [x] db.ts helpers: createStaffMember, getStaffMember, listStaffMembers, updateStaffMember, deleteStaffMember
+- [x] db.ts helpers: createScheduleEntry, getScheduleEntry, listScheduleEntries (by week/clientId), updateScheduleEntry, deleteScheduleEntry
+- [x] db.ts helpers: createTimeEntry, getTimeEntry, listTimeEntries (by job/staff), updateTimeEntry, getActiveCheckIn
+- [x] portal router: listStaff, createStaff, updateStaff, deleteStaff procedures
+- [x] portal router: listScheduleWeek, createScheduleEntry, updateScheduleEntry, deleteScheduleEntry procedures
+- [x] portal router: checkIn, checkOut, getActiveCheckIn, listTimeEntries, getTimesheetSummary procedures
+
+### Portal UI
+- [x] PortalStaff.tsx page (/portal/staff) — staff list, add/edit/delete, mobile + trade + licence fields
+- [x] Staff nav item (Users icon) added to PortalLayout
+- [x] /portal/staff route added to App.tsx
+- [x] PortalSchedule.tsx page (/portal/schedule) — weekly calendar with @dnd-kit drag-and-drop
+- [x] Schedule nav item (CalendarClock icon) added to PortalLayout
+- [x] /portal/schedule route added to App.tsx
+- [x] PortalStaffCheckIn.tsx — staff-facing GPS check-in/check-out page (/portal/checkin)
+- [x] /portal/checkin route added to App.tsx
+
+### Automations
+- [x] server/cron/staffTimesheet.ts — end-of-day cron (11:30pm daily): completed time_entries → job_cost_items (labour hours × rate)
+- [x] Weekly timesheet email cron (Monday 7am AEST): per-staff hours summary to tradie owner
+- [x] Register staffTimesheet crons in server/_core/index.ts
+
+### Tests & Fixes
+- [x] Fix flaky voiceOnboarding UNAUTHORIZED test (timeout → 15000ms)
+- [x] 121/121 vitest tests passing, 0 TypeScript errors
