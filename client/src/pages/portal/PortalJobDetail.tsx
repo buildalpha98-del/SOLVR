@@ -120,17 +120,19 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
 }
 
 // ─── Photo Section ──────────────────────────────────────────────────────────
-type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null };
+type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null; uploadedByStaffName?: string | null };
 
 function PhotoSection({
   jobId,
   beforePhotos,
   afterPhotos,
+  staffPhotos,
   onRefresh,
 }: {
   jobId: number;
   beforePhotos: JobPhoto[];
   afterPhotos: JobPhoto[];
+  staffPhotos: JobPhoto[];
   onRefresh: () => void;
 }) {
   const [uploading, setUploading] = useState<"before" | "after" | null>(null);
@@ -220,6 +222,32 @@ function PhotoSection({
         <PhotoGrid photos={beforePhotos} type="before" />
         <PhotoGrid photos={afterPhotos} type="after" />
       </div>
+      {/* Staff-uploaded photos (during / other) */}
+      {staffPhotos.length > 0 && (
+        <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Staff Photos ({staffPhotos.length})</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {staffPhotos.map(p => (
+              <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "1" }}>
+                <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" />
+                <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1" style={{ background: "rgba(0,0,0,0.65)" }}>
+                  {p.uploadedByStaffName && (
+                    <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>
+                  )}
+                  <p className="text-[9px] capitalize" style={{ color: "rgba(255,255,255,0.6)" }}>{p.photoType}{p.caption ? ` — ${p.caption}` : ""}</p>
+                </div>
+                <button
+                  onClick={() => removePhoto.mutate({ id: p.id, jobId })}
+                  className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: "rgba(239,68,68,0.85)" }}
+                >
+                  <Trash2 className="w-2.5 h-2.5 text-white" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </SectionCard>
   );
 }
@@ -567,6 +595,7 @@ export default function PortalJobDetail() {
 
   const beforePhotos = photos.filter(p => p.photoType === "before");
   const afterPhotos = photos.filter(p => p.photoType === "after");
+  const staffPhotos = photos.filter(p => p.photoType === "during" || p.photoType === "other");
 
   function save(field: string, value: string | number | null) {
     updateJob.mutate({ id: jobId, [field]: value } as Parameters<typeof updateJob.mutate>[0]);
@@ -822,6 +851,7 @@ export default function PortalJobDetail() {
           jobId={jobId}
           beforePhotos={beforePhotos}
           afterPhotos={afterPhotos}
+          staffPhotos={staffPhotos}
           onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
         />
 

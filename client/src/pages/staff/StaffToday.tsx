@@ -1,11 +1,14 @@
 /**
  * StaffToday — today's scheduled jobs for the logged-in staff member.
- * Shows job cards with address, customer, time slot, and a quick check-in button.
+ * Shows job cards with address, customer, time slot, check-in button, and photo upload.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import StaffLayout from "./StaffLayout";
-import { Loader2, MapPin, Phone, Clock, CheckCircle2, LogIn, LogOut } from "lucide-react";
+import {
+  Loader2, MapPin, Phone, Clock, CheckCircle2, LogIn, LogOut,
+  Camera, Image as ImageIcon, X, ChevronDown, ChevronUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -35,6 +38,136 @@ type TodayJob = {
   } | null;
 };
 
+type PhotoType = "before" | "after" | "during" | "other";
+
+/** Convert a File to base64 string (without the data: prefix) */
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function PhotoUploadSection({ jobId }: { jobId: number }) {
+  const utils = trpc.useUtils();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [photoType, setPhotoType] = useState<PhotoType>("during");
+  const [caption, setCaption] = useState("");
+  const [showPhotos, setShowPhotos] = useState(false);
+
+  const { data: photos, isLoading: loadingPhotos } = trpc.staffPortal.listJobPhotos.useQuery({ jobId });
+
+  const uploadMutation = trpc.staffPortal.uploadJobPhoto.useMutation({
+    onSuccess: () => {
+      toast.success("Photo uploaded!");
+      utils.staffPortal.listJobPhotos.invalidate({ jobId });
+      setCaption("");
+    },
+    onError: (e) => toast.error(e.message || "Upload failed"),
+  });
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // 16 MB limit
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("Photo must be under 16 MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const mimeType = (file.type as "image/jpeg" | "image/png" | "image/webp" | "image/heic") || "image/jpeg";
+      await uploadMutation.mutateAsync({ jobId, base64, mimeType, photoType, caption: caption || undefined });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="border-t border-white/8 pt-3 space-y-2">
+      {/* Photo type selector */}
+      <div className="flex gap-1.5">
+        {(["before", "during", "after", "other"] as PhotoType[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setPhotoType(t)}
+            className={`flex-1 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${
+              photoType === t
+                ? "bg-amber-500 text-[#0F1F3D]"
+                : "bg-white/8 text-white/50 hover:bg-white/12"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Caption input */}
+      <input
+        type="text"
+        placeholder="Caption (optional)"
+        value={caption}
+        onChange={(e) => setCaption(e.target.value)}
+        maxLength={255}
+        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-white/25 focus:outline-none focus:border-amber-400/50"
+      />
+
+      {/* Upload button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading || uploadMutation.isPending}
+        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors text-sm font-semibold disabled:opacity-50"
+      >
+        {uploading || uploadMutation.isPending ? (
+          <><Loader2 size={15} className="animate-spin" /> Uploading…</>
+        ) : (
+          <><Camera size={15} /> Add Photo</>
+        )}
+      </button>
+
+      {/* Existing photos toggle */}
+      {(photos && photos.length > 0) && (
+        <button
+          onClick={() => setShowPhotos(v => !v)}
+          className="flex items-center gap-1.5 text-white/40 text-xs hover:text-white/60 transition-colors"
+        >
+          <ImageIcon size={12} />
+          {photos.length} photo{photos.length !== 1 ? "s" : ""} uploaded
+          {showPhotos ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+      )}
+      {showPhotos && loadingPhotos && <Loader2 size={14} className="animate-spin text-amber-400" />}
+      {showPhotos && photos && photos.length > 0 && (
+        <div className="grid grid-cols-3 gap-1.5">
+          {photos.map((p) => (
+            <div key={p.id} className="relative aspect-square rounded-lg overflow-hidden bg-white/5">
+              <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" />
+              <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1 py-0.5">
+                <span className="text-white/70 text-[10px] capitalize">{p.photoType}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function JobCard({ entry, onCheckIn, onCheckOut, checkingIn }: {
   entry: TodayJob;
   onCheckIn: (jobId: number) => void;
@@ -42,6 +175,7 @@ function JobCard({ entry, onCheckIn, onCheckOut, checkingIn }: {
   checkingIn: number | null;
 }) {
   const { data: activeCheckIn } = trpc.staffPortal.activeCheckIn.useQuery({ jobId: entry.jobId });
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const isCheckedIn = !!activeCheckIn;
   const isLoading = checkingIn === entry.jobId;
 
@@ -138,6 +272,18 @@ function JobCard({ entry, onCheckIn, onCheckOut, checkingIn }: {
           <span>Completed</span>
         </div>
       )}
+
+      {/* Photo upload toggle */}
+      <button
+        onClick={() => setShowPhotoUpload(v => !v)}
+        className="flex items-center gap-2 text-white/40 hover:text-white/70 text-xs transition-colors w-full"
+      >
+        <Camera size={13} />
+        {showPhotoUpload ? "Hide photos" : "Add / view photos"}
+        {showPhotoUpload ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+
+      {showPhotoUpload && <PhotoUploadSection jobId={entry.jobId} />}
     </div>
   );
 }
@@ -206,7 +352,7 @@ export default function StaffToday() {
         <p className="text-white/40 text-sm mt-0.5">{formatDate(today)}</p>
       </div>
 
-      <div className="px-4 space-y-3">
+      <div className="px-4 space-y-3 pb-4">
         {isLoading && (
           <div className="flex justify-center py-12">
             <Loader2 className="animate-spin text-amber-400" size={28} />

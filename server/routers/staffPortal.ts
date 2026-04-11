@@ -325,7 +325,7 @@ export const staffPortalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const session = await getStaffSession(ctx.req);
       if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { getScheduleEntry, updateScheduleEntry } = await import("../db");
+      const { getScheduleEntry, updateScheduleEntry, getPortalJob } = await import("../db");
       const entry = await getScheduleEntry(input.scheduleId);
       if (!entry || entry.staffId !== session.staff.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Shift not found." });
@@ -335,6 +335,25 @@ export const staffPortalRouter = router({
         staffConfirmedAt: new Date(),
         staffDeclinedAt: null,
       });
+      // Notify the owner (portal client) that staff confirmed
+      void (async () => {
+        try {
+          const { sendPushToClient } = await import("../pushNotifications");
+          const job = await getPortalJob(entry.jobId);
+          const start = new Date(entry.startTime);
+          const timeStr = start.toLocaleString("en-AU", {
+            weekday: "short", day: "numeric", month: "short",
+            hour: "numeric", minute: "2-digit", hour12: true,
+          });
+          await sendPushToClient(session.client.id, {
+            title: `\u2705 ${session.staff.name} confirmed a shift`,
+            body: `${job?.jobType ?? "Job"} \u2014 ${timeStr}`,
+            url: `/portal/jobs/${entry.jobId}`,
+          });
+        } catch (e) {
+          console.error("[Push] Failed to notify owner on shift confirm:", e);
+        }
+      })();
       return { success: true };
     }),
 
@@ -346,7 +365,7 @@ export const staffPortalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const session = await getStaffSession(ctx.req);
       if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { getScheduleEntry, updateScheduleEntry } = await import("../db");
+      const { getScheduleEntry, updateScheduleEntry, getPortalJob } = await import("../db");
       const entry = await getScheduleEntry(input.scheduleId);
       if (!entry || entry.staffId !== session.staff.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Shift not found." });
@@ -356,7 +375,104 @@ export const staffPortalRouter = router({
         staffDeclinedAt: new Date(),
         staffConfirmedAt: null,
       });
+      // Notify the owner that staff can't make it
+      void (async () => {
+        try {
+          const { sendPushToClient } = await import("../pushNotifications");
+          const job = await getPortalJob(entry.jobId);
+          const start = new Date(entry.startTime);
+          const timeStr = start.toLocaleString("en-AU", {
+            weekday: "short", day: "numeric", month: "short",
+            hour: "numeric", minute: "2-digit", hour12: true,
+          });
+          await sendPushToClient(session.client.id, {
+            title: `\u26a0\ufe0f ${session.staff.name} can't make a shift`,
+            body: `${job?.jobType ?? "Job"} \u2014 ${timeStr} \u2014 needs reassignment`,
+            url: `/portal/jobs/${entry.jobId}`,
+          });
+        } catch (e) {
+          console.error("[Push] Failed to notify owner on shift decline:", e);
+        }
+      })();
       return { success: true };
+    }),
+
+  /**
+   * Upload a photo against a job from the staff portal.
+   * Accepts a base64-encoded image, uploads to S3, and creates a jobPhotos row.
+   * The photo immediately appears in the owner's portal job detail.
+   */
+  uploadJobPhoto: publicProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      /** base64-encoded image data (without the data: prefix) */
+      base64: z.string().min(1),
+      mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic"]),
+      photoType: z.enum(["before", "after", "during", "other"]).default("during"),
+      caption: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+
+      // Verify the job belongs to this client
+      const { getPortalJob } = await import("../db");
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== session.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+
+      // Upload to S3
+      const { storagePut } = await import("../storage");
+      const { randomBytes } = await import("crypto");
+      const ext = input.mimeType === "image/png" ? "png" : input.mimeType === "image/webp" ? "webp" : "jpg";
+      const fileKey = `staff-photos/${session.client.id}/${input.jobId}/${randomBytes(8).toString("hex")}.${ext}`;
+      const buffer = Buffer.from(input.base64, "base64");
+      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+
+      // Create jobPhotos row
+      const { createJobPhoto } = await import("../db");
+      const photoId = randomBytes(18).toString("hex");
+      await createJobPhoto({
+        id: photoId,
+        jobId: input.jobId,
+        clientId: session.client.id,
+        photoType: input.photoType,
+        imageUrl: url,
+        imageKey: fileKey,
+        caption: input.caption ?? null,
+        sortOrder: 0,
+        uploadedByStaffId: session.staff.id,
+        uploadedByStaffName: session.staff.name,
+      });
+
+      // Notify the owner a photo was added (non-blocking)
+      void (async () => {
+        try {
+          const { sendPushToClient } = await import("../pushNotifications");
+          await sendPushToClient(session.client.id, {
+            title: `\ud83d\udcf8 ${session.staff.name} added a photo`,
+            body: `${job.jobType ?? "Job"} \u2014 ${input.photoType} photo`,
+            url: `/portal/jobs/${input.jobId}`,
+          });
+        } catch (e) {
+          console.error("[Push] Failed to notify owner on staff photo upload:", e);
+        }
+      })();
+
+      return { success: true, photoId, url };
+    }),
+
+  /**
+   * List photos for a job (staff can see what's been uploaded).
+   */
+  listJobPhotos: publicProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { listJobPhotos } = await import("../db");
+      return listJobPhotos(input.jobId);
     }),
 
   /**

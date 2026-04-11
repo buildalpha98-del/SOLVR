@@ -1112,6 +1112,10 @@ export const jobPhotos = mysqlTable("job_photos", {
   /** Optional caption */
   caption: varchar("caption", { length: 255 }),
   sortOrder: int("sortOrder").default(0).notNull(),
+  /** FK to staffMembers.id — set when uploaded by a staff member via the staff portal */
+  uploadedByStaffId: int("uploadedByStaffId"),
+  /** Denormalised staff name for display without a join */
+  uploadedByStaffName: varchar("uploadedByStaffName", { length: 100 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type JobPhoto = typeof jobPhotos.$inferSelect;
