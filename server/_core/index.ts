@@ -16,6 +16,7 @@ import { registerMonthlyCallReportCron } from "../cron/monthlyCallReport";
 import { registerSessionExpiryWarningCron } from "../cron/sessionExpiryWarning";
 import { scheduleInvoiceChasingCron } from "../cron/invoiceChasing";
 import { scheduleOnboardingEmailSequence } from "../cron/onboardingEmailSequence";
+import { quoteAcceptRouter } from "../quoteAccept";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -76,6 +77,8 @@ async function startServer() {
   app.use("/api", audioUploadRouter);
   // Photo upload for job before/after photos
   app.use("/api", photoUploadRouter);
+  // Quote acceptance — public GET /api/quotes/:token/accept
+  app.use("/api", quoteAcceptRouter);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

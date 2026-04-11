@@ -239,7 +239,16 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
   const currentTab = resolvedActiveTab;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#0B1629", color: "#F5F5F0" }}>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        background: "#0B1629",
+        color: "#F5F5F0",
+        // Landscape iPhone: pad content away from side bezels/home indicator
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
+      }}
+    >
       {/* ── Top nav ─────────────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-40 border-b"
@@ -250,6 +259,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
           paddingTop: "env(safe-area-inset-top)",
         }}
       >
+        {/* px-4 + safe-area side insets already applied on outer wrapper */}
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           {/* Logo + business name */}
           <div className="flex items-center gap-3">

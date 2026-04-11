@@ -19,6 +19,7 @@ import {
 } from "../db";
 import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
+import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
 import { crmClients } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
@@ -205,6 +206,18 @@ export const publicQuotesRouter = router({
           }
         }
       }
+      // Web push (VAPID) — for browser/PWA subscribers
+      try {
+        await sendPushToClient(quote.clientId, {
+          title: "Quote Accepted! 🎉",
+          body: `${quote.customerName ?? "A client"} accepted ${quote.quoteNumber} — ${quote.jobTitle}`,
+          url: `/portal/quotes`,
+          icon: "/icon-192.png",
+        });
+      } catch (pushErr) {
+        console.error("[PublicQuotes] Web push failed:", pushErr);
+      }
+
       // Notify the tradie by email
       if (client) {
         const notifyEmail = client.quoteReplyToEmail ?? client.contactEmail;
