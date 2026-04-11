@@ -204,3 +204,10 @@
 - [x] Owner notification (Manus) after autoGeneratePromptForClient completes
 - [x] Vapi auto-provisioning chained after voice onboarding prompt generation (zero-touch)
 - [x] Console CRM memory file read/edit modal (view/edit clientProfiles from CRM client detail)
+
+## Weekly Summary Email (Apr 2026)
+- [x] Weekly summary data query (calls, quotes sent, jobs won, revenue for the week per clientId)
+- [x] buildWeeklySummaryEmail() HTML template — Friday digest with stats + portal CTA
+- [x] weeklySummaryEmail.ts cron — Friday 4pm AEST, respects notifyEmailWeeklySummary opt-out
+- [x] Register cron in server/_core/index.ts
+- [x] Vitest tests for weekly summary cron (12 tests)

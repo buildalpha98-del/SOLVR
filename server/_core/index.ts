@@ -16,6 +16,7 @@ import { registerMonthlyCallReportCron } from "../cron/monthlyCallReport";
 import { registerSessionExpiryWarningCron } from "../cron/sessionExpiryWarning";
 import { scheduleInvoiceChasingCron } from "../cron/invoiceChasing";
 import { scheduleOnboardingEmailSequence } from "../cron/onboardingEmailSequence";
+import { scheduleWeeklySummaryEmail } from "../cron/weeklySummaryEmail";
 import { quoteAcceptRouter } from "../quoteAccept";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -112,6 +113,7 @@ async function startServer() {
   registerSessionExpiryWarningCron();
   scheduleInvoiceChasingCron();
   scheduleOnboardingEmailSequence();
+  scheduleWeeklySummaryEmail();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
