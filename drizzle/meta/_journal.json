@@ -183,6 +183,13 @@
       "when": 1775900907612,
       "tag": "0025_spooky_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1775901381055,
+      "tag": "0026_brief_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }

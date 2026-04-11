@@ -759,6 +759,51 @@ const crmRouter = router({
       })),
     };
   }),
+
+  /**
+   * P3-C: Return clients with unresolved AI extraction warning interactions
+   * from the last 30 days. Used by the Solvr admin dashboard Flagged Quotes widget.
+   */
+  getFlaggedQuotes: protectedProcedure.query(async () => {
+    const clients = await listCrmClients();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const flagged: {
+      clientId: number;
+      businessName: string;
+      contactName: string;
+      interactionTitle: string;
+      interactionDate: Date;
+    }[] = [];
+
+    await Promise.all(
+      clients.map(async (client) => {
+        const interactions = await listCrmInteractionsByClient(client.id);
+        const warningInteractions = interactions.filter((i) => {
+          const isWarning =
+            i.type === "system" &&
+            i.title.includes("extraction warnings");
+          const isRecent = new Date(i.createdAt) >= thirtyDaysAgo;
+          return isWarning && isRecent;
+        });
+        for (const interaction of warningInteractions) {
+          flagged.push({
+            clientId: client.id,
+            businessName: client.businessName,
+            contactName: client.contactName,
+            interactionTitle: interaction.title,
+            interactionDate: new Date(interaction.createdAt),
+          });
+        }
+      }),
+    );
+
+    // Sort by most recent first, cap at 10
+    return flagged
+      .sort((a, b) => b.interactionDate.getTime() - a.interactionDate.getTime())
+      .slice(0, 10);
+  }),
 });
 // ─────────────────────────────────────────────────────────────────────────────
 // SALES PIPELINEE

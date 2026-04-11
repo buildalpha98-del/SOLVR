@@ -764,6 +764,9 @@ export const quotes = mysqlTable("quotes", {
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** S3 key of the generated PDF */
   pdfKey: varchar("pdfKey", { length: 512 }),
+  //  Warnings 
+  /** Set to true once the tradie has reviewed and dismissed AI extraction warnings */
+  warningsAcknowledged: boolean("warningsAcknowledged").default(false).notNull(),
   //  Timestamps 
   sentAt: timestamp("sentAt"),
   issuedAt: timestamp("issuedAt"),

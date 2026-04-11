@@ -77,13 +77,41 @@ function addDays(days: number): Date {
 export const quotesRouter = router({
   /**
    * List all quotes for the authenticated portal client.
+   * Enriches each quote with a `hasWarnings` boolean derived from the
+   * linked voice recording's extractedJson.extractionWarnings array.
+   * Quotes where warningsAcknowledged=true are treated as having no warnings.
    */
   list: publicProcedure.query(async ({ ctx }) => {
     const portalAuth = await getPortalClient(ctx.req);
     if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
     const clientId = portalAuth.client.id;
     await requireFeature(clientId, "quote-engine");
-    return listQuotesByClient(clientId);
+    const rawQuotes = await listQuotesByClient(clientId);
+
+    // Batch-load voice recordings for quotes that have one
+    const recordingIds = rawQuotes
+      .map((q) => q.voiceRecordingId)
+      .filter((id): id is string => !!id);
+
+    const recordingMap = new Map<string, { extractionWarnings?: string[] }>();
+    if (recordingIds.length > 0) {
+      await Promise.all(
+        recordingIds.map(async (id) => {
+          const rec = await getQuoteVoiceRecordingById(id);
+          if (rec) {
+            const json = rec.extractedJson as { extractionWarnings?: string[] } | null;
+            recordingMap.set(id, { extractionWarnings: json?.extractionWarnings ?? [] });
+          }
+        }),
+      );
+    }
+
+    return rawQuotes.map((q) => {
+      const rec = q.voiceRecordingId ? recordingMap.get(q.voiceRecordingId) : undefined;
+      const warnings = rec?.extractionWarnings ?? [];
+      const hasWarnings = !q.warningsAcknowledged && warnings.length > 0;
+      return { ...q, hasWarnings };
+    });
   }),
 
   /**
@@ -854,6 +882,27 @@ export const quotesRouter = router({
       if (Object.keys(updateData).length > 0) {
         await updateCrmClient(clientId, updateData as any);
       }
+      return { success: true };
+    }),
+
+  /**
+   * P3-B: Dismiss extraction warnings for a quote.
+   * Sets warningsAcknowledged=true so the banner is hidden and the quote
+   * no longer appears in the "warnings" filter on the list page.
+   */
+  dismissWarnings: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
+      await requireFeature(clientId, "quote-engine");
+
+      const quote = await getQuoteById(input.id);
+      if (!quote || quote.clientId !== clientId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
+      }
+      await updateQuote(input.id, { warningsAcknowledged: true });
       return { success: true };
     }),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `quotes` ADD `warningsAcknowledged` boolean DEFAULT false NOT NULL;
