@@ -176,6 +176,13 @@
       "when": 1775881016693,
       "tag": "0024_breezy_nightmare",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1775900907612,
+      "tag": "0025_spooky_forgotten_one",
+      "breakpoints": true
     }
   ]
 }

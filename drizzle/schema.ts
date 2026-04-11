@@ -526,6 +526,8 @@ export const portalSessions = mysqlTable("portal_sessions", {
   lastAccessedAt: timestamp("lastAccessedAt"),
   /** When the portal access email was last sent to the client */
   lastEmailSentAt: timestamp("lastEmailSentAt"),
+  /** When the session expiry warning email was last sent — prevents duplicate warnings on repeated cron runs */
+  expiryWarningSentAt: timestamp("expiryWarningSentAt"),
   isRevoked: boolean("isRevoked").default(false).notNull(),
   /** Token for password reset emails (hex, 1-hour expiry) */
   passwordResetToken: varchar("passwordResetToken", { length: 128 }),

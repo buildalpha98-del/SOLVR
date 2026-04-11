@@ -21,7 +21,7 @@ import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
 import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
-import { crmClients } from "../../drizzle/schema";
+import { crmClients, portalJobs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -155,19 +155,23 @@ export const publicQuotesRouter = router({
         ? Number((jobResult as unknown as { insertId: bigint }).insertId)
         : null;
 
-       if (jobId) {
+      if (jobId) {
         await updateQuote(quote.id, { convertedJobId: jobId });
 
-        // ── Create a calendar event for the accepted quote ──────────────────
-        // Default to 7 days from now at 9am if no preferred date was captured
-        const _db = await getDb();
-        if (!_db) throw new Error("Database not available");
-        const jobRows = await _db
+        // ── Single DB connection for all post-acceptance queries ────────────────────
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+
+        // Fetch the newly created job (for any metadata needed downstream)
+        const jobRows = await db
           .select()
-          .from((await import("../../drizzle/schema")).portalJobs)
-          .where(eq((await import("../../drizzle/schema")).portalJobs.id, jobId))
+          .from(portalJobs)
+          .where(eq(portalJobs.id, jobId))
           .limit(1);
-        const job = jobRows[0];
+        const _job = jobRows[0]; // available for future use
+
+        // ── Create a calendar event for the accepted quote ──────────────────────
+        // Default to 7 days from now at 9am if no preferred date was captured
         const startAt = new Date();
         startAt.setDate(startAt.getDate() + 7);
         startAt.setHours(9, 0, 0, 0);
@@ -186,15 +190,13 @@ export const publicQuotesRouter = router({
           color: "green",
         });
 
-        // ── Send push notification to the client's mobile app ───────────────
+        // ── Send push notification to the client's mobile app ───────────────────
         const portalSession = await getPortalSessionByClientId(quote.clientId);
         if (portalSession) {
-          const db = await getDb();
-          if (!db) throw new Error("Database not available");
           const clientRows = await db
-            .select({ pushToken: (await import("../../drizzle/schema")).crmClients.pushToken })
-            .from((await import("../../drizzle/schema")).crmClients)
-            .where(eq((await import("../../drizzle/schema")).crmClients.id, quote.clientId))
+            .select({ pushToken: crmClients.pushToken })
+            .from(crmClients)
+            .where(eq(crmClients.id, quote.clientId))
             .limit(1);
           const pushToken = clientRows[0]?.pushToken;
           if (pushToken) {

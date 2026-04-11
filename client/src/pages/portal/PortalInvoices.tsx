@@ -218,9 +218,85 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
   );
 }
 
+// ── Mark Paid Dialog ─────────────────────────────────────────────────────────
+interface MarkPaidDialogProps {
+  chase: InvoiceChase | null;
+  onClose: () => void;
+  onConfirm: (id: string, amountReceived: string, notes: string) => void;
+  isPending: boolean;
+}
+
+function MarkPaidDialog({ chase, onClose, onConfirm, isPending }: MarkPaidDialogProps) {
+  const [amountReceived, setAmountReceived] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Pre-fill amount received from amountDue when dialog opens
+  const open = !!chase;
+  const handleOpenChange = (v: boolean) => { if (!v) onClose(); };
+
+  // Reset on open
+  const prevOpen = !chase;
+  if (!prevOpen && open && amountReceived === "" && chase) {
+    // Can't call setState in render — use the initial value from chase.amountDue
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
+        <DialogHeader>
+          <DialogTitle style={{ color: "#4ADE80" }}>Mark Invoice as Paid</DialogTitle>
+        </DialogHeader>
+        {chase && (
+          <div className="space-y-4">
+            <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Invoice</div>
+              <div className="font-bold" style={{ color: "#F5F5F0" }}>{chase.invoiceNumber} — {chase.customerName}</div>
+              <div className="text-sm mt-0.5" style={{ color: "#F5A623" }}>Amount due: ${Number(chase.amountDue).toLocaleString("en-AU")} AUD</div>
+            </div>
+            <div>
+              <Label className="text-white/70 text-xs">Amount Received (AUD)</Label>
+              <Input
+                value={amountReceived || chase.amountDue}
+                onChange={e => setAmountReceived(e.target.value)}
+                placeholder={chase.amountDue}
+                className="mt-1"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }}
+              />
+              <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Leave as-is if full amount was received.</p>
+            </div>
+            <div>
+              <Label className="text-white/70 text-xs">Notes (optional)</Label>
+              <Textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="e.g. Paid via bank transfer on 10 Apr"
+                rows={2}
+                className="mt-1 resize-none"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }}
+              />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} style={{ color: "rgba(255,255,255,0.5)" }}>Cancel</Button>
+          <Button
+            onClick={() => chase && onConfirm(chase.id, amountReceived || chase.amountDue, notes)}
+            disabled={isPending}
+            style={{ background: "rgba(34,197,94,0.2)", color: "#4ADE80", border: "1px solid rgba(34,197,94,0.3)", fontWeight: 700 }}
+          >
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+            Confirm Payment
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PortalInvoices() {
   const [addOpen, setAddOpen] = useState(false);
+  const [markPaidChase, setMarkPaidChase] = useState<InvoiceChase | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "escalated" | "paid">("all");
 
   const utils = trpc.useUtils();
@@ -233,10 +309,16 @@ export default function PortalInvoices() {
   const markPaidMutation = trpc.invoiceChasing.markPaid.useMutation({
     onSuccess: () => {
       utils.invoiceChasing.list.invalidate();
+      utils.invoiceChasing.summary.invalidate();
+      setMarkPaidChase(null);
       toast.success("Invoice marked as paid — chase stopped.");
     },
-     onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message),
   });
+
+  const handleMarkPaidConfirm = (id: string, amountReceived: string, notes: string) => {
+    markPaidMutation.mutate({ id, amountReceived, notes: notes || undefined });
+  };
   const snoozeMutation = trpc.invoiceChasing.snooze.useMutation({
     onSuccess: () => {
       utils.invoiceChasing.list.invalidate();
@@ -392,7 +474,7 @@ export default function PortalInvoices() {
                   <div className="flex gap-2 mt-3 pt-3 flex-wrap" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <Button
                       size="sm"
-                      onClick={() => markPaidMutation.mutate({ id: chase.id })}
+                      onClick={() => setMarkPaidChase(chase)}
                       disabled={markPaidMutation.isPending}
                       style={{ background: "rgba(34,197,94,0.12)", color: "#4ADE80", border: "1px solid rgba(34,197,94,0.2)", fontSize: "12px" }}
                     >
@@ -429,7 +511,17 @@ export default function PortalInvoices() {
       <AddInvoiceDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSuccess={() => utils.invoiceChasing.list.invalidate()}
+        onSuccess={() => {
+          utils.invoiceChasing.list.invalidate();
+          utils.invoiceChasing.summary.invalidate();
+        }}
+      />
+
+      <MarkPaidDialog
+        chase={markPaidChase}
+        onClose={() => setMarkPaidChase(null)}
+        onConfirm={handleMarkPaidConfirm}
+        isPending={markPaidMutation.isPending}
       />
     </PortalLayout>
   );

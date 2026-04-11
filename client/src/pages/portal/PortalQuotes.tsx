@@ -186,6 +186,16 @@ export default function PortalQuotes() {
   const [processingVoice, setProcessingVoice] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
 
+  // Multi-stage progress for voice processing
+  type VoiceStage = "idle" | "uploading" | "transcribing" | "extracting" | "done";
+  const [voiceStage, setVoiceStage] = useState<VoiceStage>("idle");
+  const VOICE_STAGES: { key: VoiceStage; label: string; detail: string }[] = [
+    { key: "uploading",    label: "Uploading audio",      detail: "Sending your recording securely…" },
+    { key: "transcribing", label: "Transcribing speech",   detail: "Converting your voice to text…" },
+    { key: "extracting",   label: "Extracting quote data", detail: "AI is reading job details, items & pricing…" },
+    { key: "done",         label: "Quote created!",        detail: "Redirecting to your new quote…" },
+  ];
+
   // Manual form
   const [manualForm, setManualForm] = useState({
     jobTitle: "",
@@ -205,6 +215,7 @@ export default function PortalQuotes() {
   async function handleVoiceProcess() {
     if (!voice.audioBlob) return;
     setUploadingAudio(true);
+    setVoiceStage("uploading");
     try {
       // Upload audio to S3 via the portal upload endpoint
       // Use the correct file extension for the detected MIME type (iOS uses audio/mp4)
@@ -233,13 +244,22 @@ export default function PortalQuotes() {
       if (!audioUrl) throw new Error("Upload succeeded but no URL was returned — please try again.");
       setUploadingAudio(false);
       setProcessingVoice(true);
+      // Advance to transcribing stage — the server does transcription first
+      setVoiceStage("transcribing");
+      // Simulate stage advancement: transcription typically takes 5–15s, extraction 10–30s
+      // We advance to "extracting" after a 12-second delay as a UX hint
+      const extractingTimer = setTimeout(() => setVoiceStage("extracting"), 12_000);
 
       const result = await processVoiceMutation.mutateAsync({
         audioUrl,
         durationSeconds: voice.durationSeconds,
       });
+      clearTimeout(extractingTimer);
+      setVoiceStage("done");
       await utils.quotes.list.invalidate();
       toast.success(`Quote ${result.quoteNumber} created!`);
+      // Brief pause so the user sees the "done" state
+      await new Promise(r => setTimeout(r, 800));
       setShowNewModal(false);
       voice.reset();
       navigate(`/portal/quotes/${result.quoteId}`);
@@ -248,6 +268,7 @@ export default function PortalQuotes() {
     } finally {
       setUploadingAudio(false);
       setProcessingVoice(false);
+      setVoiceStage("idle");
     }
   }
 
@@ -532,16 +553,46 @@ export default function PortalQuotes() {
                 >
                   Back
                 </Button>
+{/* Multi-stage progress indicator */}
+                {(uploadingAudio || processingVoice) && voiceStage !== "idle" && (
+                  <div className="w-full mb-3 rounded-xl p-4" style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
+                    <div className="flex gap-1 mb-3">
+                      {VOICE_STAGES.map((s, i) => {
+                        const stageIndex = VOICE_STAGES.findIndex(x => x.key === voiceStage);
+                        const isDone = i < stageIndex || voiceStage === "done";
+                        const isActive = s.key === voiceStage;
+                        return (
+                          <div key={s.key} className="flex-1 h-1 rounded-full transition-all duration-500"
+                            style={{ background: isDone || isActive ? "#F5A623" : "rgba(255,255,255,0.1)" }} />
+                        );
+                      })}
+                    </div>
+                    {(() => {
+                      const current = VOICE_STAGES.find(s => s.key === voiceStage);
+                      return current ? (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            {voiceStage === "done"
+                              ? <CheckCircle className="w-4 h-4" style={{ color: "#4ADE80" }} />
+                              : <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#F5A623" }} />}
+                            <span className="text-sm font-semibold" style={{ color: voiceStage === "done" ? "#4ADE80" : "#F5A623" }}>
+                              {current.label}
+                            </span>
+                          </div>
+                          <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>{current.detail}</p>
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
                 <Button
                   onClick={handleVoiceProcess}
                   disabled={!voice.audioBlob || uploadingAudio || processingVoice}
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
                   className="font-semibold"
                 >
-                  {uploadingAudio ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Uploading…</>
-                  ) : processingVoice ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing…</>
+                  {(uploadingAudio || processingVoice) ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Working…</>
                   ) : (
                     "Process Recording"
                   )}
