@@ -56,6 +56,8 @@ import {
   buildMemoryContext,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
+import { transcribeAudio } from "../_core/voiceTranscription";
+import { extractOnboardingData, getMissingRequiredFields } from "../_core/onboardingExtraction";
 import { sendEmail } from "../_core/email";
 import { parse as parseCookieHeader } from "cookie";
 import { getSessionCookieOptions } from "../_core/cookies";
@@ -1280,6 +1282,130 @@ export const portalRouter = router({
           </div>
         `,
       });
+
+      return { success: true };
+    }),
+
+  /**
+   * Voice-first onboarding extraction.
+   *
+   * Accepts a pre-uploaded audio URL (from /api/upload-audio), transcribes it
+   * via Whisper, then runs the LLM extraction to pull out every business profile
+   * field it can find. Returns the extracted data + a list of missing required
+   * fields so the frontend can render a targeted completion form.
+   */
+  extractVoiceOnboarding: publicProcedure
+    .input(z.object({
+      /** Pre-signed or CDN URL of the uploaded audio file */
+      audioUrl: z.string().url(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+
+      // Step 1: Transcribe
+      const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
+      if ("error" in transcriptionResult) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: transcriptionResult.details ?? transcriptionResult.error ?? "Transcription failed",
+        });
+      }
+      const transcript = transcriptionResult.text?.trim() ?? "";
+      if (!transcript) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No speech detected in the recording. Please try again." });
+      }
+
+      // Step 2: LLM extraction
+      const extraction = await extractOnboardingData(transcript);
+
+      // Step 3: Identify missing required fields
+      const missingFields = getMissingRequiredFields(extraction);
+
+      return {
+        transcript,
+        extraction,
+        missingFields,
+      };
+    }),
+
+  /**
+   * Save voice onboarding result — persists the extracted + user-corrected data
+   * to the client profile and marks onboarding complete.
+   */
+  saveVoiceOnboarding: publicProcedure
+    .input(z.object({
+      tradingName: z.string().max(255).optional().nullable(),
+      abn: z.string().max(50).optional().nullable(),
+      phone: z.string().max(50).optional().nullable(),
+      address: z.string().max(512).optional().nullable(),
+      email: z.string().max(320).optional().nullable(),
+      website: z.string().max(512).optional().nullable(),
+      industryType: z.string().optional().nullable(),
+      yearsInBusiness: z.number().int().min(0).max(200).optional().nullable(),
+      teamSize: z.number().int().min(0).max(10000).optional().nullable(),
+      servicesOffered: z.array(z.object({
+        name: z.string(),
+        description: z.string(),
+        typicalPrice: z.number().nullable(),
+        unit: z.string(),
+      })).optional(),
+      callOutFee: z.string().optional().nullable(),
+      hourlyRate: z.string().optional().nullable(),
+      minimumCharge: z.string().optional().nullable(),
+      afterHoursMultiplier: z.string().optional().nullable(),
+      emergencyAvailable: z.boolean().optional(),
+      emergencyFee: z.string().optional().nullable(),
+      serviceArea: z.string().max(2000).optional().nullable(),
+      operatingHours: z.object({
+        monFri: z.string(),
+        sat: z.string(),
+        sun: z.string(),
+        publicHolidays: z.string(),
+      }).optional().nullable(),
+      tagline: z.string().max(255).optional().nullable(),
+      toneOfVoice: z.string().optional().nullable(),
+      aiContext: z.string().max(5000).optional().nullable(),
+      bookingInstructions: z.string().max(2000).optional().nullable(),
+      paymentTerms: z.string().max(255).optional().nullable(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+
+      await getOrCreateClientProfile(client.id);
+
+      // Build update payload — strip nulls for optional fields
+      const updatePayload: Record<string, unknown> = {
+        onboardingCompleted: true,
+        onboardingCompletedAt: new Date(),
+        onboardingStep: 3,
+      };
+      const fields = [
+        "tradingName", "abn", "phone", "address", "email", "website",
+        "industryType", "yearsInBusiness", "teamSize",
+        "servicesOffered", "callOutFee", "hourlyRate", "minimumCharge",
+        "afterHoursMultiplier", "emergencyAvailable", "emergencyFee",
+        "serviceArea", "operatingHours",
+        "tagline", "toneOfVoice", "aiContext", "bookingInstructions", "paymentTerms",
+      ] as const;
+      for (const key of fields) {
+        const val = (input as Record<string, unknown>)[key];
+        if (val !== undefined && val !== null) updatePayload[key] = val;
+      }
+      await updateClientProfile(client.id, updatePayload as any);
+
+      // Sync key fields back to crm_clients for quote/branding
+      const syncData: Record<string, unknown> = {};
+      if (input.tradingName) syncData.quoteTradingName = input.tradingName;
+      if (input.abn) syncData.quoteAbn = input.abn;
+      if (input.phone) syncData.quotePhone = input.phone;
+      if (input.address) syncData.quoteAddress = input.address;
+      if (input.email) syncData.quoteReplyToEmail = input.email;
+      if (Object.keys(syncData).length > 0) {
+        await updateCrmClient(client.id, syncData as any);
+      }
 
       return { success: true };
     }),

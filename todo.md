@@ -191,3 +191,10 @@
 - [ ] Build CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
 - [ ] Add generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
 - [ ] Wire Generate Report button in PortalJobDetail completion section
+
+## Voice-First Onboarding (Apr 2026)
+- [x] VoiceOnboarding.tsx — record → Whisper → LLM extract → review form → save
+- [x] server/_core/onboardingExtraction.ts — ultra-detailed LLM prompt + JSON schema for all profile fields
+- [x] portal.extractVoiceOnboarding tRPC procedure — transcribe + extract + return missing fields
+- [x] portal.saveVoiceOnboarding tRPC procedure — persist extracted data + mark onboarding complete
+- [x] /portal/onboarding now routes to VoiceOnboarding; /portal/onboarding/form keeps old wizard as fallback

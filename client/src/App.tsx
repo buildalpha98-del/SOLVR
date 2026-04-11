@@ -57,6 +57,7 @@ import PortalQuoteDetail from "./pages/portal/PortalQuoteDetail";
 import PortalQuoteSettings from "./pages/portal/PortalQuoteSettings";
 import PortalSettings from "./pages/portal/PortalSettings";
 import PortalOnboarding from "./pages/portal/PortalOnboarding";
+import VoiceOnboarding from "./pages/portal/VoiceOnboarding";
 import PortalInvoices from "./pages/portal/PortalInvoices";
 import PortalSubscription from "./pages/portal/PortalSubscription";
 import PortalCustomers from "./pages/portal/PortalCustomers";
@@ -135,7 +136,9 @@ function Router() {
       <Route path="/portal/quotes" component={PortalQuotes} />
       <Route path="/portal/quotes/settings" component={PortalQuoteSettings} />
       <Route path="/portal/quotes/:id" component={PortalQuoteDetail} />
-      <Route path="/portal/onboarding" component={PortalOnboarding} />
+      <Route path="/portal/onboarding/voice" component={VoiceOnboarding} />
+      <Route path="/portal/onboarding" component={VoiceOnboarding} />
+      <Route path="/portal/onboarding/form" component={PortalOnboarding} />
       <Route path="/portal/settings" component={PortalSettings} />
       <Route path="/portal/invoices" component={PortalInvoices} />
       <Route path="/portal/subscription" component={PortalSubscription} />
