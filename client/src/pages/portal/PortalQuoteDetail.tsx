@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Send, FileText, Sparkles, Camera, Trash2,
   Loader2, CheckCircle, Download, Plus, XCircle, RefreshCw,
-  ExternalLink,
+  ExternalLink, AlertTriangle,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ export default function PortalQuoteDetail() {
     );
   }
 
-  const { quote, lineItems: savedLineItems, photos } = data;
+  const { quote, lineItems: savedLineItems, photos, extractionWarnings } = data;
   const isDraft = quote.status === "draft";
   const reportContent = quote.reportContent as Record<string, unknown> | null;
 
@@ -260,6 +260,30 @@ export default function PortalQuoteDetail() {
               </div>
             )}
           </div>
+
+          {/* Extraction Warnings Banner */}
+          {extractionWarnings && extractionWarnings.length > 0 && (
+            <div
+              className="rounded-xl border p-4"
+              style={{ borderColor: "rgba(245,166,35,0.35)", background: "rgba(245,166,35,0.06)" }}
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#F5A623" }} />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold mb-1.5" style={{ color: "#F5A623" }}>
+                    AI Extraction Warnings — please review before sending
+                  </p>
+                  <ul className="space-y-1">
+                    {extractionWarnings.map((w, i) => (
+                      <li key={i} className="text-sm" style={{ color: "rgba(245,166,35,0.85)" }}>
+                        • {w}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Line items */}
           <div

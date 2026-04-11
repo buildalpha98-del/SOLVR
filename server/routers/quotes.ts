@@ -39,6 +39,7 @@ import {
   updateCrmClient,
   getClientProfile,
   buildMemoryContext,
+  insertCrmInteraction,
 } from "../db";
 import { randomUUID, randomBytes } from "crypto";
 import type { QuoteReportContent } from "../_core/reportGeneration";
@@ -100,11 +101,17 @@ export const quotesRouter = router({
       if (!quote || quote.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
-      const [lineItems, photos] = await Promise.all([
+      const [lineItems, photos, recording] = await Promise.all([
         listQuoteLineItems(input.id),
         listQuotePhotos(input.id),
+        quote.voiceRecordingId ? getQuoteVoiceRecordingById(quote.voiceRecordingId) : Promise.resolve(null),
       ]);
-      return { quote, lineItems, photos };
+
+      // Surface extractionWarnings from the voice recording extracted JSON
+      const extractedJson = recording?.extractedJson as { extractionWarnings?: string[] } | null;
+      const extractionWarnings: string[] = extractedJson?.extractionWarnings ?? [];
+
+      return { quote, lineItems, photos, extractionWarnings };
     }),
 
   /**
@@ -285,6 +292,29 @@ export const quotesRouter = router({
         });
 
         await insertQuoteLineItems(lineItemsWithTotals);
+
+        // Log extractionWarnings to the CRM timeline if any were flagged
+        if (extracted.extractionWarnings && extracted.extractionWarnings.length > 0) {
+          try {
+            await insertCrmInteraction({
+              clientId,
+              type: "system",
+              title: `Quote ${quoteNumber} — AI extraction warnings (${extracted.extractionWarnings.length})`,
+              body: [
+                `Job: ${extracted.jobTitle}`,
+                `Customer: ${extracted.customerName ?? "Unknown"}`,
+                `Total: $${financials.totalAmount}`,
+                "",
+                "Warnings flagged by AI during extraction:",
+                ...extracted.extractionWarnings.map((w: string) => `• ${w}`),
+              ].join("\n"),
+              isPinned: false,
+            });
+          } catch {
+            // Non-fatal — don't block quote creation if CRM logging fails
+          }
+        }
+
         return { quoteId, quoteNumber, transcript: transcription.text, extracted };
       } catch (err) {
         await updateQuoteVoiceRecording(recordingId, {
