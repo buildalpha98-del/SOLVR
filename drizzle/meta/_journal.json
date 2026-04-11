@@ -169,6 +169,13 @@
       "when": 1775876042793,
       "tag": "0023_natural_diamondback",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1775881016693,
+      "tag": "0024_breezy_nightmare",
+      "breakpoints": true
     }
   ]
 }

@@ -981,6 +981,26 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Raw Whisper transcript from voice-first onboarding (stored for Console review + prompt improvement) */
   voiceOnboardingTranscript: text("voiceOnboardingTranscript"),
 
+  // ── Notification Preferences ────────────────────────────────────────────────
+  /** Receive email when a new call is logged */
+  notifyEmailNewCall: boolean("notifyEmailNewCall").default(true).notNull(),
+  /** Receive push notification when a new call is logged */
+  notifyPushNewCall: boolean("notifyPushNewCall").default(true).notNull(),
+  /** Receive email when a new quote is created */
+  notifyEmailNewQuote: boolean("notifyEmailNewQuote").default(true).notNull(),
+  /** Receive push notification when a new quote is created */
+  notifyPushNewQuote: boolean("notifyPushNewQuote").default(true).notNull(),
+  /** Receive email when a quote is accepted by a customer */
+  notifyEmailQuoteAccepted: boolean("notifyEmailQuoteAccepted").default(true).notNull(),
+  /** Receive push notification when a quote is accepted */
+  notifyPushQuoteAccepted: boolean("notifyPushQuoteAccepted").default(true).notNull(),
+  /** Receive email when a job status changes */
+  notifyEmailJobUpdate: boolean("notifyEmailJobUpdate").default(false).notNull(),
+  /** Receive push notification when a job status changes */
+  notifyPushJobUpdate: boolean("notifyPushJobUpdate").default(true).notNull(),
+  /** Receive weekly summary email (call volume, quotes, revenue) */
+  notifyEmailWeeklySummary: boolean("notifyEmailWeeklySummary").default(true).notNull(),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

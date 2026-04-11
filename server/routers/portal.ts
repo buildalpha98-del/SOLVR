@@ -340,7 +340,7 @@ export const portalRouter = router({
     .query(async ({ ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) return null;
-      const { client } = result;
+      const { client, session } = result;
       const plan = (client.package ?? "setup-monthly") as SolvrPlan;
       // Check onboarding status
       const profile = await getClientProfile(client.id);
@@ -369,6 +369,8 @@ export const portalRouter = router({
         replyToEmail: client.quoteReplyToEmail ?? null,
         validityDays: client.quoteValidityDays ?? 30,
         onboardingCompleted,
+        // Session expiry — used by the frontend to show the expiry warning banner
+        sessionExpiresAt: session?.sessionExpiresAt ?? null,
       };
     }),
 
@@ -1414,10 +1416,72 @@ export const portalRouter = router({
       // Auto-generate the Vapi prompt in the background.
       // Non-fatal: if it fails, onboarding still completes successfully.
       // The tradie can always regenerate from the Console checklist.
-      autoGeneratePromptForClient(client.id).catch((err) => {
+       autoGeneratePromptForClient(client.id).catch((err) => {
         console.error(`[saveVoiceOnboarding] Auto-prompt generation failed for client ${client.id}:`, err);
       });
+      return { success: true };
+    }),
 
+  // ── Notification Preferences ────────────────────────────────────────────────────
+
+  /**
+   * Returns the current notification preferences for the authenticated portal client.
+   */
+  getNotificationPrefs: publicProcedure.query(async ({ ctx }) => {
+    const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+    if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+    const { client } = result;
+    const profile = await getClientProfile(client.id);
+    return {
+      notifyEmailNewCall: profile?.notifyEmailNewCall ?? true,
+      notifyPushNewCall: profile?.notifyPushNewCall ?? true,
+      notifyEmailNewQuote: profile?.notifyEmailNewQuote ?? true,
+      notifyPushNewQuote: profile?.notifyPushNewQuote ?? true,
+      notifyEmailQuoteAccepted: profile?.notifyEmailQuoteAccepted ?? true,
+      notifyPushQuoteAccepted: profile?.notifyPushQuoteAccepted ?? true,
+      notifyEmailJobUpdate: profile?.notifyEmailJobUpdate ?? false,
+      notifyPushJobUpdate: profile?.notifyPushJobUpdate ?? true,
+      notifyEmailWeeklySummary: profile?.notifyEmailWeeklySummary ?? true,
+    };
+  }),
+
+  /**
+   * Updates notification preferences for the authenticated portal client.
+   */
+  updateNotificationPrefs: publicProcedure
+    .input(
+      z.object({
+        notifyEmailNewCall: z.boolean().optional(),
+        notifyPushNewCall: z.boolean().optional(),
+        notifyEmailNewQuote: z.boolean().optional(),
+        notifyPushNewQuote: z.boolean().optional(),
+        notifyEmailQuoteAccepted: z.boolean().optional(),
+        notifyPushQuoteAccepted: z.boolean().optional(),
+        notifyEmailJobUpdate: z.boolean().optional(),
+        notifyPushJobUpdate: z.boolean().optional(),
+        notifyEmailWeeklySummary: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      // Build update payload from only the fields provided
+      const updatePayload: Record<string, boolean> = {};
+      const fields = [
+        "notifyEmailNewCall", "notifyPushNewCall",
+        "notifyEmailNewQuote", "notifyPushNewQuote",
+        "notifyEmailQuoteAccepted", "notifyPushQuoteAccepted",
+        "notifyEmailJobUpdate", "notifyPushJobUpdate",
+        "notifyEmailWeeklySummary",
+      ] as const;
+      for (const key of fields) {
+        const val = input[key];
+        if (val !== undefined) updatePayload[key] = val;
+      }
+      if (Object.keys(updatePayload).length > 0) {
+        await updateClientProfile(client.id, updatePayload as any);
+      }
       return { success: true };
     }),
 });

@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users
@@ -435,6 +436,9 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
           </div>
         )}
       </header>
+
+      {/* ── Session expiry warning banner ──────────────────────────────── */}
+      <SessionExpiryBanner sessionExpiresAt={me?.sessionExpiresAt} />
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       {/* Add bottom padding on mobile so content isn't hidden behind the tab bar */}

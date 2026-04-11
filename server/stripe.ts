@@ -250,14 +250,67 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
         // Handle voice agent subscription
         if (session.customer) {
-          await updateSubscriptionBySession(session.id, {
-            stripeCustomerId: session.customer as string,
-            stripeSubscriptionId:
-              typeof session.subscription === "string"
-                ? session.subscription
-                : undefined,
-            status: "trialing",
-          });
+          // For portal upgrades, clientId is in metadata — upsert the subscription row
+          const portalClientId = session.metadata?.clientId ? parseInt(session.metadata.clientId, 10) : null;
+          if (portalClientId && !isNaN(portalClientId)) {
+            const db = await getDb();
+            if (db) {
+              // Check if a subscription row already exists for this client
+              const existingSub = await db
+                .select()
+                .from(voiceAgentSubscriptions)
+                .where(eq(voiceAgentSubscriptions.clientId, portalClientId))
+                .then(rows => rows[0] ?? null);
+              const plan = (session.metadata?.plan ?? "starter") as "starter" | "professional";
+              const billingCycle = (session.metadata?.billingCycle ?? "monthly") as "monthly" | "annual";
+              const subId = typeof session.subscription === "string" ? session.subscription : undefined;
+              const custId = session.customer as string;
+              if (existingSub) {
+                // Update existing row with Stripe IDs and plan
+                await db
+                  .update(voiceAgentSubscriptions)
+                  .set({
+                    stripeCustomerId: custId,
+                    stripeSubscriptionId: subId ?? existingSub.stripeSubscriptionId,
+                    stripeSessionId: session.id,
+                    plan,
+                    billingCycle,
+                    status: "trialing",
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(voiceAgentSubscriptions.id, existingSub.id));
+              } else {
+                // Create new subscription row linked to this portal client
+                const portalClient = await db
+                  .select()
+                  .from(crmClients)
+                  .where(eq(crmClients.id, portalClientId))
+                  .then(rows => rows[0] ?? null);
+                await db.insert(voiceAgentSubscriptions).values({
+                  email: portalClient?.contactEmail ?? session.customer_details?.email ?? "",
+                  name: portalClient?.contactName ?? session.customer_details?.name ?? null,
+                  plan,
+                  billingCycle,
+                  stripeCustomerId: custId,
+                  stripeSubscriptionId: subId ?? null,
+                  stripeSessionId: session.id,
+                  clientId: portalClientId,
+                  status: "trialing",
+                });
+              }
+              console.log(`[Webhook] Portal upgrade: linked clientId ${portalClientId} to subscription ${subId}`);
+            }
+          } else {
+            // Standard public signup — update by session ID
+            await updateSubscriptionBySession(session.id, {
+              stripeCustomerId: session.customer as string,
+              stripeSubscriptionId:
+                typeof session.subscription === "string"
+                  ? session.subscription
+                  : undefined,
+              status: "trialing",
+            });
+          }
           // ── Email 1: Welcome email (T+0) ──────────────────────────────────
           const subEmail = session.customer_email ?? (session.customer_details?.email ?? null);
           const subName = session.customer_details?.name ?? null;
