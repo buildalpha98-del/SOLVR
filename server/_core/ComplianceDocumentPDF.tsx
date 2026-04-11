@@ -4,6 +4,7 @@
  *
  * Follows the same pattern as CompletionReportDocument.tsx.
  */
+import React from "react";
 import {
   Document,
   Page,

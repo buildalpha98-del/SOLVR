@@ -383,3 +383,47 @@
 - [x] Seed 8 portal jobs (mix of pending/in-progress/completed) linked to accepted quotes
 - [x] Seed calendar events for jobs (scheduled dates spread across current month)
 - [x] Verify dashboard KPIs reflect seeded data (call volume, job counts, revenue)
+
+## App Store Pre-Submission Fixes (Apr 12 2026)
+
+### Prompt A — Compliance Doc Generation (BLOCKER)
+- [ ] Debug complianceDocGeneration.ts — check actual server error for SWMS + Site Induction
+- [ ] Fix LLM structured output schema mismatch (Zod parse on LLM JSON response)
+- [ ] Fix S3 upload / @react-pdf/renderer crash if applicable
+- [ ] Surface actual error message to client (not generic "Generation failed")
+- [ ] Test all 4 doc types end-to-end: SWMS, Site Induction, Safety Certificate, JSA
+- [ ] Add integration test for compliance doc pipeline
+
+### Prompt B — Pencil Icons Missing on PortalJobDetail (BLOCKER)
+- [ ] Audit PortalJobDetail.tsx — verify EditableField pencil icons are rendered
+- [ ] Check for responsive hiding classes (hidden, md:hidden, etc.)
+- [ ] Fix visibility on mobile viewport
+- [ ] Write component test verifying pencil icons in DOM
+
+### Prompt C — Apple Reviewer Account Full Access (BLOCKER)
+- [ ] Upgrade apple.review@solvr.com.au to active premium subscription
+- [ ] Enable all feature flags (voice-to-quote, compliance, scheduler, GPS, reviews, referrals)
+- [ ] Seed 15+ calls with AI transcripts
+- [ ] Seed 8+ jobs (pending/scheduled/in-progress/completed)
+- [ ] Seed 6+ calendar events (this week + next week)
+- [ ] Seed 6+ quotes (draft/sent/accepted)
+- [ ] Seed 3+ customers
+- [ ] Seed 2+ staff members
+- [ ] Seed 1+ paid invoice + 1+ pending invoice
+- [ ] Verify no onboarding wizard / paywall on login — lands on /portal/dashboard
+- [ ] Confirm all sidebar menu items accessible
+
+### Prompt D — Portal Schedule Vertical Layout (non-blocker)
+- [ ] Redesign PortalSchedule.tsx — vertical days per staff member
+- [ ] Staff members side-by-side at md: breakpoint
+- [ ] Drag-and-drop works vertically (no gesture conflict with horizontal swipe)
+
+### Prompt E — Voice-to-Quote Zod Error (REPEAT BLOCKER)
+- [ ] Instrument ALL Zod schemas in voice-to-quote pipeline (quoteExtraction.ts, quotes.ts, portal.ts, client-side form)
+- [ ] Add try/catch logging: exact input, .issues array, path[], file+line for each .parse()/.safeParse()
+- [ ] Reproduce with real recording and capture actual failing field + LLM output
+- [ ] Fix root cause (likely phone regex, postcode regex, currency regex, date format, or empty email)
+- [ ] Fix client-side form zodResolver if it also validates the draft
+- [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
+- [ ] Add test with actual failing LLM output shape (not mocked happy path)
+- [ ] Commit with evidence: quote failing field path + LLM output in commit message

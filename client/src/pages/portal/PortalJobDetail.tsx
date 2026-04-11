@@ -93,10 +93,11 @@ function EditableField({
             </p>
             <button
               onClick={() => { setDraft(value ?? ""); setEditing(true); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: "rgba(255,255,255,0.3)" }}
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0"
+              style={{ color: "rgba(255,255,255,0.5)" }}
+              aria-label={`Edit ${label}`}
             >
-              <Edit2 className="w-3 h-3" />
+              <Edit2 className="w-3.5 h-3.5" />
             </button>
           </div>
         )}

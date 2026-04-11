@@ -1,12 +1,10 @@
 /**
- * PortalSchedule — Weekly drag-and-drop job scheduler.
+ * PortalSchedule — Vertical mobile-first weekly job scheduler.
  *
- * Features:
- * - Navigate week-by-week
- * - See all staff across Mon–Sun columns
- * - Drag schedule entries between days/staff slots
- * - Click + to add a new schedule entry for a staff member on a day
- * - Click an entry to view details or check in/out
+ * Layout: Each day is a full-width card stacked vertically.
+ * Within each day, staff members are rows. Entries can be dragged
+ * between staff rows within the same day or across days.
+ * Designed for iPhone — no horizontal scrolling required.
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -23,6 +21,7 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -32,7 +31,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import {
   ChevronLeft, ChevronRight, Plus, CalendarClock,
-  Clock, MapPin, Loader2, X, CheckCircle2,
+  Clock, MapPin, Loader2, X, CheckCircle2, ChevronDown, ChevronUp,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,15 +54,15 @@ type StaffMember = {
 
 type Job = {
   id: number;
-  title: string; // derived from jobType
-  address: string | null; // derived from customerAddress or location
+  title: string;
+  address: string | null;
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function getWeekStart(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Mon = start
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -77,6 +76,10 @@ function addDays(date: Date, days: number): Date {
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function formatDayFull(date: Date): string {
+  return date.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
 }
 
 function formatTime(date: Date): string {
@@ -100,13 +103,11 @@ const STATUS_COLORS: Record<string, string> = {
 // ─── Draggable Schedule Card ──────────────────────────────────────────────────
 function ScheduleCard({
   entry,
-  staffName,
   jobTitle,
   jobAddress,
   onClick,
 }: {
   entry: ScheduleEntry;
-  staffName: string;
   jobTitle: string;
   jobAddress: string | null;
   onClick: () => void;
@@ -116,94 +117,205 @@ function ScheduleCard({
     data: { entry },
   });
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.4 : 1,
-  };
-
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="rounded-xl p-2.5 mb-1.5 cursor-grab active:cursor-grabbing select-none"
-      title={`${jobTitle} — ${staffName}`}
+      className="rounded-xl p-3 mb-2 cursor-grab active:cursor-grabbing select-none"
       style={{
-        transform: style.transform,
+        transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.4 : 1,
         background: `${STATUS_COLORS[entry.status] ?? "#64748b"}22`,
         borderLeft: `3px solid ${STATUS_COLORS[entry.status] ?? "#64748b"}`,
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        borderRight: "1px solid rgba(255,255,255,0.06)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        border: `1px solid rgba(255,255,255,0.07)`,
+        borderLeftWidth: 3,
+        borderLeftColor: STATUS_COLORS[entry.status] ?? "#64748b",
       }}
     >
-      <p className="text-white text-xs font-semibold truncate leading-tight">{jobTitle}</p>
+      <p className="text-white text-sm font-semibold truncate leading-tight">{jobTitle}</p>
       {jobAddress && (
-        <p className="text-[10px] truncate mt-0.5 flex items-center gap-1" style={{ color: "rgba(255,255,255,0.45)" }}>
-          <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+        <p className="text-xs truncate mt-0.5 flex items-center gap-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+          <MapPin className="w-3 h-3 flex-shrink-0" />
           {jobAddress}
         </p>
       )}
-      <p className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+      <p className="text-xs mt-1.5 flex items-center gap-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+        <Clock className="w-3 h-3" />
         {formatTime(new Date(entry.startTime))} – {formatTime(new Date(entry.endTime))}
       </p>
     </div>
   );
 }
 
-// ─── Droppable Day Column ─────────────────────────────────────────────────────
-function DayColumn({
+// ─── Droppable Staff Row ──────────────────────────────────────────────────────
+function StaffRow({
   day,
-  staffId,
+  staff,
   entries,
-  staffName,
   jobs,
   onAdd,
   onEntryClick,
 }: {
   day: Date;
-  staffId: number;
+  staff: StaffMember;
   entries: ScheduleEntry[];
-  staffName: string;
   jobs: Job[];
   onAdd: (day: Date, staffId: number) => void;
   onEntryClick: (entry: ScheduleEntry) => void;
 }) {
-  const droppableId = `${staffId}-${day.toISOString().split("T")[0]}`;
-  const { setNodeRef, isOver } = useDroppable({ id: droppableId, data: { day, staffId } });
-
-  const dayEntries = entries.filter(e => isSameDay(new Date(e.startTime), day));
+  const droppableId = `${staff.id}-${day.toISOString().split("T")[0]}`;
+  const { setNodeRef, isOver } = useDroppable({ id: droppableId, data: { day, staffId: staff.id } });
   const jobMap = Object.fromEntries(jobs.map(j => [j.id, j]));
+  const dayEntries = entries.filter(e => isSameDay(new Date(e.startTime), day));
+
+  return (
+    <div className="mb-2">
+      {/* Staff label row */}
+      <div className="flex items-center justify-between mb-1.5 px-1">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+            style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+          >
+            {staff.name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-white">{staff.name}</p>
+            {staff.trade && (
+              <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>{staff.trade}</p>
+            )}
+          </div>
+        </div>
+        <button
+          onClick={() => onAdd(day, staff.id)}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors"
+          style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623" }}
+        >
+          <Plus className="w-3 h-3" />
+          Add
+        </button>
+      </div>
+
+      {/* Drop zone */}
+      <div
+        ref={setNodeRef}
+        className="min-h-[60px] rounded-xl p-2 transition-colors"
+        style={{
+          background: isOver ? "rgba(245,166,35,0.06)" : "rgba(255,255,255,0.02)",
+          border: isOver ? "1px dashed rgba(245,166,35,0.4)" : "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
+        {dayEntries.length === 0 ? (
+          <p className="text-center text-[11px] py-3" style={{ color: "rgba(255,255,255,0.2)" }}>
+            No shifts — drag here or tap Add
+          </p>
+        ) : (
+          dayEntries.map(entry => (
+            <ScheduleCard
+              key={entry.id}
+              entry={entry}
+              jobTitle={jobMap[entry.jobId]?.title ?? `Job #${entry.jobId}`}
+              jobAddress={jobMap[entry.jobId]?.address ?? null}
+              onClick={() => onEntryClick(entry)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Day Card ─────────────────────────────────────────────────────────────────
+function DayCard({
+  day,
+  staffList,
+  entries,
+  jobs,
+  onAdd,
+  onEntryClick,
+  isToday,
+}: {
+  day: Date;
+  staffList: StaffMember[];
+  entries: ScheduleEntry[];
+  jobs: Job[];
+  onAdd: (day: Date, staffId: number) => void;
+  onEntryClick: (entry: ScheduleEntry) => void;
+  isToday: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(!isToday);
+  const dayEntryCount = entries.filter(e => isSameDay(new Date(e.startTime), day)).length;
 
   return (
     <div
-      ref={setNodeRef}
-      className="min-h-[80px] rounded-xl p-1.5 transition-colors relative"
+      className="rounded-2xl overflow-hidden mb-3"
       style={{
-        background: isOver ? "rgba(245,166,35,0.08)" : "rgba(255,255,255,0.02)",
-        border: isOver ? "1px dashed rgba(245,166,35,0.4)" : "1px solid rgba(255,255,255,0.05)",
+        background: isToday ? "rgba(245,166,35,0.04)" : "rgba(255,255,255,0.02)",
+        border: isToday ? "1px solid rgba(245,166,35,0.2)" : "1px solid rgba(255,255,255,0.07)",
       }}
     >
-      {dayEntries.map(entry => (
-        <ScheduleCard
-          key={entry.id}
-          entry={entry}
-          staffName={staffName}
-          jobTitle={jobMap[entry.jobId]?.title ?? `Job #${entry.jobId}`}
-          jobAddress={jobMap[entry.jobId]?.address ?? null}
-          onClick={() => onEntryClick(entry)}
-        />
-      ))}
+      {/* Day header — tap to expand/collapse */}
       <button
-        onClick={() => onAdd(day, staffId)}
-        className="w-full flex items-center justify-center py-1.5 rounded-lg opacity-0 hover:opacity-100 transition-opacity"
-        style={{ color: "rgba(255,255,255,0.3)" }}
-        title="Add shift"
+        className="w-full flex items-center justify-between px-4 py-3"
+        onClick={() => setCollapsed(c => !c)}
       >
-        <Plus className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex flex-col items-center justify-center"
+            style={{
+              background: isToday ? "rgba(245,166,35,0.2)" : "rgba(255,255,255,0.06)",
+            }}
+          >
+            <span className="text-[10px] font-semibold uppercase leading-none" style={{ color: isToday ? "#F5A623" : "rgba(255,255,255,0.4)" }}>
+              {day.toLocaleDateString("en-AU", { weekday: "short" })}
+            </span>
+            <span className="text-base font-bold leading-tight" style={{ color: isToday ? "#F5A623" : "white" }}>
+              {day.getDate()}
+            </span>
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold" style={{ color: isToday ? "#F5A623" : "white" }}>
+              {day.toLocaleDateString("en-AU", { weekday: "long" })}
+            </p>
+            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+              {dayEntryCount === 0 ? "No shifts" : `${dayEntryCount} shift${dayEntryCount !== 1 ? "s" : ""}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {dayEntryCount > 0 && (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+            >
+              {dayEntryCount}
+            </span>
+          )}
+          {collapsed
+            ? <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+            : <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+          }
+        </div>
       </button>
+
+      {/* Expanded content */}
+      {!collapsed && (
+        <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          {staffList.map(staff => (
+            <StaffRow
+              key={staff.id}
+              day={day}
+              staff={staff}
+              entries={entries.filter(e => e.staffId === staff.id)}
+              jobs={jobs}
+              onAdd={onAdd}
+              onEntryClick={onEntryClick}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -229,7 +341,10 @@ export default function PortalSchedule() {
 
   // ─── Drag state ──────────────────────────────────────────────────────────
   const [activeEntry, setActiveEntry] = useState<ScheduleEntry | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  );
 
   const updateScheduleMutation = trpc.portal.updateSchedule.useMutation({
     onSuccess: () => utils.portal.listScheduleWeek.invalidate({ weekStart: weekStartStr }),
@@ -251,7 +366,6 @@ export default function PortalSchedule() {
 
     if (!entry || !targetDay) return;
 
-    // Calculate new start/end preserving duration
     const origStart = new Date(entry.startTime);
     const origEnd = new Date(entry.endTime);
     const duration = origEnd.getTime() - origStart.getTime();
@@ -271,7 +385,7 @@ export default function PortalSchedule() {
     });
   }
 
-  // ─── Add / Edit dialog ───────────────────────────────────────────────────
+  // ─── Add dialog ──────────────────────────────────────────────────────────
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addForm, setAddForm] = useState({
     jobId: "",
@@ -340,21 +454,20 @@ export default function PortalSchedule() {
   // ─── Week days ───────────────────────────────────────────────────────────
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const today = new Date();
-
   const entries: ScheduleEntry[] = scheduleEntries ?? [];
 
   return (
     <PortalLayout activeTab="schedule">
-      <div className="px-2 py-4 space-y-4">
+      <div className="px-3 py-4 space-y-2">
         {/* Header */}
-        <div className="flex items-center justify-between px-2">
+        <div className="flex items-center justify-between px-1 mb-4">
           <div>
             <h1 className="text-lg font-bold text-white flex items-center gap-2">
               <CalendarClock className="w-5 h-5" style={{ color: "#F5A623" }} />
               Schedule
             </h1>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Drag shifts between staff and days
+              {formatDate(weekStart)} – {formatDate(addDays(weekStart, 6))}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -382,105 +495,59 @@ export default function PortalSchedule() {
           </div>
         </div>
 
-        {/* Week label */}
-        <p className="text-xs px-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-          {formatDate(weekStart)} – {formatDate(addDays(weekStart, 6))}
-        </p>
-
         {/* No staff empty state */}
         {(!staffList || staffList.length === 0) && (
           <div
-            className="rounded-2xl border p-8 text-center mx-2"
+            className="rounded-2xl border p-8 text-center"
             style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.08)" }}
           >
             <CalendarClock className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
             <p className="text-white font-medium mb-1">No staff members yet</p>
             <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Add staff members first, then schedule them on jobs.
+              Add staff members in Settings, then schedule them on jobs here.
             </p>
           </div>
         )}
 
-        {/* Scheduler grid */}
-        {staffList && staffList.length > 0 && (
-          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="overflow-x-auto pb-2">
-              <div style={{ minWidth: 700 }}>
-                {/* Day headers */}
-                <div className="grid gap-1 mb-2 px-2" style={{ gridTemplateColumns: "100px repeat(7, 1fr)" }}>
-                  <div />
-                  {weekDays.map(day => (
-                    <div
-                      key={day.toISOString()}
-                      className="text-center text-[11px] font-semibold py-1.5 rounded-lg"
-                      style={{
-                        color: isSameDay(day, today) ? "#F5A623" : "rgba(255,255,255,0.5)",
-                        background: isSameDay(day, today) ? "rgba(245,166,35,0.08)" : "transparent",
-                      }}
-                    >
-                      {day.toLocaleDateString("en-AU", { weekday: "short" })}
-                      <br />
-                      <span className="text-[13px]">{day.getDate()}</span>
-                    </div>
-                  ))}
-                </div>
+        {/* Loading */}
+        {scheduleLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+          </div>
+        )}
 
-                {/* Staff rows */}
-                {scheduleLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
-                  </div>
-                ) : (
-                  staffList.map(staff => (
-                    <div
-                      key={staff.id}
-                      className="grid gap-1 mb-2 px-2 items-start"
-                      style={{ gridTemplateColumns: "100px repeat(7, 1fr)" }}
-                    >
-                      {/* Staff name */}
-                      <div className="flex items-center pr-2 pt-1">
-                        <div>
-                          <p className="text-xs font-semibold text-white truncate">{staff.name}</p>
-                          {staff.trade && (
-                            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>{staff.trade}</p>
-                          )}
-                        </div>
-                      </div>
-                      {/* Day cells */}
-                      {weekDays.map(day => (
-                        <DayColumn
-                          key={day.toISOString()}
-                          day={day}
-                          staffId={staff.id}
-                          entries={entries.filter(e => e.staffId === staff.id)}
-                          staffName={staff.name}
-                          jobs={jobs}
-                          onAdd={openAdd}
-                          onEntryClick={setSelectedEntry}
-                        />
-                      ))}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+        {/* Day cards — vertical stack */}
+        {!scheduleLoading && staffList && staffList.length > 0 && (
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            {weekDays.map(day => (
+              <DayCard
+                key={day.toISOString()}
+                day={day}
+                staffList={staffList}
+                entries={entries}
+                jobs={jobs}
+                onAdd={openAdd}
+                onEntryClick={setSelectedEntry}
+                isToday={isSameDay(day, today)}
+              />
+            ))}
 
             {/* Drag overlay */}
             <DragOverlay>
               {activeEntry && (
                 <div
-                  className="rounded-xl p-2.5 shadow-2xl"
+                  className="rounded-xl p-3 shadow-2xl"
                   style={{
                     background: `${STATUS_COLORS[activeEntry.status] ?? "#64748b"}33`,
                     borderLeft: `3px solid ${STATUS_COLORS[activeEntry.status] ?? "#64748b"}`,
                     border: "1px solid rgba(255,255,255,0.15)",
-                    width: 140,
+                    width: 200,
                   }}
                 >
-                  <p className="text-white text-xs font-semibold truncate">
+                  <p className="text-white text-sm font-semibold truncate">
                     {jobMap[activeEntry.jobId]?.title ?? `Job #${activeEntry.jobId}`}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
                     {formatTime(new Date(activeEntry.startTime))} – {formatTime(new Date(activeEntry.endTime))}
                   </p>
                 </div>
@@ -490,7 +557,7 @@ export default function PortalSchedule() {
         )}
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-3 px-2">
+        <div className="flex flex-wrap gap-3 px-1 pt-2">
           {Object.entries(STATUS_COLORS).map(([status, color]) => (
             <div key={status} className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
@@ -614,6 +681,10 @@ export default function PortalSchedule() {
                   {jobMap[selectedEntry.jobId].address}
                 </div>
               )}
+              <div className="flex items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
+                <CheckCircle2 className="w-4 h-4" />
+                Staff: <span className="font-medium text-white">{staffMap[selectedEntry.staffId]?.name ?? `Staff #${selectedEntry.staffId}`}</span>
+              </div>
               <div className="flex items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
                 <CheckCircle2 className="w-4 h-4" />
                 Status: <span className="capitalize font-medium text-white">{selectedEntry.status.replace("_", " ")}</span>
