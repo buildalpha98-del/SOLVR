@@ -315,3 +315,16 @@
 ### Tests & Fixes
 - [x] Fix flaky voiceOnboarding UNAUTHORIZED test (timeout → 15000ms)
 - [x] 121/121 vitest tests passing, 0 TypeScript errors
+
+## Bug Fixes (Apr 11 2026)
+- [x] Fix 1: Compliance doc output — convert from .md download to branded PDF via @react-pdf/renderer
+  - [x] Created server/_core/ComplianceDocumentPDF.tsx — branded React-PDF component (header, sections, hazard table, signature block, footer)
+  - [x] Updated complianceDocGeneration.ts LLM prompt to output structured JSON (scope, hazards, controls, signatures)
+  - [x] Updated complianceDocGeneration.ts to renderToBuffer + upload to S3 at compliance-docs/{clientId}/{docId}.pdf
+  - [x] Updated PortalCompliance.tsx to open returned PDF URL in new tab
+- [x] Fix 2: Inline edit for PortalJobDetail — customer + job fields
+  - [x] Extended portal.updateJob zod schema to include callerName, callerPhone, jobType, description, location, preferredDate, customerName/Email/Phone/Address
+  - [x] updatePortalJob db helper already accepts Partial<InsertPortalJob> — no changes needed
+  - [x] Inline EditableField components with pencil icons already live on all required fields in PortalJobDetail.tsx
+  - [x] updateJobDetail in portalJobs.ts already accepted all fields — confirmed no gaps
+- [x] 121/121 vitest tests passing, 0 TypeScript errors

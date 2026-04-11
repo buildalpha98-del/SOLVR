@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  ShieldCheck, Plus, Loader2, FileText, Trash2, RefreshCw,
-  AlertTriangle, CheckCircle2, Clock,
+  ShieldCheck, Plus, Loader2, FileText, Trash2,
+  AlertTriangle, CheckCircle2, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -65,14 +65,40 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Document viewer ──────────────────────────────────────────────────────────
-function DocViewer({ content, title }: { content: string; title: string }) {
+// ─── Document PDF action panel ────────────────────────────────────────────────
+function DocPdfPanel({ pdfUrl, title }: { pdfUrl: string | null | undefined; title: string }) {
+  if (!pdfUrl) {
+    return (
+      <div
+        className="rounded-lg p-4 mt-3 text-sm"
+        style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}
+      >
+        PDF not yet available.
+      </div>
+    );
+  }
   return (
     <div
-      className="rounded-lg p-5 mt-4 overflow-auto max-h-96 text-sm font-mono whitespace-pre-wrap"
-      style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)" }}
+      className="rounded-lg p-4 mt-3 flex items-center justify-between gap-4"
+      style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.18)" }}
     >
-      {content}
+      <div className="flex items-center gap-3">
+        <FileText className="w-5 h-5 flex-shrink-0" style={{ color: "#F5A623" }} />
+        <div>
+          <p className="text-sm font-medium" style={{ color: "white" }}>{title}</p>
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>Branded PDF — ready to share or print</p>
+        </div>
+      </div>
+      <a
+        href={pdfUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium flex-shrink-0"
+        style={{ background: "#F5A623", color: "#0F1F3D" }}
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+        Open PDF
+      </a>
     </div>
   );
 }
@@ -122,8 +148,6 @@ export default function PortalCompliance() {
   if (!hasGenerating && pollingDocId) {
     setPollingDocId(null);
   }
-
-  const selectedDoc = docs.find((d) => d.id === selectedDocId) ?? null;
 
   function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -312,10 +336,12 @@ export default function PortalCompliance() {
                   </div>
                 </div>
 
-                {/* Expanded content */}
-                {selectedDocId === doc.id && doc.status === "ready" && doc.content && (
-                  <DocViewer content={doc.content} title={doc.title} />
+                {/* Expanded: PDF panel when ready */}
+                {selectedDocId === doc.id && doc.status === "ready" && (
+                  <DocPdfPanel pdfUrl={doc.pdfUrl} title={doc.title} />
                 )}
+
+                {/* Expanded: generating state */}
                 {selectedDocId === doc.id && doc.status === "generating" && (
                   <div
                     className="rounded-lg p-4 mt-2 flex items-center gap-3"
@@ -327,6 +353,8 @@ export default function PortalCompliance() {
                     </p>
                   </div>
                 )}
+
+                {/* Expanded: error state */}
                 {selectedDocId === doc.id && doc.status === "error" && (
                   <div
                     className="rounded-lg p-4 mt-2 flex items-center gap-3"

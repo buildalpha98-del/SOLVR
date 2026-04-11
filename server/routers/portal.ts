@@ -537,10 +537,24 @@ export const portalRouter = router({
   updateJob: publicProcedure
     .input(z.object({
       id: z.number(),
+      // Pipeline
       stage: z.enum(["new_lead", "quoted", "booked", "completed", "lost"]).optional(),
       estimatedValue: z.number().optional(),
       actualValue: z.number().optional(),
       notes: z.string().optional(),
+      // Job details
+      jobType: z.string().min(1).optional(),
+      description: z.string().optional(),
+      location: z.string().optional(),
+      preferredDate: z.string().optional(),
+      // Customer details
+      customerName: z.string().optional(),
+      customerEmail: z.string().optional(),
+      customerPhone: z.string().optional(),
+      customerAddress: z.string().optional(),
+      // Caller details
+      callerName: z.string().optional(),
+      callerPhone: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
@@ -1703,11 +1717,7 @@ export const portalRouter = router({
       // Generate asynchronously — don't block the response
       (async () => {
         try {
-          const result = await generateComplianceDocument({
-            docType: input.docType as import("../_core/complianceDocGeneration").ComplianceDocType,
-            jobDescription: input.jobDescription,
-            siteAddress: input.siteAddress,
-            profile: profile ?? {
+          const effectiveProfile = profile ?? {
               id: 0, clientId: client.id, tradingName: null, abn: null,
               phone: null, address: null, email: null, website: null,
               industryType: client.tradeType ?? null,
@@ -1733,13 +1743,22 @@ export const portalRouter = router({
               notifyEmailWeeklySummary: true,
               vapiAgentId: null,
               createdAt: new Date(), updatedAt: new Date(),
-            },
+            };
+          const result = await generateComplianceDocument({
+            docType: input.docType as import("../_core/complianceDocGeneration").ComplianceDocType,
+            jobDescription: input.jobDescription,
+            siteAddress: input.siteAddress,
+            profile: effectiveProfile,
             businessName,
+            tradingName: effectiveProfile.tradingName,
           });
-
+          // Upload branded PDF to S3
+          const fileKey = `compliance/${client.id}/${docId}.pdf`;
+          const { url: pdfUrl } = await storagePut(fileKey, result.pdfBuffer, "application/pdf");
           await updateComplianceDocument(docId, {
             title: result.title,
-            content: result.content,
+            content: JSON.stringify(result.sections),
+            pdfUrl,
             status: "ready",
           });
         } catch (err) {
