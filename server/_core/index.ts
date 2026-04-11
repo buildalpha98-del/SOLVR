@@ -47,6 +47,7 @@ async function startServer() {
   const allowedOrigins = [
     "https://solvr.com.au",
     "https://www.solvr.com.au",
+    "https://solvr.manus.space",
     "capacitor://localhost",  // iOS Capacitor app
     "http://localhost:5173",  // Vite dev server
     "http://localhost:3000",  // Express dev server
@@ -54,7 +55,10 @@ async function startServer() {
   app.use(cors({
     origin: (origin, cb) => {
       // Allow requests with no origin (e.g. curl, server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      if (!origin) return cb(null, true);
+      // Allow Manus sandbox preview URLs (*.manus.computer, *.manus.space)
+      if (origin.endsWith(".manus.computer") || origin.endsWith(".manus.space")) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
       return cb(new Error(`CORS: origin '${origin}' not allowed`));
     },
     credentials: true,

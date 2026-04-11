@@ -4,11 +4,16 @@
    Amber border, navy card, urgency badge
    ============================================================ */
 
-import { CheckCircle, Clock, MapPin, Phone, Wrench, AlertTriangle, Zap } from "lucide-react";
+import { CheckCircle, Clock, MapPin, Phone, Wrench, AlertTriangle, Zap, FileText, ArrowRight } from "lucide-react";
 import type { JobBooking } from "@/hooks/useVapi";
+import { Link } from "wouter";
 
 interface JobCardProps {
   booking: JobBooking;
+  /** The active persona's business name — used in the SMS preview */
+  businessName?: string;
+  /** The active persona's owner/contact name — used in the SMS preview */
+  ownerName?: string;
 }
 
 const URGENCY_CONFIG = {
@@ -40,7 +45,7 @@ function formatTime(date: Date) {
   });
 }
 
-export function JobCard({ booking }: JobCardProps) {
+export function JobCard({ booking, businessName = "Jake's Plumbing", ownerName = "Jake" }: JobCardProps) {
   const urgency = URGENCY_CONFIG[booking.urgency] || URGENCY_CONFIG.routine;
   const UrgencyIcon = urgency.icon;
 
@@ -125,15 +130,29 @@ export function JobCard({ booking }: JobCardProps) {
         </div>
       </div>
 
-      {/* SMS preview */}
+      {/* SMS preview — uses active persona name */}
       <div className="mt-3 border border-slate-700 rounded-lg bg-[#0A1628]/80 p-3">
         <div className="font-mono text-[10px] text-slate-500 uppercase tracking-wider mb-2">
           SMS Preview → {booking.phone}
         </div>
         <p className="font-mono text-xs text-slate-300 leading-relaxed">
-          Hi {booking.callerName}, Jake's Plumbing here — we've got your job logged for {booking.preferredTime}. Jake will call to confirm. Reply STOP to opt out.
+          Hi {booking.callerName}, {businessName} here — we've got your job logged for {booking.preferredTime}. {ownerName} will call to confirm. Reply STOP to opt out.
         </p>
       </div>
+
+      {/* Create Quote CTA — links the two products together */}
+      <Link href="/portal/quotes">
+        <a className="mt-3 flex items-center justify-between gap-3 border border-[#F5A623]/30 rounded-lg bg-[#F5A623]/10 px-4 py-3 hover:bg-[#F5A623]/20 transition-colors group">
+          <div className="flex items-center gap-2.5">
+            <FileText size={14} className="text-[#F5A623] flex-shrink-0" />
+            <div>
+              <div className="font-mono text-[10px] text-[#F5A623] uppercase tracking-widest font-bold">Next Step</div>
+              <div className="text-xs text-white font-semibold">Create a Quote from this Job</div>
+            </div>
+          </div>
+          <ArrowRight size={14} className="text-[#F5A623] group-hover:translate-x-1 transition-transform" />
+        </a>
+      </Link>
     </div>
   );
 }

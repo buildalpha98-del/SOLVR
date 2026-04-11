@@ -255,8 +255,8 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
             })}
           </nav>
 
-          {/* Right side — plan badge + settings + logout */}
-          <div className="flex items-center gap-2">
+          {/* Right side — plan badge + settings + logout (hidden on mobile — bottom tab bar handles nav) */}
+          <div className="hidden md:flex items-center gap-2">
             <span
               className="hidden sm:block text-xs px-2 py-1 rounded-full font-semibold uppercase tracking-wide"
               style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}

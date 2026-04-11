@@ -249,20 +249,22 @@ export default function PortalQuotes() {
 
   return (
     <PortalLayout activeTab="quotes">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-6">
+      {/* ── Header ────────────────────────────────────────────────────────────────── */}
+      {/* On mobile: stack title + buttons vertically. On desktop: side-by-side. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Quotes</h1>
           <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
             Create, send, and track quotes for your jobs.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Buttons: full-width on mobile, auto-width on desktop */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
             size="sm"
             variant="outline"
             onClick={() => navigate("/portal/quotes/settings")}
-            className="border-white/10 text-white/60 hover:text-white hover:border-white/30"
+            className="flex-1 sm:flex-none border-white/10 text-white/60 hover:text-white hover:border-white/30"
           >
             Branding
           </Button>
@@ -270,7 +272,7 @@ export default function PortalQuotes() {
             size="sm"
             onClick={() => { setShowNewModal(true); setNewMode(null); }}
             style={{ background: "#F5A623", color: "#0F1F3D" }}
-            className="font-semibold"
+            className="flex-1 sm:flex-none font-semibold"
           >
             <Plus className="w-4 h-4 mr-1.5" />
             New Quote

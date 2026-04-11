@@ -7,7 +7,14 @@ export default function NotFound() {
   const [, setLocation] = useLocation();
 
   const handleGoHome = () => {
-    setLocation("/");
+    // If the 404 happened on a /portal/* path, treat the portal dashboard as
+    // "home" — not the marketing landing page.
+    const from = window.location.pathname;
+    if (from.startsWith("/portal")) {
+      setLocation("/portal/dashboard");
+    } else {
+      setLocation("/");
+    }
   };
 
   return (
