@@ -243,7 +243,12 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
       {/* ── Top nav ─────────────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-40 border-b"
-        style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.08)" }}
+        style={{
+          background: "#0F1F3D",
+          borderColor: "rgba(255,255,255,0.08)",
+          // Push header content below the iOS status bar / Dynamic Island
+          paddingTop: "env(safe-area-inset-top)",
+        }}
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           {/* Logo + business name */}
@@ -423,7 +428,8 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
 
       {/* ── Page content ────────────────────────────────────────────────── */}
       {/* Add bottom padding on mobile so content isn't hidden behind the tab bar */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 pb-24 md:pb-6">
+      {/* pt-4 on mobile (safe-area already pushes header down); py-6 on desktop */}
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 pt-4 pb-24 md:py-6 md:pb-6">
         {children}
       </main>
 
