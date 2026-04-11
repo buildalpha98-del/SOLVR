@@ -405,25 +405,41 @@ export const quotesRouter = router({
 
       const client = portalAuth.client;
 
-      const [lineItems, photos, recording] = await Promise.all([
+      const [lineItems, photos, recording, profile] = await Promise.all([
         listQuoteLineItems(input.id),
         listQuotePhotos(input.id),
         quote.voiceRecordingId ? getQuoteVoiceRecordingById(quote.voiceRecordingId) : Promise.resolve(null),
+        getClientProfile(clientId),
       ]);
+
+      const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : null;
 
       const report = await generateQuoteReport({
         jobTitle: quote.jobTitle,
         jobDescription: quote.jobDescription,
+        customerName: quote.customerName,
+        customerPhone: quote.customerPhone,
+        customerEmail: quote.customerEmail,
+        customerAddress: quote.customerAddress,
         lineItems: lineItems.map((li) => ({
           description: li.description,
           quantity: parseFloat(li.quantity),
           unit: li.unit ?? "each",
           unitPrice: li.unitPrice ? parseFloat(li.unitPrice) : null,
+          lineTotal: li.lineTotal ? parseFloat(li.lineTotal) : null,
         })),
+        subtotal: quote.subtotal,
+        gstAmount: quote.gstAmount,
+        totalAmount: quote.totalAmount,
+        gstRate: quote.gstRate,
+        paymentTerms: quote.paymentTerms,
+        validityDays: quote.validityDays,
+        notes: quote.notes,
         transcript: recording?.transcript ?? "",
         photos: photos.map((p) => ({ caption: p.caption, aiDescription: p.aiDescription ?? "" })),
         businessName: client.businessName,
         tradeType: client.tradeType,
+        memoryContext,
       });
 
       await updateQuote(input.id, {
@@ -700,13 +716,27 @@ export const quotesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
       }
 
-      const photos = await listQuotePhotos(input.quoteId);
+      const client = portalAuth.client;
+      const [photos, lineItems] = await Promise.all([
+        listQuotePhotos(input.quoteId),
+        listQuoteLineItems(input.quoteId),
+      ]);
       const unanalysed = photos.filter((p) => !p.aiDescription);
       if (unanalysed.length === 0) return { analysed: 0 };
 
       const descriptions = await analyseQuotePhotos(
         unanalysed.map((p) => ({ imageUrl: p.imageUrl, caption: p.caption })),
-        quote.jobTitle,
+        {
+          jobTitle: quote.jobTitle,
+          jobDescription: quote.jobDescription,
+          tradeType: client.tradeType,
+          customerAddress: quote.customerAddress,
+          lineItems: lineItems.map((li) => ({
+            description: li.description,
+            quantity: parseFloat(li.quantity),
+            unit: li.unit ?? "each",
+          })),
+        },
       );
 
       await Promise.all(

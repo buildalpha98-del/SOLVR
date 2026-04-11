@@ -55,24 +55,18 @@ describe("quoteExtraction", () => {
           quantity: 16,
           unit: "hrs",
           unitPrice: 95,
-          lineTotal: 1520,
         },
         {
           description: "Materials",
           quantity: 1,
           unit: "lot",
           unitPrice: 800,
-          lineTotal: 800,
         },
       ],
-      subtotal: 2320,
-      gstRate: 10,
-      gstAmount: 232,
-      totalAmount: 2552,
       paymentTerms: "50% deposit, balance on completion",
       validityDays: 30,
       notes: "Price valid for 30 days",
-      confidence: 0.92,
+      extractionWarnings: [],
     };
 
     mockInvokeLLM.mockResolvedValue({
@@ -95,8 +89,8 @@ describe("quoteExtraction", () => {
 
     expect(result.jobTitle).toBe("Bathroom Renovation");
     expect(result.lineItems).toHaveLength(2);
-    expect(result.totalAmount).toBe(2552);
-    expect(result.confidence).toBe(0.92);
+    expect(result.paymentTerms).toBe("50% deposit, balance on completion");
+    expect(result.extractionWarnings).toEqual([]);
   });
 
   it("throws when LLM returns invalid JSON", async () => {
