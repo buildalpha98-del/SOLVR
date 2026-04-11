@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AnnouncementBanner from "./components/AnnouncementBanner";
@@ -153,14 +153,27 @@ function Router() {
   );
 }
 
+/**
+ * Dismissible marketing announcement banner — shown on the public marketing
+ * site only. Hidden on portal routes because portal users are existing paying
+ * customers who should not be shown "book a free strategy call" style CTAs
+ * aimed at prospects. Same logic applies in the Capacitor mobile app (which
+ * only ever shows /portal/* routes anyway, so the banner would never render
+ * there either way).
+ */
+function ConditionalAnnouncementBanner() {
+  const [location] = useLocation();
+  if (location.startsWith("/portal")) return null;
+  return <AnnouncementBanner />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          {/* Dismissible announcement banner — shown site-wide until dismissed */}
-          <AnnouncementBanner />
+          <ConditionalAnnouncementBanner />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

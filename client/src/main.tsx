@@ -63,6 +63,26 @@ if (isNative) {
   window.history.replaceState = function (state, title, url) {
     return origReplaceState(state, title, capacitorRewriteUrl(url));
   };
+
+  // 3. Native UI polish — dark status bar + hide splash once SPA is ready.
+  // These imports are dynamic so browser builds don't pay the bundle cost.
+  (async () => {
+    try {
+      const [{ StatusBar, Style }, { SplashScreen }] = await Promise.all([
+        import("@capacitor/status-bar"),
+        import("@capacitor/splash-screen"),
+      ]);
+      // Dark navy theme — status bar text should be light (Style.Dark = dark background, light text)
+      await StatusBar.setStyle({ style: Style.Dark });
+      // Fade the splash out 300ms after JS is ready. Capacitor keeps the splash
+      // visible while the webview loads the SPA bundle; we only hide once React
+      // has mounted and the root bundle is parsed.
+      await SplashScreen.hide({ fadeOutDuration: 300 });
+    } catch (err) {
+      // Native UI polish is best-effort — never let it block the app from starting
+      console.warn("[capacitor bootstrap] StatusBar/SplashScreen setup skipped:", err);
+    }
+  })();
 }
 
 const API_BASE_URL = isNative ? "https://solvr.com.au" : "";

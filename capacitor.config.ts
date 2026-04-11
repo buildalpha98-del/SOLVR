@@ -47,6 +47,17 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    SplashScreen: {
+      // Use Capacitor's default splash timing (3s launchShowDuration, autoHide true).
+      // JS still calls SplashScreen.hide() in client/src/main.tsx for snappier
+      // perceived launch, but the autoHide fallback means a failed hide() call
+      // never leaves the user stuck on a blank splash. Defaults are well-tested;
+      // only override backgroundColor + disable spinner for cosmetic polish.
+      backgroundColor: "#0A1628",
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
   },
 };
 

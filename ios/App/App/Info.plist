@@ -45,5 +45,21 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- ─── Permission strings (required by Apple for any API that touches user data) ─── -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Solvr uses your microphone to record job details for voice-to-quote generation.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Solvr needs access to your photo library so you can attach photos to your quotes.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Solvr needs permission to save generated quote PDFs to your photo library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Solvr uses the camera so you can take photos of job sites to attach to quotes.</string>
+	<!-- ─── Export compliance: declare no non-exempt encryption so App Store review doesn't ask ─── -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- ─── Viewport meta safety: modern iPhones require viewport-fit=cover for safe areas ─── -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<!-- ─── Disable IPv4 requirement for networking (sandbox permits HTTPS to solvr.com.au) ─── -->
 </dict>
 </plist>
