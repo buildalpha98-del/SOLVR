@@ -1351,6 +1351,8 @@ export const staffMembers = mysqlTable("staff_members", {
   /** Hourly labour rate in AUD for job costing auto-calculation */
   hourlyRate: decimal("hourlyRate", { precision: 10, scale: 2 }),
   isActive: boolean("isActive").default(true).notNull(),
+  /** 4-digit PIN for staff portal login — hashed with bcrypt */
+  staffPin: varchar("staffPin", { length: 72 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1409,3 +1411,19 @@ export const timeEntries = mysqlTable("time_entries", {
 });
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
+
+// ─── Staff PIN Auth ───────────────────────────────────────────────────────────
+/**
+ * Staff portal sessions — created on successful PIN login.
+ * Stored as a signed cookie on the staff device.
+ */
+export const staffSessions = mysqlTable("staff_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(),
+  clientId: int("clientId").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StaffSession = typeof staffSessions.$inferSelect;
+export type InsertStaffSession = typeof staffSessions.$inferInsert;

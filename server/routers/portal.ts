@@ -1887,6 +1887,28 @@ export const portalRouter = router({
       return { success: true };
     }),
 
+  /**
+   * Set or update the 4-digit PIN for a staff member.
+   * Owner-only — requires portal session.
+   */
+  setStaffPin: publicProcedure
+    .input(z.object({
+      id: z.number().int(),
+      pin: z.string().regex(/^\d{4,8}$/, "PIN must be 4–8 digits."),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const member = await getStaffMember(input.id);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      const bcrypt = await import("bcryptjs");
+      const hash = await bcrypt.hash(input.pin, 10);
+      await updateStaffMember(input.id, { staffPin: hash });
+      return { success: true };
+    }),
+
   // ─── Job Schedule ─────────────────────────────────────────────────────────────
 
   listScheduleWeek: publicProcedure

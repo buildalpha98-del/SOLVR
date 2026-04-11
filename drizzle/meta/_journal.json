@@ -239,6 +239,13 @@
       "when": 1775912460856,
       "tag": "0033_funny_smiling_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1775942315061,
+      "tag": "0034_hot_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

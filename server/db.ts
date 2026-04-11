@@ -1,4 +1,4 @@
-import { desc, eq, and, lte, sql } from "drizzle-orm";
+import { desc, eq, and, lte, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertClientOnboarding, InsertSavedPrompt, InsertStrategyCallLead, InsertUser,
@@ -1283,4 +1283,51 @@ export async function getReviewRequestCountByClient(
     map.set(row.clientId, Number(row.count));
   }
   return map;
+}
+
+// ── Staff Sessions ─────────────────────────────────────────────────────────────
+import {
+  staffSessions,
+  type StaffSession,
+  type InsertStaffSession,
+} from "../drizzle/schema";
+
+export async function createStaffSession(data: InsertStaffSession): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(staffSessions).values(data);
+  return { insertId: Number((result as unknown as [{ insertId: number }])[0].insertId) };
+}
+
+export async function getStaffSessionByToken(token: string): Promise<StaffSession | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(staffSessions)
+    .where(and(eq(staffSessions.token, token), gte(staffSessions.expiresAt, new Date())))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function deleteStaffSession(token: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(staffSessions).where(eq(staffSessions.token, token));
+}
+
+export async function listScheduleEntriesForStaffWeek(
+  staffId: number,
+  clientId: number,
+  weekStart: Date,
+  weekEnd: Date,
+): Promise<JobScheduleEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobSchedule)
+    .where(and(
+      eq(jobSchedule.staffId, staffId),
+      eq(jobSchedule.clientId, clientId),
+      gte(jobSchedule.startTime, weekStart),
+      lte(jobSchedule.startTime, weekEnd),
+    ))
+    .orderBy(jobSchedule.startTime);
 }

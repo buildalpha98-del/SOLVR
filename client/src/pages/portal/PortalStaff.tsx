@@ -17,7 +17,7 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users } from "lucide-react";
+import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -56,6 +56,9 @@ export default function PortalStaff() {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [form, setForm] = useState<StaffFormData>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const [pinTarget, setPinTarget] = useState<StaffMember | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
 
   const createMutation = trpc.portal.createStaff.useMutation({
     onSuccess: () => {
@@ -73,6 +76,16 @@ export default function PortalStaff() {
       setEditingStaff(null);
       setForm(emptyForm);
       toast.success("Staff member updated.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const setPinMutation = trpc.portal.setStaffPin.useMutation({
+    onSuccess: () => {
+      setPinTarget(null);
+      setPinValue("");
+      setPinConfirm("");
+      toast.success("PIN set successfully.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -226,6 +239,14 @@ export default function PortalStaff() {
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
+                    onClick={() => { setPinTarget(member); setPinValue(""); setPinConfirm(""); }}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ color: "rgba(245,166,35,0.6)" }}
+                    title="Set Staff PIN"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => openEdit(member)}
                     className="p-2 rounded-lg transition-colors"
                     style={{ color: "rgba(255,255,255,0.4)" }}
@@ -325,6 +346,67 @@ export default function PortalStaff() {
               className="font-semibold"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingStaff ? "Save Changes" : "Add Staff Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set PIN Dialog */}
+      <Dialog open={!!pinTarget} onOpenChange={(open) => { if (!open) { setPinTarget(null); setPinValue(""); setPinConfirm(""); } }}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }}>
+              Set PIN — {pinTarget?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Staff use this PIN to log in at <span className="text-amber-400 font-mono text-xs">solvr.com.au/staff?c={/* clientId */}</span>.
+              Use 4–8 digits.
+            </p>
+            <div>
+              <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>New PIN</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinValue}
+                onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ""))}
+                placeholder="e.g. 1234"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Confirm PIN</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinConfirm}
+                onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, ""))}
+                placeholder="Re-enter PIN"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+              />
+            </div>
+            {pinValue && pinConfirm && pinValue !== pinConfirm && (
+              <p className="text-red-400 text-xs">PINs don't match.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setPinTarget(null); setPinValue(""); setPinConfirm(""); }}
+              style={{ color: "rgba(255,255,255,0.5)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => pinTarget && setPinMutation.mutate({ id: pinTarget.id, pin: pinValue })}
+              disabled={!pinValue || pinValue.length < 4 || pinValue !== pinConfirm || setPinMutation.isPending}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              {setPinMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Set PIN"}
             </Button>
           </DialogFooter>
         </DialogContent>

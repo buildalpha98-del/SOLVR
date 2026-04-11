@@ -69,6 +69,12 @@ import PortalSchedule from "./pages/portal/PortalSchedule";
 import PortalStaffCheckIn from "./pages/portal/PortalStaffCheckIn";
 import PortalReviews from "./pages/portal/PortalReviews";
 
+// ── Staff Portal (PIN auth) ──────────────────────────────────────────────
+import StaffLogin from "./pages/staff/StaffLogin";
+import StaffToday from "./pages/staff/StaffToday";
+import StaffRoster from "./pages/staff/StaffRoster";
+import StaffCheckin from "./pages/staff/StaffCheckin";
+
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
 
@@ -157,6 +163,12 @@ function Router() {
       <Route path="/portal/schedule" component={PortalSchedule} />
       <Route path="/portal/checkin" component={PortalStaffCheckIn} />
       <Route path="/portal/reviews" component={PortalReviews} />
+
+      {/* ── Staff Portal (PIN auth) ─────────────────────────────────────── */}
+      <Route path="/staff" component={StaffLogin} />
+      <Route path="/staff/today" component={StaffToday} />
+      <Route path="/staff/roster" component={StaffRoster} />
+      <Route path="/staff/checkin" component={StaffCheckin} />
 
       {/* ── Public quote acceptance page ──────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />
