@@ -725,8 +725,12 @@ const crmRouter = router({
       return c.stage === "paused" || (c.healthScore !== null && c.healthScore !== undefined && c.healthScore < 40);
     });
     const totalMrr = active.reduce((s, c) => s + (c.mrr || 0), 0);
-    const starterMrr = active.filter(c => (c.mrr || 0) <= 200).reduce((s, c) => s + (c.mrr || 0), 0);
-    const professionalMrr = active.filter(c => (c.mrr || 0) > 200).reduce((s, c) => s + (c.mrr || 0), 0);
+    const starterClients = active.filter(c => (c.mrr || 0) <= 200);
+    const professionalClients = active.filter(c => (c.mrr || 0) > 200);
+    const starterMrr = starterClients.reduce((s, c) => s + (c.mrr || 0), 0);
+    const professionalMrr = professionalClients.reduce((s, c) => s + (c.mrr || 0), 0);
+    const starterCount = starterClients.length;
+    const professionalCount = professionalClients.length;
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     const churnedThisMonth = churned.filter(c => new Date(c.updatedAt) > monthAgo).length;
@@ -738,6 +742,8 @@ const crmRouter = router({
       arr,
       starterMrr,
       professionalMrr,
+      starterCount,
+      professionalCount,
       activeClients: active.length,
       onboardingClients: onboarding.length,
       churnRiskClients: churnRisk.length,

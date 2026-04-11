@@ -211,3 +211,13 @@
 - [x] weeklySummaryEmail.ts cron — Friday 4pm AEST, respects notifyEmailWeeklySummary opt-out
 - [x] Register cron in server/_core/index.ts
 - [x] Vitest tests for weekly summary cron (12 tests)
+
+## Payment Details, Completion Report & Reporting Chart (Apr 2026)
+- [x] Add payment details fields to clientProfiles schema (bsb, accountNumber, accountName, bankName) + db:push
+- [x] portal.getPaymentDetails + portal.updatePaymentDetails tRPC procedures
+- [x] Payment Details section in PortalSettings UI
+- [x] Wire bank details into invoice PDF footer
+- [x] CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
+- [x] generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
+- [x] Generate Report button in PortalJobDetail completion section
+- [ ] Subscriber plan split doughnut chart in ConsoleReporting (Starter vs Professional counts)

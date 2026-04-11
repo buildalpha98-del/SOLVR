@@ -3,12 +3,13 @@
  * Single-view for MRR, ARR, plan breakdown, churn risk, and outstanding invoices.
  * Uses data from crm.getReportingStats, crm.getMrrHistory, and adminInvoiceChasing.stats.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, LineChart, Line, Legend,
+  PieChart, Pie, Label as RechartsLabel,
 } from "recharts";
 import {
   TrendingUp, Users, AlertTriangle, DollarSign,
@@ -79,13 +80,17 @@ export default function ConsoleReporting() {
     staleTime: 2 * 60 * 1000,
   });
 
+  const [planTab, setPlanTab] = useState<"subscribers" | "mrr">("subscribers");
+
   const planBreakdown = useMemo(() => {
     if (!stats) return [];
     return [
-      { name: "Starter", mrr: stats.starterMrr },
-      { name: "Professional", mrr: stats.professionalMrr },
-    ].filter(p => p.mrr > 0);
+      { name: "Starter", mrr: stats.starterMrr, count: (stats as any).starterCount ?? 0 },
+      { name: "Professional", mrr: stats.professionalMrr, count: (stats as any).professionalCount ?? 0 },
+    ].filter(p => p.mrr > 0 || p.count > 0);
   }, [stats]);
+
+  const totalSubscribers = planBreakdown.reduce((s, p) => s + p.count, 0);
 
   const isLoading = statsLoading || mrrLoading || invoiceLoading;
 
@@ -184,14 +189,84 @@ export default function ConsoleReporting() {
             className="rounded-xl p-5"
             style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
           >
-            <h2 className="text-sm font-semibold text-white mb-4">MRR by Plan</h2>
+            {/* Header + tab toggle */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">Plan Breakdown</h2>
+              <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.1)" }}>
+                {(["subscribers", "mrr"] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setPlanTab(tab)}
+                    className="px-3 py-1 text-xs font-medium"
+                    style={{
+                      background: planTab === tab ? "#F5A623" : "transparent",
+                      color: planTab === tab ? "#0F1F3D" : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {tab === "subscribers" ? "Subs" : "MRR"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {planBreakdown.length === 0 ? (
               <div className="flex items-center justify-center h-48">
                 <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
                   No active subscribers yet.
                 </p>
               </div>
+            ) : planTab === "subscribers" ? (
+              /* Subscriber count doughnut */
+              <>
+                <div style={{ height: 160 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={planBreakdown}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={46}
+                        outerRadius={70}
+                        paddingAngle={3}
+                        strokeWidth={0}
+                      >
+                        {planBreakdown.map((_, i) => (
+                          <Cell key={i} fill={PLAN_COLORS[i % PLAN_COLORS.length]} />
+                        ))}
+                        <RechartsLabel
+                          value={totalSubscribers}
+                          position="center"
+                          style={{ fontSize: 22, fontWeight: 700, fill: "#fff" }}
+                        />
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8 }}
+                        formatter={(v: number, name: string) => [`${v} subscriber${v !== 1 ? "s" : ""}`, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {planBreakdown.map((p, i) => (
+                    <div key={p.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: PLAN_COLORS[i % PLAN_COLORS.length] }} />
+                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{p.name}</span>
+                      </div>
+                      <span className="text-xs font-semibold text-white">
+                        {p.count} sub{p.count !== 1 ? "s" : ""}
+                        <span className="ml-1 font-normal" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          ({totalSubscribers > 0 ? Math.round((p.count / totalSubscribers) * 100) : 0}%)
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
+              /* MRR bar chart */
               <>
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={planBreakdown} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
