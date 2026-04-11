@@ -457,6 +457,7 @@ import {
   portalJobs, PortalJob, InsertPortalJob,
   portalCalendarEvents, PortalCalendarEvent, InsertPortalCalendarEvent,
 } from "../drizzle/schema";
+import { quotes as quotesTable } from "../drizzle/schema";
 
 // ─ Sessions ──────────────────────────────────────────────────────────────────
 export async function createPortalSession(data: InsertPortalSession): Promise<void> {
@@ -505,6 +506,31 @@ export async function listPortalJobs(clientId: number): Promise<PortalJob[]> {
   return db.select().from(portalJobs)
     .where(eq(portalJobs.clientId, clientId))
     .orderBy(desc(portalJobs.createdAt));
+}
+
+export type PortalJobWithQuote = PortalJob & {
+  sourceQuoteNumber: string | null;
+  sourceQuoteStatus: string | null;
+};
+
+export async function listPortalJobsWithQuote(clientId: number): Promise<PortalJobWithQuote[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select({
+      job: portalJobs,
+      quoteNumber: quotesTable.quoteNumber,
+      quoteStatus: quotesTable.status,
+    })
+    .from(portalJobs)
+    .leftJoin(quotesTable, eq(portalJobs.sourceQuoteId, quotesTable.id))
+    .where(eq(portalJobs.clientId, clientId))
+    .orderBy(desc(portalJobs.createdAt));
+  return rows.map(r => ({
+    ...r.job,
+    sourceQuoteNumber: r.quoteNumber ?? null,
+    sourceQuoteStatus: r.quoteStatus ?? null,
+  }));
 }
 
 export async function getPortalJob(id: number): Promise<PortalJob | null> {

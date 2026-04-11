@@ -27,6 +27,7 @@ import {
   createPortalSession,
   updatePortalSession,
   listPortalJobs,
+  listPortalJobsWithQuote,
   getPortalJob,
   createPortalJob,
   updatePortalJob,
@@ -492,7 +493,7 @@ export const portalRouter = router({
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
-      return listPortalJobs(client.id);
+      return listPortalJobsWithQuote(client.id);
     }),
 
   /**

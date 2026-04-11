@@ -45,10 +45,30 @@ const PRIMARY_TAB_KEYS = ["dashboard", "calls", "jobs", "quotes"];
 
 function BottomTabBar({ features, currentTab }: { features: string[]; currentTab: string }) {
   const [showMore, setShowMore] = useState(false);
+  // Swipe-to-close state
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+  const [dragDeltaY, setDragDeltaY] = useState(0);
 
   // Resolve which tabs to show in the bar (up to 4 primary + More)
   const primaryTabs = ALL_TABS.filter((t) => PRIMARY_TAB_KEYS.includes(t.key));
   const overflowTabs = ALL_TABS.filter((t) => !PRIMARY_TAB_KEYS.includes(t.key));
+
+  function handleDragStart(clientY: number) {
+    setDragStartY(clientY);
+    setDragDeltaY(0);
+  }
+
+  function handleDragMove(clientY: number) {
+    if (dragStartY === null) return;
+    const delta = clientY - dragStartY;
+    if (delta > 0) setDragDeltaY(delta); // only allow dragging down
+  }
+
+  function handleDragEnd() {
+    if (dragDeltaY > 60) setShowMore(false); // swipe down 60px+ closes
+    setDragStartY(null);
+    setDragDeltaY(0);
+  }
 
   return (
     <>
@@ -62,7 +82,7 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
               className="flex-1"
             >
               <span
-                className="flex flex-col items-center justify-center gap-0.5 h-full w-full text-[10px] font-medium transition-colors"
+                className="flex flex-col items-center justify-center gap-0.5 h-full w-full text-[10px] font-medium transition-colors relative"
                 style={{ color: isActive ? "#F5A623" : unlocked ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)" }}
               >
                 {/* Icon — scale up slightly for touch targets */}
@@ -70,6 +90,13 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
                   {unlocked ? tab.icon : <Lock className="w-5 h-5" />}
                 </span>
                 {tab.label}
+                {/* Active indicator dot */}
+                {isActive && (
+                  <span
+                    className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                    style={{ background: "#F5A623" }}
+                  />
+                )}
               </span>
             </Link>
           );
@@ -94,11 +121,30 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
             style={{ background: "rgba(0,0,0,0.55)" }}
             onClick={() => setShowMore(false)}
           />
-          {/* Drawer */}
+          {/* Drawer — supports swipe-down to close */}
           <div
             className="fixed bottom-[60px] left-0 right-0 z-50 border-t rounded-t-2xl px-4 py-4 space-y-1"
-            style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.10)" }}
+            style={{
+              background: "#0F1F3D",
+              borderColor: "rgba(255,255,255,0.10)",
+              transform: dragDeltaY > 0 ? `translateY(${dragDeltaY}px)` : undefined,
+              transition: dragStartY === null ? "transform 0.2s ease" : "none",
+            }}
+            onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+            onTouchMove={(e) => handleDragMove(e.touches[0].clientY)}
+            onTouchEnd={handleDragEnd}
+            onMouseDown={(e) => handleDragStart(e.clientY)}
+            onMouseMove={(e) => dragStartY !== null && handleDragMove(e.clientY)}
+            onMouseUp={handleDragEnd}
+            onMouseLeave={handleDragEnd}
           >
+            {/* Drag handle */}
+            <div className="flex justify-center mb-3 -mt-1">
+              <div
+                className="w-10 h-1 rounded-full"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+              />
+            </div>
             <p className="text-[11px] uppercase tracking-widest font-semibold mb-3" style={{ color: "rgba(255,255,255,0.3)" }}>More</p>
             {overflowTabs.map((tab) => {
               const unlocked = features.includes(tab.feature);

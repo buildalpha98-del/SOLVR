@@ -18,6 +18,7 @@ import VoiceAgent from "./pages/VoiceAgent";
 import VoiceAgentSuccess from "./pages/VoiceAgentSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import Support from "./pages/Support";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/voice-agent/success" component={VoiceAgentSuccess} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/support" component={Support} />
 
       {/* ── Voice agent demo (shareable with prospects) ───────────────────── */}
       <Route path="/demo" component={Demo} />
