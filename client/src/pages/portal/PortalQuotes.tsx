@@ -133,6 +133,41 @@ export default function PortalQuotes() {
     }
   }, []);
 
+  // Handle ?prefill=1 from JobCard — pre-populate the manual form and auto-open the modal
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("prefill") !== "1") return;
+
+    const name    = params.get("name")    ?? "";
+    const phone   = params.get("phone")   ?? "";
+    const address = params.get("address") ?? "";
+    const jobType = params.get("jobType") ?? "";
+
+    // Pre-fill the manual form with call data
+    setManualForm((f) => ({
+      ...f,
+      customerName:    name,
+      customerPhone:   phone,
+      customerAddress: address,
+      jobTitle:        jobType ? `${jobType} Quote` : f.jobTitle,
+    }));
+
+    // Auto-open the modal in manual mode
+    setShowNewModal(true);
+    setNewMode("manual");
+
+    // Show a toast so the tradie knows the form was pre-filled
+    if (name || phone || address) {
+      toast.success("Quote pre-filled from your last call.", { duration: 4000 });
+    }
+
+    // Clean up the URL params
+    const url = new URL(window.location.href);
+    ["prefill", "name", "phone", "address", "jobType"].forEach((k) => url.searchParams.delete(k));
+    window.history.replaceState({}, "", url.toString());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Data
   const { data: quotes, isLoading, error: quotesError } = trpc.quotes.list.useQuery(undefined, {
     retry: false,

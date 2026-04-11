@@ -140,8 +140,16 @@ export function JobCard({ booking, businessName = "Jake's Plumbing", ownerName =
         </p>
       </div>
 
-      {/* Create Quote CTA — links the two products together */}
-      <Link href="/portal/quotes">
+      {/* Create Quote CTA — passes booking data as URL params to pre-fill the quote form */}
+      <Link
+        href={`/portal/quotes?${new URLSearchParams({
+          ...(booking.callerName ? { name: booking.callerName } : {}),
+          ...(booking.phone ? { phone: booking.phone } : {}),
+          ...(booking.address ? { address: booking.address } : {}),
+          ...(booking.jobType ? { jobType: booking.jobType } : {}),
+          prefill: "1",
+        }).toString()}`}
+      >
         <a className="mt-3 flex items-center justify-between gap-3 border border-[#F5A623]/30 rounded-lg bg-[#F5A623]/10 px-4 py-3 hover:bg-[#F5A623]/20 transition-colors group">
           <div className="flex items-center gap-2.5">
             <FileText size={14} className="text-[#F5A623] flex-shrink-0" />

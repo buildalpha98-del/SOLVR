@@ -374,6 +374,15 @@ export default function PortalDashboard() {
                     No insight available yet — your AI receptionist needs a few calls to generate meaningful analysis.
                   </p>
                 )}
+                {/* Shortcut to full AI Insights page */}
+                <div className="mt-4 pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                  <Link href="/portal/insights">
+                    <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
+                      <Sparkles className="w-3 h-3" />
+                      Open AI Insights <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </Link>
+                </div>
               </div>
             ) : (
               <div
