@@ -392,7 +392,12 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
       {/* ── Mobile bottom tab bar (hidden on md+) ───────────────────────── */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t"
-        style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.10)" }}
+        style={{
+          background: "#0F1F3D",
+          borderColor: "rgba(255,255,255,0.10)",
+          // Clear the iPhone home indicator on notched devices
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}
       >
         {/* Show the 4 most important unlocked tabs + a More option */}
         <BottomTabBar features={features} currentTab={currentTab} />
