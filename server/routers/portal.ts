@@ -1228,4 +1228,58 @@ export const portalRouter = router({
       });
       return { url: session.url };
     }),
+
+  /**
+   * requestDeletion — sends a data deletion request email to Solvr support
+   * and a confirmation to the client. Satisfies Apple App Store data deletion requirement.
+   */
+  requestDeletion: publicProcedure
+    .mutation(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+
+      const clientName = client.contactName || "Unknown";
+      const clientEmail = client.contactEmail || "Unknown";
+      const businessName = client.businessName || "Unknown";
+      const requestedAt = new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" });
+
+      // Notify Solvr support
+      await sendEmail({
+        to: "hello@solvr.com.au",
+        subject: `Data Deletion Request — ${businessName} (${clientEmail})`,
+        html: `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px;">
+            <h2 style="color:#0F1F3D;">Data Deletion Request</h2>
+            <p>A portal client has requested deletion of their account and all associated data.</p>
+            <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Name</td><td style="padding:8px;border:1px solid #e2e8f0;">${clientName}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Email</td><td style="padding:8px;border:1px solid #e2e8f0;">${clientEmail}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Business</td><td style="padding:8px;border:1px solid #e2e8f0;">${businessName}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Client ID</td><td style="padding:8px;border:1px solid #e2e8f0;">${client.id}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:600;">Requested At</td><td style="padding:8px;border:1px solid #e2e8f0;">${requestedAt} AEST</td></tr>
+            </table>
+            <p style="margin-top:16px;color:#718096;font-size:13px;">Please action this request within 30 days in accordance with the Australian Privacy Act 1988. Delete the client record, all call recordings, uploaded files, and associated data from the database and S3.</p>
+          </div>
+        `,
+      });
+
+      // Confirmation email to the client
+      await sendEmail({
+        to: clientEmail,
+        subject: "Your data deletion request has been received — Solvr",
+        html: `
+          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:32px;">
+            <h2 style="color:#0F1F3D;">Data Deletion Request Received</h2>
+            <p>Hi ${clientName},</p>
+            <p>We have received your request to delete your Solvr account and all associated personal data.</p>
+            <p>We will action this within <strong>30 days</strong> in accordance with the Australian Privacy Act 1988. You will receive a confirmation email once the deletion is complete.</p>
+            <p>If you have any questions, contact us at <a href="mailto:hello@solvr.com.au">hello@solvr.com.au</a>.</p>
+            <p style="color:#718096;font-size:13px;">Solvr &middot; ABN 47 262 120 626 &middot; solvr.com.au</p>
+          </div>
+        `,
+      });
+
+      return { success: true };
+    }),
 });

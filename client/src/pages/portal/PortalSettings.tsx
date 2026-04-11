@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard,
+  KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import { toast } from "sonner";
@@ -546,7 +546,81 @@ export default function PortalSettings() {
             </div>
           </form>
         </SectionCard>
+
+        {/* ─── Delete Account ─────────────────────────────────────── */}
+        <DeleteAccountSection />
       </div>
     </PortalLayout>
+  );
+}
+
+// ─── Delete Account Section ──────────────────────────────────────────────────
+function DeleteAccountSection() {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const requestDeletion = trpc.portal.requestDeletion.useMutation({
+    onSuccess: () => {
+      toast.success("Deletion request sent. We will action it within 30 days.");
+      setShowConfirm(false);
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to send deletion request. Please email hello@solvr.com.au.");
+    },
+  });
+
+  return (
+    <SectionCard
+      icon={Trash2}
+      title="Delete My Account"
+      subtitle="Permanently remove your account and all data"
+    >
+      <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
+        Requesting account deletion will permanently remove your business profile, call recordings, uploaded files, and all associated data from Solvr's systems. This action cannot be undone.
+      </p>
+      {!showConfirm ? (
+        <Button
+          variant="outline"
+          className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60 hover:text-red-300 transition-colors"
+          onClick={() => setShowConfirm(true)}
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          Request Account Deletion
+        </Button>
+      ) : (
+        <div className="rounded-lg border border-red-500/30 p-4" style={{ background: "rgba(239,68,68,0.07)" }}>
+          <div className="flex items-start gap-3 mb-4">
+            <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-red-300 mb-1">Are you sure?</p>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                This will send a deletion request to Solvr support. We will email you a confirmation and complete the deletion within 30 days. Your subscription will also need to be cancelled separately via the Billing page.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/20 text-white/60 hover:bg-white/5"
+              onClick={() => setShowConfirm(false)}
+              disabled={requestDeletion.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+              onClick={() => requestDeletion.mutate()}
+              disabled={requestDeletion.isPending}
+            >
+              {requestDeletion.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+              ) : (
+                "Yes, Request Deletion"
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+    </SectionCard>
   );
 }

@@ -286,6 +286,25 @@ export default function PortalLogin() {
             Powered by{" "}
             <a href="https://solvr.com.au" className="hover:text-white/40 transition-colors">Solvr</a>
           </p>
+          <div className="flex justify-center gap-4 mt-3">
+            <a
+              href="https://solvr.com.au/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/20 hover:text-white/40 text-xs transition-colors"
+            >
+              Privacy Policy
+            </a>
+            <span className="text-white/10 text-xs">·</span>
+            <a
+              href="https://solvr.com.au/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/20 hover:text-white/40 text-xs transition-colors"
+            >
+              Terms of Service
+            </a>
+          </div>
         </div>
       </div>
     </div>
