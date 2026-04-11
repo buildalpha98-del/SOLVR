@@ -16,7 +16,7 @@ import { fetchImageBuffer } from "../_core/pdfGeneration";
 import { InvoiceDocument } from "../_core/InvoiceDocument";
 import { CompletionReportDocument } from "../_core/CompletionReportDocument";
 import { getClientProfile } from "../db";
-import { sendGoogleReviewRequest } from "../googleReview";
+import { scheduleGoogleReviewRequest } from "../googleReview";
 import { hasFeature } from "../_core/featureGate";
 import {
   getPortalJob,
@@ -246,8 +246,8 @@ export const portalJobsProcedures = {
         actualValue: input.actualValue,
       } as any);
 
-      // Fire Google review request — non-fatal, never blocks job completion
-      sendGoogleReviewRequest({
+      // Schedule Google review request — non-fatal, never blocks job completion
+      scheduleGoogleReviewRequest({
         clientId: client.id,
         jobId: job.id,
         jobTitle: job.jobType ?? job.description ?? "your recent job",

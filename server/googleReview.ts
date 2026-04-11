@@ -2,16 +2,26 @@
  * Google Review Automation
  *
  * Sends a review request SMS and/or email to the customer after a job is
- * marked complete. Fires non-fatally — job completion is never blocked.
+ * marked complete. Supports a configurable delay (reviewRequestDelayMinutes)
+ * so the message arrives after the tradie has left, not mid-conversation.
+ *
+ * Flow:
+ *   1. markJobComplete calls scheduleGoogleReviewRequest()
+ *   2. If delay > 0 → inserts a "pending" row with scheduledSendAt = now + delay
+ *   3. Cron (every 5 min) calls processScheduledReviewRequests() to fire due requests
+ *   4. If delay = 0 → sends immediately (legacy behaviour)
  *
  * Trigger: markJobComplete (portalJobs router)
- * Config:  clientProfiles.googleReviewLink + reviewRequestEnabled
+ * Cron:    processPendingReviews (registered in server/_core/index.ts)
+ * Config:  clientProfiles.googleReviewLink + reviewRequestEnabled + reviewRequestDelayMinutes
  */
 import { sendSms } from "./lib/sms";
 import { sendEmail } from "./_core/email";
 import {
   getOrCreateClientProfile,
   insertReviewRequest,
+  listPendingReviewRequests,
+  updateReviewRequestStatus,
 } from "./db";
 
 export interface ReviewRequestInput {
@@ -24,27 +34,27 @@ export interface ReviewRequestInput {
   businessName: string;
 }
 
+// ─── Schedule (or immediately send) a review request ─────────────────────────
+
 /**
- * Attempt to send a Google review request via SMS and/or email.
- * Returns silently on failure — never throws.
+ * Called by markJobComplete. Reads the client's delay setting:
+ * - delay > 0  → inserts a "pending" row; cron will send it later
+ * - delay = 0  → sends immediately (same as before)
+ * Never throws.
  */
-export async function sendGoogleReviewRequest(input: ReviewRequestInput): Promise<void> {
+export async function scheduleGoogleReviewRequest(input: ReviewRequestInput): Promise<void> {
   try {
     const profile = await getOrCreateClientProfile(input.clientId);
 
-    // Check if feature is enabled and review link is configured
     if (!profile.reviewRequestEnabled) {
       console.log(`[ReviewRequest] Disabled for client ${input.clientId} — skipping`);
       return;
     }
     if (!profile.googleReviewLink) {
-      console.log(`[ReviewRequest] No Google review link configured for client ${input.clientId} — skipping`);
+      console.log(`[ReviewRequest] No review link for client ${input.clientId} — skipping`);
       return;
     }
 
-    const reviewLink = profile.googleReviewLink;
-    const businessName = profile.tradingName ?? input.businessName;
-    const customerName = input.customerName ?? "there";
     const hasPhone = !!input.customerPhone;
     const hasEmail = !!input.customerEmail;
 
@@ -64,16 +74,122 @@ export async function sendGoogleReviewRequest(input: ReviewRequestInput): Promis
     }
 
     const channel = hasPhone && hasEmail ? "both" : hasPhone ? "sms" : "email";
-    let smsSent = false;
-    let emailSent = false;
-    const errors: string[] = [];
+    const delayMinutes = profile.reviewRequestDelayMinutes ?? 30;
 
-    // ── SMS ────────────────────────────────────────────────────────────────────
-    if (hasPhone) {
+    if (delayMinutes > 0) {
+      // Store as pending — cron will fire it
+      const scheduledSendAt = new Date(Date.now() + delayMinutes * 60 * 1000);
+      await insertReviewRequest({
+        clientId: input.clientId,
+        jobId: input.jobId,
+        customerName: input.customerName ?? null,
+        customerPhone: input.customerPhone ?? null,
+        customerEmail: input.customerEmail ?? null,
+        channel,
+        status: "pending",
+        scheduledSendAt,
+        errorMessage: null,
+      });
+      console.log(
+        `[ReviewRequest] Scheduled for job ${input.jobId} — sends at ${scheduledSendAt.toISOString()} (${delayMinutes} min delay)`,
+      );
+    } else {
+      // Delay = 0 → send immediately
+      await dispatchReviewRequest({
+        clientId: input.clientId,
+        jobId: input.jobId,
+        jobTitle: input.jobTitle,
+        customerName: input.customerName ?? null,
+        customerPhone: input.customerPhone ?? null,
+        customerEmail: input.customerEmail ?? null,
+        businessName: profile.tradingName ?? input.businessName,
+        reviewLink: profile.googleReviewLink,
+        channel,
+      });
+    }
+  } catch (err) {
+    console.error(`[ReviewRequest] Unexpected error scheduling job ${input.jobId}:`, err);
+  }
+}
+
+// ─── Cron: process all due pending requests ───────────────────────────────────
+
+/**
+ * Called every 5 minutes by the cron job.
+ * Finds all pending requests whose scheduledSendAt <= now and sends them.
+ */
+export async function processScheduledReviewRequests(): Promise<void> {
+  let pending;
+  try {
+    pending = await listPendingReviewRequests();
+  } catch (err) {
+    console.error("[ReviewRequest] Failed to fetch pending requests:", err);
+    return;
+  }
+
+  if (pending.length === 0) return;
+  console.log(`[ReviewRequest] Processing ${pending.length} scheduled request(s)`);
+
+  for (const req of pending) {
+    try {
+      // We need the profile to get the review link and business name
+      const profile = await getOrCreateClientProfile(req.clientId);
+
+      if (!profile.googleReviewLink) {
+        await updateReviewRequestStatus(req.id, "skipped", "Review link removed after scheduling");
+        continue;
+      }
+
+      await dispatchReviewRequest({
+        clientId: req.clientId,
+        jobId: req.jobId ?? 0,
+        jobTitle: "your recent job",
+        customerName: req.customerName,
+        customerPhone: req.customerPhone,
+        customerEmail: req.customerEmail,
+        businessName: profile.tradingName ?? "your tradie",
+        reviewLink: profile.googleReviewLink,
+        channel: req.channel,
+        existingRequestId: req.id,
+      });
+    } catch (err) {
+      console.error(`[ReviewRequest] Error processing request ${req.id}:`, err);
+      try {
+        await updateReviewRequestStatus(req.id, "failed", String(err));
+      } catch (_) { /* ignore */ }
+    }
+  }
+}
+
+// ─── Core dispatch logic ──────────────────────────────────────────────────────
+
+interface DispatchInput {
+  clientId: number;
+  jobId: number;
+  jobTitle: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  businessName: string;
+  reviewLink: string;
+  channel: "sms" | "email" | "both";
+  /** If provided, update this existing row instead of inserting a new one */
+  existingRequestId?: number;
+}
+
+async function dispatchReviewRequest(input: DispatchInput): Promise<void> {
+  const customerName = input.customerName ?? "there";
+  const errors: string[] = [];
+  let smsSent = false;
+  let emailSent = false;
+
+  // ── SMS ──────────────────────────────────────────────────────────────────────
+  if (input.channel === "sms" || input.channel === "both") {
+    if (input.customerPhone) {
       const smsBody =
-        `Hi ${customerName}, thanks for choosing ${businessName}! ` +
-        `We'd love a Google review — it takes 30 seconds and helps us a lot: ${reviewLink}`;
-      const smsResult = await sendSms({ to: input.customerPhone!, body: smsBody });
+        `Hi ${customerName}, thanks for choosing ${input.businessName}! ` +
+        `We'd love a Google review — it takes 30 seconds and helps us a lot: ${input.reviewLink}`;
+      const smsResult = await sendSms({ to: input.customerPhone, body: smsBody });
       if (smsResult.success) {
         smsSent = true;
         console.log(`[ReviewRequest] SMS sent to ${input.customerPhone} for job ${input.jobId}`);
@@ -82,18 +198,20 @@ export async function sendGoogleReviewRequest(input: ReviewRequestInput): Promis
         console.warn(`[ReviewRequest] SMS failed for job ${input.jobId}: ${smsResult.error}`);
       }
     }
+  }
 
-    // ── Email ──────────────────────────────────────────────────────────────────
-    if (hasEmail) {
+  // ── Email ────────────────────────────────────────────────────────────────────
+  if (input.channel === "email" || input.channel === "both") {
+    if (input.customerEmail) {
       const emailHtml = buildReviewEmailHtml({
         customerName,
-        businessName,
+        businessName: input.businessName,
         jobTitle: input.jobTitle,
-        reviewLink,
+        reviewLink: input.reviewLink,
       });
       const emailResult = await sendEmail({
-        to: input.customerEmail!,
-        subject: `How did we do? — ${businessName}`,
+        to: input.customerEmail,
+        subject: `How did we do? — ${input.businessName}`,
         html: emailHtml,
       });
       if (emailResult.success) {
@@ -104,22 +222,27 @@ export async function sendGoogleReviewRequest(input: ReviewRequestInput): Promis
         console.warn(`[ReviewRequest] Email failed for job ${input.jobId}: ${emailResult.error}`);
       }
     }
+  }
 
-    // ── Log the attempt ────────────────────────────────────────────────────────
-    const anySent = smsSent || emailSent;
+  const anySent = smsSent || emailSent;
+  const finalStatus = anySent ? "sent" : "failed";
+  const errorMessage = errors.length > 0 ? errors.join("; ") : null;
+
+  if (input.existingRequestId) {
+    // Update the existing pending row
+    await updateReviewRequestStatus(input.existingRequestId, finalStatus, errorMessage ?? undefined);
+  } else {
+    // Insert a new row (immediate send path)
     await insertReviewRequest({
       clientId: input.clientId,
       jobId: input.jobId,
-      customerName: input.customerName ?? null,
-      customerPhone: input.customerPhone ?? null,
-      customerEmail: input.customerEmail ?? null,
-      channel,
-      status: anySent ? "sent" : "failed",
-      errorMessage: errors.length > 0 ? errors.join("; ") : null,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      customerEmail: input.customerEmail,
+      channel: input.channel,
+      status: finalStatus,
+      errorMessage,
     });
-  } catch (err) {
-    // Non-fatal — log but never throw
-    console.error(`[ReviewRequest] Unexpected error for job ${input.jobId}:`, err);
   }
 }
 

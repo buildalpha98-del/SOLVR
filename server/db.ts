@@ -1,4 +1,4 @@
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertClientOnboarding, InsertSavedPrompt, InsertStrategyCallLead, InsertUser,
@@ -1234,4 +1234,53 @@ export async function getReviewRequestStatsAllClients(): Promise<{ totalSentThis
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const totalSentThisMonth = all.filter(r => r.sentAt >= startOfMonth).length;
   return { totalSentThisMonth, totalSentAllTime: all.length };
+}
+
+export async function listPendingReviewRequests(): Promise<GoogleReviewRequest[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const now = new Date();
+  return db.select().from(googleReviewRequests)
+    .where(and(
+      eq(googleReviewRequests.status, "pending"),
+      lte(googleReviewRequests.scheduledSendAt, now),
+    ))
+    .orderBy(googleReviewRequests.scheduledSendAt);
+}
+
+export async function updateReviewRequestStatus(
+  id: number,
+  status: "sent" | "failed" | "skipped",
+  errorMessage?: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(googleReviewRequests)
+    .set({
+      status,
+      sentAt: new Date(),
+      errorMessage: errorMessage ?? null,
+    })
+    .where(eq(googleReviewRequests.id, id));
+}
+
+export async function getReviewRequestCountByClient(
+  clientIds: number[],
+): Promise<Map<number, number>> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (clientIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      clientId: googleReviewRequests.clientId,
+      count: sql<number>`count(*)`.as("count"),
+    })
+    .from(googleReviewRequests)
+    .where(eq(googleReviewRequests.status, "sent"))
+    .groupBy(googleReviewRequests.clientId);
+  const map = new Map<number, number>();
+  for (const row of rows) {
+    map.set(row.clientId, Number(row.count));
+  }
+  return map;
 }

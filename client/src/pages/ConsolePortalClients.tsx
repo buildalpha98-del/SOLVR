@@ -69,6 +69,7 @@ import {
   AlertTriangle,
   KeyRound,
   FileUser,
+  Star,
 } from "lucide-react";
 
 type Client = {
@@ -92,6 +93,7 @@ type Client = {
     sessionExpiresAt: Date | null;
     portalCreatedAt: Date | null;
   };
+  reviewsSent: number;
 };
 
 const packageLabels: Record<string, string> = {
@@ -233,6 +235,7 @@ export default function ConsolePortalClients() {
             sessionExpiresAt: null,
             portalCreatedAt: new Date(),
           },
+          reviewsSent: 0,
         };
         window.open(buildGmailUrl(tempClient, data.magicLink), "_blank");
         toast.success("Client created — Gmail compose opened.");
@@ -521,19 +524,20 @@ export default function ConsolePortalClients() {
                 <TableHead>Portal Status</TableHead>
                 <TableHead>Last Accessed</TableHead>
                 <TableHead>Email Sent</TableHead>
+                <TableHead>Reviews</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                     Loading clients...
                   </TableCell>
                 </TableRow>
               ) : filteredClients.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                     {searchQuery ? "No clients match your search." : "No active clients found. Add your first client above."}
                   </TableCell>
                 </TableRow>
@@ -581,6 +585,16 @@ export default function ConsolePortalClients() {
                         <Mail className="w-3 h-3" />
                         {formatRelativeTime(client.portal.lastEmailSentAt)}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {client.reviewsSent > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 text-amber-400" />
+                          <span className="text-sm font-medium text-amber-400">{client.reviewsSent}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">

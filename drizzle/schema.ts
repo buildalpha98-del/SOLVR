@@ -1029,6 +1029,8 @@ export const clientProfiles = mysqlTable("client_profiles", {
   googleReviewLink: varchar("googleReviewLink", { length: 512 }),
   /** Whether to auto-send a review request when a job is marked complete */
   reviewRequestEnabled: boolean("reviewRequestEnabled").default(true).notNull(),
+  /** Delay in minutes before the review request is sent after job completion (default 30) */
+  reviewRequestDelayMinutes: int("reviewRequestDelayMinutes").default(30).notNull(),
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -1051,8 +1053,10 @@ export const googleReviewRequests = mysqlTable("google_review_requests", {
   /** sms | email | both */
   channel: mysqlEnum("review_channel", ["sms", "email", "both"]).default("both").notNull(),
   sentAt: timestamp("sentAt").defaultNow().notNull(),
-  /** sent | failed | skipped */
-  status: mysqlEnum("review_status", ["sent", "failed", "skipped"]).default("sent").notNull(),
+  /** pending | sent | failed | skipped */
+  status: mysqlEnum("review_status", ["pending", "sent", "failed", "skipped"]).default("sent").notNull(),
+  /** When the request is scheduled to be sent (null = send immediately) */
+  scheduledSendAt: timestamp("scheduledSendAt"),
   /** Error message if status = failed */
   errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

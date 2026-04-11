@@ -11,13 +11,21 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import {
   Star, RefreshCw, Loader2, CheckCircle2, XCircle, SkipForward,
-  MessageSquare, Mail, Phone, ExternalLink, Settings,
+  MessageSquare, Mail, Phone, ExternalLink, Settings, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: "sent" | "failed" | "skipped" }) {
+function StatusBadge({ status }: { status: "pending" | "sent" | "failed" | "skipped" }) {
+  if (status === "pending") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+        style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)" }}>
+        <Clock className="w-3 h-3" /> Scheduled
+      </span>
+    );
+  }
   if (status === "sent") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"

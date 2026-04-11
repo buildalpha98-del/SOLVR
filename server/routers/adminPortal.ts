@@ -13,7 +13,7 @@ import { z } from "zod";
 import { randomBytes } from "crypto";
 import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb, getOrCreateClientProfile, updateClientProfile, getClientProfile } from "../db";
+import { getDb, getOrCreateClientProfile, updateClientProfile, getClientProfile, getReviewRequestCountByClient } from "../db";
 import {
   crmClients,
   portalSessions,
@@ -124,6 +124,10 @@ export const adminPortalRouter = router({
 
     const sessionMap = new Map(sessions.map((s) => [s.clientId, s]));
 
+    // Fetch review request counts for all active clients
+    const clientIds = clients.map((c) => c.id);
+    const reviewCountMap = await getReviewRequestCountByClient(clientIds);
+
     return clients.map((c) => {
       const session = sessionMap.get(c.id);
       return {
@@ -147,6 +151,7 @@ export const adminPortalRouter = router({
               sessionExpiresAt: null,
               portalCreatedAt: null,
             },
+        reviewsSent: reviewCountMap.get(c.id) ?? 0,
       };
     });
   }),

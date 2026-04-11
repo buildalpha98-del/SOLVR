@@ -232,6 +232,13 @@
       "when": 1775910765156,
       "tag": "0032_fluffy_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1775912460856,
+      "tag": "0033_funny_smiling_tiger",
+      "breakpoints": true
     }
   ]
 }

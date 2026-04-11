@@ -4,14 +4,15 @@
  * Allows the tradie to:
  *  1. Paste their Google Maps review link
  *  2. Enable / disable auto-send after job completion
- *  3. See how many requests have been sent this month
+ *  3. Set the send delay (0 = immediate, up to 120 min)
+ *  4. See how many requests have been sent this month
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Star, Save, Loader2, ExternalLink, ToggleLeft, ToggleRight } from "lucide-react";
+import { Star, Save, Loader2, ExternalLink, ToggleLeft, ToggleRight, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Shared input style (matches rest of PortalSettings) ─────────────────────
@@ -59,6 +60,18 @@ function SectionCard({
   );
 }
 
+// ─── Delay options ────────────────────────────────────────────────────────────
+const DELAY_OPTIONS = [
+  { value: 0, label: "Immediately" },
+  { value: 15, label: "15 minutes after completion" },
+  { value: 30, label: "30 minutes after completion" },
+  { value: 60, label: "1 hour after completion" },
+  { value: 120, label: "2 hours after completion" },
+  { value: 240, label: "4 hours after completion" },
+  { value: 480, label: "8 hours after completion" },
+  { value: 1440, label: "Next day (24 hours)" },
+];
+
 export default function GoogleReviewSection() {
   const settingsQuery = trpc.portal.getGoogleReviewSettings.useQuery();
   const statsQuery = trpc.portal.getReviewRequestStats.useQuery();
@@ -72,12 +85,14 @@ export default function GoogleReviewSection() {
 
   const [reviewLink, setReviewLink] = useState("");
   const [enabled, setEnabled] = useState(true);
+  const [delayMinutes, setDelayMinutes] = useState(30);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (settingsQuery.data && !loaded) {
       setReviewLink(settingsQuery.data.googleReviewLink ?? "");
       setEnabled(settingsQuery.data.reviewRequestEnabled);
+      setDelayMinutes(settingsQuery.data.reviewRequestDelayMinutes ?? 30);
       setLoaded(true);
     }
   }, [settingsQuery.data, loaded]);
@@ -91,6 +106,7 @@ export default function GoogleReviewSection() {
     saveMutation.mutate({
       googleReviewLink: reviewLink || null,
       reviewRequestEnabled: enabled,
+      reviewRequestDelayMinutes: delayMinutes,
     });
   }
 
@@ -172,6 +188,41 @@ export default function GoogleReviewSection() {
             )}
           </button>
         </div>
+
+        {/* Send delay selector */}
+        {enabled && (
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.7)" }}>
+              <Clock className="w-3.5 h-3.5" style={{ color: "#F5A623" }} />
+              Send delay
+            </Label>
+            <select
+              value={delayMinutes}
+              onChange={(e) => setDelayMinutes(Number(e.target.value))}
+              className="w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1"
+              style={{
+                ...inputStyle,
+                appearance: "none",
+                WebkitAppearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 12px center",
+                paddingRight: "36px",
+              }}
+            >
+              {DELAY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} style={{ background: "#1a2e1a", color: "white" }}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              {delayMinutes === 0
+                ? "The review request will be sent the moment you mark a job as complete."
+                : `The review request will be scheduled to send ${DELAY_OPTIONS.find(o => o.value === delayMinutes)?.label.toLowerCase()}, giving you time to finish up with the customer.`}
+            </p>
+          </div>
+        )}
 
         <Button
           type="submit"

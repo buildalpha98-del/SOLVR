@@ -344,3 +344,21 @@
 - [x] Sidebar nav: Reviews entry
 - [x] Console Reporting: review requests widget
 - [x] Tests: 11 vitest tests (all passing)
+
+## Feature 7 Enhancements — Send Delay + Admin Review Count (Apr 11 2026)
+
+- [x] Schema: add reviewRequestDelayMinutes (int, default 30) to clientProfiles
+- [x] Schema: add scheduledSendAt (timestamp, nullable) + "pending" status to googleReviewRequests
+- [x] DB: pnpm db:push migration
+- [x] DB helpers: listPendingReviewRequests, updateReviewRequestStatus, getReviewRequestCountByClient
+- [x] googleReview.ts: refactored to scheduleGoogleReviewRequest (stores pending) + processScheduledReviewRequests (cron dispatch)
+- [x] Cron: reviewRequestDispatch — runs every 5 min, fires due pending requests
+- [x] Portal Settings: delay selector dropdown (0/15/30/60/120/240/480/1440 min options)
+- [x] Portal Settings: delay selector saved via saveGoogleReviewSettings + returned by getGoogleReviewSettings
+- [x] Portal Reviews: "Scheduled" badge for pending status
+- [x] Console Portal Clients: Reviews Sent column with amber star + count
+
+## Bug Fixes (Jayden prompts — Apr 11 2026)
+
+- [ ] Bug: voice-to-quote Zod validation error (String doesn't match expected pattern)
+- [ ] Bug: missing logout button in portal settings + mobile nav

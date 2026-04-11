@@ -99,7 +99,7 @@ import {
   insertReviewRequest,
   getReviewRequestStats,
 } from "../db";
-import { sendGoogleReviewRequest } from "../googleReview";
+import { scheduleGoogleReviewRequest } from "../googleReview";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -2099,6 +2099,7 @@ export const portalRouter = router({
     .input(z.object({
       googleReviewLink: z.string().url().max(512).optional().nullable(),
       reviewRequestEnabled: z.boolean().optional(),
+      reviewRequestDelayMinutes: z.number().int().min(0).max(1440).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
@@ -2107,6 +2108,7 @@ export const portalRouter = router({
       await updateClientProfile(profile.id, {
         googleReviewLink: input.googleReviewLink ?? null,
         reviewRequestEnabled: input.reviewRequestEnabled ?? true,
+        reviewRequestDelayMinutes: input.reviewRequestDelayMinutes ?? 30,
       });
       return { success: true };
     }),
@@ -2122,6 +2124,7 @@ export const portalRouter = router({
       return {
         googleReviewLink: profile.googleReviewLink ?? "",
         reviewRequestEnabled: profile.reviewRequestEnabled,
+        reviewRequestDelayMinutes: profile.reviewRequestDelayMinutes ?? 30,
       };
     }),
 
@@ -2161,8 +2164,8 @@ export const portalRouter = router({
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
       }
-      // Fire non-fatally
-      sendGoogleReviewRequest({
+      // Resend immediately (delay = 0 override handled by scheduleGoogleReviewRequest)
+      scheduleGoogleReviewRequest({
         clientId: client.id,
         jobId: job.id,
         jobTitle: job.jobType ?? job.description ?? "your recent job",
