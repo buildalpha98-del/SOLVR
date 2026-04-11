@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import {
   TrendingUp, Users, AlertTriangle, DollarSign,
-  ArrowUpRight, ArrowDownRight, Loader2, Receipt,
+  ArrowUpRight, ArrowDownRight, Loader2, Receipt, Target,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -112,11 +112,81 @@ export default function ConsoleReporting() {
       <div className="space-y-6 pb-12">
 
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-white">Reporting Dashboard</h1>
-          <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Revenue, subscribers, churn risk, and invoice recovery — all in one view.
-          </p>
+        <div className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Reporting Dashboard</h1>
+            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Revenue, subscribers, churn risk, and invoice recovery — all in one view.
+            </p>
+          </div>
+
+          {/* Path to 10 clients milestone tracker */}
+          {(() => {
+            const MILESTONE = 10;
+            const current = stats?.activeClients ?? 0;
+            const pct = Math.min(100, Math.round((current / MILESTONE) * 100));
+            const remaining = Math.max(0, MILESTONE - current);
+            const milestoneReached = current >= MILESTONE;
+            return (
+              <div
+                className="rounded-xl p-4"
+                style={{
+                  background: milestoneReached
+                    ? "rgba(34,197,94,0.08)"
+                    : "rgba(245,166,35,0.06)",
+                  border: `1px solid ${
+                    milestoneReached ? "rgba(34,197,94,0.25)" : "rgba(245,166,35,0.18)"
+                  }`,
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Target
+                      className="w-4 h-4"
+                      style={{ color: milestoneReached ? "#22c55e" : "#F5A623" }}
+                    />
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: milestoneReached ? "#22c55e" : "#F5A623" }}
+                    >
+                      Path to 10 Clients
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    {current} / {MILESTONE}
+                    {milestoneReached && (
+                      <span className="ml-2" style={{ color: "#22c55e" }}>🎉 Milestone reached!</span>
+                    )}
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div
+                  className="w-full rounded-full overflow-hidden"
+                  style={{ height: 8, background: "rgba(255,255,255,0.08)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${pct}%`,
+                      background: milestoneReached
+                        ? "#22c55e"
+                        : `linear-gradient(90deg, #F5A623 0%, #f97316 100%)`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    {pct}% complete
+                  </span>
+                  {!milestoneReached && (
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      {remaining} client{remaining !== 1 ? "s" : ""} to go
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Top KPI row */}

@@ -221,3 +221,8 @@
 - [x] generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
 - [x] Generate Report button in PortalJobDetail completion section
 - [ ] Subscriber plan split doughnut chart in ConsoleReporting (Starter vs Professional counts)
+
+## Milestone Tracker + Referral Page (Apr 2026)
+- [ ] "Path to 10 clients" milestone progress bar in Console Reporting header
+- [ ] Portal referral page at /portal/referral — unique link, referred count, reward status
+- [ ] Add Referral nav item to portal More drawer

@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
-  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users
+  Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -176,6 +176,18 @@ function BottomTabBar({ features, currentTab }: { features: string[]; currentTab
               );
             })}
             {/* Settings + Subscription in overflow */}
+            <Link href="/portal/referral" onClick={() => setShowMore(false)}>
+              <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
+                <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
+                <span>Refer a Tradie</span>
+                <span
+                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                >
+                  20% off
+                </span>
+              </span>
+            </Link>
             <Link href="/portal/subscription" onClick={() => setShowMore(false)}>
               <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
                 <CreditCard className="w-4 h-4" /> Subscription &amp; Billing

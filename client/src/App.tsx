@@ -60,6 +60,7 @@ import PortalOnboarding from "./pages/portal/PortalOnboarding";
 import VoiceOnboarding from "./pages/portal/VoiceOnboarding";
 import PortalInvoices from "./pages/portal/PortalInvoices";
 import PortalSubscription from "./pages/portal/PortalSubscription";
+import PortalReferral from "./pages/portal/PortalReferral";
 import PortalCustomers from "./pages/portal/PortalCustomers";
 import PortalAIInsights from "./pages/portal/PortalAIInsights";
 
@@ -142,6 +143,7 @@ function Router() {
       <Route path="/portal/settings" component={PortalSettings} />
       <Route path="/portal/invoices" component={PortalInvoices} />
       <Route path="/portal/subscription" component={PortalSubscription} />
+      <Route path="/portal/referral" component={PortalReferral} />
       <Route path="/portal/customers" component={PortalCustomers} />
       <Route path="/portal/insights" component={PortalAIInsights} />
 
