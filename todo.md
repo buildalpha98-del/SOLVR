@@ -201,3 +201,6 @@
 - [x] Per-section re-record mic on VoiceOnboarding review screen
 - [x] Console CRM voice onboarding transcript viewer (collapsible amber panel)
 - [x] Auto-trigger generatePrompt (Vapi prompt) after saveVoiceOnboarding completes
+- [x] Owner notification (Manus) after autoGeneratePromptForClient completes
+- [x] Vapi auto-provisioning chained after voice onboarding prompt generation (zero-touch)
+- [x] Console CRM memory file read/edit modal (view/edit clientProfiles from CRM client detail)

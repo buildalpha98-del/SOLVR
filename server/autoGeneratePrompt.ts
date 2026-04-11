@@ -20,6 +20,9 @@ import {
   updateChecklist,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
+import { notifyOwner } from "./_core/notification";
+import { createVapiAssistant } from "./vapi";
+import { updateCrmClient } from "./db";
 
 export async function autoGeneratePromptForClient(
   clientId: number
@@ -103,6 +106,56 @@ Format your response as JSON with two fields: "systemPrompt" and "firstMessage".
   await updateChecklist(clientId, {
     promptBuiltStatus: "done",
     promptBuiltAt: new Date(),
+  });
+
+  // ── Vapi auto-provisioning ──────────────────────────────────────────────────
+  // Chain directly after prompt generation so the assistant is live immediately.
+  // Non-fatal: if Vapi API is unavailable, onboarding still succeeds and the
+  // checklist "Provision Vapi Agent" button remains available as a fallback.
+  let vapiAssistantId: string | undefined;
+  try {
+    const assistant = await createVapiAssistant({
+      name: `${client.businessName} — AI Receptionist`,
+      systemPrompt: parsed.systemPrompt,
+      firstMessage: parsed.firstMessage,
+    });
+    vapiAssistantId = assistant.id;
+
+    // Persist the assistant ID on the client record
+    await updateCrmClient(clientId, { vapiAgentId: assistant.id });
+
+    // Mark the vapiConfigured checklist step as done
+    await updateChecklist(clientId, {
+      vapiConfiguredStatus: "done",
+      vapiConfiguredAt: new Date(),
+      vapiAgentId: assistant.id,
+    });
+
+    // Log to CRM timeline
+    await insertCrmInteraction({
+      clientId,
+      type: "system",
+      title: `Vapi assistant auto-provisioned after voice onboarding — ${client.businessName}`,
+      body: `Assistant ID: \`${assistant.id}\`\nCreated automatically via zero-touch onboarding flow. No manual configuration required.`,
+    });
+
+    console.log(`[autoGeneratePrompt] Vapi assistant ${assistant.id} provisioned for client ${clientId}`);
+  } catch (err) {
+    console.error(`[autoGeneratePrompt] Vapi provisioning failed for client ${clientId}:`, err);
+    // Continue — notify owner with fallback message
+  }
+
+  // ── Notify owner ─────────────────────────────────────────────────────────────
+  // Non-fatal — a notification failure must never block onboarding.
+  const vapiStatus = vapiAssistantId
+    ? `✅ Vapi assistant provisioned automatically (ID: \`${vapiAssistantId}\`). The AI receptionist is **live now**.`
+    : `⚠️ Vapi provisioning failed — use the Console checklist to provision manually.`;
+
+  notifyOwner({
+    title: `🎙️ New client onboarded — ${client.businessName}`,
+    content: `Voice onboarding complete for **${client.contactName}** (${client.businessName}).\n\n${vapiStatus}\n\nReview the generated prompt in the CRM timeline.`,
+  }).catch((err) => {
+    console.warn("[autoGeneratePrompt] Owner notification failed:", err);
   });
 
   return { systemPrompt: parsed.systemPrompt, firstMessage: parsed.firstMessage };

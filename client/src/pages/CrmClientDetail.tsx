@@ -13,8 +13,16 @@ import {
   Phone, Mail, Globe, MapPin, Zap, MessageSquare, PhoneCall,
   MailIcon, Video, Calendar, Headphones, Settings, Pin, PinOff,
   LogOut, Wand2, Users, DollarSign, Building2, Save, X, Check,
-  ExternalLink, ClipboardList, Volume2, ChevronDown, ChevronUp,
+  ExternalLink, ClipboardList, Volume2, ChevronDown, ChevronUp, FileUser,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 type Stage = "lead" | "qualified" | "onboarding" | "active" | "churned" | "paused";
 type InteractionType = "note" | "call" | "email" | "meeting" | "demo" | "onboarding" | "support" | "status-change" | "system";
@@ -192,6 +200,47 @@ export default function CrmClientDetail() {
     onSuccess: () => { utils.crm.getClientTags.invalidate({ clientId }); },
   });
 
+  // ── Memory File modal ────────────────────────────────────────────────────
+  const [memoryModalOpen, setMemoryModalOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState<Record<string, string>>({});
+
+  const { data: profileData, isLoading: profileLoading } = trpc.adminPortal.adminGetClientProfile.useQuery(
+    { clientId },
+    { enabled: !!clientId && memoryModalOpen }
+  );
+
+  const updateProfileMutation = trpc.adminPortal.adminUpdateClientProfile.useMutation({
+    onSuccess: () => {
+      toast.success("Memory file updated.");
+      setMemoryModalOpen(false);
+      setProfileDraft({});
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function profileField(key: string): string {
+    if (key in profileDraft) return profileDraft[key];
+    const val = profileData?.profile?.[key as keyof typeof profileData.profile];
+    return val != null ? String(val) : "";
+  }
+
+  function setProfileField(key: string, value: string) {
+    setProfileDraft(prev => ({ ...prev, [key]: value }));
+  }
+
+  function handleSaveMemoryFile() {
+    const payload: Record<string, string | number | null> = { clientId };
+    for (const [k, v] of Object.entries(profileDraft)) {
+      const numFields = ["yearsInBusiness", "teamSize", "validityDays"];
+      if (numFields.includes(k)) {
+        payload[k] = v === "" ? null : Number(v);
+      } else {
+        payload[k] = v;
+      }
+    }
+    updateProfileMutation.mutate(payload as Parameters<typeof updateProfileMutation.mutate>[0]);
+  }
+
   if (authLoading || clientLoading) return (
     <div className="min-h-screen bg-[#0A1628] flex items-center justify-center">
       <Loader2 size={24} className="text-[#F5A623] animate-spin" />
@@ -284,6 +333,12 @@ export default function CrmClientDetail() {
                 <ClipboardList size={12} /> Checklist
               </a>
             </Link>
+            <button
+              onClick={() => { setProfileDraft({}); setMemoryModalOpen(true); }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium"
+            >
+              <FileUser size={12} /> Memory File
+            </button>
             {!editMode ? (
               <button onClick={() => { setEditMode(true); setEditForm({ contactName: c.contactName, contactEmail: c.contactEmail, contactPhone: c.contactPhone || "", businessName: c.businessName, tradeType: c.tradeType || "", serviceArea: c.serviceArea || "", website: c.website || "", summary: c.summary || "", vapiAgentId: c.vapiAgentId || "" }); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors text-sm">
                 <Edit3 size={12} /> Edit
@@ -607,6 +662,147 @@ export default function CrmClientDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Memory File Modal ──────────────────────────────────────────────── */}
+      <Dialog open={memoryModalOpen} onOpenChange={(open) => { setMemoryModalOpen(open); if (!open) setProfileDraft({}); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileUser className="w-5 h-5 text-blue-400" />
+              Memory File — {c.businessName}
+            </DialogTitle>
+            <DialogDescription>
+              Edit the AI memory file for this client. Changes are reflected immediately in the voice agent and quote extraction.
+            </DialogDescription>
+          </DialogHeader>
+
+          {profileLoading ? (
+            <div className="py-12 text-center text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 size={16} className="animate-spin" /> Loading profile…
+            </div>
+          ) : (
+            <div className="space-y-5 py-2">
+              {/* Business Basics */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Business Basics</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Trading Name</Label>
+                    <Input value={profileField("tradingName")} onChange={e => setProfileField("tradingName", e.target.value)} placeholder="Thompson Plumbing" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>ABN</Label>
+                    <Input value={profileField("abn")} onChange={e => setProfileField("abn", e.target.value)} placeholder="12 345 678 901" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Phone</Label>
+                    <Input value={profileField("phone")} onChange={e => setProfileField("phone", e.target.value)} placeholder="0412 345 678" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input value={profileField("email")} onChange={e => setProfileField("email", e.target.value)} placeholder="info@business.com.au" />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label>Address</Label>
+                    <Input value={profileField("address")} onChange={e => setProfileField("address", e.target.value)} placeholder="123 Main St, Sydney NSW 2000" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Website</Label>
+                    <Input value={profileField("website")} onChange={e => setProfileField("website", e.target.value)} placeholder="https://business.com.au" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Service Area</Label>
+                    <Input value={profileField("serviceArea")} onChange={e => setProfileField("serviceArea", e.target.value)} placeholder="Sydney metro, up to 50km" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Years in Business</Label>
+                    <Input type="number" value={profileField("yearsInBusiness")} onChange={e => setProfileField("yearsInBusiness", e.target.value)} placeholder="8" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Team Size</Label>
+                    <Input type="number" value={profileField("teamSize")} onChange={e => setProfileField("teamSize", e.target.value)} placeholder="3" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Pricing</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Call-out Fee ($)</Label>
+                    <Input type="number" value={profileField("callOutFee")} onChange={e => setProfileField("callOutFee", e.target.value)} placeholder="120" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Hourly Rate ($)</Label>
+                    <Input type="number" value={profileField("hourlyRate")} onChange={e => setProfileField("hourlyRate", e.target.value)} placeholder="150" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Minimum Charge ($)</Label>
+                    <Input type="number" value={profileField("minimumCharge")} onChange={e => setProfileField("minimumCharge", e.target.value)} placeholder="200" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Payment Terms</Label>
+                    <Input value={profileField("paymentTerms")} onChange={e => setProfileField("paymentTerms", e.target.value)} placeholder="14 days" />
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Context */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">AI Context (Memory)</p>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>AI Context Notes</Label>
+                    <Textarea rows={3} value={profileField("aiContext")} onChange={e => setProfileField("aiContext", e.target.value)} placeholder="Key things the AI should know about this business…" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Booking Instructions</Label>
+                    <Textarea rows={2} value={profileField("bookingInstructions")} onChange={e => setProfileField("bookingInstructions", e.target.value)} placeholder="How customers book: ServiceM8, Tradify, phone…" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Escalation Instructions</Label>
+                    <Textarea rows={2} value={profileField("escalationInstructions")} onChange={e => setProfileField("escalationInstructions", e.target.value)} placeholder="When to transfer to owner vs take a message…" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Competitor Notes</Label>
+                    <Textarea rows={2} value={profileField("competitorNotes")} onChange={e => setProfileField("competitorNotes", e.target.value)} placeholder="What makes this business different…" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quote Defaults */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Quote Defaults</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Validity (days)</Label>
+                    <Input type="number" value={profileField("validityDays")} onChange={e => setProfileField("validityDays", e.target.value)} placeholder="30" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tagline</Label>
+                    <Input value={profileField("tagline")} onChange={e => setProfileField("tagline", e.target.value)} placeholder="Quality work, guaranteed." />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label>Default Quote Notes</Label>
+                    <Textarea rows={2} value={profileField("defaultNotes")} onChange={e => setProfileField("defaultNotes", e.target.value)} placeholder="Standard terms, warranty info, etc." />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => { setMemoryModalOpen(false); setProfileDraft({}); }}>Cancel</Button>
+            <Button
+              onClick={handleSaveMemoryFile}
+              disabled={updateProfileMutation.isPending || Object.keys(profileDraft).length === 0}
+            >
+              {updateProfileMutation.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
