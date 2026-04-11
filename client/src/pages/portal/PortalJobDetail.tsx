@@ -1000,6 +1000,110 @@ export default function PortalJobDetail() {
           onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
         />
 
+        {/* ── Staff Activity ── */}
+        {(() => {
+          const scheduleEntries = (data as any).scheduleEntries ?? [];
+          const timeEntries = (data as any).timeEntries ?? [];
+          if (scheduleEntries.length === 0 && timeEntries.length === 0) return null;
+          const REASON_LABELS: Record<string, string> = { sick: "Sick", unavailable: "Unavailable", personal: "Personal", other: "Other" };
+          return (
+            <SectionCard title="Staff Activity">
+              {scheduleEntries.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Scheduled Staff</p>
+                  {scheduleEntries.map((entry: any) => (
+                    <div key={entry.id} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center gap-2">
+                        {entry.staffDeclinedAt ? (
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>✗</span>
+                        ) : entry.staffConfirmedAt ? (
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>✓</span>
+                        ) : (
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)" }}>?</span>
+                        )}
+                        <div>
+                          <p className="text-sm text-white">{entry.staffName ?? `Staff #${entry.staffId}`}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            {new Date(entry.startTime).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })}
+                            {entry.staffDeclinedAt && entry.declineReason && (
+                              <span className="ml-2 text-red-400/70">— {REASON_LABELS[entry.declineReason] ?? entry.declineReason}</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        entry.status === "completed" ? "bg-green-500/15 text-green-400" :
+                        entry.status === "confirmed" ? "bg-amber-500/15 text-amber-400" :
+                        entry.status === "in_progress" ? "bg-blue-500/15 text-blue-400" :
+                        entry.staffDeclinedAt ? "bg-red-500/15 text-red-400" :
+                        "bg-white/8 text-white/40"
+                      }`}>
+                        {entry.staffDeclinedAt ? "Declined" : entry.status.replace("_", " ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {timeEntries.length > 0 && (
+                <div className="space-y-2 mt-3">
+                  <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Check-in / Check-out Log</p>
+                  {timeEntries.map((te: any) => {
+                    const durationMins = te.checkOutAt
+                      ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
+                      : null;
+                    const checkInMapUrl = te.checkInLat && te.checkInLng
+                      ? `https://www.google.com/maps?q=${te.checkInLat},${te.checkInLng}`
+                      : null;
+                    const checkOutMapUrl = te.checkOutLat && te.checkOutLng
+                      ? `https://www.google.com/maps?q=${te.checkOutLat},${te.checkOutLng}`
+                      : null;
+                    return (
+                      <div key={te.id} className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <p className="text-sm font-medium text-white">{te.staffName ?? `Staff #${te.staffId}`}</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked in</p>
+                            <p style={{ color: "rgba(255,255,255,0.7)" }}>
+                              {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                            </p>
+                            {checkInMapUrl && (
+                              <a href={checkInMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 text-[10px] flex items-center gap-0.5 mt-0.5">
+                                📍 View location
+                              </a>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked out</p>
+                            {te.checkOutAt ? (
+                              <>
+                                <p style={{ color: "rgba(255,255,255,0.7)" }}>
+                                  {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                                </p>
+                                {checkOutMapUrl && (
+                                  <a href={checkOutMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 text-[10px] flex items-center gap-0.5 mt-0.5">
+                                    📍 View location
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-amber-400/60">Still on-site</p>
+                            )}
+                          </div>
+                        </div>
+                        {durationMins !== null && (
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            Duration: {durationMins >= 60 ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : `${durationMins}m`}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+          );
+        })()}
+
         {/* ── Completion ── */}
         {(job.stage === "completed" || job.completedAt) ? (
           <SectionCard title="Completion Details" action={<CheckCircle2 className="w-4 h-4" style={{ color: "#4ade80" }} />}>

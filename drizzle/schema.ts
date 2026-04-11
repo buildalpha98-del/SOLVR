@@ -1386,6 +1386,8 @@ export const jobSchedule = mysqlTable("job_schedule", {
   staffConfirmedAt: timestamp("staffConfirmedAt"),
   /** Timestamp when the staff member declined this shift */
   staffDeclinedAt: timestamp("staffDeclinedAt"),
+  /** Reason provided by staff when declining: sick | unavailable | personal | other */
+  declineReason: varchar("declineReason", { length: 50 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

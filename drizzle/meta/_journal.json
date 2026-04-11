@@ -260,6 +260,13 @@
       "when": 1775944507092,
       "tag": "0036_robust_sebastian_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1775945764962,
+      "tag": "0037_curvy_jackpot",
+      "breakpoints": true
     }
   ]
 }

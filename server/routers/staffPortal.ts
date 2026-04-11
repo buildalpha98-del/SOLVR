@@ -361,7 +361,11 @@ export const staffPortalRouter = router({
    * Decline a scheduled shift.
    */
   declineShift: publicProcedure
-    .input(z.object({ scheduleId: z.number().int().positive() }))
+    .input(z.object({
+      scheduleId: z.number().int().positive(),
+      /** One of: sick | unavailable | personal | other */
+      reason: z.enum(["sick", "unavailable", "personal", "other"]).optional(),
+    }))
     .mutation(async ({ input, ctx }) => {
       const session = await getStaffSession(ctx.req);
       if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
@@ -374,6 +378,7 @@ export const staffPortalRouter = router({
         status: "pending",
         staffDeclinedAt: new Date(),
         staffConfirmedAt: null,
+        declineReason: input.reason ?? null,
       });
       // Notify the owner that staff can't make it
       void (async () => {
@@ -385,9 +390,12 @@ export const staffPortalRouter = router({
             weekday: "short", day: "numeric", month: "short",
             hour: "numeric", minute: "2-digit", hour12: true,
           });
+          const reasonLabel = input.reason
+            ? { sick: "Sick", unavailable: "Unavailable", personal: "Personal", other: "Other" }[input.reason]
+            : null;
           await sendPushToClient(session.client.id, {
             title: `\u26a0\ufe0f ${session.staff.name} can't make a shift`,
-            body: `${job?.jobType ?? "Job"} \u2014 ${timeStr} \u2014 needs reassignment`,
+            body: `${job?.jobType ?? "Job"} \u2014 ${timeStr}${reasonLabel ? ` (${reasonLabel})` : ""} \u2014 needs reassignment`,
             url: `/portal/jobs/${entry.jobId}`,
           });
         } catch (e) {

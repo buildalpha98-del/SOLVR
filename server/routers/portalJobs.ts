@@ -42,6 +42,8 @@ import {
   getJobCostItem,
   sumJobCosts,
   createPaymentLink,
+  listScheduleEntriesForJob,
+  listTimeEntriesForJob,
 } from "../db";
 
 
@@ -60,10 +62,12 @@ export const portalJobsProcedures = {
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
       }
-      const [progressPayments, photos, costItems] = await Promise.all([
+      const [progressPayments, photos, costItems, scheduleEntries, timeEntries] = await Promise.all([
         listJobProgressPayments(job.id),
         listJobPhotos(job.id),
         listJobCostItems(job.id),
+        listScheduleEntriesForJob(job.id),
+        listTimeEntriesForJob(job.id),
       ]);
       // Fetch linked quote if any
       let quote = null;
@@ -79,7 +83,7 @@ export const portalJobsProcedures = {
       const invoicedCents = job.invoicedAmount ?? 0;
       const grossProfitCents = invoicedCents - totalCostCents;
       const grossMarginPct = invoicedCents > 0 ? Math.round((grossProfitCents / invoicedCents) * 100) : null;
-      return { job, progressPayments, photos, quote, lineItems, hasQuoteEngine, costItems, totalCostCents, grossProfitCents, grossMarginPct };
+      return { job, progressPayments, photos, quote, lineItems, hasQuoteEngine, costItems, totalCostCents, grossProfitCents, grossMarginPct, scheduleEntries, timeEntries };
     }),
 
   /**
