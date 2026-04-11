@@ -9,7 +9,7 @@ import { router, publicProcedure } from "../_core/trpc";
 import { getPortalClient } from "../_core/portalAuth";
 import { requireFeature } from "../_core/featureGate";
 import { transcribeAudio } from "../_core/voiceTranscription";
-import { extractQuoteData } from "../_core/quoteExtraction";
+import { extractQuoteData, sanitiseExtracted } from "../_core/quoteExtraction";
 import { analyseQuotePhotos } from "../_core/photoAnalysis";
 import { generateQuoteReport } from "../_core/reportGeneration";
 import { generateQuotePdf, fetchImageBuffer } from "../_core/pdfGeneration";
@@ -266,7 +266,8 @@ export const quotesRouter = router({
         // Fetch the client's memory file for richer extraction context
         const profile = await getClientProfile(clientId);
         const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : undefined;
-        const extracted = await extractQuoteData(transcription.text, client.businessName, memoryContext);
+        const rawExtracted = await extractQuoteData(transcription.text, client.businessName, memoryContext);
+        const extracted = sanitiseExtracted(rawExtracted);
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "complete",
           extractedJson: extracted as any,

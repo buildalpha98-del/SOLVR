@@ -360,5 +360,26 @@
 
 ## Bug Fixes (Jayden prompts — Apr 11 2026)
 
-- [ ] Bug: voice-to-quote Zod validation error (String doesn't match expected pattern)
-- [ ] Bug: missing logout button in portal settings + mobile nav
+- [x] Bug: voice-to-quote Zod validation error (String doesn't match expected pattern)
+- [x] Bug: missing logout button in portal settings + mobile nav
+
+## Bug Fixes + Apple Demo Account (Apr 11 2026)
+
+- [x] Bug 1: Voice-to-quote Zod error — add sanitiseExtracted() helper to strip invalid emails/phones from LLM output before insertQuote
+- [x] Bug 1: Relax customerEmail Zod schema in createDraft + update procedures to use z.string().email().nullish() with pre-validation strip
+- [x] Bug 1: Add unit test reproducing the invalid-email LLM output shape
+- [x] Bug 2: Add Log Out button to PortalSettings (destructive, confirm dialog, clears cache, redirects to /portal/login)
+- [x] Bug 2: Add Log Out item to portal mobile More drawer
+- [x] Bug 2: Wire portal.logout tRPC procedure (or confirm existing one clears server-side session)
+- [x] Demo: Create Apple reviewer account apple.review@solvr.com.au in portal DB
+
+## Apple App Store Screenshots — Test Data Seeding (Apr 11 2026)
+
+- [x] Add Log Out button to PortalSettings (top of Danger Zone section, amber/outline style)
+- [x] Add Log Out item to PortalLayout mobile More drawer
+- [x] Create Apple reviewer account apple.review@solvr.com.au in portal DB (strong password: AppleReview2026!)
+- [x] Seed 15 CRM interactions (calls) for jay.kowaider@hotmail.com client — realistic Vapi call data with transcripts, durations, caller names
+- [x] Seed 6 quotes (mix of draft/sent/accepted) with line items for plumbing/electrical/carpentry jobs
+- [x] Seed 8 portal jobs (mix of pending/in-progress/completed) linked to accepted quotes
+- [x] Seed calendar events for jobs (scheduled dates spread across current month)
+- [x] Verify dashboard KPIs reflect seeded data (call volume, job counts, revenue)
