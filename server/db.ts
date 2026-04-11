@@ -1182,3 +1182,56 @@ export async function listAllUnconvertedTimeEntries(): Promise<TimeEntry[]> {
     .where(eq(timeEntries.convertedToJobCost, false))
     .orderBy(timeEntries.checkInAt);
 }
+
+// ─── Google Review Requests ───────────────────────────────────────────────────
+import {
+  googleReviewRequests,
+  type GoogleReviewRequest,
+  type InsertGoogleReviewRequest,
+} from "../drizzle/schema";
+
+export async function insertReviewRequest(data: InsertGoogleReviewRequest): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(googleReviewRequests).values(data);
+}
+
+export async function listReviewRequests(clientId: number, limit = 50): Promise<GoogleReviewRequest[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(googleReviewRequests)
+    .where(eq(googleReviewRequests.clientId, clientId))
+    .orderBy(desc(googleReviewRequests.sentAt))
+    .limit(limit);
+}
+
+export async function getReviewRequestById(id: number): Promise<GoogleReviewRequest | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(googleReviewRequests)
+    .where(eq(googleReviewRequests.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getReviewRequestStats(clientId: number): Promise<{ totalSent: number; sentThisMonth: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const all = await db.select().from(googleReviewRequests)
+    .where(and(eq(googleReviewRequests.clientId, clientId), eq(googleReviewRequests.status, "sent")));
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const sentThisMonth = all.filter(r => r.sentAt >= startOfMonth).length;
+  return { totalSent: all.length, sentThisMonth };
+}
+
+export async function getReviewRequestStatsAllClients(): Promise<{ totalSentThisMonth: number; totalSentAllTime: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const all = await db.select().from(googleReviewRequests)
+    .where(eq(googleReviewRequests.status, "sent"));
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const totalSentThisMonth = all.filter(r => r.sentAt >= startOfMonth).length;
+  return { totalSentThisMonth, totalSentAllTime: all.length };
+}

@@ -16,6 +16,7 @@ import { fetchImageBuffer } from "../_core/pdfGeneration";
 import { InvoiceDocument } from "../_core/InvoiceDocument";
 import { CompletionReportDocument } from "../_core/CompletionReportDocument";
 import { getClientProfile } from "../db";
+import { sendGoogleReviewRequest } from "../googleReview";
 import { hasFeature } from "../_core/featureGate";
 import {
   getPortalJob,
@@ -244,6 +245,18 @@ export const portalJobsProcedures = {
         actualHours: input.actualHours,
         actualValue: input.actualValue,
       } as any);
+
+      // Fire Google review request — non-fatal, never blocks job completion
+      sendGoogleReviewRequest({
+        clientId: client.id,
+        jobId: job.id,
+        jobTitle: job.jobType ?? job.description ?? "your recent job",
+        customerName: job.customerName ?? job.callerName ?? null,
+        customerPhone: job.customerPhone ?? job.callerPhone ?? null,
+        customerEmail: job.customerEmail ?? null,
+        businessName: client.businessName,
+      }).catch(err => console.error("[ReviewRequest] Fire-and-forget error:", err));
+
       return { success: true };
     }),
 

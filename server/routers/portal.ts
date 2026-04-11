@@ -94,7 +94,12 @@ import {
   updateTimeEntry,
   listTimeEntriesForJob,
   listTimeEntriesForStaff,
+  listReviewRequests,
+  getReviewRequestById,
+  insertReviewRequest,
+  getReviewRequestStats,
 } from "../db";
+import { sendGoogleReviewRequest } from "../googleReview";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PORTAL_COOKIE = "solvr_portal_session";
@@ -2084,5 +2089,88 @@ export const portalRouter = router({
         return { staffId: s.id, staffName: s.name, totalHours, entries: staffEntries };
       });
       return { weekStart: input.weekStart, summary };
+    }),
+
+  // ─── Google Review Settings ────────────────────────────────────────────────
+  /**
+   * Save Google Review link and enable/disable toggle for the client.
+   */
+  saveGoogleReviewSettings: publicProcedure
+    .input(z.object({
+      googleReviewLink: z.string().url().max(512).optional().nullable(),
+      reviewRequestEnabled: z.boolean().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const profile = await getOrCreateClientProfile(portalClient.client.id);
+      await updateClientProfile(profile.id, {
+        googleReviewLink: input.googleReviewLink ?? null,
+        reviewRequestEnabled: input.reviewRequestEnabled ?? true,
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Get the current Google Review settings for the portal client.
+   */
+  getGoogleReviewSettings: publicProcedure
+    .query(async ({ ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const profile = await getOrCreateClientProfile(portalClient.client.id);
+      return {
+        googleReviewLink: profile.googleReviewLink ?? "",
+        reviewRequestEnabled: profile.reviewRequestEnabled,
+      };
+    }),
+
+  /**
+   * List all review requests sent by this client (paginated, most recent first).
+   */
+  listReviewRequests: publicProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const requests = await listReviewRequests(portalClient.client.id, input.limit);
+      return { requests };
+    }),
+
+  /**
+   * Get review request stats for the client (total sent, sent this month).
+   */
+  getReviewRequestStats: publicProcedure
+    .query(async ({ ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const stats = await getReviewRequestStats(portalClient.client.id);
+      return stats;
+    }),
+
+  /**
+   * Resend a review request for a specific job (manual trigger from the Reviews page).
+   */
+  resendReviewRequest: publicProcedure
+    .input(z.object({ jobId: z.number().int() }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const { client } = portalClient;
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      // Fire non-fatally
+      sendGoogleReviewRequest({
+        clientId: client.id,
+        jobId: job.id,
+        jobTitle: job.jobType ?? job.description ?? "your recent job",
+        customerName: job.customerName ?? job.callerName ?? null,
+        customerPhone: job.customerPhone ?? job.callerPhone ?? null,
+        customerEmail: job.customerEmail ?? null,
+        businessName: client.businessName,
+      }).catch(err => console.error("[ReviewRequest] Resend error:", err));
+      return { success: true };
     }),
 });

@@ -14,6 +14,7 @@ import {
   Bell, ExternalLink, RefreshCw, ShieldCheck,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
+import GoogleReviewSection from "./GoogleReviewSection";
 import { toast } from "sonner";
 
 // ─── Shared input style ──────────────────────────────────────────────────────
@@ -553,6 +554,9 @@ export default function PortalSettings() {
 
         {/* ─── Billing ──────────────────────────────────────────────────────────── */}
         <BillingSection />
+
+        {/* ─── Google Reviews ───────────────────────────────────────────────────── */}
+        <GoogleReviewSection />
 
         {/* ─── Notifications ────────────────────────────────────────────────────── */}
         <NotificationsSection />

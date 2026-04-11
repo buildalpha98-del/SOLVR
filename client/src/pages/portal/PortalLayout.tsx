@@ -14,7 +14,7 @@ import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
-  CalendarClock, UserCog
+  CalendarClock, UserCog, Star
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -41,6 +41,7 @@ const ALL_TABS: NavTab[] = [
   { key: "compliance", label: "Compliance", href: "/portal/compliance", icon: <ShieldCheck className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "staff", label: "Staff", href: "/portal/staff", icon: <UserCog className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "schedule", label: "Schedule", href: "/portal/schedule", icon: <CalendarClock className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "reviews", label: "Reviews", href: "/portal/reviews", icon: <Star className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
 ];
 
 // ─── Mobile bottom tab bar ───────────────────────────────────────────────────

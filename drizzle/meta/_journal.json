@@ -225,6 +225,13 @@
       "when": 1775908120061,
       "tag": "0031_dear_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1775910765156,
+      "tag": "0032_fluffy_namora",
+      "breakpoints": true
     }
   ]
 }

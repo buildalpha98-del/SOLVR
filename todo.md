@@ -328,3 +328,19 @@
   - [x] Inline EditableField components with pencil icons already live on all required fields in PortalJobDetail.tsx
   - [x] updateJobDetail in portalJobs.ts already accepted all fields — confirmed no gaps
 - [x] 121/121 vitest tests passing, 0 TypeScript errors
+
+## Feature 7 — Google Review Automation (Apr 11 2026)
+- [x] Schema: add googleReviewLink + reviewRequestEnabled columns to clientProfiles
+- [x] Schema: new google_review_requests table (id, clientId, jobId, customerName, customerPhone, customerEmail, channel, sentAt, status, errorMessage)
+- [x] DB: pnpm db:push migration
+- [x] DB helpers: insertReviewRequest, listReviewRequests, getReviewRequestStats
+- [x] tRPC: portal.saveGoogleReviewSettings
+- [x] tRPC: portal.listReviewRequests
+- [x] tRPC: portal.resendReviewRequest
+- [x] tRPC: portal.getReviewRequestStats
+- [x] Trigger: markJobComplete fires sendGoogleReviewRequest helper (SMS + email, non-fatal)
+- [x] Portal Settings: Google Reviews section
+- [x] Portal page: /portal/reviews — review request history + resend
+- [x] Sidebar nav: Reviews entry
+- [x] Console Reporting: review requests widget
+- [x] Tests: 11 vitest tests (all passing)
