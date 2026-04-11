@@ -1379,6 +1379,26 @@ export const portalRouter = router({
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       const { client } = result;
 
+      // P1-C: Completion gate — validate required fields before marking onboarding complete.
+      // The AI receptionist cannot function without these six fields.
+      const REQUIRED: { key: keyof typeof input; label: string }[] = [
+        { key: "tradingName", label: "Business name" },
+        { key: "phone",       label: "Phone number" },
+        { key: "email",       label: "Email address" },
+        { key: "abn",         label: "ABN" },
+        { key: "industryType",label: "Industry type" },
+        { key: "serviceArea", label: "Service area" },
+      ];
+      const missingLabels = REQUIRED
+        .filter(({ key }) => !input[key] || String(input[key]).trim() === "")
+        .map(({ label }) => label);
+      if (missingLabels.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Please fill in the following required fields before going live: ${missingLabels.join(", ")}.`,
+        });
+      }
+
       await getOrCreateClientProfile(client.id);
 
       // Build update payload — strip nulls for optional fields

@@ -336,6 +336,17 @@ export default function VoiceOnboarding() {
   const extractMutation = trpc.portal.extractVoiceOnboarding.useMutation();
   const saveMutation = trpc.portal.saveVoiceOnboarding.useMutation();
 
+  // P1-C: Compute which required fields are still missing from the live form state.
+  // These six fields are the minimum for the AI receptionist to function.
+  const REQUIRED_FORM_FIELDS: { key: keyof OnboardingExtraction; label: string }[] = [
+    { key: "tradingName", label: "Business name" },
+    { key: "phone",       label: "Phone number" },
+    { key: "email",       label: "Email address" },
+    { key: "abn",         label: "ABN" },
+    { key: "industryType",label: "Industry type" },
+    { key: "serviceArea", label: "Service area" },
+  ];
+
   // Check if already onboarded
   const { data: profileData } = trpc.portal.getOnboardingProfile.useQuery();
   useEffect(() => {
@@ -840,19 +851,62 @@ export default function VoiceOnboarding() {
               )}
             </div>
 
-            {/* Confirm button */}
-            <Button
-              onClick={handleSave}
-              disabled={stage === "saving"}
-              className="w-full h-12 text-base font-semibold"
-              style={{ background: "#F5A623", color: "#0A1628" }}
-            >
-              {stage === "saving" ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
-              ) : (
-                <><CheckCircle2 className="w-4 h-4 mr-2" /> Confirm &amp; Go Live</>
-              )}
-            </Button>
+            {/* P1-C: Completion gate — show progress and block Go Live until required fields are filled */}
+            {(() => {
+              const stillMissing = REQUIRED_FORM_FIELDS.filter(({ key }) => {
+                // Check form state first, then fall back to missingValues (the catch-all inputs)
+                const formVal = (form as Record<string, unknown>)[key as string];
+                const mvVal = missingValues[key as string];
+                const effective = formVal ?? mvVal;
+                return !effective || String(effective).trim() === "";
+              });
+              const allComplete = stillMissing.length === 0;
+              const completedCount = REQUIRED_FORM_FIELDS.length - stillMissing.length;
+              return (
+                <>
+                  {/* Progress bar */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-white/50 text-xs">
+                        {allComplete
+                          ? "All required fields complete ✔"
+                          : `Required fields: ${completedCount} / ${REQUIRED_FORM_FIELDS.length}`
+                        }
+                      </p>
+                      {!allComplete && (
+                        <p className="text-red-400/70 text-xs">
+                          Missing: {stillMissing.map((f) => f.label).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="w-full h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${(completedCount / REQUIRED_FORM_FIELDS.length) * 100}%`,
+                          background: allComplete ? "#22c55e" : "#F5A623",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleSave}
+                    disabled={stage === "saving" || !allComplete}
+                    className="w-full h-12 text-base font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: allComplete ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0A1628" }}
+                  >
+                    {stage === "saving" ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+                    ) : allComplete ? (
+                      <><CheckCircle2 className="w-4 h-4 mr-2" /> Confirm &amp; Go Live</>
+                    ) : (
+                      <><AlertCircle className="w-4 h-4 mr-2" /> Complete required fields to go live</>
+                    )}
+                  </Button>
+                </>
+              );
+            })()}
 
             {/* Full re-record */}
             <button

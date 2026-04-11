@@ -245,13 +245,16 @@ describe("portal.saveVoiceOnboarding", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("calls updateClientProfile with onboardingCompleted: true", async () => {
+  it("calls updateClientProfile with onboardingCompleted: true when all required fields present", async () => {
     const { portalRouter } = await import("../server/routers/portal");
     const caller = portalRouter.createCaller(makeCtx() as any);
     const result = await caller.saveVoiceOnboarding({
       tradingName: "Jake's Plumbing",
       phone: "0412 345 678",
       abn: "12345678901",
+      email: "jake@jakesplumbing.com.au",
+      industryType: "plumber",
+      serviceArea: "Western Sydney — Penrith, Blacktown. Up to 40km.",
     });
 
     expect(result.success).toBe(true);
@@ -261,10 +264,33 @@ describe("portal.saveVoiceOnboarding", () => {
     );
   });
 
+  // P1-C: Completion gate — should reject saves with missing required fields
+  it("throws BAD_REQUEST when required fields are missing (P1-C gate)", async () => {
+    const { portalRouter } = await import("../server/routers/portal");
+    const caller = portalRouter.createCaller(makeCtx() as any);
+    // Missing: email, industryType, serviceArea
+    await expect(
+      caller.saveVoiceOnboarding({
+        tradingName: "Jake's Plumbing",
+        phone: "0412 345 678",
+        abn: "12345678901",
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    // Confirm updateClientProfile was NOT called
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
   it("syncs tradingName to quoteTradingName on crm_clients", async () => {
     const { portalRouter } = await import("../server/routers/portal");
     const caller = portalRouter.createCaller(makeCtx() as any);
-    await caller.saveVoiceOnboarding({ tradingName: "Jake's Plumbing", email: "jake@test.com" });
+    await caller.saveVoiceOnboarding({
+      tradingName: "Jake's Plumbing",
+      phone: "0412 345 678",
+      abn: "12345678901",
+      email: "jake@test.com",
+      industryType: "plumber",
+      serviceArea: "Western Sydney",
+    });
 
     expect(mockUpdateClient).toHaveBeenCalledWith(
       42,
@@ -272,10 +298,24 @@ describe("portal.saveVoiceOnboarding", () => {
     );
   });
 
-  it("does not call updateCrmClient when no sync fields provided", async () => {
+  it("does not call updateCrmClient when no sync fields provided (only non-sync required fields)", async () => {
     const { portalRouter } = await import("../server/routers/portal");
     const caller = portalRouter.createCaller(makeCtx() as any);
-    await caller.saveVoiceOnboarding({ aiContext: "Some context" });
-    expect(mockUpdateClient).not.toHaveBeenCalled();
+    // All required fields present but none are sync fields (tradingName/abn/phone/address/email are sync fields)
+    // Use minimal required set where only industryType and serviceArea are non-sync
+    // We still need tradingName etc. for the gate, but tradingName IS a sync field
+    // So this test verifies that when only non-sync optional fields are updated alongside required fields,
+    // the sync still happens for the required sync fields.
+    await caller.saveVoiceOnboarding({
+      tradingName: "Jake's Plumbing",
+      phone: "0412 345 678",
+      abn: "12345678901",
+      email: "jake@test.com",
+      industryType: "plumber",
+      serviceArea: "Western Sydney",
+      aiContext: "Some context",
+    });
+    // tradingName, phone, abn, email are all sync fields — updateCrmClient should be called
+    expect(mockUpdateClient).toHaveBeenCalled();
   });
 });

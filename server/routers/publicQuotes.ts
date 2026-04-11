@@ -110,10 +110,13 @@ export const publicQuotesRouter = router({
     .mutation(async ({ input }) => {
       const quote = await getQuoteByToken(input.token);
       if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
-      if (quote.status !== "sent" && quote.status !== "draft") {
+      // P1-B: Only sent quotes can be accepted — draft quotes are not yet ready for customer response
+      if (quote.status !== "sent") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Quote cannot be accepted (status: ${quote.status})`,
+          message: quote.status === "draft"
+            ? "This quote is still being prepared and has not been sent yet."
+            : `Quote cannot be accepted (status: ${quote.status})`,
         });
       }
 
@@ -258,10 +261,13 @@ export const publicQuotesRouter = router({
     .mutation(async ({ input }) => {
       const quote = await getQuoteByToken(input.token);
       if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
-      if (quote.status !== "sent" && quote.status !== "draft") {
+      // P1-B: Only sent quotes can be declined — draft quotes are not yet ready for customer response
+      if (quote.status !== "sent") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: `Quote cannot be declined (status: ${quote.status})`,
+          message: quote.status === "draft"
+            ? "This quote is still being prepared and has not been sent yet."
+            : `Quote cannot be declined (status: ${quote.status})`,
         });
       }
 
