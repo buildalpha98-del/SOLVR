@@ -1424,11 +1424,26 @@ export const timeEntries = mysqlTable("time_entries", {
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
 
-// ─── Staff PIN Auth ───────────────────────────────────────────────────────────
+// ─── Staff Availability ──────────────────────────────────────────────────────
 /**
- * Staff portal sessions — created on successful PIN login.
- * Stored as a signed cookie on the staff device.
+ * Staff unavailability records — staff mark days they cannot work.
+ * Owner sees these as blocked (grey) cells in the schedule grid.
  */
+export const staffAvailability = mysqlTable("staff_availability", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  staffId: int("staffId").notNull(),
+  /** ISO date string YYYY-MM-DD for the unavailable day */
+  unavailableDate: varchar("unavailableDate", { length: 10 }).notNull(),
+  /** Optional reason: sick | personal | other */
+  reason: varchar("reason", { length: 50 }),
+  /** Optional free-text note */
+  note: text("note"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StaffAvailability = typeof staffAvailability.$inferSelect;
+export type InsertStaffAvailability = typeof staffAvailability.$inferInsert;
+
 export const staffSessions = mysqlTable("staff_sessions", {
   id: int("id").autoincrement().primaryKey(),
   staffId: int("staffId").notNull(),

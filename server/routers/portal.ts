@@ -1828,7 +1828,10 @@ export const portalRouter = router({
     .query(async ({ ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
-      return listStaffMembers(portalClient.client.id);
+      const members = await listStaffMembers(portalClient.client.id);
+      // Strip sensitive fields — staffPin (bcrypt hash) and pushSubscription
+      // (Web Push endpoint) must never be returned to the browser client.
+      return members.map(({ staffPin: _pin, pushSubscription: _push, ...safe }) => safe);
     }),
 
   createStaff: publicProcedure
@@ -1995,6 +1998,17 @@ export const portalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      // IDOR guard: verify both jobId and staffId belong to the authenticated client
+      const [job, staff] = await Promise.all([
+        getPortalJob(input.jobId),
+        getStaffMember(input.staffId),
+      ]);
+      if (!job || job.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      if (!staff || staff.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
       const result = await createScheduleEntry({
         clientId: portalClient.client.id,
         jobId: input.jobId,

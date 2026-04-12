@@ -427,3 +427,21 @@
 - [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
 - [ ] Add test with actual failing LLM output shape (not mocked happy path)
 - [ ] Commit with evidence: quote failing field path + LLM output in commit message
+
+## Security Hardening (Build 3 pre-flight)
+- [x] Rate limiting on staff PIN login (10 attempts / 15 min per IP)
+- [x] Rate limiting on owner portal password login (10 attempts / 15 min per IP)
+- [x] Rate limiting on forgot-password (5 attempts / 1 hour per IP)
+- [x] Helmet security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.)
+- [x] adminPortal procedures upgraded from protectedProcedure → adminProcedure (role = admin required)
+- [x] listStaff strips staffPin and pushSubscription from response
+- [x] createSchedule IDOR guard — verifies jobId and staffId belong to authenticated client
+
+## Security Hardening (Build 3 pre-flight)
+- [x] Rate limiting on staff PIN login (10 attempts / 15 min per IP)
+- [x] Rate limiting on owner portal password login (10 attempts / 15 min per IP)
+- [x] Rate limiting on forgot-password (5 attempts / 1 hour per IP)
+- [x] Helmet security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.)
+- [x] adminPortal procedures upgraded from protectedProcedure to adminProcedure (role = admin required)
+- [x] listStaff strips staffPin and pushSubscription from response
+- [x] createSchedule IDOR guard - verifies jobId and staffId belong to authenticated client

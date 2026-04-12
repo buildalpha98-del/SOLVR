@@ -267,6 +267,13 @@
       "when": 1775945764962,
       "tag": "0037_curvy_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1775954754292,
+      "tag": "0038_ambiguous_meggan",
+      "breakpoints": true
     }
   ]
 }

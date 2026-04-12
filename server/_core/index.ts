@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -48,6 +50,61 @@ async function startServer() {
   // Trust the Manus reverse proxy so Set-Cookie headers work correctly in production
   // Without this, Express doesn't recognise the request as HTTPS and secure cookies fail
   app.set('trust proxy', 1);
+
+  // ─── Security headers (Helmet) ────────────────────────────────────────────────
+  // Applied before all routes. Adds X-Frame-Options, X-Content-Type-Options,
+  // Referrer-Policy, Permissions-Policy, and more.
+  app.use(helmet({
+    // CSP is deferred — needs tuning for Vite/React inline scripts
+    contentSecurityPolicy: false,
+    // Allow cross-origin resources for Capacitor iOS
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // ─── Rate Limiters ────────────────────────────────────────────────────────────
+  /**
+   * Staff PIN login: max 10 attempts per 15 minutes per IP.
+   * A 4-digit PIN has 10,000 combinations — without this an attacker
+   * can brute-force it in seconds.
+   */
+  const staffLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many login attempts. Please wait 15 minutes before trying again." },
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? "unknown"),
+  });
+
+  /**
+   * Owner portal password login: max 10 attempts per 15 minutes per IP.
+   */
+  const portalLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many login attempts. Please wait 15 minutes before trying again." },
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? "unknown"),
+  });
+
+  /**
+   * Forgot-password: max 5 requests per hour per IP to prevent email enumeration.
+   */
+  const forgotPasswordLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many password reset requests. Please wait 1 hour before trying again." },
+    keyGenerator: (req) => ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? "unknown"),
+  });
+
+  // Apply rate limiters to specific tRPC batch paths
+  // tRPC batches use the procedure name as a query param: /api/trpc/staffPortal.login
+  app.use("/api/trpc/staffPortal.login", staffLoginLimiter);
+  app.use("/api/trpc/portal.passwordLogin", portalLoginLimiter);
+  app.use("/api/trpc/portal.forgotPassword", forgotPasswordLimiter);
 
   // CORS — allow the Capacitor iOS origin and local dev in addition to production
   const allowedOrigins = [

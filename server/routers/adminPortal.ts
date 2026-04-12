@@ -11,7 +11,7 @@
  */
 import { z } from "zod";
 import { randomBytes } from "crypto";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb, getOrCreateClientProfile, updateClientProfile, getClientProfile, getReviewRequestCountByClient } from "../db";
 import {
@@ -26,7 +26,7 @@ export const adminPortalRouter = router({
    * Create a new CRM client and immediately generate a portal access link.
    * One-step flow: fill in client details → get magic link ready to send.
    */
-  createClientWithPortal: protectedProcedure
+  createClientWithPortal: adminProcedure
     .input(
       z.object({
         contactName: z.string().min(1),
@@ -85,7 +85,7 @@ export const adminPortalRouter = router({
    * List all active CRM clients with their portal session status.
    * Returns: client info + whether a portal session exists + last access time + lastEmailSentAt.
    */
-  listClients: protectedProcedure.query(async () => {
+  listClients: adminProcedure.query(async () => {
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -160,7 +160,7 @@ export const adminPortalRouter = router({
    * Generate (or regenerate) a magic link for a client.
    * Also updates lastEmailSentAt to track when the link was last generated/sent.
    */
-  generateMagicLink: protectedProcedure
+  generateMagicLink: adminProcedure
     .input(
       z.object({
         clientId: z.number().int().positive(),
@@ -220,7 +220,7 @@ export const adminPortalRouter = router({
   /**
    * Revoke a client's portal access (sets isRevoked = true).
    */
-  revokeAccess: protectedProcedure
+  revokeAccess: adminProcedure
     .input(z.object({ clientId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
@@ -238,7 +238,7 @@ export const adminPortalRouter = router({
    * Admin: Set or reset a client's portal password.
    * Used from the Console Portal Clients page.
    */
-  adminSetPassword: protectedProcedure
+  adminSetPassword: adminProcedure
     .input(z.object({
       clientId: z.number().int().positive(),
       newPassword: z.string().min(8, "Password must be at least 8 characters"),
@@ -258,7 +258,7 @@ export const adminPortalRouter = router({
   /**
    * Get the full memory file / business profile for a client (admin view).
    */
-  adminGetClientProfile: protectedProcedure
+  adminGetClientProfile: adminProcedure
     .input(z.object({ clientId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const profile = await getOrCreateClientProfile(input.clientId);
@@ -268,7 +268,7 @@ export const adminPortalRouter = router({
   /**
    * Update any field in a client's memory file from the Console (admin view).
    */
-  adminUpdateClientProfile: protectedProcedure
+  adminUpdateClientProfile: adminProcedure
     .input(z.object({
       clientId: z.number().int().positive(),
       tradingName: z.string().max(255).optional(),
@@ -307,7 +307,7 @@ export const adminPortalRouter = router({
    * Fetch the raw voice onboarding transcript for a client (Console view).
    * Returns null if the client completed onboarding via the form (no voice recording).
    */
-  getVoiceOnboardingTranscript: protectedProcedure
+  getVoiceOnboardingTranscript: adminProcedure
     .input(z.object({ clientId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const profile = await getClientProfile(input.clientId);
@@ -320,7 +320,7 @@ export const adminPortalRouter = router({
   /**
    * Get the portal status for a single client.
    */
-  getPortalStatus: protectedProcedure
+  getPortalStatus: adminProcedure
     .input(z.object({ clientId: z.number().int().positive() }))
     .query(async ({ input }) => {
       const db = await getDb();
