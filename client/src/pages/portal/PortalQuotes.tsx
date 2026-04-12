@@ -9,6 +9,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -237,7 +238,7 @@ export default function PortalQuotes() {
       const ext = mimeToExt[voice.audioMimeType] ?? "webm";
       const formData = new FormData();
       formData.append("file", voice.audioBlob, `quote-recording-${Date.now()}.${ext}`);
-      const uploadRes = await fetch("/api/portal/upload-audio", {
+      const uploadRes = await fetch(`${getSolvrOrigin()}/api/portal/upload-audio`, {
         method: "POST",
         body: formData,
         credentials: "include",
