@@ -10,6 +10,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import PortalLayout from "./PortalLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -204,7 +205,7 @@ export default function PortalSubscription() {
 
   function handleManageBilling() {
     setPortalLoading(true);
-    billingPortalMutation.mutate({ origin: window.location.origin });
+    billingPortalMutation.mutate({ origin: getSolvrOrigin() });
   }
 
   if (isLoading) {

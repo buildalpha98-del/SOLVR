@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { getSolvrOrigin } from "@/const";
 import { Check, X, Zap, Wrench, Bot } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ export default function Pricing() {
       const { url } = await createSolvrCheckout.mutateAsync({
         plan,
         billingCycle: isAnnual ? "annual" : "monthly",
-        origin: window.location.origin,
+        origin: getSolvrOrigin(),
       });;
       toast.success("Redirecting to checkout…", { description: "Opening Stripe in a new tab." });
       window.open(url, "_blank");

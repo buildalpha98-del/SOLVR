@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { getSolvrOrigin } from "@/const";
 
 interface QuoteEngineUpgradeButtonProps {
   billingCycle?: "monthly" | "annual";
@@ -30,7 +31,7 @@ export function QuoteEngineUpgradeButton({
     try {
       const result = await checkout.mutateAsync({
         billingCycle,
-        origin: window.location.origin,
+        origin: getSolvrOrigin(),
       });
       toast.success("Redirecting to secure checkout…");
       window.open(result.url, "_blank");

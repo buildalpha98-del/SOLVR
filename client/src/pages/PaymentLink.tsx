@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, CheckCircle, AlertCircle, CreditCard, Building2, Phone } from "lucide-react";
@@ -36,7 +37,7 @@ export default function PaymentLink() {
 
   const handlePay = () => {
     setPaying(true);
-    createCheckout.mutate({ token, origin: window.location.origin });
+    createCheckout.mutate({ token, origin: getSolvrOrigin() });
   };
 
   if (isLoading) {

@@ -1,5 +1,20 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
+/**
+ * Returns the correct public origin for use in server-side URL fields.
+ * On iOS Capacitor, window.location.origin returns "capacitor://localhost" which
+ * fails Zod's z.string().url() validation. Always use this instead of
+ * window.location.origin when passing origin to tRPC mutations.
+ */
+export const getSolvrOrigin = (): string => {
+  const origin = window.location.origin;
+  // Capacitor iOS/Android returns "capacitor://localhost" — replace with real domain
+  if (origin.startsWith("capacitor://") || origin.startsWith("ionic://")) {
+    return "https://solvr.com.au";
+  }
+  return origin;
+};
+
 // Generate login URL at runtime so redirect URI reflects the current origin.
 export const getLoginUrl = () => {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;

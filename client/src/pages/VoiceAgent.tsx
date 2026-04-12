@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { getSolvrOrigin } from "@/const";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
@@ -289,7 +290,7 @@ function PricingSection() {
       const { url } = await createCheckout.mutateAsync({
         plan,
         billingCycle,
-        origin: window.location.origin,
+        origin: getSolvrOrigin(),
       });
       toast.success("Redirecting to checkout…", { description: "Opening Stripe in a new tab." });
       window.open(url, "_blank");
