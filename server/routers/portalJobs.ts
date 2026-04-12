@@ -134,9 +134,11 @@ export const portalJobsProcedures = {
               const profile = await getClientProfile(client.id);
               const businessName = profile?.tradingName ?? "Your tradie";
               const firstName = (job.customerName ?? job.callerName ?? "").split(" ")[0] || "there";
+              const publicBase = process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";
+              const statusLink = job.customerStatusToken ? ` Track your job: ${publicBase}/job/${job.customerStatusToken}` : "";
               const body = input.stage === "booked"
-                ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly. Reply STOP to opt out.`
-                : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business! Reply STOP to opt out.`;
+                ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly.${statusLink} Reply STOP to opt out.`
+                : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business!${statusLink} Reply STOP to opt out.`;
               await sendSms({ to: customerPhone, body });
               console.log(`[JobSMS] '${input.stage}' SMS sent to ${customerPhone} for job ${id}`);
             } catch (e) {

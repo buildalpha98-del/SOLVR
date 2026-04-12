@@ -104,6 +104,9 @@ import {
   listStaffUnavailability,
   getLabourCostReport,
   getPortalJobByStatusToken,
+  upsertJobFeedback,
+  getJobFeedback,
+  listJobFeedbackForClient,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 
@@ -2436,7 +2439,47 @@ export const portalRouter = router({
           tradingName: profile?.tradingName ?? null,
           phone: profile?.phone ?? null,
           email: profile?.email ?? null,
+          logoUrl: profile?.logoUrl ?? null,
         },
+        // Include existing feedback if any
+        feedback: await getJobFeedback(job.id).then(f => f ? { positive: f.positive, comment: f.comment } : null),
       };
+    }),
+
+  /**
+   * submitJobFeedback — public, no auth.
+   * Customer submits thumbs up/down + optional comment from the status page.
+   */
+  submitJobFeedback: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      positive: z.boolean(),
+      comment: z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      await upsertJobFeedback({
+        jobId: job.id,
+        clientId: job.clientId,
+        positive: input.positive,
+        comment: input.comment ?? null,
+        customerName: job.customerName ?? job.callerName ?? null,
+      });
+      // If positive, optionally trigger Google Review request
+      const profile = await getClientProfile(job.clientId);
+      const googleReviewLink = profile?.googleReviewLink ?? null;
+      return { success: true, googleReviewLink };
+    }),
+
+  /**
+   * listJobFeedback — portal-authenticated.
+   * Owner can see all customer feedback in the portal.
+   */
+  listJobFeedback: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      return listJobFeedbackForClient(result.client.id);
     }),
 });

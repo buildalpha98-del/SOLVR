@@ -1628,3 +1628,29 @@ export async function getPortalJobByStatusToken(token: string): Promise<PortalJo
   const result = await db.select().from(portalJobs).where(eq(portalJobs.customerStatusToken, token)).limit(1);
   return result.length > 0 ? result[0] : null;
 }
+
+// ── Job Feedback ──────────────────────────────────────────────────────────────
+import { jobFeedback, type InsertJobFeedback, type JobFeedback } from "../drizzle/schema";
+
+export async function upsertJobFeedback(data: InsertJobFeedback): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(jobFeedback).values(data).onDuplicateKeyUpdate({
+    set: { positive: data.positive, comment: data.comment, customerName: data.customerName },
+  });
+}
+
+export async function getJobFeedback(jobId: number): Promise<JobFeedback | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(jobFeedback).where(eq(jobFeedback.jobId, jobId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function listJobFeedbackForClient(clientId: number): Promise<JobFeedback[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobFeedback)
+    .where(eq(jobFeedback.clientId, clientId))
+    .orderBy(jobFeedback.createdAt);
+}

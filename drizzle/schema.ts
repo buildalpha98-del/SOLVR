@@ -1463,3 +1463,16 @@ export const staffSessions = mysqlTable("staff_sessions", {
 });
 export type StaffSession = typeof staffSessions.$inferSelect;
 export type InsertStaffSession = typeof staffSessions.$inferInsert;
+
+// --- Job Feedback ---
+export const jobFeedback = mysqlTable('job_feedback', {
+  id: int('id').autoincrement().primaryKey(),
+  jobId: int('jobId').notNull().unique(),
+  clientId: int('clientId').notNull(),
+  positive: boolean('positive').notNull(),
+  comment: text('comment'),
+  customerName: varchar('customerName', { length: 255 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type JobFeedback = typeof jobFeedback.$inferSelect;
+export type InsertJobFeedback = typeof jobFeedback.$inferInsert;

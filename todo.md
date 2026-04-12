@@ -453,3 +453,13 @@
 - [ ] P4 — Staff card refactor to Manage bottom sheet
 - [ ] P5 — Drag handle + first-visit tooltip on schedule cards
 - [ ] P6 — Voice as primary CTA on Quotes page
+
+## Customer Job Status Enhancements (Apr 2026)
+- [x] Auto-send customer status link in booking SMS
+- [x] Customer feedback widget on status page (thumbs up/down + comment)
+- [x] Status page branding (tradie logo + trading name)
+
+## Customer Job Status Enhancements (Apr 2026)
+- [x] Auto-send customer status link in booking SMS
+- [x] Customer feedback widget on status page (thumbs up/down + comment)
+- [x] Status page branding (tradie logo + trading name)
