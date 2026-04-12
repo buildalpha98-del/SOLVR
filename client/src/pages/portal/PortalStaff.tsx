@@ -17,7 +17,9 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users } from "lucide-react";
+import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Link2, Copy, Check, Download, Calendar } from "lucide-react";
+import { useEffect } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -51,11 +53,70 @@ export default function PortalStaff() {
   const utils = trpc.useUtils();
 
   const { data: staffList, isLoading } = trpc.portal.listStaff.useQuery();
+  const { data: me } = trpc.portal.me.useQuery();
 
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [form, setForm] = useState<StaffFormData>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<StaffMember | null>(null);
+  const [pinTarget, setPinTarget] = useState<StaffMember | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [showQr, setShowQr] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const staffLoginUrl = me?.clientId
+    ? `${window.location.origin}/staff?c=${me.clientId}`
+    : null;
+
+  function copyStaffLink() {
+    if (!staffLoginUrl) return;
+    navigator.clipboard.writeText(staffLoginUrl).then(() => {
+      setCopied(true);
+      toast.success("Staff login link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  const [pinConfirm, setPinConfirm] = useState("");
+
+  // Timesheet export state
+  const [showExport, setShowExport] = useState(false);
+  const [exportFrom, setExportFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [exportTo, setExportTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exportEnabled, setExportEnabled] = useState(false);
+
+  const { data: timesheetData, isFetching: exportLoading } = trpc.portal.exportTimesheets.useQuery(
+    { from: exportFrom, to: exportTo },
+    { enabled: exportEnabled }
+  );
+
+  // Trigger CSV download when data arrives
+  useEffect(() => {
+    if (!exportEnabled || !timesheetData?.csv) return;
+    setExportEnabled(false);
+    if (timesheetData.count === 0) {
+      toast.info("No time entries found for the selected period.");
+      return;
+    }
+    const blob = new Blob([timesheetData.csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `timesheets-${exportFrom}-to-${exportTo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${timesheetData.count} time entries.`);
+  }, [timesheetData, exportEnabled]);
+
+  function handleExport() {
+    if (!exportFrom || !exportTo) { toast.error("Please select a date range."); return; }
+    setExportEnabled(true);
+    setShowExport(false);
+    toast.info("Generating timesheet CSV…");
+  }
 
   const createMutation = trpc.portal.createStaff.useMutation({
     onSuccess: () => {
@@ -73,6 +134,16 @@ export default function PortalStaff() {
       setEditingStaff(null);
       setForm(emptyForm);
       toast.success("Staff member updated.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const setPinMutation = trpc.portal.setStaffPin.useMutation({
+    onSuccess: () => {
+      setPinTarget(null);
+      setPinValue("");
+      setPinConfirm("");
+      toast.success("PIN set successfully.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -144,15 +215,41 @@ export default function PortalStaff() {
               Manage your team members — assign them to jobs and track their hours.
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={openCreate}
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-            className="font-semibold"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Staff
-          </Button>
+          <div className="flex items-center gap-2">
+            {staffLoginUrl && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowQr(true)}
+                  style={{ color: "rgba(245,166,35,0.8)", border: "1px solid rgba(245,166,35,0.3)" }}
+                  title="Staff Login QR Code"
+                >
+                  <Link2 className="w-4 h-4 mr-1" />
+                  Staff Link
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowExport(true)}
+              style={{ color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}
+              title="Export Timesheets"
+            >
+              <Download className="w-4 h-4 mr-1" />
+              Export
+            </Button>
+            <Button
+              size="sm"
+              onClick={openCreate}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Staff
+            </Button>
+          </div>
         </div>
 
         {/* Staff list */}
@@ -225,6 +322,14 @@ export default function PortalStaff() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => { setPinTarget(member); setPinValue(""); setPinConfirm(""); }}
+                    className="p-2 rounded-lg transition-colors"
+                    style={{ color: "rgba(245,166,35,0.6)" }}
+                    title="Set Staff PIN"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => openEdit(member)}
                     className="p-2 rounded-lg transition-colors"
@@ -325,6 +430,152 @@ export default function PortalStaff() {
               className="font-semibold"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingStaff ? "Save Changes" : "Add Staff Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Staff Login Link / QR Code Dialog */}
+      <Dialog open={showQr} onOpenChange={setShowQr}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }}>Staff Login Link</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 flex flex-col items-center">
+            <p className="text-sm text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Share this link or QR code with your staff. They select their name and enter their PIN to log in.
+            </p>
+            {staffLoginUrl && (
+              <div className="p-3 rounded-xl" style={{ background: "white" }}>
+                <QRCodeSVG value={staffLoginUrl} size={180} />
+              </div>
+            )}
+            <div
+              className="w-full rounded-lg px-3 py-2 text-xs font-mono break-all"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              {staffLoginUrl}
+            </div>
+            <Button
+              onClick={copyStaffLink}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold w-full"
+            >
+              {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+              {copied ? "Copied!" : "Copy Link"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Timesheets Dialog */}
+      <Dialog open={showExport} onOpenChange={setShowExport}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }} className="flex items-center gap-2">
+              <Download className="w-4 h-4" style={{ color: "#F5A623" }} />
+              Export Timesheets
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Download a CSV of all staff check-in/out records for the selected date range. Ready for payroll.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>From</Label>
+                <Input
+                  type="date"
+                  value={exportFrom}
+                  onChange={e => setExportFrom(e.target.value)}
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "white" }}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>To</Label>
+                <Input
+                  type="date"
+                  value={exportTo}
+                  onChange={e => setExportTo(e.target.value)}
+                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "white" }}
+                />
+              </div>
+            </div>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Columns: Staff Name, Job, Date, Check-in, Check-out, Duration (mins), Duration (hrs), Check-in GPS, Check-out GPS
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowExport(false)} style={{ color: "rgba(255,255,255,0.5)" }}>Cancel</Button>
+            <Button
+              onClick={handleExport}
+              disabled={exportLoading}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              {exportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              {exportLoading ? "Generating…" : "Download CSV"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set PIN Dialog */}
+      <Dialog open={!!pinTarget} onOpenChange={(open) => { if (!open) { setPinTarget(null); setPinValue(""); setPinConfirm(""); } }}>
+        <DialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: "white" }}>
+              Set PIN — {pinTarget?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Staff use this PIN to log in at <span className="text-amber-400 font-mono text-xs">solvr.com.au/staff?c={/* clientId */}</span>.
+              Use 4–8 digits.
+            </p>
+            <div>
+              <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>New PIN</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinValue}
+                onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ""))}
+                placeholder="e.g. 1234"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>Confirm PIN</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinConfirm}
+                onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, ""))}
+                placeholder="Re-enter PIN"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
+              />
+            </div>
+            {pinValue && pinConfirm && pinValue !== pinConfirm && (
+              <p className="text-red-400 text-xs">PINs don't match.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setPinTarget(null); setPinValue(""); setPinConfirm(""); }}
+              style={{ color: "rgba(255,255,255,0.5)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => pinTarget && setPinMutation.mutate({ id: pinTarget.id, pin: pinValue })}
+              disabled={!pinValue || pinValue.length < 4 || pinValue !== pinConfirm || setPinMutation.isPending}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="font-semibold"
+            >
+              {setPinMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Set PIN"}
             </Button>
           </DialogFooter>
         </DialogContent>

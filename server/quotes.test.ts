@@ -129,6 +129,69 @@ describe("publicQuotes token validation", () => {
   });
 });
 
+// ── sanitiseExtracted — Zod v4 empty-string email regression ───────────────────
+describe("sanitiseExtracted", () => {
+  it("coerces empty-string email to null (Zod v4 regression)", async () => {
+    const { sanitiseExtracted } = await import("./server/_core/quoteExtraction");
+    const input = {
+      jobTitle: "Hot Water System Replacement",
+      jobDescription: null,
+      customerName: "John Smith",
+      customerEmail: "",
+      customerPhone: "0412 345 678",
+      customerAddress: "42 Smith Street Bondi 2026",
+      lineItems: [{ description: "Replace hot water system", quantity: 1, unit: "lot", unitPrice: 650 }],
+      paymentTerms: "Due on completion",
+      validityDays: 30,
+      notes: null,
+      extractionWarnings: [],
+    };
+    const result = sanitiseExtracted(input);
+    expect(result.customerEmail).toBeNull();
+  });
+
+  it("coerces null-string placeholders to null", async () => {
+    const { sanitiseExtracted } = await import("./server/_core/quoteExtraction");
+    const input = {
+      jobTitle: "Plumbing Job",
+      jobDescription: null,
+      customerName: "not provided",
+      customerEmail: "not provided",
+      customerPhone: "N/A",
+      customerAddress: null,
+      lineItems: [],
+      paymentTerms: null,
+      validityDays: null,
+      notes: null,
+      extractionWarnings: [],
+    };
+    const result = sanitiseExtracted(input);
+    expect(result.customerName).toBeNull();
+    expect(result.customerEmail).toBeNull();
+    expect(result.customerPhone).toBeNull();
+  });
+
+  it("preserves valid email and Australian phone", async () => {
+    const { sanitiseExtracted } = await import("./server/_core/quoteExtraction");
+    const input = {
+      jobTitle: "Electrical Inspection",
+      jobDescription: null,
+      customerName: "Jane Doe",
+      customerEmail: "jane@example.com",
+      customerPhone: "0412 345 678",
+      customerAddress: "10 Test St",
+      lineItems: [],
+      paymentTerms: null,
+      validityDays: null,
+      notes: null,
+      extractionWarnings: [],
+    };
+    const result = sanitiseExtracted(input);
+    expect(result.customerEmail).toBe("jane@example.com");
+    expect(result.customerPhone).toBe("0412 345 678");
+  });
+});
+
 // ── Quote number format ───────────────────────────────────────────────────────
 describe("quote number format", () => {
   it("generates a quote number in Q-YYYYMMDD-XXXX format", () => {

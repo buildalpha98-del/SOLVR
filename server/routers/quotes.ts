@@ -151,7 +151,7 @@ export const quotesRouter = router({
         jobTitle: z.string().min(1).max(255),
         jobDescription: z.string().max(2000).nullish(),
         customerName: z.string().max(255).nullish(),
-        customerEmail: z.string().email().max(320).nullish(),
+        customerEmail: z.union([z.string().email().max(320), z.literal("")]).nullish().transform(v => (v === "" ? null : v)),
         customerPhone: z.string().max(50).nullish(),
         customerAddress: z.string().max(512).nullish(),
         notes: z.string().max(2000).nullish(),
@@ -367,7 +367,7 @@ export const quotesRouter = router({
         jobTitle: z.string().min(1).max(255).optional(),
         jobDescription: z.string().max(2000).nullish(),
         customerName: z.string().max(255).nullish(),
-        customerEmail: z.string().email().max(320).nullish(),
+        customerEmail: z.union([z.string().email().max(320), z.literal("")]).nullish().transform(v => (v === "" ? null : v)),
         customerPhone: z.string().max(50).nullish(),
         customerAddress: z.string().max(512).nullish(),
         notes: z.string().max(2000).nullish(),
@@ -852,16 +852,14 @@ export const quotesRouter = router({
         gstRate: z.string().optional(),
         paymentTerms: z.string().max(255).optional(),
         validityDays: z.number().int().positive().optional(),
-        replyToEmail: z.string().email().max(320).nullish(),
+         replyToEmail: z.union([z.string().email().max(320), z.literal("")]).nullish().transform(v => (v === "" ? null : v)),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const portalAuth = await getPortalClient(ctx.req);
       if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
       const clientId = portalAuth.client.id;
-
       const updateData: Record<string, unknown> = {};
-
       if (input.logoDataUrl) {
         const base64Data = input.logoDataUrl.replace(/^data:[^;]+;base64,/, "");
         const logoBuffer = Buffer.from(base64Data, "base64");

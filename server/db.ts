@@ -1,4 +1,4 @@
-import { desc, eq, and, lte, sql } from "drizzle-orm";
+import { desc, eq, and, lte, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertClientOnboarding, InsertSavedPrompt, InsertStrategyCallLead, InsertUser,
@@ -1283,4 +1283,159 @@ export async function getReviewRequestCountByClient(
     map.set(row.clientId, Number(row.count));
   }
   return map;
+}
+
+// ── Staff Sessions ─────────────────────────────────────────────────────────────
+import {
+  staffSessions,
+  type StaffSession,
+  type InsertStaffSession,
+} from "../drizzle/schema";
+
+export async function createStaffSession(data: InsertStaffSession): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(staffSessions).values(data);
+  return { insertId: Number((result as unknown as [{ insertId: number }])[0].insertId) };
+}
+
+export async function getStaffSessionByToken(token: string): Promise<StaffSession | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(staffSessions)
+    .where(and(eq(staffSessions.token, token), gte(staffSessions.expiresAt, new Date())))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function deleteStaffSession(token: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(staffSessions).where(eq(staffSessions.token, token));
+}
+
+export async function listScheduleEntriesForStaffWeek(
+  staffId: number,
+  clientId: number,
+  weekStart: Date,
+  weekEnd: Date,
+): Promise<JobScheduleEntry[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobSchedule)
+    .where(and(
+      eq(jobSchedule.staffId, staffId),
+      eq(jobSchedule.clientId, clientId),
+      gte(jobSchedule.startTime, weekStart),
+      lte(jobSchedule.startTime, weekEnd),
+    ))
+    .orderBy(jobSchedule.startTime);
+}
+
+// ─── Timesheet Export ─────────────────────────────────────────────────────────
+/**
+ * Returns all time entries for a client within a date range, joined with staff name and job type.
+ * Used for CSV payroll export.
+ */
+export async function listTimeEntriesForDateRange(
+  clientId: number,
+  from: Date,
+  to: Date,
+): Promise<(TimeEntry & { staffName: string | null; jobType: string | null })[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select({
+      id: timeEntries.id,
+      clientId: timeEntries.clientId,
+      jobId: timeEntries.jobId,
+      staffId: timeEntries.staffId,
+      scheduleId: timeEntries.scheduleId,
+      checkInAt: timeEntries.checkInAt,
+      checkOutAt: timeEntries.checkOutAt,
+      checkInLat: timeEntries.checkInLat,
+      checkInLng: timeEntries.checkInLng,
+      checkOutLat: timeEntries.checkOutLat,
+      checkOutLng: timeEntries.checkOutLng,
+      durationMinutes: timeEntries.durationMinutes,
+      convertedToJobCost: timeEntries.convertedToJobCost,
+      createdAt: timeEntries.createdAt,
+      updatedAt: timeEntries.updatedAt,
+      staffName: staffMembers.name,
+      jobType: portalJobs.jobType,
+    })
+    .from(timeEntries)
+    .leftJoin(staffMembers, eq(timeEntries.staffId, staffMembers.id))
+    .leftJoin(portalJobs, eq(timeEntries.jobId, portalJobs.id))
+    .where(
+      and(
+        eq(timeEntries.clientId, clientId),
+        gte(timeEntries.checkInAt, from),
+        lte(timeEntries.checkInAt, to),
+      ),
+    )
+    .orderBy(timeEntries.checkInAt);
+  return rows as (TimeEntry & { staffName: string | null; jobType: string | null })[];
+}
+
+// ─── Late Check-in Detection ──────────────────────────────────────────────────
+import { isNull } from "drizzle-orm";
+/**
+ * Returns schedule entries that started more than `thresholdMinutes` ago,
+ * have no matching check-in, are still pending/confirmed, and haven't been declined.
+ */
+export async function listScheduleEntriesForLateCheckin(
+  thresholdMinutes: number,
+): Promise<(JobScheduleEntry & { staffName: string | null; pushSubscription: string | null })[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000);
+  const now = new Date();
+  const entries = await db
+    .select({
+      id: jobSchedule.id,
+      clientId: jobSchedule.clientId,
+      jobId: jobSchedule.jobId,
+      staffId: jobSchedule.staffId,
+      startTime: jobSchedule.startTime,
+      endTime: jobSchedule.endTime,
+      status: jobSchedule.status,
+      notes: jobSchedule.notes,
+      notificationSentAt: jobSchedule.notificationSentAt,
+      staffConfirmedAt: jobSchedule.staffConfirmedAt,
+      staffDeclinedAt: jobSchedule.staffDeclinedAt,
+      declineReason: jobSchedule.declineReason,
+      createdAt: jobSchedule.createdAt,
+      updatedAt: jobSchedule.updatedAt,
+      staffName: staffMembers.name,
+      pushSubscription: staffMembers.pushSubscription,
+    })
+    .from(jobSchedule)
+    .leftJoin(staffMembers, eq(jobSchedule.staffId, staffMembers.id))
+    .where(
+      and(
+        gte(jobSchedule.startTime, cutoff),
+        lte(jobSchedule.startTime, now),
+        sql`${jobSchedule.status} IN ('pending', 'confirmed')`,
+        isNull(jobSchedule.staffDeclinedAt),
+      ),
+    )
+    .orderBy(jobSchedule.startTime);
+
+  // Filter out entries that already have a check-in today
+  if (entries.length === 0) return [];
+  const jobIds = Array.from(new Set(entries.map(e => e.jobId)));
+  const staffIds = Array.from(new Set(entries.map(e => e.staffId)));
+  const existingCheckIns = await db
+    .select({ staffId: timeEntries.staffId, jobId: timeEntries.jobId })
+    .from(timeEntries)
+    .where(
+      and(
+        sql`${timeEntries.staffId} IN (${sql.join(staffIds.map(id => sql`${id}`), sql`, `)})`,
+        sql`${timeEntries.jobId} IN (${sql.join(jobIds.map(id => sql`${id}`), sql`, `)})`,
+        gte(timeEntries.checkInAt, cutoff),
+      ),
+    );
+  const checkedIn = new Set(existingCheckIns.map(ci => `${ci.staffId}:${ci.jobId}`));
+  return entries.filter(e => !checkedIn.has(`${e.staffId}:${e.jobId}`)) as (JobScheduleEntry & { staffName: string | null; pushSubscription: string | null })[];
 }

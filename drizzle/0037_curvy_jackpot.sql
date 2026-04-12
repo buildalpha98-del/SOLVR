@@ -1,0 +1,1 @@
+ALTER TABLE `job_schedule` ADD `declineReason` varchar(50);

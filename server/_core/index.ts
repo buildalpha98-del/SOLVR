@@ -20,6 +20,7 @@ import { scheduleWeeklySummaryEmail } from "../cron/weeklySummaryEmail";
 import { scheduleQuoteFollowUpCron } from "../cron/quoteFollowUp";
 import { scheduleStaffTimesheetCrons } from "../cron/staffTimesheet";
 import { scheduleReviewRequestDispatchCron } from "../cron/reviewRequestDispatch";
+import { scheduleLateCheckinAlertCron } from "../cron/lateCheckinAlert";
 import { quoteAcceptRouter } from "../quoteAccept";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -120,6 +121,7 @@ async function startServer() {
   scheduleQuoteFollowUpCron();
   scheduleStaffTimesheetCrons();
   scheduleReviewRequestDispatchCron();
+  scheduleLateCheckinAlertCron();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

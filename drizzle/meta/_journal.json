@@ -239,6 +239,34 @@
       "when": 1775912460856,
       "tag": "0033_funny_smiling_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1775942315061,
+      "tag": "0034_hot_brother_voodoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1775943752717,
+      "tag": "0035_chief_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1775944507092,
+      "tag": "0036_robust_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1775945764962,
+      "tag": "0037_curvy_jackpot",
+      "breakpoints": true
     }
   ]
 }

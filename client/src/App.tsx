@@ -69,6 +69,12 @@ import PortalSchedule from "./pages/portal/PortalSchedule";
 import PortalStaffCheckIn from "./pages/portal/PortalStaffCheckIn";
 import PortalReviews from "./pages/portal/PortalReviews";
 
+// ── Staff Portal (PIN-based auth, separate from owner portal) ────────────────
+import StaffLogin from "./pages/staff/StaffLogin";
+import StaffToday from "./pages/staff/StaffToday";
+import StaffRoster from "./pages/staff/StaffRoster";
+import StaffCheckin from "./pages/staff/StaffCheckin";
+
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
 
@@ -158,6 +164,12 @@ function Router() {
       <Route path="/portal/checkin" component={PortalStaffCheckIn} />
       <Route path="/portal/reviews" component={PortalReviews} />
 
+      {/* ── Staff Portal (PIN auth, separate namespace from owner portal) ─ */}
+      <Route path="/staff" component={StaffLogin} />
+      <Route path="/staff/today" component={StaffToday} />
+      <Route path="/staff/roster" component={StaffRoster} />
+      <Route path="/staff/checkin" component={StaffCheckin} />
+
       {/* ── Public quote acceptance page ──────────────────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />
 
@@ -176,15 +188,15 @@ function Router() {
 
 /**
  * Dismissible marketing announcement banner — shown on the public marketing
- * site only. Hidden on portal routes because portal users are existing paying
- * customers who should not be shown "book a free strategy call" style CTAs
- * aimed at prospects. Same logic applies in the Capacitor mobile app (which
- * only ever shows /portal/* routes anyway, so the banner would never render
- * there either way).
+ * site only. Hidden on /portal/* and /staff/* routes because those users are
+ * existing paying customers (or their tradies/staff) and should not be shown
+ * "book a free strategy call" style CTAs aimed at prospects. Same logic applies
+ * in the Capacitor mobile app (which only ever shows /portal/* or /staff/*
+ * routes anyway, so the banner would never render there either way).
  */
 function ConditionalAnnouncementBanner() {
   const [location] = useLocation();
-  if (location.startsWith("/portal")) return null;
+  if (location.startsWith("/portal") || location.startsWith("/staff")) return null;
   return <AnnouncementBanner />;
 }
 

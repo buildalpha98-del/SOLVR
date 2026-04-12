@@ -3,7 +3,7 @@
  * Shows client info, location, linked quote, progress payments, before/after photos,
  * invoice generation, and job completion.
  */
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
@@ -13,6 +13,7 @@ import {
   DollarSign, CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
   Banknote, Receipt, Send, Copy, Check,
+  ChevronLeft, ChevronRight, ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,10 +94,11 @@ function EditableField({
             </p>
             <button
               onClick={() => { setDraft(value ?? ""); setEditing(true); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: "rgba(255,255,255,0.3)" }}
+              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0"
+              style={{ color: "rgba(255,255,255,0.5)" }}
+              aria-label={`Edit ${label}`}
             >
-              <Edit2 className="w-3 h-3" />
+              <Edit2 className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
@@ -118,21 +120,145 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
   );
 }
 
+// ─── Photo Lightbox ──────────────────────────────────────────────────────────
+type LightboxPhoto = { imageUrl: string; caption: string | null; photoType: string; uploadedByStaffName?: string | null };
+
+function PhotoLightbox({
+  photos,
+  initialIndex,
+  onClose,
+}: {
+  photos: LightboxPhoto[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+
+  const prev = useCallback(() => setIndex(i => (i - 1 + photos.length) % photos.length), [photos.length]);
+  const next = useCallback(() => setIndex(i => (i + 1) % photos.length), [photos.length]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prev, next, onClose]);
+
+  // Touch swipe
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const current = photos[index];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.92)" }}
+      onClick={onClose}
+    >
+      {/* Close */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 rounded-full"
+        style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
+      >
+        <X className="w-5 h-5" />
+      </button>
+
+      {/* Counter */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs font-medium px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>
+        {index + 1} / {photos.length}
+      </div>
+
+      {/* Prev */}
+      {photos.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); prev(); }}
+          className="absolute left-3 p-2 rounded-full"
+          style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Image */}
+      <div
+        className="max-w-[90vw] max-h-[80vh] flex flex-col items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+        onTouchEnd={(e) => {
+          if (touchStartX === null) return;
+          const dx = e.changedTouches[0].clientX - touchStartX;
+          if (dx > 50) prev();
+          else if (dx < -50) next();
+          setTouchStartX(null);
+        }}
+      >
+        <img
+          src={current.imageUrl}
+          alt={current.caption ?? current.photoType}
+          className="rounded-xl object-contain"
+          style={{ maxWidth: "90vw", maxHeight: "70vh" }}
+        />
+        {(current.caption || current.uploadedByStaffName) && (
+          <div className="text-center space-y-0.5">
+            {current.uploadedByStaffName && (
+              <p className="text-xs font-semibold" style={{ color: "#F5A623" }}>{current.uploadedByStaffName}</p>
+            )}
+            {current.caption && (
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{current.caption}</p>
+            )}
+            <p className="text-xs capitalize" style={{ color: "rgba(255,255,255,0.35)" }}>{current.photoType}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Next */}
+      {photos.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); next(); }}
+          className="absolute right-3 p-2 rounded-full"
+          style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Photo Section ──────────────────────────────────────────────────────────
-type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null };
+type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null; uploadedByStaffName?: string | null };
 
 function PhotoSection({
   jobId,
   beforePhotos,
   afterPhotos,
+  staffPhotos,
   onRefresh,
 }: {
   jobId: number;
   beforePhotos: JobPhoto[];
   afterPhotos: JobPhoto[];
+  staffPhotos: JobPhoto[];
   onRefresh: () => void;
 }) {
   const [uploading, setUploading] = useState<"before" | "after" | null>(null);
+  const [lightbox, setLightbox] = useState<{ photos: LightboxPhoto[]; index: number } | null>(null);
+
+  // Build a combined flat list of all photos for lightbox navigation
+  const allPhotosForLightbox: LightboxPhoto[] = [
+    ...beforePhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
+    ...afterPhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
+    ...staffPhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
+  ];
+
+  function openLightbox(photo: JobPhoto) {
+    const idx = allPhotosForLightbox.findIndex(p => p.imageUrl === photo.imageUrl);
+    setLightbox({ photos: allPhotosForLightbox, index: idx >= 0 ? idx : 0 });
+  }
 
   const addPhoto = trpc.portal.addJobPhoto.useMutation({
     onSuccess: () => { onRefresh(); },
@@ -195,10 +321,19 @@ function PhotoSection({
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {photos.map(p => (
-              <div key={p.id} className="relative group rounded-lg overflow-hidden" style={{ aspectRatio: "4/3" }}>
-                <img src={p.imageUrl} alt={p.caption ?? type} className="w-full h-full object-cover" />
+              <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "4/3" }}>
+                <img
+                  src={p.imageUrl}
+                  alt={p.caption ?? type}
+                  className="w-full h-full object-cover"
+                  onClick={() => openLightbox(p)}
+                />
+                {/* Zoom hint */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}>
+                  <ZoomIn className="w-5 h-5 text-white" />
+                </div>
                 <button
-                  onClick={() => removePhoto.mutate({ id: p.id, jobId })}
+                  onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }}
                   className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ background: "rgba(239,68,68,0.85)" }}
                 >
@@ -214,12 +349,51 @@ function PhotoSection({
   }
 
   return (
-    <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-      <div className="grid grid-cols-2 gap-4">
-        <PhotoGrid photos={beforePhotos} type="before" />
-        <PhotoGrid photos={afterPhotos} type="after" />
-      </div>
-    </SectionCard>
+    <>
+      {lightbox && (
+        <PhotoLightbox
+          photos={lightbox.photos}
+          initialIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+      <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+        <div className="grid grid-cols-2 gap-4">
+          <PhotoGrid photos={beforePhotos} type="before" />
+          <PhotoGrid photos={afterPhotos} type="after" />
+        </div>
+        {/* Staff-uploaded photos (during / other) */}
+        {staffPhotos.length > 0 && (
+          <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Staff Photos ({staffPhotos.length})</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {staffPhotos.map(p => (
+                <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "1" }}>
+                  <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" onClick={() => openLightbox(p)} />
+                  {/* Zoom hint */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}>
+                    <ZoomIn className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1" style={{ background: "rgba(0,0,0,0.65)" }}>
+                    {p.uploadedByStaffName && (
+                      <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>
+                    )}
+                    <p className="text-[9px] capitalize" style={{ color: "rgba(255,255,255,0.6)" }}>{p.photoType}{p.caption ? ` — ${p.caption}` : ""}</p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }}
+                    className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ background: "rgba(239,68,68,0.85)" }}
+                  >
+                    <Trash2 className="w-2.5 h-2.5 text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+    </>
   );
 }
 
@@ -566,6 +740,7 @@ export default function PortalJobDetail() {
 
   const beforePhotos = photos.filter(p => p.photoType === "before");
   const afterPhotos = photos.filter(p => p.photoType === "after");
+  const staffPhotos = photos.filter(p => p.photoType === "during" || p.photoType === "other");
 
   function save(field: string, value: string | number | null) {
     updateJob.mutate({ id: jobId, [field]: value } as Parameters<typeof updateJob.mutate>[0]);
@@ -821,8 +996,113 @@ export default function PortalJobDetail() {
           jobId={jobId}
           beforePhotos={beforePhotos}
           afterPhotos={afterPhotos}
+          staffPhotos={staffPhotos}
           onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
         />
+
+        {/* ── Staff Activity ── */}
+        {(() => {
+          const scheduleEntries = (data as any).scheduleEntries ?? [];
+          const timeEntries = (data as any).timeEntries ?? [];
+          if (scheduleEntries.length === 0 && timeEntries.length === 0) return null;
+          const REASON_LABELS: Record<string, string> = { sick: "Sick", unavailable: "Unavailable", personal: "Personal", other: "Other" };
+          return (
+            <SectionCard title="Staff Activity">
+              {scheduleEntries.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Scheduled Staff</p>
+                  {scheduleEntries.map((entry: any) => (
+                    <div key={entry.id} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                      <div className="flex items-center gap-2">
+                        {entry.staffDeclinedAt ? (
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>✗</span>
+                        ) : entry.staffConfirmedAt ? (
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>✓</span>
+                        ) : (
+                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)" }}>?</span>
+                        )}
+                        <div>
+                          <p className="text-sm text-white">{entry.staffName ?? `Staff #${entry.staffId}`}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            {new Date(entry.startTime).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })}
+                            {entry.staffDeclinedAt && entry.declineReason && (
+                              <span className="ml-2 text-red-400/70">— {REASON_LABELS[entry.declineReason] ?? entry.declineReason}</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        entry.status === "completed" ? "bg-green-500/15 text-green-400" :
+                        entry.status === "confirmed" ? "bg-amber-500/15 text-amber-400" :
+                        entry.status === "in_progress" ? "bg-blue-500/15 text-blue-400" :
+                        entry.staffDeclinedAt ? "bg-red-500/15 text-red-400" :
+                        "bg-white/8 text-white/40"
+                      }`}>
+                        {entry.staffDeclinedAt ? "Declined" : entry.status.replace("_", " ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {timeEntries.length > 0 && (
+                <div className="space-y-2 mt-3">
+                  <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Check-in / Check-out Log</p>
+                  {timeEntries.map((te: any) => {
+                    const durationMins = te.checkOutAt
+                      ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
+                      : null;
+                    const checkInMapUrl = te.checkInLat && te.checkInLng
+                      ? `https://www.google.com/maps?q=${te.checkInLat},${te.checkInLng}`
+                      : null;
+                    const checkOutMapUrl = te.checkOutLat && te.checkOutLng
+                      ? `https://www.google.com/maps?q=${te.checkOutLat},${te.checkOutLng}`
+                      : null;
+                    return (
+                      <div key={te.id} className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        <p className="text-sm font-medium text-white">{te.staffName ?? `Staff #${te.staffId}`}</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked in</p>
+                            <p style={{ color: "rgba(255,255,255,0.7)" }}>
+                              {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                            </p>
+                            {checkInMapUrl && (
+                              <a href={checkInMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 text-[10px] flex items-center gap-0.5 mt-0.5">
+                                📍 View location
+                              </a>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked out</p>
+                            {te.checkOutAt ? (
+                              <>
+                                <p style={{ color: "rgba(255,255,255,0.7)" }}>
+                                  {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                                </p>
+                                {checkOutMapUrl && (
+                                  <a href={checkOutMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 text-[10px] flex items-center gap-0.5 mt-0.5">
+                                    📍 View location
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-amber-400/60">Still on-site</p>
+                            )}
+                          </div>
+                        </div>
+                        {durationMins !== null && (
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            Duration: {durationMins >= 60 ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : `${durationMins}m`}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+          );
+        })()}
 
         {/* ── Completion ── */}
         {(job.stage === "completed" || job.completedAt) ? (

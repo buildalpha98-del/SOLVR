@@ -87,3 +87,54 @@ export async function sendPushToClient(clientId: number, payload: PushPayload): 
     console.log(`[Push] Sent ${sent}/${subs.length} web push notifications to client ${clientId}`);
   }
 }
+
+/**
+ * Send a push notification to a specific staff member using their stored Web Push subscription.
+ * Silently removes expired/invalid subscriptions (410 Gone).
+ */
+export async function sendPushToStaff(staffId: number, payload: PushPayload): Promise<boolean> {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    console.warn("[Push] VAPID keys not configured — skipping staff push notification");
+    return false;
+  }
+
+  const db = await getDb();
+  if (!db) return false;
+
+  const { staffMembers } = await import("../drizzle/schema");
+  const [staff] = await db.select().from(staffMembers).where(eq(staffMembers.id, staffId)).limit(1);
+  if (!staff?.pushSubscription) return false;
+
+  let sub: { endpoint: string; keys: { p256dh: string; auth: string } };
+  try {
+    sub = JSON.parse(staff.pushSubscription);
+  } catch {
+    console.warn(`[Push] Invalid pushSubscription JSON for staff ${staffId}`);
+    return false;
+  }
+
+  const notification = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    url: payload.url ?? "/staff/today",
+    icon: payload.icon ?? "/icon-192.png",
+    badge: "/icon-96.png",
+    timestamp: Date.now(),
+  });
+
+  try {
+    await webpush.sendNotification(sub, notification);
+    console.log(`[Push] Sent push notification to staff ${staffId}`);
+    return true;
+  } catch (err: unknown) {
+    const e = err as { statusCode?: number };
+    if (e?.statusCode === 410 || e?.statusCode === 404) {
+      // Subscription expired — clear it
+      await db.update(staffMembers).set({ pushSubscription: null }).where(eq(staffMembers.id, staffId));
+      console.log(`[Push] Removed expired push subscription for staff ${staffId}`);
+    } else {
+      console.error(`[Push] Failed to send push to staff ${staffId}:`, err);
+    }
+    return false;
+  }
+}

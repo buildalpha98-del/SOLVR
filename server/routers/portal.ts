@@ -94,6 +94,7 @@ import {
   updateTimeEntry,
   listTimeEntriesForJob,
   listTimeEntriesForStaff,
+  listTimeEntriesForDateRange,
   listReviewRequests,
   getReviewRequestById,
   insertReviewRequest,
@@ -1887,6 +1888,74 @@ export const portalRouter = router({
       return { success: true };
     }),
 
+  /**
+   * Set or update the 4-digit PIN for a staff member.
+   * Owner-only — requires portal session.
+   */
+  setStaffPin: publicProcedure
+    .input(z.object({
+      id: z.number().int(),
+      pin: z.string().regex(/^\d{4,8}$/, "PIN must be 4–8 digits."),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const member = await getStaffMember(input.id);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      const bcrypt = await import("bcryptjs");
+      const hash = await bcrypt.hash(input.pin, 10);
+      await updateStaffMember(input.id, { staffPin: hash });
+      return { success: true };
+    }),
+
+  // ─── Timesheet Export ─────────────────────────────────────────────────────────────
+  exportTimesheets: publicProcedure
+    .input(z.object({
+      from: z.string(), // ISO date string e.g. "2025-04-01"
+      to: z.string(),   // ISO date string e.g. "2025-04-30"
+    }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const from = new Date(input.from);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(input.to);
+      to.setHours(23, 59, 59, 999);
+      const entries = await listTimeEntriesForDateRange(portalClient.client.id, from, to);
+      // Build CSV
+      const rows: string[] = [
+        ["Staff Name", "Job", "Date", "Check-in", "Check-out", "Duration (mins)", "Duration (hrs)", "Check-in GPS", "Check-out GPS"].join(","),
+      ];
+      for (const e of entries) {
+        const date = new Date(e.checkInAt).toLocaleDateString("en-AU");
+        const checkIn = new Date(e.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true });
+        const checkOut = e.checkOutAt
+          ? new Date(e.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })
+          : "Still on-site";
+        const durationMins = e.durationMinutes ?? (e.checkOutAt
+          ? Math.round((new Date(e.checkOutAt).getTime() - new Date(e.checkInAt).getTime()) / 60000)
+          : null);
+        const durationHrs = durationMins != null ? (durationMins / 60).toFixed(2) : "";
+        const checkInGps = e.checkInLat && e.checkInLng ? `${e.checkInLat},${e.checkInLng}` : "";
+        const checkOutGps = e.checkOutLat && e.checkOutLng ? `${e.checkOutLat},${e.checkOutLng}` : "";
+        const csvRow = [
+          `"${((e.staffName ?? `Staff #${e.staffId}`)).replace(/"/g, '""')}"`,
+          `"${((e.jobType ?? `Job #${e.jobId}`)).replace(/"/g, '""')}"`,
+          date,
+          checkIn,
+          checkOut,
+          durationMins ?? "",
+          durationHrs,
+          checkInGps,
+          checkOutGps,
+        ].join(",");
+        rows.push(csvRow);
+      }
+      return { csv: rows.join("\n"), count: entries.length };
+    }),
+
   // ─── Job Schedule ─────────────────────────────────────────────────────────────
 
   listScheduleWeek: publicProcedure
@@ -1930,6 +1999,25 @@ export const portalRouter = router({
         notes: input.notes ?? null,
         status: "pending",
       });
+      // Fire push notification to assigned staff member (non-blocking)
+      void (async () => {
+        try {
+          const { sendPushToStaff } = await import("../pushNotifications");
+          const job = await getPortalJob(input.jobId);
+          const start = new Date(input.startTime);
+          const timeStr = start.toLocaleString("en-AU", {
+            weekday: "short", month: "short", day: "numeric",
+            hour: "numeric", minute: "2-digit", hour12: true,
+          });
+          await sendPushToStaff(input.staffId, {
+            title: "New shift assigned — " + (portalClient.client.businessName ?? "Solvr"),
+            body: `${job?.jobType ?? "Job"} — ${timeStr}`,
+            url: "/staff/today",
+          });
+        } catch (e) {
+          console.error("[Push] Failed to notify staff on schedule create:", e);
+        }
+      })();
       return { id: result.insertId };
     }),
 
