@@ -3,7 +3,7 @@
  * Merged into the main portal router via spread.
  */
 import { z } from "zod";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import React from "react";
 import { renderToBuffer, Document } from "@react-pdf/renderer";
 import { publicProcedure } from "../_core/trpc";
@@ -906,6 +906,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
           isRecurring: true,
           recurrenceFrequency: input.frequency,
           parentJobId: job.id,
+          customerStatusToken: randomBytes(32).toString("hex"),
         });
         created.push(insertId);
       }

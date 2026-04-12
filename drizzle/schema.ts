@@ -599,6 +599,8 @@ export const portalJobs = mysqlTable("portal_jobs", {
   completionReportUrl: varchar("completionReportUrl", { length: 512 }),
   /** Public token for read-only customer view of the completion report (no auth required) */
   completionReportToken: varchar("completionReportToken", { length: 64 }),
+  /** Public token for the customer job status page (no auth required) */
+  customerStatusToken: varchar("customerStatusToken", { length: 64 }).unique(),
   //  Completion 
   /** When the job was marked complete by the tradie */
   completedAt: timestamp("completedAt"),

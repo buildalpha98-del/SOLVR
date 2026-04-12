@@ -1620,3 +1620,11 @@ export async function getLabourCostReport(
     return { ...r, totalHours: Math.round(totalHours * 100) / 100, labourCost };
   }).sort((a, b) => b.totalMinutes - a.totalMinutes);
 }
+
+// ── Customer Job Status Token ─────────────────────────────────────────────────
+export async function getPortalJobByStatusToken(token: string): Promise<PortalJob | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalJobs).where(eq(portalJobs.customerStatusToken, token)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}

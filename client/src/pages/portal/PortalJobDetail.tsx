@@ -610,6 +610,27 @@ function JobCostingSection({
 }
 
 // ─── Copy Report Link Button ───────────────────────────────────────────────────────────────
+function CopyStatusLinkButton({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  const publicUrl = `${window.location.origin}/job/${token}`;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <Button
+      size="sm"
+      onClick={handleCopy}
+      title="Copy customer status link"
+      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(245,166,35,0.12)", color: copied ? "#22c55e" : "#F5A623", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(245,166,35,0.2)"}` }}
+    >
+      {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+    </Button>
+  );
+}
+
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const publicUrl = `${window.location.origin}/report/${token}`;
@@ -791,6 +812,10 @@ export default function PortalJobDetail() {
               {job.invoiceNumber && ` · ${job.invoiceNumber}`}
             </p>
           </div>
+          {/* Share status link */}
+          {(job as any).customerStatusToken && (
+            <CopyStatusLinkButton token={(job as any).customerStatusToken} />
+          )}
           {/* Stage selector */}
           <select
             value={job.stage}

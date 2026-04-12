@@ -281,6 +281,13 @@
       "when": 1775961757420,
       "tag": "0039_sloppy_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1775962579719,
+      "tag": "0040_lovely_black_queen",
+      "breakpoints": true
     }
   ]
 }

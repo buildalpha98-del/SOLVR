@@ -103,6 +103,7 @@ import {
   removeStaffUnavailability,
   listStaffUnavailability,
   getLabourCostReport,
+  getPortalJobByStatusToken,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 
@@ -609,7 +610,8 @@ export const portalRouter = router({
       const { client } = result;
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
 
-      const { insertId } = await createPortalJob({ ...input, clientId: client.id });
+      const customerStatusToken = randomBytes(32).toString("hex");
+      const { insertId } = await createPortalJob({ ...input, clientId: client.id, customerStatusToken });
       return { success: true, id: insertId };
     }),
 
@@ -2398,5 +2400,43 @@ export const portalRouter = router({
         businessName: client.businessName,
       }).catch(err => console.error("[ReviewRequest] Resend error:", err));
       return { success: true };
+    }),
+
+  /**
+   * Public — no auth required. Returns job status, photos, invoice total, and tradie contact
+   * info for the customer-facing job status page.
+   */
+  getJobByCustomerToken: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+
+      // Fetch photos (URLs only — no auth needed, they're S3 public)
+      const photos = await listJobPhotos(job.id);
+
+      // Fetch tradie profile for contact details
+      const profile = await getClientProfile(job.clientId);
+
+      return {
+        id: job.id,
+        jobType: job.jobType,
+        description: job.description,
+        location: job.location,
+        customerName: job.customerName ?? job.callerName,
+        stage: job.stage,
+        preferredDate: job.preferredDate,
+        completedAt: job.completedAt,
+        notes: job.notes,
+        invoicedAmount: job.invoicedAmount,
+        invoicePdfUrl: job.invoicePdfUrl,
+        completionReportUrl: job.completionReportUrl,
+        photos: photos.map(p => ({ id: p.id, url: p.imageUrl, caption: p.caption, takenAt: p.createdAt })),
+        tradie: {
+          tradingName: profile?.tradingName ?? null,
+          phone: profile?.phone ?? null,
+          email: profile?.email ?? null,
+        },
+      };
     }),
 });
