@@ -23,6 +23,24 @@ export default function StaffLogin() {
   const [selectedStaff, setSelectedStaff] = useState<{ id: number; name: string } | null>(null);
   const [pin, setPin] = useState("");
   const [step, setStep] = useState<"select-name" | "enter-pin">("select-name");
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [lockCountdown, setLockCountdown] = useState(0);
+
+  // Countdown timer for lockout display
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+        setLockCountdown(0);
+        clearInterval(interval);
+      } else {
+        setLockCountdown(remaining);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
 
   // Read clientId from URL query param ?c=42
   useEffect(() => {
@@ -66,7 +84,18 @@ export default function StaffLogin() {
       setTimeout(() => { window.location.href = "/staff/today"; }, 800);
     },
     onError: (err) => {
-      toast.error(err.message || "Incorrect PIN. Try again.");
+      // Detect rate-limit (429) response from the server
+      const is429 = err.message?.toLowerCase().includes("too many") ||
+        err.data?.httpStatus === 429 ||
+        (err as unknown as { cause?: { status?: number } }).cause?.status === 429;
+      if (is429) {
+        const unlockAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+        setLockedUntil(unlockAt);
+        setLockCountdown(15 * 60);
+        toast.error("Too many attempts. Try again in 15 minutes.");
+      } else {
+        toast.error(err.message || "Incorrect PIN. Try again.");
+      }
       setPin("");
     },
   });
@@ -80,6 +109,7 @@ export default function StaffLogin() {
   }, [me]);
 
   function handlePinKey(key: string) {
+    if (lockedUntil && Date.now() < lockedUntil) return; // blocked
     if (key === "del") {
       setPin(p => p.slice(0, -1));
       return;
@@ -162,6 +192,19 @@ export default function StaffLogin() {
               Hi, {selectedStaff?.name}
             </h1>
             <p className="text-white/50 text-sm text-center mb-6">Enter your PIN</p>
+
+            {/* Lockout banner */}
+            {lockedUntil && lockCountdown > 0 && (
+              <div className="mb-5 rounded-xl bg-red-500/15 border border-red-500/30 px-4 py-3 text-center">
+                <p className="text-red-400 font-semibold text-sm">Too many incorrect attempts</p>
+                <p className="text-white/60 text-xs mt-1">
+                  Try again in{" "}
+                  <span className="text-white font-medium">
+                    {Math.floor(lockCountdown / 60)}:{String(lockCountdown % 60).padStart(2, "0")}
+                  </span>
+                </p>
+              </div>
+            )}
 
             {/* PIN dots */}
             <div className="flex justify-center gap-3 mb-7">

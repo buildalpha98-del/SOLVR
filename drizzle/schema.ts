@@ -608,6 +608,13 @@ export const portalJobs = mysqlTable("portal_jobs", {
   variationNotes: text("variationNotes"),
   /** Actual time spent on the job (hours, stored as decimal) */
   actualHours: decimal("actualHours", { precision: 6, scale: 2 }),
+  //  Recurrence 
+  /** Whether this job repeats on a schedule */
+  isRecurring: boolean("isRecurring").default(false).notNull(),
+  /** Repeat frequency — null if not recurring */
+  recurrenceFrequency: mysqlEnum("recurrenceFrequency", ["weekly", "fortnightly", "monthly"]),
+  /** FK to the original job in a recurring series (null if this IS the original) */
+  parentJobId: int("parentJobId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

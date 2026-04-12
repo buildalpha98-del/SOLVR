@@ -21,6 +21,7 @@ import { hasFeature } from "../_core/featureGate";
 import {
   getPortalJob,
   updatePortalJob,
+  createPortalJob,
   listJobProgressPayments,
   createJobProgressPayment,
   deleteJobProgressPayment,
@@ -121,6 +122,30 @@ export const portalJobsProcedures = {
       const { id, ...data } = input;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await updatePortalJob(id, data as any);
+
+      // ── Job status SMS ────────────────────────────────────────────────────
+      // Fire a non-blocking SMS to the customer when stage changes to
+      // "booked" (confirmed / on the way) or "completed" (job done).
+      if (input.stage && input.stage !== job.stage) {
+        const customerPhone = job.customerPhone ?? job.callerPhone ?? null;
+        if (customerPhone && (input.stage === "booked" || input.stage === "completed")) {
+          void (async () => {
+            try {
+              const profile = await getClientProfile(client.id);
+              const businessName = profile?.tradingName ?? "Your tradie";
+              const firstName = (job.customerName ?? job.callerName ?? "").split(" ")[0] || "there";
+              const body = input.stage === "booked"
+                ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly. Reply STOP to opt out.`
+                : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business! Reply STOP to opt out.`;
+              await sendSms({ to: customerPhone, body });
+              console.log(`[JobSMS] '${input.stage}' SMS sent to ${customerPhone} for job ${id}`);
+            } catch (e) {
+              console.error("[JobSMS] Failed to send status SMS:", e);
+            }
+          })();
+        }
+      }
+
       return { success: true };
     }),
 
@@ -252,6 +277,25 @@ export const portalJobsProcedures = {
         actualHours: input.actualHours,
         actualValue: input.actualValue,
       } as any);
+
+      // ── Completion SMS ────────────────────────────────────────────────────
+      void (async () => {
+        try {
+          const customerPhone = job.customerPhone ?? job.callerPhone ?? null;
+          if (customerPhone) {
+            const profile = await getClientProfile(client.id);
+            const businessName = profile?.tradingName ?? "Your tradie";
+            const firstName = (job.customerName ?? job.callerName ?? "").split(" ")[0] || "there";
+            await sendSms({
+              to: customerPhone,
+              body: `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business! Reply STOP to opt out.`,
+            });
+            console.log(`[JobSMS] Completion SMS sent to ${customerPhone} for job ${job.id}`);
+          }
+        } catch (e) {
+          console.error("[JobSMS] Failed to send completion SMS:", e);
+        }
+      })();
 
       // Schedule Google review request — non-fatal, never blocks job completion
       scheduleGoogleReviewRequest({
@@ -807,5 +851,86 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
         grossProfitCents,
         grossMarginPct,
       };
+    }),
+
+  /**
+   * Enable recurring repeat on an existing job.
+   * Creates the next 3 future occurrences immediately (weekly / fortnightly / monthly)
+   * and marks the original job as the series parent.
+   */
+  setRecurring: publicProcedure
+    .input(z.object({
+      jobId: z.number(),
+      frequency: z.enum(["weekly", "fortnightly", "monthly"]),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+
+      // Mark the original job as recurring
+      await updatePortalJob(job.id, {
+        isRecurring: true,
+        recurrenceFrequency: input.frequency,
+      } as Parameters<typeof updatePortalJob>[1]);
+
+      // Calculate interval in days
+      const intervalDays = input.frequency === "weekly" ? 7
+        : input.frequency === "fortnightly" ? 14
+        : 30;
+
+      // Determine base date — use today if no preferredDate
+      const baseDate = new Date();
+
+      // Create 3 future occurrences
+      const created: number[] = [];
+      for (let i = 1; i <= 3; i++) {
+        const nextDate = new Date(baseDate);
+        nextDate.setDate(nextDate.getDate() + intervalDays * i);
+        const dateStr = nextDate.toISOString().split("T")[0]; // YYYY-MM-DD
+        const { insertId } = await createPortalJob({
+          clientId: client.id,
+          jobType: job.jobType,
+          description: job.description ?? undefined,
+          location: job.location ?? undefined,
+          customerName: job.customerName ?? undefined,
+          customerEmail: job.customerEmail ?? undefined,
+          customerPhone: job.customerPhone ?? undefined,
+          customerAddress: job.customerAddress ?? undefined,
+          notes: job.notes ?? undefined,
+          preferredDate: dateStr,
+          isRecurring: true,
+          recurrenceFrequency: input.frequency,
+          parentJobId: job.id,
+        });
+        created.push(insertId);
+      }
+
+      return { success: true, createdJobIds: created, frequency: input.frequency };
+    }),
+
+  /**
+   * Disable recurring repeat on a job — clears the flag only on the parent.
+   * Does NOT delete already-created future occurrences.
+   */
+  disableRecurring: publicProcedure
+    .input(z.object({ jobId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      await updatePortalJob(job.id, {
+        isRecurring: false,
+        recurrenceFrequency: null,
+      } as Parameters<typeof updatePortalJob>[1]);
+      return { success: true };
     }),
 };

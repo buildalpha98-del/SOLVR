@@ -13,7 +13,7 @@ import {
   DollarSign, CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
   Banknote, Receipt, Send, Copy, Check,
-  ChevronLeft, ChevronRight, ZoomIn,
+  ChevronLeft, ChevronRight, ZoomIn, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -660,6 +660,23 @@ export default function PortalJobDetail() {
     onError: (e) => toast.error(e.message),
   });
 
+  const setRecurring = trpc.portal.setRecurring.useMutation({
+    onSuccess: (res) => {
+      utils.portal.getJobDetail.invalidate({ id: jobId });
+      const label = res.frequency === "weekly" ? "Weekly" : res.frequency === "fortnightly" ? "Fortnightly" : "Monthly";
+      toast.success(`${label} repeat enabled — 3 future jobs created`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const disableRecurring = trpc.portal.disableRecurring.useMutation({
+    onSuccess: () => {
+      utils.portal.getJobDetail.invalidate({ id: jobId });
+      toast.success("Repeat disabled");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const markComplete = trpc.portal.markJobComplete.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowCompleteModal(false); toast.success("Job marked complete"); },
     onError: (e) => toast.error(e.message),
@@ -990,6 +1007,51 @@ export default function PortalJobDetail() {
           grossMarginPct={(data as any).grossMarginPct ?? null}
           onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
         />
+
+        {/* ── Repeat This Job ── */}
+        {!(job as any).parentJobId && (
+          <SectionCard
+            title="Repeat This Job"
+            action={<RefreshCw className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}
+          >
+            {(job as any).isRecurring ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
+                    <RefreshCw className="w-3 h-3" />
+                    {(job as any).recurrenceFrequency === "weekly" ? "Repeats weekly" : (job as any).recurrenceFrequency === "fortnightly" ? "Repeats fortnightly" : "Repeats monthly"}
+                  </span>
+                </div>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>3 upcoming jobs have been created in your job list. Disable repeat to stop creating new ones.</p>
+                <button
+                  onClick={() => disableRecurring.mutate({ jobId })}
+                  disabled={disableRecurring.isPending}
+                  className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+                  style={{ borderColor: "rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}
+                >
+                  {disableRecurring.isPending ? "Disabling..." : "Disable repeat"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>Set this job to repeat for maintenance or regular clients. Creates the next 3 jobs automatically.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["weekly", "fortnightly", "monthly"] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      onClick={() => setRecurring.mutate({ jobId, frequency: freq })}
+                      disabled={setRecurring.isPending}
+                      className="py-2.5 rounded-xl text-sm font-medium border transition-all active:scale-95"
+                      style={{ borderColor: "rgba(245,166,35,0.3)", color: "#F5A623", background: "rgba(245,166,35,0.06)" }}
+                    >
+                      {setRecurring.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : freq.charAt(0).toUpperCase() + freq.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </SectionCard>
+        )}
 
         {/* ── Before/After Photos ── */}
         <PhotoSection
