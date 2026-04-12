@@ -471,3 +471,7 @@
 - [x] Pricing: add +$5/mo per-seat add-on
 - [x] Pricing: update plan labels across portal and pricing page
 - [x] Pricing: web-first checkout flow
+
+- [ ] Add 14-day free trial to Stripe checkout
+- [ ] Create annual Stripe prices and wire to checkout
+- [ ] Add Pricing link to main site nav

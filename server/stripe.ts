@@ -3,7 +3,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals } from "../drizzle/schema";
-import { VOICE_AGENT_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
+import { VOICE_AGENT_PLANS, SOLVR_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
 import { buildWelcomeEmail } from "./lib/onboardingEmails";
@@ -124,6 +124,54 @@ export const stripeRouter = router({
         plan: input.plan as PlanKey,
         billingCycle: input.billingCycle as BillingCycle,
         stripeSessionId: session.id,
+      });
+
+      return { url: session.url! };
+    }),
+
+  /**
+   * Create a Stripe Checkout Session for the new three-tier Solvr plans.
+   * Supports monthly and annual billing. Includes a 14-day free trial.
+   */
+  createSolvrCheckout: publicProcedure
+    .input(
+      z.object({
+        plan: z.enum(["solvr_quotes", "solvr_jobs", "solvr_ai"]),
+        billingCycle: z.enum(["monthly", "annual"]),
+        email: z.string().email().optional(),
+        name: z.string().optional(),
+        origin: z.string().url(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const planConfig = SOLVR_PLANS[input.plan];
+      const priceId =
+        input.billingCycle === "annual"
+          ? planConfig.stripeAnnualPriceId
+          : planConfig.stripePriceId;
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${input.origin}/voice-agent/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${input.origin}/pricing`,
+        ...(input.email ? { customer_email: input.email } : {}),
+        subscription_data: {
+          trial_period_days: 14,
+          metadata: {
+            plan: input.plan,
+            billingCycle: input.billingCycle,
+            customerName: input.name ?? "",
+          },
+        },
+        metadata: {
+          plan: input.plan,
+          billingCycle: input.billingCycle,
+          customerName: input.name ?? "",
+          customerEmail: input.email ?? "",
+        },
+        allow_promotion_codes: true,
+        billing_address_collection: "auto",
       });
 
       return { url: session.url! };

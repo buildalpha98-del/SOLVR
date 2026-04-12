@@ -10,9 +10,9 @@
  * Additional user seats: +$5/user/mo on any plan.
  *
  * Stripe Product IDs (live):
- *   Solvr Quotes:               prod_UJyD7Q0nN11svS  → price_1TLKGpB1r6rG0hI7vENFsjJO ($49/mo)
- *   Solvr Jobs:                 prod_UJyDofwez6Qyi7  → price_1TLKH9B1r6rG0hI7bopLw8GF ($99/mo)
- *   Solvr AI:                   prod_UJyD0LhtJ1c0oy  → price_1TLKHMB1r6rG0hI79G8CnCEU ($197/mo)
+ *   Solvr Quotes:               prod_UJyD7Q0nN11svS  → price_1TLKGpB1r6rG0hI7vENFsjJO ($49/mo)  | price_1TLKtlB1r6rG0hI7avq9FSlX ($490/yr)
+ *   Solvr Jobs:                 prod_UJyDofwez6Qyi7  → price_1TLKH9B1r6rG0hI7bopLw8GF ($99/mo)  | price_1TLKttB1r6rG0hI77Y8aKx4G ($990/yr)
+ *   Solvr AI:                   prod_UJyD0LhtJ1c0oy  → price_1TLKHMB1r6rG0hI79G8CnCEU ($197/mo) | price_1TLKu2B1r6rG0hI7VRhvS1H8 ($1970/yr)
  *   Additional User Seat:       prod_UJyDEKYQWiBtjc  → price_1TLKHYB1r6rG0hI7YtWyxWiY ($5/mo)
  *
  * Legacy plans (kept for existing subscribers — do not remove):
@@ -31,9 +31,11 @@ export interface PlanConfig {
   tagline: string;
   description: string;
   monthlyAmountCents: number;
+  annualAmountCents: number; // billed once per year (2 months free)
   currency: "aud";
   stripeProductId: string;
   stripePriceId: string; // monthly price
+  stripeAnnualPriceId: string; // annual price (billed yearly)
   features: string[];
   highlight: boolean;
   badge?: string;
@@ -47,9 +49,11 @@ export const SOLVR_PLANS: Record<PlanKey, PlanConfig> = {
     description:
       "Turn a site visit into a professional quote in 90 seconds — by voice. Unlimited quotes and invoices, customer status page, SMS notifications, and customer feedback.",
     monthlyAmountCents: 4900, // $49 AUD
+    annualAmountCents: 49000, // $490 AUD/yr (2 months free)
     currency: "aud",
     stripeProductId: "prod_UJyD7Q0nN11svS",
     stripePriceId: "price_1TLKGpB1r6rG0hI7vENFsjJO",
+    stripeAnnualPriceId: "price_1TLKtlB1r6rG0hI7avq9FSlX",
     features: [
       "Voice-to-quote in 90 seconds",
       "Unlimited quotes & invoices",
@@ -68,9 +72,11 @@ export const SOLVR_PLANS: Record<PlanKey, PlanConfig> = {
     description:
       "Everything in Solvr Quotes plus full job card management, scheduling, crew assignment, inbound SMS reply handling, and job notes.",
     monthlyAmountCents: 9900, // $99 AUD
+    annualAmountCents: 99000, // $990 AUD/yr (2 months free)
     currency: "aud",
     stripeProductId: "prod_UJyDofwez6Qyi7",
     stripePriceId: "price_1TLKH9B1r6rG0hI7bopLw8GF",
+    stripeAnnualPriceId: "price_1TLKttB1r6rG0hI77Y8aKx4G",
     features: [
       "Everything in Solvr Quotes",
       "Job cards & scheduling",
@@ -90,9 +96,11 @@ export const SOLVR_PLANS: Record<PlanKey, PlanConfig> = {
     description:
       "Everything in Solvr Jobs plus an AI Receptionist that answers calls, qualifies leads, and books jobs while you're on the tools. Founding member rate — locked in for life.",
     monthlyAmountCents: 19700, // $197 AUD
+    annualAmountCents: 197000, // $1970 AUD/yr (2 months free)
     currency: "aud",
     stripeProductId: "prod_UJyD0LhtJ1c0oy",
     stripePriceId: "price_1TLKHMB1r6rG0hI79G8CnCEU",
+    stripeAnnualPriceId: "price_1TLKu2B1r6rG0hI7VRhvS1H8",
     features: [
       "Everything in Solvr Jobs",
       "AI Receptionist (24/7 call answering)",

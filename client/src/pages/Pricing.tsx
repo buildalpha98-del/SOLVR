@@ -28,7 +28,7 @@ const PLANS = [
       "Customer feedback (thumbs up/down)",
       "Web app + iOS/Android app",
     ],
-    stripeKey: "starter" as const,
+    stripeKey: "solvr_quotes" as const,
   },
   {
     key: "solvr_jobs",
@@ -49,7 +49,7 @@ const PLANS = [
       "Customer reply push notifications",
       "Priority support",
     ],
-    stripeKey: "starter" as const,
+    stripeKey: "solvr_jobs" as const,
   },
   {
     key: "solvr_ai",
@@ -70,7 +70,7 @@ const PLANS = [
       "Lead qualification & job logging",
       "Founding member rate — locked for life",
     ],
-    stripeKey: "professional" as const,
+    stripeKey: "solvr_ai" as const,
   },
 ];
 
@@ -117,16 +117,15 @@ const COMPETITORS = [
 export default function Pricing() {
   const [isAnnual, setIsAnnual] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const createCheckout = trpc.stripe.createCheckout.useMutation();
-
-  async function handleCheckout(plan: "starter" | "professional") {
+  const createSolvrCheckout = trpc.stripe.createSolvrCheckout.useMutation();
+  async function handleCheckout(plan: "solvr_quotes" | "solvr_jobs" | "solvr_ai") {
     setCheckoutLoading(plan);
     try {
-      const { url } = await createCheckout.mutateAsync({
+      const { url } = await createSolvrCheckout.mutateAsync({
         plan,
         billingCycle: isAnnual ? "annual" : "monthly",
         origin: window.location.origin,
-      });
+      });;
       toast.success("Redirecting to checkout…", { description: "Opening Stripe in a new tab." });
       window.open(url, "_blank");
     } catch {

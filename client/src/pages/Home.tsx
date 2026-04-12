@@ -484,6 +484,7 @@ export default function Home() {
                 {label}
               </a>
             ))}
+            <Link href="/pricing" className="font-body text-sm font-medium transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none" }}>Pricing</Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -515,6 +516,7 @@ export default function Home() {
                   {label}
                 </a>
               ))}
+              <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="font-body text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>Pricing</Link>
               <Link href="/portal" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-medium px-4 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}>Client Login</Link>
               <Link href="/ai-audit" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623" }}>Free AI Audit ✦</Link>
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
