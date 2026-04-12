@@ -229,7 +229,11 @@ export const quotesRouter = router({
   processVoiceRecording: publicProcedure
     .input(
       z.object({
-        audioUrl: z.string().url(),
+        // z.string().url() is intentionally NOT used here — Zod v4's stricter URL
+        // validation rejects S3 presigned URLs (which contain query params with
+        // special chars like X-Amz-Signature). The URL is validated implicitly
+        // when the server fetches it for transcription.
+        audioUrl: z.string().min(1),
         durationSeconds: z.number().int().nonnegative().max(300).optional(),
       }),
     )

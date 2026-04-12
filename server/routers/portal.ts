@@ -1349,8 +1349,11 @@ export const portalRouter = router({
    */
   extractVoiceOnboarding: publicProcedure
     .input(z.object({
-      /** Pre-signed or CDN URL of the uploaded audio file */
-      audioUrl: z.string().url(),
+      /** Pre-signed or CDN URL of the uploaded audio file.
+       *  NOTE: z.string().url() is intentionally NOT used — Zod v4 rejects S3
+       *  presigned URLs with query params (X-Amz-Signature etc.) on iOS.
+       */
+      audioUrl: z.string().min(1),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
