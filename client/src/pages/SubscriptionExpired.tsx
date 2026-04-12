@@ -7,6 +7,11 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { Gift, Copy } from "lucide-react";
+import { toast } from "sonner";
+
+// Hardcoded — window.location.origin returns "capacitor://localhost" on iOS Capacitor.
+const SOLVR_ORIGIN = "https://solvr.com.au";
 
 const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
@@ -16,6 +21,44 @@ const WHAT_YOU_KEEP = [
   "Customer contacts and SMS history",
   "Your dedicated business phone number",
 ];
+
+function ReferralNudge() {
+  const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, {
+    staleTime: Infinity,
+    retry: 1,
+  });
+  if (!referralCode?.referralCode) return null;
+  // FIXED: Use hardcoded origin, not window.location.origin (Capacitor returns "capacitor://localhost")
+  const referralLink = `${SOLVR_ORIGIN}/portal/login?ref=${referralCode.referralCode}`;
+  return (
+    <div
+      className="rounded-xl p-4 mt-4 mb-2 flex items-start gap-3"
+      style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)" }}
+    >
+      <Gift className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm" style={{ color: "#0F1F3D" }}>
+          Referred a friend? You've earned a free month.
+        </p>
+        <p className="text-xs mt-1" style={{ color: "#718096" }}>
+          Every tradie you refer who signs up earns you 20% off your next month — automatically applied when you reactivate.
+        </p>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(referralLink)
+              .then(() => toast.success("Referral link copied!"))
+              .catch(() => toast.error("Could not copy — tap and hold the link to copy manually."));
+          }}
+          className="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+          style={{ background: "#F5A623", color: "#0F1F3D", border: "none", cursor: "pointer" }}
+        >
+          <Copy className="w-3 h-3" />
+          Copy referral link
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function SubscriptionExpired() {
   const { user } = useAuth();
@@ -129,6 +172,9 @@ export default function SubscriptionExpired() {
           <p className="text-center mt-4" style={{ color: "#A0AEC0", fontSize: 13 }}>
             No lock-in. Cancel any time. Secure checkout via Stripe.
           </p>
+
+          {/* Referral nudge — show if they have a referral code */}
+          <ReferralNudge />
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-6">

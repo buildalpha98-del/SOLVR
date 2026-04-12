@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail, History, AlertTriangle } from "lucide-react";
+import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail, History, AlertTriangle, ToggleLeft, ToggleRight } from "lucide-react";
 
 const APP_ORIGIN = window.location.origin;
 
@@ -326,6 +326,17 @@ function TradieProgrammeSection() {
   const { data: referrals = [], isLoading } = trpc.adminReferral.listTradieProgramme.useQuery();
   const { data: blastHistory = [] } = trpc.adminReferral.getBlastHistory.useQuery();
 
+  // Feature flag toggle
+  const { data: featureFlags } = trpc.adminReferral.getFeatureFlags.useQuery();
+  const toggleReferral = trpc.adminReferral.setReferralProgrammeEnabled.useMutation({
+    onSuccess: (d) => {
+      utils.adminReferral.getFeatureFlags.invalidate();
+      toast.success(d.referralProgrammeEnabled ? "Referral programme enabled" : "Referral programme disabled");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const referralEnabled = featureFlags?.referralProgrammeEnabled ?? true;
+
   const sendBlast = trpc.adminReferral.sendReferralBlast.useMutation({
     onSuccess: (d) => {
       setShowBlastConfirm(false);
@@ -510,6 +521,35 @@ function TradieProgrammeSection() {
           </div>
         </div>
       )}
+
+      {/* Feature flag toggle */}
+      <div className="flex items-center justify-between rounded-xl border p-4">
+        <div>
+          <p className="font-medium text-sm">Referral Programme</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            When disabled, the "Refer a Tradie" nav item is hidden from all portal clients and the referral page shows a "Coming Soon" message.
+          </p>
+        </div>
+        <button
+          onClick={() => toggleReferral.mutate({ enabled: !referralEnabled })}
+          disabled={toggleReferral.isPending}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+          style={{
+            background: referralEnabled ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+            color: referralEnabled ? "#16a34a" : "#dc2626",
+            border: `1px solid ${referralEnabled ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+          }}
+        >
+          {toggleReferral.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : referralEnabled ? (
+            <ToggleRight className="w-4 h-4" />
+          ) : (
+            <ToggleLeft className="w-4 h-4" />
+          )}
+          {referralEnabled ? "Enabled" : "Disabled"}
+        </button>
+      </div>
 
       {/* Blast confirmation dialog */}
       <Dialog open={showBlastConfirm} onOpenChange={setShowBlastConfirm}>

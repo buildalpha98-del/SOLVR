@@ -1630,7 +1630,7 @@ export async function getPortalJobByStatusToken(token: string): Promise<PortalJo
 }
 
 // ── Job Feedback ──────────────────────────────────────────────────────────────
-import { jobFeedback, type InsertJobFeedback, type JobFeedback } from "../drizzle/schema";
+import { jobFeedback, type InsertJobFeedback, type JobFeedback, appSettings } from "../drizzle/schema";
 
 export async function upsertJobFeedback(data: InsertJobFeedback): Promise<void> {
   const db = await getDb();
@@ -1653,4 +1653,21 @@ export async function listJobFeedbackForClient(clientId: number): Promise<JobFee
   return db.select().from(jobFeedback)
     .where(eq(jobFeedback.clientId, clientId))
     .orderBy(jobFeedback.createdAt);
+}
+
+// ─── App Settings (Feature Flags) ────────────────────────────────────────────
+export async function getAppSettings() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(appSettings).limit(1);
+  if (rows.length > 0) return rows[0];
+  // Seed default row on first access
+  await db.insert(appSettings).values({ id: 1, referralProgrammeEnabled: true });
+  return { id: 1, referralProgrammeEnabled: true, updatedAt: new Date() };
+}
+export async function setFeatureFlag(flag: "referralProgrammeEnabled", value: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(appSettings).values({ id: 1, referralProgrammeEnabled: value })
+    .onDuplicateKeyUpdate({ set: { [flag]: value } });
 }

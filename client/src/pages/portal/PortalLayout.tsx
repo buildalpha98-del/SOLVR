@@ -49,7 +49,7 @@ const ALL_TABS: NavTab[] = [
 const PRIMARY_TAB_KEYS = ["dashboard", "calls", "jobs", "schedule"];
 
 // ─── Desktop More dropdown ───────────────────────────────────────────────────
-function DesktopMoreDropdown({ features, currentTab }: { features: string[]; currentTab: string }) {
+function DesktopMoreDropdown({ features, currentTab, referralEnabled }: { features: string[]; currentTab: string; referralEnabled: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const overflowTabs = ALL_TABS.filter((t) => !PRIMARY_TAB_KEYS.includes(t.key));
@@ -101,20 +101,22 @@ function DesktopMoreDropdown({ features, currentTab }: { features: string[]; cur
             );
           })}
           <div className="my-1 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }} />
-          <Link href="/portal/referral" onClick={() => setOpen(false)}>
-            <span className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium cursor-pointer" style={{ color: "rgba(255,255,255,0.75)" }}>
-              <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
-              Refer a Tradie
-              <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}>20% off</span>
-            </span>
-          </Link>
+          {referralEnabled && (
+            <Link href="/portal/referral" onClick={() => setOpen(false)}>
+              <span className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium cursor-pointer" style={{ color: "rgba(255,255,255,0.75)" }}>
+                <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
+                Refer a Tradie
+                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}>20% off</span>
+              </span>
+            </Link>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function BottomTabBar({ features, currentTab, onLogout, isLoggingOut }: { features: string[]; currentTab: string; onLogout: () => void; isLoggingOut: boolean }) {
+function BottomTabBar({ features, currentTab, onLogout, isLoggingOut, referralEnabled }: { features: string[]; currentTab: string; onLogout: () => void; isLoggingOut: boolean; referralEnabled: boolean }) {
   const [showMore, setShowMore] = useState(false);
   // Swipe-to-close state
   const [dragStartY, setDragStartY] = useState<number | null>(null);
@@ -245,19 +247,21 @@ function BottomTabBar({ features, currentTab, onLogout, isLoggingOut }: { featur
                 </Link>
               );
             })}
-            {/* Settings + Subscription in overflow */}
-            <Link href="/portal/referral" onClick={() => setShowMore(false)}>
-              <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
-                <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
-                <span>Refer a Tradie</span>
-                <span
-                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
-                >
-                  20% off
+            {/* Referral — only shown when programme is enabled */}
+            {referralEnabled && (
+              <Link href="/portal/referral" onClick={() => setShowMore(false)}>
+                <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
+                  <Gift className="w-4 h-4" style={{ color: "#F5A623" }} />
+                  <span>Refer a Tradie</span>
+                  <span
+                    className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                    style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                  >
+                    20% off
+                  </span>
                 </span>
-              </span>
-            </Link>
+              </Link>
+            )}
             <Link href="/portal/subscription" onClick={() => setShowMore(false)}>
               <span className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
                 <CreditCard className="w-4 h-4" /> Subscription &amp; Billing
@@ -310,6 +314,12 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Feature flag: hide referral nav items when programme is disabled
+  const { data: referralFlag } = trpc.portal.isReferralEnabled.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+  const referralEnabled = referralFlag?.enabled ?? true; // default true to avoid flicker
 
   const logoutMutation = trpc.portal.logout.useMutation({
     onSuccess: () => navigate("/portal"),
@@ -400,7 +410,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
                 </Link>
               );
             })}
-            <DesktopMoreDropdown features={features} currentTab={currentTab} />
+            <DesktopMoreDropdown features={features} currentTab={currentTab} referralEnabled={referralEnabled} />
           </nav>
 
           {/* Right side — plan badge + settings + logout (hidden on mobile — bottom tab bar handles nav) */}
@@ -552,7 +562,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
         }}
       >
         {/* Show the 4 most important unlocked tabs + a More option */}
-        <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} />
+        <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} referralEnabled={referralEnabled} />
       </nav>
     </div>
   );

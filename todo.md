@@ -479,3 +479,14 @@
 - [ ] Trial-end reminder email via Stripe webhook
 - [ ] Annual savings badge on Pricing page toggle
 - [ ] /subscription/expired page with Stripe customer portal CTA
+- [ ] Audit voice-to-quote LLM prompt — fix multi-page report generation (page 1: quote, pages 2-3: job detail with photos)
+- [ ] Auto-invoice on quote acceptance
+- [x] Fix referral page: Capacitor URL shows capacitor://localhost instead of https://solvr.com.au
+- [x] Fix referral page: WhatsApp button text invisible (contrast bug)
+- [x] Add referral programme on/off toggle in admin console
+- [x] Fix SubscriptionExpired ReferralNudge: same Capacitor URL bug (window.location.origin)
+- [x] Add appSettings table to schema for feature flags
+- [x] Add referral feature toggle to adminReferral router (getFeatureFlags / setFeatureFlag)
+- [x] Wire referral toggle to PortalReferral page (hide page if disabled)
+- [x] Wire referral toggle to PortalLayout nav (hide Gift link if disabled)
+- [x] Add feature flags panel to ConsoleReferrals admin page

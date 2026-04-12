@@ -20,7 +20,7 @@ import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -167,6 +167,24 @@ function UpgradeCard({ feature, plan }: { feature: string; plan: string }) {
 }
 
 export default function PortalDashboard() {
+  const [, navigate] = useLocation();
+
+  // Subscription guard — redirect to expired page if past_due, cancelled, or unpaid
+  const { data: subStatus } = trpc.portal.getSubscriptionStatus.useQuery(undefined, {
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+  useEffect(() => {
+    if (
+      subStatus &&
+      (subStatus.status === "past_due" ||
+        subStatus.status === "cancelled" ||
+        subStatus.status === "incomplete")
+    ) {
+      navigate("/subscription/expired");
+    }
+  }, [subStatus, navigate]);
+
   const { data, isLoading } = trpc.portal.getDashboard.useQuery(undefined, {
     staleTime: 2 * 60 * 1000,
   });

@@ -1476,3 +1476,18 @@ export const jobFeedback = mysqlTable('job_feedback', {
 });
 export type JobFeedback = typeof jobFeedback.$inferSelect;
 export type InsertJobFeedback = typeof jobFeedback.$inferInsert;
+
+// ─── App Settings (Feature Flags) ────────────────────────────────────────────
+/**
+ * Global application settings and feature flags.
+ * Single-row table (id=1) — use upsert to update.
+ * Allows toggling features from the admin console without a code deploy.
+ */
+export const appSettings = mysqlTable("app_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Whether the tradie-to-tradie referral programme is active */
+  referralProgrammeEnabled: boolean("referralProgrammeEnabled").default(true).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AppSettings = typeof appSettings.$inferSelect;
+export type InsertAppSettings = typeof appSettings.$inferInsert;

@@ -295,6 +295,13 @@
       "when": 1775964745376,
       "tag": "0041_low_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1775990717086,
+      "tag": "0042_medical_vargas",
+      "breakpoints": true
     }
   ]
 }

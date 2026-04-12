@@ -536,6 +536,56 @@ export const quotesRouter = router({
         listQuotePhotos(input.id),
       ]);
 
+      // ── Auto-generate report if not yet done ─────────────────────────────────
+      // This ensures every PDF is a multi-page proposal document, not just a
+      // single-page price list. Tradies no longer need to manually trigger two
+      // separate steps — the report is generated automatically on first PDF export.
+      let reportContent = quote.reportContent as QuoteReportContent | null;
+      if (!reportContent) {
+        try {
+          const [recording, profile] = await Promise.all([
+            quote.voiceRecordingId ? getQuoteVoiceRecordingById(quote.voiceRecordingId) : Promise.resolve(null),
+            getClientProfile(clientId),
+          ]);
+          const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : null;
+          reportContent = await generateQuoteReport({
+            jobTitle: quote.jobTitle,
+            jobDescription: quote.jobDescription,
+            customerName: quote.customerName,
+            customerPhone: quote.customerPhone,
+            customerEmail: quote.customerEmail,
+            customerAddress: quote.customerAddress,
+            lineItems: lineItems.map((li) => ({
+              description: li.description,
+              quantity: parseFloat(li.quantity),
+              unit: li.unit ?? "each",
+              unitPrice: li.unitPrice ? parseFloat(li.unitPrice) : null,
+              lineTotal: li.lineTotal ? parseFloat(li.lineTotal) : null,
+            })),
+            subtotal: quote.subtotal,
+            gstAmount: quote.gstAmount,
+            totalAmount: quote.totalAmount,
+            gstRate: quote.gstRate,
+            paymentTerms: quote.paymentTerms,
+            validityDays: quote.validityDays,
+            notes: quote.notes,
+            transcript: recording?.transcript ?? "",
+            photos: photos.map((p) => ({ caption: p.caption, aiDescription: p.aiDescription ?? "" })),
+            businessName: client.businessName,
+            tradeType: client.tradeType,
+            memoryContext,
+          });
+          await updateQuote(input.id, {
+            reportContent: reportContent as any,
+            reportGeneratedAt: new Date(),
+          });
+          console.log(`[generatePdf] Auto-generated report for quote ${quote.quoteNumber}`);
+        } catch (reportErr) {
+          // Non-fatal — generate PDF without proposal pages rather than failing
+          console.error(`[generatePdf] Auto-report generation failed for quote ${quote.quoteNumber}:`, reportErr);
+        }
+      }
+
       const [logoBuffer, ...photoBuffers] = await Promise.all([
         client.quoteBrandLogoUrl ? fetchImageBuffer(client.quoteBrandLogoUrl) : Promise.resolve(null),
         ...photos.map((p) => fetchImageBuffer(p.imageUrl)),
@@ -563,7 +613,7 @@ export const quotesRouter = router({
           paymentTerms: quote.paymentTerms,
           validUntil: quote.validUntil ? String(quote.validUntil) : null,
           notes: quote.notes,
-          reportContent: quote.reportContent as QuoteReportContent | null,
+          reportContent: reportContent,
         },
         lineItems: lineItems.map((li) => ({
           description: li.description,

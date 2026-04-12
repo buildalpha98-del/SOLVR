@@ -168,6 +168,10 @@ export default function PortalQuotes() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Profile (for trade-specific recording hints)
+  const { data: onboardingProfile } = trpc.portal.getOnboardingProfile.useQuery(undefined, { retry: false });
+  const tradeType = onboardingProfile?.tradeType?.toLowerCase() ?? "";
+
   // Data
   const { data: quotes, isLoading, error: quotesError } = trpc.quotes.list.useQuery(undefined, {
     retry: false,
