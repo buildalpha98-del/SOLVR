@@ -1862,6 +1862,13 @@ export const portalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+
+      // Count existing active staff BEFORE adding the new member.
+      // The first staff member (count 0 → 1) is included in the base plan.
+      // Every additional member (count 1+) triggers a +$5/mo seat charge.
+      const existingStaff = await listStaffMembers(portalClient.client.id);
+      const activeCount = existingStaff.filter((s) => s.isActive).length;
+
       const result = await createStaffMember({
         clientId: portalClient.client.id,
         name: input.name,
@@ -1871,6 +1878,44 @@ export const portalRouter = router({
         hourlyRate: input.hourlyRate !== undefined ? String(input.hourlyRate) : null,
         isActive: true,
       });
+
+      // Wire seat add-on to Stripe subscription if the client has one.
+      // We only charge for staff beyond the first (activeCount >= 1 means this is the 2nd+).
+      if (activeCount >= 1) {
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        const subId = (portalClient.client as Record<string, unknown>).stripeSubscriptionId as string | null | undefined;
+        if (stripeKey && subId) {
+          try {
+            const { ADDITIONAL_SEAT } = await import("../stripeProducts");
+            const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+            // Check if a seat item already exists on this subscription
+            const sub = await stripe.subscriptions.retrieve(subId, { expand: ["items"] });
+            const existingSeatItem = sub.items.data.find(
+              (item) => item.price.id === ADDITIONAL_SEAT.stripePriceId
+            );
+            if (existingSeatItem) {
+              // Increment quantity by 1
+              await stripe.subscriptionItems.update(existingSeatItem.id, {
+                quantity: (existingSeatItem.quantity ?? 1) + 1,
+                proration_behavior: "create_prorations",
+              });
+            } else {
+              // Add the seat line item for the first time
+              await stripe.subscriptionItems.create({
+                subscription: subId,
+                price: ADDITIONAL_SEAT.stripePriceId,
+                quantity: 1,
+                proration_behavior: "create_prorations",
+              });
+            }
+            console.log(`[Seats] Added 1 seat to subscription ${subId} for client ${portalClient.client.id}`);
+          } catch (err) {
+            // Log but don't block staff creation — billing can be reconciled manually
+            console.error("[Seats] Failed to add seat to Stripe subscription:", err);
+          }
+        }
+      }
+
       return { id: result.insertId };
     }),
 
@@ -1909,7 +1954,48 @@ export const portalRouter = router({
       if (!member || member.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
       }
+
+      // Count active staff BEFORE deletion to decide whether to remove a seat.
+      const existingStaff = await listStaffMembers(portalClient.client.id);
+      const activeCount = existingStaff.filter((s) => s.isActive).length;
+
       await deleteStaffMember(input.id);
+
+      // Remove one seat from Stripe if this deletion drops the count below 2
+      // (i.e. we were charging for extra seats and now have one fewer).
+      if (activeCount >= 2) {
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        const subId = (portalClient.client as Record<string, unknown>).stripeSubscriptionId as string | null | undefined;
+        if (stripeKey && subId) {
+          try {
+            const { ADDITIONAL_SEAT } = await import("../stripeProducts");
+            const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+            const sub = await stripe.subscriptions.retrieve(subId, { expand: ["items"] });
+            const seatItem = sub.items.data.find(
+              (item) => item.price.id === ADDITIONAL_SEAT.stripePriceId
+            );
+            if (seatItem) {
+              const newQty = (seatItem.quantity ?? 1) - 1;
+              if (newQty <= 0) {
+                // Remove the line item entirely by cancelling it via the subscriptions API
+                await stripe.subscriptions.update(subId, {
+                  items: [{ id: seatItem.id, deleted: true }],
+                  proration_behavior: "create_prorations",
+                });
+              } else {
+                await stripe.subscriptionItems.update(seatItem.id, {
+                  quantity: newQty,
+                  proration_behavior: "create_prorations",
+                });
+              }
+              console.log(`[Seats] Removed 1 seat from subscription ${subId} for client ${portalClient.client.id}`);
+            }
+          } catch (err) {
+            console.error("[Seats] Failed to remove seat from Stripe subscription:", err);
+          }
+        }
+      }
+
       return { success: true };
     }),
 
