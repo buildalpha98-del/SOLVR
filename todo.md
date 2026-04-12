@@ -445,3 +445,11 @@
 - [x] adminPortal procedures upgraded from protectedProcedure to adminProcedure (role = admin required)
 - [x] listStaff strips staffPin and pushSubscription from response
 - [x] createSchedule IDOR guard - verifies jobId and staffId belong to authenticated client
+
+## Tradie UX Improvements (Audit April 2026)
+- [ ] P1 — Collapse portal nav to 4 core items + More drawer
+- [ ] P2 — Dashboard Today at a Glance strip
+- [ ] P3 — Plain-English labels on Compliance page
+- [ ] P4 — Staff card refactor to Manage bottom sheet
+- [ ] P5 — Drag handle + first-visit tooltip on schedule cards
+- [ ] P6 — Voice as primary CTA on Quotes page

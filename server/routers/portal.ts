@@ -444,6 +444,9 @@ export const portalRouter = router({
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const recentCalls = calls.filter(c => new Date(c.createdAt) > thirtyDaysAgo);
+      // Calls in the last 24 hours (for Today at a Glance)
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const callsSinceYesterday = calls.filter(c => new Date(c.createdAt) > yesterday).length;
 
       // Build daily call volume chart data (last 14 days)
       const callsByDay: Record<string, number> = {};
@@ -476,9 +479,13 @@ export const portalRouter = router({
         ? Math.round(wonRevenue / wonJobs.length)
         : (client.tradeType?.toLowerCase().includes("plumb") ? 450 : 380);
 
+      // Jobs due today — use stage "booked" as proxy since there's no scheduledDate field
+      const jobsDueToday = jobs.filter(j => j.stage === "booked").length;
+
       return {
         totalCalls: calls.length,
         callsThisMonth: recentCalls.length,
+        callsSinceYesterday,
         callVolumeChart,
         totalJobs,
         activeJobs: activeJobs.length,
@@ -486,6 +493,7 @@ export const portalRouter = router({
         potentialRevenue,
         wonRevenue,
         avgJobValue,
+        jobsDueToday,
         plan,
         features: PLAN_FEATURES[plan] ?? [],
       };

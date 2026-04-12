@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X, CalendarCheck, Receipt } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -199,6 +199,53 @@ export default function PortalDashboard() {
             </Button>
           )}
         </div>
+
+        {/* ── Today at a Glance ─────────────────────────────────────────── */}
+        {data && (
+          <div
+            className="rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 sm:gap-6"
+            style={{ background: "rgba(245,166,35,0.07)", border: "1px solid rgba(245,166,35,0.18)" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest w-full sm:w-auto" style={{ color: "rgba(245,166,35,0.7)" }}>Today</p>
+            {/* Calls since yesterday */}
+            <div className="flex items-center gap-2">
+              <Phone className="w-4 h-4" style={{ color: "#F5A623" }} />
+              <span className="text-white font-bold text-lg">{data.callsSinceYesterday}</span>
+              <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>new call{data.callsSinceYesterday !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+            {/* Jobs due today */}
+            {features.includes("jobs") && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="w-4 h-4" style={{ color: "#4ade80" }} />
+                  <span className="text-white font-bold text-lg">{data.jobsDueToday}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>job{data.jobsDueToday !== 1 ? "s" : ""} today</span>
+                </div>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+              </>
+            )}
+            {/* Active jobs */}
+            {features.includes("jobs") && (
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-4 h-4" style={{ color: "rgba(255,255,255,0.5)" }} />
+                <span className="text-white font-bold text-lg">{data.activeJobs}</span>
+                <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>active job{data.activeJobs !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+            {/* Pipeline value */}
+            {features.includes("jobs") && data.potentialRevenue > 0 && (
+              <>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" style={{ color: "#4ade80" }} />
+                  <span className="text-white font-bold text-lg">${data.potentialRevenue.toLocaleString()}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>in pipeline</span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">

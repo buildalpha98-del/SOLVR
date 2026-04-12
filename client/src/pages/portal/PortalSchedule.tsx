@@ -6,7 +6,7 @@
  * between staff rows within the same day or across days.
  * Designed for iPhone — no horizontal scrolling required.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ import { toast } from "sonner";
 import {
   ChevronLeft, ChevronRight, Plus, CalendarClock,
   Clock, MapPin, Loader2, X, CheckCircle2, ChevronDown, ChevronUp,
-  Check, Ban,
+  Check, Ban, GripVertical,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,16 +104,31 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 // ─── Draggable Schedule Card ──────────────────────────────────────────────────
+// One-time drag hint — shown on first render, dismissed after first drag
+function useDragHint() {
+  const [show, setShow] = useState(() => {
+    try { return !localStorage.getItem("solvr_schedule_drag_hint_dismissed"); }
+    catch { return true; }
+  });
+  function dismiss() {
+    try { localStorage.setItem("solvr_schedule_drag_hint_dismissed", "1"); } catch {}
+    setShow(false);
+  }
+  return { show, dismiss };
+}
+
 function ScheduleCard({
   entry,
   jobTitle,
   jobAddress,
   onClick,
+  isFirstCard,
 }: {
   entry: ScheduleEntry;
   jobTitle: string;
   jobAddress: string | null;
   onClick: () => void;
+  isFirstCard?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `entry-${entry.id}`,
@@ -133,7 +148,7 @@ function ScheduleCard({
       {...listeners}
       {...attributes}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="rounded-xl p-3 mb-2 cursor-grab active:cursor-grabbing select-none"
+      className="rounded-xl p-3 mb-2 cursor-grab active:cursor-grabbing select-none relative"
       style={{
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.4 : 1,
@@ -145,7 +160,10 @@ function ScheduleCard({
       }}
     >
       <div className="flex items-start justify-between gap-1">
-        <p className="text-white text-sm font-semibold truncate leading-tight flex-1">{jobTitle}</p>
+        <div className="flex items-center gap-1 flex-1 min-w-0">
+          <GripVertical className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.2)" }} />
+          <p className="text-white text-sm font-semibold truncate leading-tight">{jobTitle}</p>
+        </div>
         {confirmBadge && (
           <span
             title={confirmBadge.title}
@@ -389,6 +407,16 @@ export default function PortalSchedule() {
     address: j.customerAddress ?? j.location ?? null,
   })), [jobsData]);
 
+  // ─── Drag hint (first-visit only) ─────────────────────────────────────────
+  const [showDragHint, setShowDragHint] = useState(() => {
+    try { return !localStorage.getItem("solvr_schedule_drag_hint_dismissed"); }
+    catch { return true; }
+  });
+  function dismissDragHint() {
+    try { localStorage.setItem("solvr_schedule_drag_hint_dismissed", "1"); } catch {}
+    setShowDragHint(false);
+  }
+
   // ─── Drag state ──────────────────────────────────────────────────────────
   const [activeEntry, setActiveEntry] = useState<ScheduleEntry | null>(null);
   const sensors = useSensors(
@@ -544,6 +572,28 @@ export default function PortalSchedule() {
             </button>
           </div>
         </div>
+
+        {/* First-visit drag hint */}
+        {showDragHint && (
+          <div
+            className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-2"
+            style={{ background: "rgba(245,166,35,0.1)", border: "1px solid rgba(245,166,35,0.25)" }}
+          >
+            <div className="flex items-center gap-2">
+              <GripVertical className="w-4 h-4 flex-shrink-0" style={{ color: "#F5A623" }} />
+              <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
+                Hold and drag a shift card to move it to a different staff member or day.
+              </p>
+            </div>
+            <button
+              onClick={dismissDragHint}
+              className="text-xs font-semibold flex-shrink-0"
+              style={{ color: "#F5A623" }}
+            >
+              Got it
+            </button>
+          </div>
+        )}
 
         {/* No staff empty state */}
         {(!staffList || staffList.length === 0) && (

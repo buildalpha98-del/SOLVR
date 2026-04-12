@@ -500,31 +500,38 @@ export default function PortalQuotes() {
               <DialogHeader>
                 <DialogTitle className="text-white">New Quote</DialogTitle>
                 <DialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-                  How would you like to create this quote?
+                  Fastest way: just talk. Describe the job out loud and we'll build the quote for you.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="flex flex-col gap-3 mt-2">
+                {/* Voice — primary recommended option */}
                 <button
                   onClick={() => setNewMode("voice")}
-                  className="rounded-xl border p-6 text-left transition-all hover:border-amber-400/50"
-                  style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}
+                  className="rounded-xl border p-5 text-left transition-all"
+                  style={{ borderColor: "rgba(245,166,35,0.5)", background: "rgba(245,166,35,0.07)" }}
                 >
-                  <Mic className="w-8 h-8 mb-3 text-amber-400" />
-                  <p className="font-semibold text-white mb-1">Voice Recording</p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    Describe the job out loud — AI extracts all the details.
+                  <div className="flex items-center justify-between mb-3">
+                    <Mic className="w-8 h-8 text-amber-400" />
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(245,166,35,0.2)", color: "#F5A623" }}>Recommended</span>
+                  </div>
+                  <p className="font-semibold text-white mb-1">Speak Your Quote</p>
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    Talk for 30–60 seconds — customer name, job details, price. AI fills in the form for you.
                   </p>
                 </button>
+                {/* Manual — secondary option */}
                 <button
                   onClick={() => setNewMode("manual")}
-                  className="rounded-xl border p-6 text-left transition-all hover:border-amber-400/50"
-                  style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}
+                  className="rounded-xl border p-4 text-left transition-all"
+                  style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)" }}
                 >
-                  <Pencil className="w-8 h-8 mb-3 text-amber-400" />
-                  <p className="font-semibold text-white mb-1">Manual Entry</p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    Type in the job details and line items directly.
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <Pencil className="w-5 h-5 text-white/40" />
+                    <div>
+                      <p className="font-medium text-white text-sm">Type It In</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>Fill in the job details and line items manually.</p>
+                    </div>
+                  </div>
                 </button>
               </div>
             </>

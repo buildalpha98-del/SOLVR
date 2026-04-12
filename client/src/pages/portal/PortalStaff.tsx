@@ -17,9 +17,12 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle,
+} from "@/components/ui/drawer";
+import {
   UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign,
   Users, KeyRound, Link2, Copy, Check, Download, ChevronLeft, ChevronRight,
-  TrendingDown, Clock, AlertCircle,
+  TrendingDown, Clock, AlertCircle, Settings2,
 } from "lucide-react";
 import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -298,6 +301,9 @@ export default function PortalStaff() {
   const [pinConfirm, setPinConfirm] = useState("");
 
   // Timesheet export state
+  // Manage drawer state
+  const [manageTarget, setManageTarget] = useState<StaffMember | null>(null);
+
   const [showExport, setShowExport] = useState(false);
   const [exportFrom, setExportFrom] = useState(() => {
     const d = new Date();
@@ -561,33 +567,15 @@ export default function PortalStaff() {
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => { setPinTarget(member); setPinValue(""); setPinConfirm(""); }}
-                        className="p-2 rounded-lg transition-colors"
-                        style={{ color: "rgba(245,166,35,0.6)" }}
-                        title="Set Staff PIN"
-                      >
-                        <KeyRound className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(member)}
-                        className="p-2 rounded-lg transition-colors"
-                        style={{ color: "rgba(255,255,255,0.4)" }}
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(member)}
-                        className="p-2 rounded-lg transition-colors"
-                        style={{ color: "rgba(255,100,100,0.5)" }}
-                        title="Remove"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {/* Single Manage button — opens bottom drawer */}
+                    <button
+                      onClick={() => setManageTarget(member)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0 transition-colors"
+                      style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)" }}
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                      Manage
+                    </button>
                   </div>
                 ))}
               </div>
@@ -598,6 +586,55 @@ export default function PortalStaff() {
         {/* ── Labour Costs Tab ── */}
         {activeTab === "labour" && <LabourCostsTab />}
       </div>
+
+      {/* ── Manage Staff Drawer ─────────────────────────────────────────── */}
+      <Drawer open={!!manageTarget} onOpenChange={(open) => { if (!open) setManageTarget(null); }}>
+        <DrawerContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="text-white text-base">
+              {manageTarget?.name}
+            </DrawerTitle>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {manageTarget?.trade ?? "Staff member"}
+            </p>
+          </DrawerHeader>
+          <div className="px-4 pb-8 space-y-3">
+            <button
+              onClick={() => { if (manageTarget) openEdit(manageTarget); setManageTarget(null); }}
+              className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <Pencil className="w-5 h-5 flex-shrink-0" style={{ color: "#F5A623" }} />
+              <div>
+                <p className="text-white text-sm font-semibold">Edit Details</p>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Update name, trade, mobile, hourly rate</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { if (manageTarget) { setPinTarget(manageTarget); setPinValue(""); setPinConfirm(""); } setManageTarget(null); }}
+              className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <KeyRound className="w-5 h-5 flex-shrink-0" style={{ color: "#F5A623" }} />
+              <div>
+                <p className="text-white text-sm font-semibold">Set PIN</p>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Change the 4-digit PIN this staff member uses to log in</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { if (manageTarget) setDeleteTarget(manageTarget); setManageTarget(null); }}
+              className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
+              style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.15)" }}
+            >
+              <Trash2 className="w-5 h-5 flex-shrink-0" style={{ color: "#ef4444" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>Remove Staff Member</p>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>This will remove them from your team permanently</p>
+              </div>
+            </button>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {/* Add / Edit Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingStaff(null); setForm(emptyForm); } }}>
