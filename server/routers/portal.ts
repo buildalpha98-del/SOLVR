@@ -950,7 +950,9 @@ export const portalRouter = router({
       abn: z.string().max(50).optional(),
       phone: z.string().max(50).optional(),
       address: z.string().max(512).optional(),
-      replyToEmail: z.string().email().max(320).optional(),
+      // z.string().email() intentionally NOT used — Zod v4 rejects empty string
+      // on iOS Capacitor when the field is cleared. Transform empty string to undefined.
+      replyToEmail: z.union([z.string().email().max(320), z.literal("")]).optional().transform(v => (v === "" ? undefined : v)),
       paymentTerms: z.string().max(255).optional(),
       gstRate: z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).optional(),
       validityDays: z.number().int().min(1).max(365).optional(),

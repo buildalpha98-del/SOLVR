@@ -464,6 +464,31 @@ export default function PortalStaff() {
               {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
               {copied ? "Copied!" : "Copy Link"}
             </Button>
+            {/* Web Share API — shows native iOS share sheet (iMessage, WhatsApp, AirDrop etc.) */}
+            {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
+              <Button
+                onClick={async () => {
+                  try {
+                    await navigator.share({
+                      title: "Staff Login — Solvr",
+                      text: "Tap the link to log in to your Solvr staff portal.",
+                      url: staffLoginUrl ?? "",
+                    });
+                  } catch (e) {
+                    // User cancelled share — not an error
+                    if (e instanceof Error && e.name !== "AbortError") {
+                      toast.error("Share failed — try copying the link instead.");
+                    }
+                  }
+                }}
+                variant="outline"
+                className="w-full font-semibold"
+                style={{ borderColor: "rgba(255,255,255,0.2)", color: "white", background: "transparent" }}
+              >
+                <Link2 className="w-4 h-4 mr-2" />
+                Share via iMessage / WhatsApp
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
