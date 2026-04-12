@@ -9,11 +9,11 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * first. iOS-only is an intentional v1 scope decision.
  */
 const config: CapacitorConfig = {
-  // MUST match App Store Connect app id 6761999026 which was registered under
-  // bundle identifier `com.solvr.mobile`. Changing this would require creating
-  // a new App Store Connect app entry and losing the existing APNs push key,
-  // provisioning profile, and TestFlight history (including the build that's
-  // currently live for internal testing).
+  // DELIBERATE: `com.solvr.mobile` matches App Store Connect app 6761999026.
+  // The alternative `au.com.solvr.portal` was evaluated and rejected because
+  // switching would require a new App Store Connect app entry, a new APNs push
+  // key, a new provisioning profile, and loss of existing TestFlight history.
+  // Keep this as `com.solvr.mobile` for all TestFlight builds.
   appId: "com.solvr.mobile",
   appName: "Solvr",
 

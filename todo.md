@@ -463,3 +463,5 @@
 - [x] Auto-send customer status link in booking SMS
 - [x] Customer feedback widget on status page (thumbs up/down + comment)
 - [x] Status page branding (tradie logo + trading name)
+- [x] Capacitor appId decision documented (keep com.solvr.mobile)
+- [x] Inbound SMS reply webhook (Twilio -> job note + push notification)

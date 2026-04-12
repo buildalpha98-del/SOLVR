@@ -24,6 +24,7 @@ import { scheduleStaffTimesheetCrons } from "../cron/staffTimesheet";
 import { scheduleReviewRequestDispatchCron } from "../cron/reviewRequestDispatch";
 import { scheduleLateCheckinAlertCron } from "../cron/lateCheckinAlert";
 import { quoteAcceptRouter } from "../quoteAccept";
+import { handleTwilioInboundSms } from "../twilioInboundSms";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -133,6 +134,10 @@ async function startServer() {
   // Vapi webhook — receives call events (transcripts, summaries)
   // Must include json middleware inline since it's registered before the global parser
   app.post("/api/vapi/webhook", express.json({ limit: "10mb" }), handleVapiWebhook);
+
+  // Twilio inbound SMS — receives customer replies to booking/quote SMS messages
+  // Uses urlencoded body (Twilio sends application/x-www-form-urlencoded)
+  app.post("/api/twilio/inbound-sms", express.urlencoded({ extended: false }), handleTwilioInboundSms);
 
   // Audio upload for Voice-to-Quote (multipart/form-data) — register BEFORE json middleware
   // Mount at /api so the full path becomes /api/portal/upload-audio (matching the frontend fetch call)
