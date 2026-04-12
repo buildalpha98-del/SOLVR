@@ -99,6 +99,10 @@ import {
   getReviewRequestById,
   insertReviewRequest,
   getReviewRequestStats,
+  markStaffUnavailable,
+  removeStaffUnavailability,
+  listStaffUnavailability,
+  getLabourCostReport,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 
@@ -2259,6 +2263,85 @@ export const portalRouter = router({
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
       const stats = await getReviewRequestStats(portalClient.client.id);
       return stats;
+    }),
+
+  // ─── Staff Availability ────────────────────────────────────────────────────
+
+  /**
+   * Mark a staff member as unavailable on a specific date.
+   * Called from the staff portal roster — one tap to block a day.
+   */
+  markStaffUnavailable: publicProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+      reason: z.enum(["personal", "sick", "annual_leave", "other"]).optional(),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      // Verify staff member belongs to this client
+      const member = await getStaffMember(input.staffId);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      await markStaffUnavailable(portalClient.client.id, input.staffId, input.date, input.reason, input.note);
+      return { success: true };
+    }),
+
+  /**
+   * Remove an unavailability record (staff is available again on that date).
+   */
+  removeStaffUnavailability: publicProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const member = await getStaffMember(input.staffId);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      await removeStaffUnavailability(portalClient.client.id, input.staffId, input.date);
+      return { success: true };
+    }),
+
+  /**
+   * List all unavailability records for the client's staff within a week range.
+   * Used by the schedule grid to render blocked cells.
+   */
+  listStaffUnavailability: publicProcedure
+    .input(z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listStaffUnavailability(portalClient.client.id, input.from, input.to);
+    }),
+
+  // ─── Labour Cost Report ──────────────────────────────────────────────────────
+
+  /**
+   * Return labour cost breakdown by staff member for a given month.
+   * Pulls from timeEntries × staffMembers.hourlyRate.
+   */
+  getLabourCostReport: publicProcedure
+    .input(z.object({
+      year: z.number().int().min(2020).max(2100),
+      month: z.number().int().min(1).max(12), // 1-based
+    }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const from = new Date(input.year, input.month - 1, 1);
+      const to = new Date(input.year, input.month, 0, 23, 59, 59, 999); // last ms of last day
+      const rows = await getLabourCostReport(portalClient.client.id, from, to);
+      return { rows, year: input.year, month: input.month };
     }),
 
   /**

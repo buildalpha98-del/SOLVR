@@ -32,6 +32,9 @@ import {
   createTimeEntry,
   updateTimeEntry,
   getCrmClientById,
+  markStaffUnavailable,
+  removeStaffUnavailability,
+  listMyUnavailability,
 } from "../db";
 
 const STAFF_COOKIE = "solvr_staff_session";
@@ -504,4 +507,52 @@ export const staffPortalRouter = router({
   vapidPublicKey: publicProcedure.query(() => {
     return { key: process.env.VAPID_PUBLIC_KEY ?? null };
   }),
+
+  // ─── Staff Availability ───────────────────────────────────────────────────────
+
+  /**
+   * Mark self as unavailable on a specific date.
+   * Staff tap a day in their roster and hit "Mark as unavailable".
+   */
+  markUnavailable: publicProcedure
+    .input(z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+      reason: z.enum(["personal", "sick", "annual_leave", "other"]).optional(),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      await markStaffUnavailable(session.client.id, session.staff.id, input.date, input.reason, input.note);
+      return { success: true };
+    }),
+
+  /**
+   * Remove an unavailability record (staff marks themselves available again).
+   */
+  removeUnavailability: publicProcedure
+    .input(z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      await removeStaffUnavailability(session.client.id, session.staff.id, input.date);
+      return { success: true };
+    }),
+
+  /**
+   * List this staff member's unavailability records for a date range.
+   * Used to show blocked days in the roster view.
+   */
+  listMyUnavailability: publicProcedure
+    .input(z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    .query(async ({ input, ctx }) => {
+      const session = await getStaffSession(ctx.req);
+      if (!session) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      return listMyUnavailability(session.staff.id, input.from, input.to);
+    }),
 });

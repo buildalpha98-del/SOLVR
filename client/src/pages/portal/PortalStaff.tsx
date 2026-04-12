@@ -1,9 +1,8 @@
 /**
  * PortalStaff — Staff management page for tradies.
- * Add, edit, and deactivate staff members. Each staff member can be
- * assigned to job schedule entries and check in/out via GPS.
+ * Tabs: Team (staff list + PIN management) | Labour Costs (monthly cost report)
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,11 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign, Users, KeyRound, Link2, Copy, Check, Download, Calendar } from "lucide-react";
+import {
+  UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign,
+  Users, KeyRound, Link2, Copy, Check, Download, ChevronLeft, ChevronRight,
+  TrendingDown, Clock, AlertCircle,
+} from "lucide-react";
 import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
@@ -49,11 +52,227 @@ const emptyForm: StaffFormData = {
   hourlyRate: "",
 };
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// ─── Labour Costs Tab ─────────────────────────────────────────────────────────
+function LabourCostsTab() {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1); // 1-based
+
+  function prevMonth() {
+    if (month === 1) { setMonth(12); setYear(y => y - 1); }
+    else setMonth(m => m - 1);
+  }
+  function nextMonth() {
+    const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
+    if (isCurrentMonth) return;
+    if (month === 12) { setMonth(1); setYear(y => y + 1); }
+    else setMonth(m => m + 1);
+  }
+
+  const { data, isLoading } = trpc.portal.getLabourCostReport.useQuery(
+    { year, month },
+    { staleTime: 60_000 }
+  );
+
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
+
+  const totals = useMemo(() => {
+    if (!data?.rows) return { hours: 0, cost: 0, staffWithRate: 0, staffWithoutRate: 0 };
+    return data.rows.reduce((acc, r) => ({
+      hours: acc.hours + r.totalHours,
+      cost: acc.cost + (r.labourCost ?? 0),
+      staffWithRate: acc.staffWithRate + (r.hourlyRate ? 1 : 0),
+      staffWithoutRate: acc.staffWithoutRate + (!r.hourlyRate ? 1 : 0),
+    }), { hours: 0, cost: 0, staffWithRate: 0, staffWithoutRate: 0 });
+  }, [data]);
+
+  return (
+    <div className="space-y-4">
+      {/* Month navigator */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={prevMonth}
+          className="p-2 rounded-lg transition-colors"
+          style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="text-center">
+          <p className="text-white font-semibold">{MONTH_NAMES[month - 1]} {year}</p>
+          {isCurrentMonth && <p className="text-xs" style={{ color: "#F5A623" }}>Current month</p>}
+        </div>
+        <button
+          onClick={nextMonth}
+          disabled={isCurrentMonth}
+          className="p-2 rounded-lg transition-colors disabled:opacity-30"
+          style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {isLoading && (
+        <div className="flex justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      )}
+
+      {!isLoading && data && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <div
+              className="rounded-2xl p-4"
+              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.15)" }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-4 h-4" style={{ color: "#F5A623" }} />
+                <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Total Hours</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{totals.hours.toFixed(1)}</p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>hrs worked</p>
+            </div>
+            <div
+              className="rounded-2xl p-4"
+              style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)" }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="w-4 h-4" style={{ color: "#22c55e" }} />
+                <span className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Labour Cost</span>
+              </div>
+              <p className="text-2xl font-bold text-white">
+                {totals.cost > 0 ? `$${totals.cost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—"}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+                {totals.staffWithoutRate > 0 ? `${totals.staffWithoutRate} staff missing rate` : "all rates set"}
+              </p>
+            </div>
+          </div>
+
+          {/* Missing hourly rate warning */}
+          {totals.staffWithoutRate > 0 && (
+            <div
+              className="rounded-xl p-3 flex items-start gap-2"
+              style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)" }}
+            >
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+                <span className="text-amber-400 font-medium">{totals.staffWithoutRate} staff member{totals.staffWithoutRate > 1 ? "s" : ""}</span> {totals.staffWithoutRate > 1 ? "don't" : "doesn't"} have an hourly rate set.
+                Edit their profile to include a rate for accurate cost reporting.
+              </p>
+            </div>
+          )}
+
+          {/* Per-staff breakdown */}
+          {data.rows.length === 0 ? (
+            <div
+              className="rounded-2xl border p-8 text-center"
+              style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.08)" }}
+            >
+              <TrendingDown className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(255,255,255,0.2)" }} />
+              <p className="text-white font-medium mb-1">No time entries</p>
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
+                No completed check-ins for {MONTH_NAMES[month - 1]} {year}.
+              </p>
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              {/* Table header */}
+              <div
+                className="grid grid-cols-4 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide"
+                style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)" }}
+              >
+                <span className="col-span-2">Staff Member</span>
+                <span className="text-right">Hours</span>
+                <span className="text-right">Cost</span>
+              </div>
+              {/* Rows */}
+              <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                {data.rows.map((row) => (
+                  <div
+                    key={row.staffId}
+                    className="grid grid-cols-4 px-4 py-3 items-center"
+                    style={{ background: "rgba(255,255,255,0.01)" }}
+                  >
+                    <div className="col-span-2 flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                        style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                      >
+                        {row.staffName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{row.staffName}</p>
+                        <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                          {row.hourlyRate ? `$${row.hourlyRate}/hr` : <span style={{ color: "rgba(245,166,35,0.6)" }}>No rate set</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-white text-sm font-semibold">{row.totalHours.toFixed(1)}</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{row.entryCount} entries</p>
+                    </div>
+                    <div className="text-right">
+                      {row.labourCost != null ? (
+                        <p className="text-sm font-semibold" style={{ color: "#22c55e" }}>
+                          ${row.labourCost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </p>
+                      ) : (
+                        <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>—</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Totals footer */}
+              <div
+                className="grid grid-cols-4 px-4 py-3 border-t"
+                style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
+              >
+                <div className="col-span-2">
+                  <p className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>TOTAL</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white text-sm font-bold">{totals.hours.toFixed(1)}</p>
+                </div>
+                <div className="text-right">
+                  {totals.cost > 0 ? (
+                    <p className="text-sm font-bold" style={{ color: "#22c55e" }}>
+                      ${totals.cost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </p>
+                  ) : (
+                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>—</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
+            Based on completed check-in/out entries. Partial hours rounded to 2 decimal places.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function PortalStaff() {
   const utils = trpc.useUtils();
 
   const { data: staffList, isLoading } = trpc.portal.listStaff.useQuery();
   const { data: me } = trpc.portal.me.useQuery();
+
+  const [activeTab, setActiveTab] = useState<"team" | "labour">("team");
 
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
@@ -203,7 +422,7 @@ export default function PortalStaff() {
 
   return (
     <PortalLayout activeTab="staff">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -212,12 +431,12 @@ export default function PortalStaff() {
               Staff
             </h1>
             <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Manage your team members — assign them to jobs and track their hours.
+              Manage your team and track labour costs.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {staffLoginUrl && (
-              <>
+          {activeTab === "team" && (
+            <div className="flex items-center gap-2">
+              {staffLoginUrl && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -228,129 +447,156 @@ export default function PortalStaff() {
                   <Link2 className="w-4 h-4 mr-1" />
                   Staff Link
                 </Button>
-              </>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowExport(true)}
-              style={{ color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}
-              title="Export Timesheets"
-            >
-              <Download className="w-4 h-4 mr-1" />
-              Export
-            </Button>
-            <Button
-              size="sm"
-              onClick={openCreate}
-              style={{ background: "#F5A623", color: "#0F1F3D" }}
-              className="font-semibold"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add Staff
-            </Button>
-          </div>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowExport(true)}
+                style={{ color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}
+                title="Export Timesheets"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                Export
+              </Button>
+              <Button
+                size="sm"
+                onClick={openCreate}
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+                className="font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Staff
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Staff list */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
-          </div>
-        ) : !staffList || staffList.length === 0 ? (
-          <div
-            className="rounded-2xl border p-10 text-center"
-            style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.08)" }}
-          >
-            <Users className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
-            <p className="text-white font-medium mb-1">No staff members yet</p>
-            <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Add your first team member to start scheduling and tracking hours.
-            </p>
-            <Button
-              size="sm"
-              onClick={openCreate}
-              style={{ background: "#F5A623", color: "#0F1F3D" }}
-              className="font-semibold"
+        {/* Tab switcher */}
+        <div
+          className="flex rounded-xl p-1 gap-1"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          {(["team", "labour"] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={activeTab === tab
+                ? { background: "#F5A623", color: "#0F1F3D" }
+                : { color: "rgba(255,255,255,0.45)" }
+              }
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Add First Staff Member
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {staffList.map((member) => (
-              <div
-                key={member.id}
-                className="rounded-2xl border p-4 flex items-center gap-4"
-                style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
-              >
-                {/* Avatar */}
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
-                >
-                  {member.name.charAt(0).toUpperCase()}
-                </div>
+              {tab === "team" ? "Team" : "Labour Costs"}
+            </button>
+          ))}
+        </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-semibold text-sm truncate">{member.name}</p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                    {member.trade && (
-                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                        <Wrench className="w-3 h-3" /> {member.trade}
-                      </span>
-                    )}
-                    {member.mobile && (
-                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                        <Phone className="w-3 h-3" /> {member.mobile}
-                      </span>
-                    )}
-                    {member.licenceNumber && (
-                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                        <Hash className="w-3 h-3" /> {member.licenceNumber}
-                      </span>
-                    )}
-                    {member.hourlyRate && (
-                      <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                        <DollarSign className="w-3 h-3" /> ${member.hourlyRate}/hr
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => { setPinTarget(member); setPinValue(""); setPinConfirm(""); }}
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ color: "rgba(245,166,35,0.6)" }}
-                    title="Set Staff PIN"
-                  >
-                    <KeyRound className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => openEdit(member)}
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ color: "rgba(255,255,255,0.4)" }}
-                    title="Edit"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(member)}
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ color: "rgba(255,100,100,0.5)" }}
-                    title="Remove"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+        {/* ── Team Tab ── */}
+        {activeTab === "team" && (
+          <>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
               </div>
-            ))}
-          </div>
+            ) : !staffList || staffList.length === 0 ? (
+              <div
+                className="rounded-2xl border p-10 text-center"
+                style={{ background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.08)" }}
+              >
+                <Users className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
+                <p className="text-white font-medium mb-1">No staff members yet</p>
+                <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Add your first team member to start scheduling and tracking hours.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={openCreate}
+                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  className="font-semibold"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add First Staff Member
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {staffList.map((member) => (
+                  <div
+                    key={member.id}
+                    className="rounded-2xl border p-4 flex items-center gap-4"
+                    style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
+                  >
+                    {/* Avatar */}
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                      style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                    >
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold text-sm truncate">{member.name}</p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                        {member.trade && (
+                          <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                            <Wrench className="w-3 h-3" /> {member.trade}
+                          </span>
+                        )}
+                        {member.mobile && (
+                          <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                            <Phone className="w-3 h-3" /> {member.mobile}
+                          </span>
+                        )}
+                        {member.licenceNumber && (
+                          <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                            <Hash className="w-3 h-3" /> {member.licenceNumber}
+                          </span>
+                        )}
+                        {member.hourlyRate && (
+                          <span className="text-xs flex items-center gap-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                            <DollarSign className="w-3 h-3" /> ${member.hourlyRate}/hr
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => { setPinTarget(member); setPinValue(""); setPinConfirm(""); }}
+                        className="p-2 rounded-lg transition-colors"
+                        style={{ color: "rgba(245,166,35,0.6)" }}
+                        title="Set Staff PIN"
+                      >
+                        <KeyRound className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => openEdit(member)}
+                        className="p-2 rounded-lg transition-colors"
+                        style={{ color: "rgba(255,255,255,0.4)" }}
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(member)}
+                        className="p-2 rounded-lg transition-colors"
+                        style={{ color: "rgba(255,100,100,0.5)" }}
+                        title="Remove"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
+
+        {/* ── Labour Costs Tab ── */}
+        {activeTab === "labour" && <LabourCostsTab />}
       </div>
 
       {/* Add / Edit Dialog */}
@@ -464,7 +710,6 @@ export default function PortalStaff() {
               {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
               {copied ? "Copied!" : "Copy Link"}
             </Button>
-            {/* Web Share API — shows native iOS share sheet (iMessage, WhatsApp, AirDrop etc.) */}
             {typeof navigator !== "undefined" && typeof navigator.share === "function" && (
               <Button
                 onClick={async () => {
@@ -475,7 +720,6 @@ export default function PortalStaff() {
                       url: staffLoginUrl ?? "",
                     });
                   } catch (e) {
-                    // User cancelled share — not an error
                     if (e instanceof Error && e.name !== "AbortError") {
                       toast.error("Share failed — try copying the link instead.");
                     }
@@ -555,8 +799,7 @@ export default function PortalStaff() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Staff use this PIN to log in at <span className="text-amber-400 font-mono text-xs">solvr.com.au/staff?c={/* clientId */}</span>.
-              Use 4–8 digits.
+              Staff use this PIN to log in at <span className="text-amber-400 font-mono text-xs">solvr.com.au/staff</span>. Use 4–8 digits.
             </p>
             <div>
               <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.6)" }}>New PIN</Label>

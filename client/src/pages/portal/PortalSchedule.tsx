@@ -178,6 +178,7 @@ function StaffRow({
   jobs,
   onAdd,
   onEntryClick,
+  isBlocked = false,
 }: {
   day: Date;
   staff: StaffMember;
@@ -185,6 +186,7 @@ function StaffRow({
   jobs: Job[];
   onAdd: (day: Date, staffId: number) => void;
   onEntryClick: (entry: ScheduleEntry) => void;
+  isBlocked?: boolean;
 }) {
   const droppableId = `${staff.id}-${day.toISOString().split("T")[0]}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId, data: { day, staffId: staff.id } });
@@ -222,13 +224,20 @@ function StaffRow({
       {/* Drop zone */}
       <div
         ref={setNodeRef}
-        className="min-h-[60px] rounded-xl p-2 transition-colors"
+        className="min-h-[60px] rounded-xl p-2 transition-colors relative overflow-hidden"
         style={{
-          background: isOver ? "rgba(245,166,35,0.06)" : "rgba(255,255,255,0.02)",
-          border: isOver ? "1px dashed rgba(245,166,35,0.4)" : "1px solid rgba(255,255,255,0.05)",
+          background: isBlocked ? "rgba(239,68,68,0.04)" : isOver ? "rgba(245,166,35,0.06)" : "rgba(255,255,255,0.02)",
+          border: isBlocked ? "1px solid rgba(239,68,68,0.2)" : isOver ? "1px dashed rgba(245,166,35,0.4)" : "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        {dayEntries.length === 0 ? (
+        {isBlocked ? (
+          <div className="flex items-center gap-2 py-3 px-1">
+            <Ban className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "rgba(239,68,68,0.6)" }} />
+            <p className="text-[11px]" style={{ color: "rgba(239,68,68,0.7)" }}>
+              {staff.name.split(" ")[0]} marked unavailable
+            </p>
+          </div>
+        ) : dayEntries.length === 0 ? (
           <p className="text-center text-[11px] py-3" style={{ color: "rgba(255,255,255,0.2)" }}>
             No shifts — drag here or tap Add
           </p>
@@ -257,6 +266,7 @@ function DayCard({
   onAdd,
   onEntryClick,
   isToday,
+  unavailableStaffIds,
 }: {
   day: Date;
   staffList: StaffMember[];
@@ -265,6 +275,7 @@ function DayCard({
   onAdd: (day: Date, staffId: number) => void;
   onEntryClick: (entry: ScheduleEntry) => void;
   isToday: boolean;
+  unavailableStaffIds?: Set<number>;
 }) {
   const [collapsed, setCollapsed] = useState(!isToday);
   const dayEntryCount = entries.filter(e => isSameDay(new Date(e.startTime), day)).length;
@@ -333,6 +344,7 @@ function DayCard({
               jobs={jobs}
               onAdd={onAdd}
               onEntryClick={onEntryClick}
+              isBlocked={unavailableStaffIds?.has(staff.id) ?? false}
             />
           ))}
         </div>
@@ -353,6 +365,23 @@ export default function PortalSchedule() {
   );
   const { data: staffList } = trpc.portal.listStaff.useQuery();
   const { data: jobsData } = trpc.portal.listJobs.useQuery();
+
+  // Load staff unavailability for the week so we can show blocked cells
+  const weekEndStr = addDays(weekStart, 6).toISOString().split("T")[0];
+  const { data: unavailabilityData } = trpc.portal.listStaffUnavailability.useQuery(
+    { from: weekStartStr, to: weekEndStr },
+    { staleTime: 30_000 }
+  );
+
+  // Build a map: dateStr -> Set<staffId> for O(1) lookup
+  const unavailMap = useMemo(() => {
+    const m = new Map<string, Set<number>>();
+    (unavailabilityData ?? []).forEach(u => {
+      if (!m.has(u.unavailableDate)) m.set(u.unavailableDate, new Set());
+      m.get(u.unavailableDate)!.add(u.staffId);
+    });
+    return m;
+  }, [unavailabilityData]);
 
   const jobs: Job[] = useMemo(() => (jobsData ?? []).map(j => ({
     id: j.id,
@@ -550,6 +579,7 @@ export default function PortalSchedule() {
                 onAdd={openAdd}
                 onEntryClick={setSelectedEntry}
                 isToday={isSameDay(day, today)}
+                unavailableStaffIds={unavailMap.get(day.toISOString().split("T")[0])}
               />
             ))}
 

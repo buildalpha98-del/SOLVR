@@ -2,12 +2,12 @@
  * StaffRoster — weekly schedule view for the logged-in staff member.
  * Shows Mon–Sun with job cards per day. Can navigate weeks.
  * Staff can confirm or decline pending shifts.
- * Decline prompts for a reason (sick | unavailable | personal | other).
+ * Staff can mark a day as unavailable (one tap) or remove that block.
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import StaffLayout from "./StaffLayout";
-import { Loader2, ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Clock, MapPin, CheckCircle2, XCircle, AlertCircle, BanIcon } from "lucide-react";
 import { toast } from "sonner";
 
 function getMonday(date: Date): Date {
@@ -39,6 +39,10 @@ function isSameDay(a: Date, b: Date) {
     a.getDate() === b.getDate();
 }
 
+function toDateStr(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 type DeclineReason = "sick" | "unavailable" | "personal" | "other";
@@ -62,14 +66,32 @@ export default function StaffRoster() {
   const today = new Date();
   const baseMonday = getMonday(today);
   const monday = addDays(baseMonday, weekOffset * 7);
-  const weekOf = monday.toISOString().split("T")[0];
+  const weekOf = toDateStr(monday);
+  const weekEnd = toDateStr(addDays(monday, 6));
 
   // Decline reason modal state
   const [pendingDeclineId, setPendingDeclineId] = useState<number | null>(null);
   const [selectedReason, setSelectedReason] = useState<DeclineReason | null>(null);
 
+  // Unavailability modal state
+  const [pendingUnavailDate, setPendingUnavailDate] = useState<string | null>(null);
+  const [unavailReason, setUnavailReason] = useState<"personal" | "sick" | "annual_leave" | "other">("personal");
+
   const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.staffPortal.weekRoster.useQuery({ weekOf });
+
+  // Load this staff member's unavailability for the week
+  const { data: unavailData } = trpc.staffPortal.listMyUnavailability.useQuery(
+    { from: weekOf, to: weekEnd },
+    { staleTime: 30_000 }
+  );
+
+  // Set of blocked date strings for O(1) lookup
+  const blockedDates = useMemo(() => {
+    const s = new Set<string>();
+    (unavailData ?? []).forEach(u => s.add(u.unavailableDate));
+    return s;
+  }, [unavailData]);
 
   const confirmMutation = trpc.staffPortal.confirmShift.useMutation({
     onSuccess: () => {
@@ -91,6 +113,23 @@ export default function StaffRoster() {
     onError: (e) => toast.error(e.message),
   });
 
+  const markUnavailMutation = trpc.staffPortal.markUnavailable.useMutation({
+    onSuccess: () => {
+      toast.success("Day marked as unavailable.");
+      setPendingUnavailDate(null);
+      utils.staffPortal.listMyUnavailability.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const removeUnavailMutation = trpc.staffPortal.removeUnavailability.useMutation({
+    onSuccess: () => {
+      toast.success("Availability restored.");
+      utils.staffPortal.listMyUnavailability.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   function openDeclineModal(scheduleId: number) {
     setPendingDeclineId(scheduleId);
     setSelectedReason(null);
@@ -99,6 +138,20 @@ export default function StaffRoster() {
   function submitDecline() {
     if (!pendingDeclineId || !selectedReason) return;
     declineMutation.mutate({ scheduleId: pendingDeclineId, reason: selectedReason });
+  }
+
+  function handleAvailabilityToggle(dateStr: string) {
+    if (blockedDates.has(dateStr)) {
+      removeUnavailMutation.mutate({ date: dateStr });
+    } else {
+      setPendingUnavailDate(dateStr);
+      setUnavailReason("personal");
+    }
+  }
+
+  function submitUnavailable() {
+    if (!pendingUnavailDate) return;
+    markUnavailMutation.mutate({ date: pendingUnavailDate, reason: unavailReason });
   }
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
@@ -153,26 +206,69 @@ export default function StaffRoster() {
           {weekDays.map((day, i) => {
             const jobs = getJobsForDay(day);
             const isToday = isSameDay(day, today);
+            const dateStr = toDateStr(day);
+            const isBlocked = blockedDates.has(dateStr);
+            const isPast = day < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
             return (
               <div
                 key={i}
                 className={`rounded-2xl border transition-all ${
-                  isToday
+                  isBlocked
+                    ? "border-red-500/30 bg-red-500/5"
+                    : isToday
                     ? "border-amber-400/40 bg-amber-400/5"
                     : "border-white/8 bg-white/3"
                 }`}
               >
                 {/* Day header */}
-                <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isToday ? "border-amber-400/20" : "border-white/8"}`}>
-                  <span className={`text-sm font-semibold ${isToday ? "text-amber-400" : "text-white/70"}`}>
-                    {DAYS[i]} {day.getDate()}
-                    {isToday && <span className="ml-2 text-xs bg-amber-400/20 text-amber-400 px-1.5 py-0.5 rounded-full">Today</span>}
-                  </span>
-                  <span className="text-white/30 text-xs">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</span>
+                <div className={`flex items-center justify-between px-4 py-2.5 border-b ${
+                  isBlocked ? "border-red-500/20" : isToday ? "border-amber-400/20" : "border-white/8"
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-semibold ${
+                      isBlocked ? "text-red-400" : isToday ? "text-amber-400" : "text-white/70"
+                    }`}>
+                      {DAYS[i]} {day.getDate()}
+                      {isToday && <span className="ml-2 text-xs bg-amber-400/20 text-amber-400 px-1.5 py-0.5 rounded-full">Today</span>}
+                    </span>
+                    {isBlocked && (
+                      <span className="flex items-center gap-1 text-xs text-red-400/80 bg-red-500/10 px-2 py-0.5 rounded-full">
+                        <BanIcon size={10} />
+                        Unavailable
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/30 text-xs">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</span>
+                    {/* Availability toggle — only for today or future days */}
+                    {!isPast && (
+                      <button
+                        onClick={() => handleAvailabilityToggle(dateStr)}
+                        disabled={markUnavailMutation.isPending || removeUnavailMutation.isPending}
+                        className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors disabled:opacity-40 ${
+                          isBlocked
+                            ? "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+                            : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70"
+                        }`}
+                        title={isBlocked ? "Tap to mark as available" : "Mark as unavailable"}
+                      >
+                        {isBlocked ? "Remove block" : "Mark unavailable"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
+                {/* Blocked overlay message */}
+                {isBlocked && (
+                  <div className="px-4 py-2 text-red-400/70 text-xs flex items-center gap-1.5">
+                    <BanIcon size={11} />
+                    You've marked this day as unavailable. Your manager has been notified.
+                  </div>
+                )}
+
                 {/* Jobs */}
-                {jobs.length === 0 ? (
+                {jobs.length === 0 && !isBlocked ? (
                   <div className="px-4 py-3 text-white/25 text-sm">No jobs scheduled</div>
                 ) : (
                   <div className="divide-y divide-white/5">
@@ -294,6 +390,64 @@ export default function StaffRoster() {
                 className="flex-1 py-3 rounded-xl text-sm font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40"
               >
                 {declineMutation.isPending ? "Sending…" : "Confirm decline"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark Unavailable Modal ── */}
+      {pendingUnavailDate !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+          onClick={() => setPendingUnavailDate(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-3xl p-6 space-y-4"
+            style={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.08)" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <p className="text-white font-bold text-base">Mark day as unavailable</p>
+              <p className="text-white/40 text-xs mt-1">
+                {new Date(pendingUnavailDate + "T12:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}
+              </p>
+              <p className="text-white/30 text-xs mt-1">Your manager will see this day as blocked in the schedule</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wide">Reason</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["personal", "sick", "annual_leave", "other"] as const).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setUnavailReason(r)}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-medium transition-all ${
+                      unavailReason === r
+                        ? "border-amber-400/60 bg-amber-400/10 text-amber-400"
+                        : "border-white/10 bg-white/3 text-white/50 hover:bg-white/8"
+                    }`}
+                  >
+                    {r === "annual_leave" ? "Annual Leave" : r.charAt(0).toUpperCase() + r.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setPendingUnavailDate(null)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold bg-white/5 text-white/50 hover:bg-white/10 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitUnavailable}
+                disabled={markUnavailMutation.isPending}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-40"
+              >
+                {markUnavailMutation.isPending ? "Saving…" : "Confirm"}
               </button>
             </div>
           </div>
