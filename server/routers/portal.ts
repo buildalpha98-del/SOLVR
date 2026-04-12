@@ -2188,7 +2188,10 @@ export const portalRouter = router({
    */
   saveGoogleReviewSettings: publicProcedure
     .input(z.object({
-      googleReviewLink: z.string().url().max(512).optional().nullable(),
+      // z.string().url() intentionally NOT used — Zod v4 rejects Google Maps
+      // review URLs which contain query params (placeid=, authuser= etc.) on iOS.
+      // Basic format check is done client-side before submission.
+      googleReviewLink: z.string().min(1).max(512).optional().nullable(),
       reviewRequestEnabled: z.boolean().optional(),
       reviewRequestDelayMinutes: z.number().int().min(0).max(1440).optional(),
     }))

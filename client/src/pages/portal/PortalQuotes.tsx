@@ -267,7 +267,19 @@ export default function PortalQuotes() {
       voice.reset();
       navigate(`/portal/quotes/${result.quoteId}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Processing failed — please try again.");
+      // Surface the raw error message for easier debugging on iOS TestFlight.
+      // tRPC wraps Zod validation errors in a TRPCClientError with a descriptive
+      // message — we extract it here so it shows in the toast rather than a
+      // generic iOS system alert ("The string did not match the expected pattern").
+      let msg = "Processing failed — please try again.";
+      if (err instanceof Error) {
+        // tRPC errors surface as err.message; Zod errors may nest under err.cause
+        const cause = (err as { cause?: { message?: string } }).cause;
+        msg = cause?.message ?? err.message;
+      }
+      // Log full error for TestFlight crash reporting
+      console.error("[VoiceProcess] Error:", err);
+      toast.error(msg, { duration: 6000 });
     } finally {
       setUploadingAudio(false);
       setProcessingVoice(false);

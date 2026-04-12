@@ -187,7 +187,10 @@ export const portalJobsProcedures = {
     .input(z.object({
       jobId: z.number(),
       photoType: z.enum(["before", "after", "during", "other"]),
-      imageUrl: z.string().url(),
+      // z.string().url() intentionally NOT used — Zod v4 rejects S3 presigned
+      // URLs (X-Amz-Signature query params) on iOS Capacitor. Validated implicitly
+      // when the image is fetched/displayed.
+      imageUrl: z.string().min(1),
       imageKey: z.string(),
       caption: z.string().optional(),
     }))

@@ -608,7 +608,9 @@ export const quotesRouter = router({
         recipientEmail: z.string().email(),
         recipientName: z.string().max(255).optional(),
         customMessage: z.string().max(1000).optional(),
-        pdfUrl: z.string().url().optional(),
+        // z.string().url() intentionally NOT used — Zod v4 rejects S3 presigned
+        // URLs on iOS Capacitor. Validated implicitly when the PDF is fetched.
+        pdfUrl: z.string().min(1).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
