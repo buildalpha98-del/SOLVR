@@ -210,11 +210,12 @@ export default function Pricing() {
               <span
                 className="text-xs font-bold px-2 py-0.5 rounded-full"
                 style={{
-                  background: isAnnual ? "rgba(15,31,61,0.2)" : "rgba(245,166,35,0.2)",
-                  color: "#F5A623",
+                  background: isAnnual ? "rgba(15,31,61,0.25)" : "rgba(245,166,35,0.15)",
+                  color: isAnnual ? "#0F1F3D" : "#F5A623",
+                  border: isAnnual ? "none" : "1px solid rgba(245,166,35,0.4)",
                 }}
               >
-                2 months free
+                Save 17%
               </span>
             </button>
           </div>

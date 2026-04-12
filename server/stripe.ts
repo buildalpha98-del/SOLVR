@@ -6,7 +6,7 @@ import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals } 
 import { VOICE_AGENT_PLANS, SOLVR_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
-import { buildWelcomeEmail } from "./lib/onboardingEmails";
+import { buildWelcomeEmail, buildTrialEndingEmail } from "./lib/onboardingEmails";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -221,6 +221,25 @@ export const stripeRouter = router({
             ).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
           : null,
       };
+    }),
+
+  /**
+   * Create a Stripe Billing Portal session so the user can add/update their payment method.
+   * Used by the /subscription/expired page.
+   */
+  createBillingPortal: publicProcedure
+    .input(z.object({ email: z.string().email(), returnUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      // Look up the Stripe customer by email
+      const customers = await stripe.customers.list({ email: input.email, limit: 1 });
+      if (!customers.data.length) {
+        return { url: null };
+      }
+      const portalSession = await stripe.billingPortal.sessions.create({
+        customer: customers.data[0].id,
+        return_url: input.returnUrl,
+      });
+      return { url: portalSession.url };
     }),
 });
 
@@ -515,6 +534,38 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             .update(voiceAgentSubscriptions)
             .set({ status: "cancelled", updatedAt: new Date() })
             .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id));
+        }
+        break;
+      }
+      case "customer.subscription.trial_will_end": {
+        // Fires 3 days before trial ends — send reminder email with add-card CTA
+        const sub = event.data.object as Stripe.Subscription;
+        try {
+          const customer = await stripe.customers.retrieve(sub.customer as string) as Stripe.Customer;
+          const email = customer.email;
+          const name = customer.name ?? customer.metadata?.name ?? "there";
+          const plan = sub.metadata?.plan ?? "solvr_ai";
+          if (email) {
+            const trialEndDate = new Date((sub.trial_end ?? 0) * 1000).toLocaleDateString("en-AU", {
+              weekday: "long", day: "numeric", month: "long", year: "numeric",
+            });
+            let addCardUrl = "https://solvr.com.au/portal/subscription";
+            try {
+              const portalSession = await stripe.billingPortal.sessions.create({
+                customer: sub.customer as string,
+                return_url: "https://solvr.com.au/portal",
+              });
+              addCardUrl = portalSession.url;
+            } catch (_) { /* fall back to portal URL */ }
+            await sendEmail({
+              to: email,
+              subject: `Your Solvr free trial ends in 3 days — ${trialEndDate}`,
+              html: buildTrialEndingEmail(name, plan, trialEndDate, addCardUrl),
+            });
+            console.log(`[Webhook] Trial ending email sent to ${email}`);
+          }
+        } catch (err) {
+          console.error("[Webhook] Failed to send trial ending email:", err);
         }
         break;
       }

@@ -16,6 +16,7 @@ import AiAudit from "./pages/AiAudit";
 import Services from "./pages/Services";
 import VoiceAgent from "./pages/VoiceAgent";
 import Pricing from "./pages/Pricing";
+import SubscriptionExpired from "./pages/SubscriptionExpired";
 import VoiceAgentSuccess from "./pages/VoiceAgentSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
@@ -98,6 +99,7 @@ function Router() {
       <Route path="/ai-audit" component={AiAudit} />
       <Route path="/services" component={Services} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/subscription/expired" component={SubscriptionExpired} />
       <Route path="/voice-agent" component={VoiceAgent} />
       <Route path="/voice-agent/success" component={VoiceAgentSuccess} />
       <Route path="/terms" component={Terms} />

@@ -475,3 +475,7 @@
 - [ ] Add 14-day free trial to Stripe checkout
 - [ ] Create annual Stripe prices and wire to checkout
 - [ ] Add Pricing link to main site nav
+
+- [ ] Trial-end reminder email via Stripe webhook
+- [ ] Annual savings badge on Pricing page toggle
+- [ ] /subscription/expired page with Stripe customer portal CTA
