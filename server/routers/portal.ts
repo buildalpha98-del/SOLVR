@@ -2075,6 +2075,28 @@ export const portalRouter = router({
       if (input.status) update.status = input.status;
       if (input.notes !== undefined) update.notes = input.notes;
       await updateScheduleEntry(input.id, update);
+      // Fire push notification when a shift is reassigned to a different staff member (drag-to-reassign)
+      if (input.staffId !== undefined && input.staffId !== entry.staffId) {
+        const newStaffId = input.staffId;
+        void (async () => {
+          try {
+            const { sendPushToStaff } = await import("../pushNotifications");
+            const job = await getPortalJob(entry.jobId);
+            const start = input.startTime ? new Date(input.startTime) : new Date(entry.startTime);
+            const timeStr = start.toLocaleString("en-AU", {
+              weekday: "short", month: "short", day: "numeric",
+              hour: "numeric", minute: "2-digit", hour12: true,
+            });
+            await sendPushToStaff(newStaffId, {
+              title: "Shift assigned — " + (portalClient.client.businessName ?? "Solvr"),
+              body: `${job?.jobType ?? "Job"} — ${timeStr}`,
+              url: "/staff/today",
+            });
+          } catch (e) {
+            console.error("[Push] Failed to notify staff on schedule reassign:", e);
+          }
+        })();
+      }
       return { success: true };
     }),
 

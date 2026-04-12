@@ -21,6 +21,96 @@ import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useLocation } from "wouter";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+// ─── Quick Job Button ────────────────────────────────────────────────────────
+function QuickJobButton() {
+  const [, navigate] = useLocation();
+  const [open, setOpen] = useState(false);
+  const [jobType, setJobType] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const utils = trpc.useUtils();
+
+  const createMutation = trpc.portal.createJob.useMutation({
+    onSuccess: (data) => {
+      toast.success("Job created!");
+      utils.portal.getDashboard.invalidate();
+      setOpen(false);
+      setJobType("");
+      setCustomerName("");
+      navigate(`/portal/jobs/${data.id}`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function handleCreate() {
+    if (!jobType.trim()) { toast.error("Enter a job type."); return; }
+    createMutation.mutate({ jobType: jobType.trim(), callerName: customerName.trim() || undefined });
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+        style={{ background: "#F5A623", color: "#0F1F3D" }}
+      >
+        <span className="text-base leading-none">+</span> New Job
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          className="max-w-sm"
+          style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white">Quick Job</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-white/60 text-sm">Job type *</Label>
+              <Input
+                value={jobType}
+                onChange={(e) => setJobType(e.target.value)}
+                placeholder="e.g. Blocked drain, Rewire, Quote"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-white/60 text-sm">Customer name (optional)</Label>
+              <Input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="e.g. Sarah Johnson"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
+            </div>
+            <p className="text-white/30 text-xs">You can add more details on the job page.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-white/50">Cancel</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {createMutation.isPending ? "Creating…" : "Create Job"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -242,6 +332,13 @@ export default function PortalDashboard() {
                   <span className="text-white font-bold text-lg">${data.potentialRevenue.toLocaleString()}</span>
                   <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>in pipeline</span>
                 </div>
+              </>
+            )}
+            {/* Quick Job CTA */}
+            {features.includes("jobs") && (
+              <>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+                <QuickJobButton />
               </>
             )}
           </div>
