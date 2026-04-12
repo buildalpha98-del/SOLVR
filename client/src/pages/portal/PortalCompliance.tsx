@@ -19,17 +19,25 @@ import { toast } from "sonner";
 type DocType = "swms" | "safety_cert" | "site_induction" | "jsa";
 
 const DOC_TYPE_LABELS: Record<DocType, string> = {
+  swms: "SWMS (Safe Work Method Statement)",
+  safety_cert: "Safety Certificate",
+  site_induction: "Site Induction Checklist",
+  jsa: "JSA (Job Safety Analysis)",
+};
+
+// Short labels used in buttons and list views
+const DOC_TYPE_SHORT_LABELS: Record<DocType, string> = {
   swms: "SWMS",
   safety_cert: "Safety Certificate",
   site_induction: "Site Induction",
-  jsa: "Job Safety Analysis (JSA)",
+  jsa: "JSA",
 };
 
 const DOC_TYPE_DESCRIPTIONS: Record<DocType, string> = {
-  swms: "Safe Work Method Statement — required for high-risk construction work.",
-  safety_cert: "Safety Certificate — certifies that safety requirements have been met.",
-  site_induction: "Site Induction Checklist — onboard workers to site-specific hazards.",
-  jsa: "Job Safety Analysis — identify and control hazards for a specific task.",
+  swms: "Required for high-risk work like working at heights, electrical, or confined spaces. Legally required on most construction sites.",
+  safety_cert: "Confirms all safety checks have been done before starting work. Often required by builders and site managers.",
+  site_induction: "Walk new workers through the hazards on your specific site. Covers emergency exits, PPE, and site rules.",
+  jsa: "Step-by-step hazard check for a specific task. Great for everyday jobs that don't need a full SWMS.",
 };
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
@@ -259,7 +267,7 @@ export default function PortalCompliance() {
                   {generateMutation.isPending ? (
                     <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</>
                   ) : (
-                    <><ShieldCheck className="w-4 h-4 mr-2" /> Generate {DOC_TYPE_LABELS[docType]}</>
+                    <><ShieldCheck className="w-4 h-4 mr-2" /> Generate {DOC_TYPE_SHORT_LABELS[docType]}</>
                   )}
                 </Button>
                 <Button

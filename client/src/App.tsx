@@ -69,6 +69,11 @@ import PortalSchedule from "./pages/portal/PortalSchedule";
 import PortalStaffCheckIn from "./pages/portal/PortalStaffCheckIn";
 import PortalReviews from "./pages/portal/PortalReviews";
 
+// ── Public pages ─────────────────────────────────────────────────────────────
+import Pricing from "./pages/Pricing";
+import SubscriptionExpired from "./pages/SubscriptionExpired";
+import CustomerJobStatus from "./pages/CustomerJobStatus";
+
 // ── Staff Portal (PIN-based auth, separate from owner portal) ────────────────
 import StaffLogin from "./pages/staff/StaffLogin";
 import StaffToday from "./pages/staff/StaffToday";
@@ -97,6 +102,9 @@ function Router() {
       <Route path="/services" component={Services} />
       <Route path="/voice-agent" component={VoiceAgent} />
       <Route path="/voice-agent/success" component={VoiceAgentSuccess} />
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/subscription/expired" component={SubscriptionExpired} />
+      <Route path="/job/:token" component={CustomerJobStatus} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/support" component={Support} />

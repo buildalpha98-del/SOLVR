@@ -13,14 +13,104 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X, CalendarCheck, Receipt } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+// ─── Quick Job Button ────────────────────────────────────────────────────────
+function QuickJobButton() {
+  const [, navigate] = useLocation();
+  const [open, setOpen] = useState(false);
+  const [jobType, setJobType] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const utils = trpc.useUtils();
+
+  const createMutation = trpc.portal.createJob.useMutation({
+    onSuccess: (data) => {
+      toast.success("Job created!");
+      utils.portal.getDashboard.invalidate();
+      setOpen(false);
+      setJobType("");
+      setCustomerName("");
+      navigate(`/portal/jobs/${data.id}`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  function handleCreate() {
+    if (!jobType.trim()) { toast.error("Enter a job type."); return; }
+    createMutation.mutate({ jobType: jobType.trim(), callerName: customerName.trim() || undefined });
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+        style={{ background: "#F5A623", color: "#0F1F3D" }}
+      >
+        <span className="text-base leading-none">+</span> New Job
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          className="max-w-sm"
+          style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white">Quick Job</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-white/60 text-sm">Job type *</Label>
+              <Input
+                value={jobType}
+                onChange={(e) => setJobType(e.target.value)}
+                placeholder="e.g. Blocked drain, Rewire, Quote"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-white/60 text-sm">Customer name (optional)</Label>
+              <Input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="e.g. Sarah Johnson"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
+            </div>
+            <p className="text-white/30 text-xs">You can add more details on the job page.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setOpen(false)} className="text-white/50">Cancel</Button>
+            <Button
+              onClick={handleCreate}
+              disabled={createMutation.isPending}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {createMutation.isPending ? "Creating…" : "Create Job"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
 function KpiCard({
   icon, label, value, sub, color = "#F5A623"
@@ -77,6 +167,24 @@ function UpgradeCard({ feature, plan }: { feature: string; plan: string }) {
 }
 
 export default function PortalDashboard() {
+  const [, navigate] = useLocation();
+
+  // Subscription guard — redirect to expired page if past_due, cancelled, or unpaid
+  const { data: subStatus } = trpc.portal.getSubscriptionStatus.useQuery(undefined, {
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+  useEffect(() => {
+    if (
+      subStatus &&
+      (subStatus.status === "past_due" ||
+        subStatus.status === "cancelled" ||
+        subStatus.status === "incomplete")
+    ) {
+      navigate("/subscription/expired");
+    }
+  }, [subStatus, navigate]);
+
   const { data, isLoading } = trpc.portal.getDashboard.useQuery(undefined, {
     staleTime: 2 * 60 * 1000,
   });
@@ -199,6 +307,60 @@ export default function PortalDashboard() {
             </Button>
           )}
         </div>
+
+        {/* ── Today at a Glance ─────────────────────────────────────────── */}
+        {data && (
+          <div
+            className="rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 sm:gap-6"
+            style={{ background: "rgba(245,166,35,0.07)", border: "1px solid rgba(245,166,35,0.18)" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest w-full sm:w-auto" style={{ color: "rgba(245,166,35,0.7)" }}>Today</p>
+            {/* Calls since yesterday */}
+            <div className="flex items-center gap-2">
+              <Phone className="w-4 h-4" style={{ color: "#F5A623" }} />
+              <span className="text-white font-bold text-lg">{data.callsSinceYesterday}</span>
+              <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>new call{data.callsSinceYesterday !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+            {/* Jobs due today */}
+            {features.includes("jobs") && (
+              <>
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="w-4 h-4" style={{ color: "#4ade80" }} />
+                  <span className="text-white font-bold text-lg">{data.jobsDueToday}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>job{data.jobsDueToday !== 1 ? "s" : ""} today</span>
+                </div>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+              </>
+            )}
+            {/* Active jobs */}
+            {features.includes("jobs") && (
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-4 h-4" style={{ color: "rgba(255,255,255,0.5)" }} />
+                <span className="text-white font-bold text-lg">{data.activeJobs}</span>
+                <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>active job{data.activeJobs !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+            {/* Pipeline value */}
+            {features.includes("jobs") && data.potentialRevenue > 0 && (
+              <>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" style={{ color: "#4ade80" }} />
+                  <span className="text-white font-bold text-lg">${data.potentialRevenue.toLocaleString()}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>in pipeline</span>
+                </div>
+              </>
+            )}
+            {/* Quick Job CTA */}
+            {features.includes("jobs") && (
+              <>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+                <QuickJobButton />
+              </>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">

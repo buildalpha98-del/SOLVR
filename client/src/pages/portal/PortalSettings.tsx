@@ -793,7 +793,14 @@ function BillingSection() {
     },
   });
 
-  const planLabel = sub?.plan === "professional" ? "Professional" : sub?.plan === "starter" ? "Starter" : "Setup";
+  const planLabel = (() => {
+    const p = sub?.plan as string | undefined;
+    if (p === "solvr_ai" || p === "starter") return "Solvr AI";
+    if (p === "solvr_jobs") return "Solvr Jobs";
+    if (p === "solvr_quotes") return "Solvr Quotes";
+    if (p === "professional") return "Solvr AI (Legacy)";
+    return "Setup";
+  })();
   const cycleLabel = sub?.billingCycle === "annual" ? "Annual" : "Monthly";
   const statusLabel = sub?.status === "active" ? "Active" : sub?.status === "trialing" ? "Trial" : sub?.status ?? "Unknown";
   const statusColor = sub?.status === "active" ? "#4ade80" : sub?.status === "trialing" ? "#F5A623" : "#f87171";

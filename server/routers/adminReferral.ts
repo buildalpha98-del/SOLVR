@@ -6,7 +6,7 @@
  *   getTradieProgrammeSummary — Aggregate stats: total referred, converted, rewarded, pending discounts
  */
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, getAppSettings, setFeatureFlag } from "../db";
 import { crmClients, clientReferrals, voiceAgentSubscriptions, referralBlastLogs } from "../../drizzle/schema";
 import { eq, desc, isNotNull } from "drizzle-orm";
 import { z } from "zod";
@@ -277,4 +277,24 @@ export const adminReferralRouter = router({
       .limit(20);
     return logs;
   }),
+
+  /**
+   * Get global feature flags (admin only).
+   */
+  getFeatureFlags: protectedProcedure.query(async () => {
+    const settings = await getAppSettings();
+    return {
+      referralProgrammeEnabled: settings.referralProgrammeEnabled,
+    };
+  }),
+
+  /**
+   * Toggle the referral programme on/off without a code deploy.
+   */
+  setReferralProgrammeEnabled: protectedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await setFeatureFlag("referralProgrammeEnabled", input.enabled);
+      return { success: true, referralProgrammeEnabled: input.enabled };
+    }),
 });

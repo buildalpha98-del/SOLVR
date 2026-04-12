@@ -484,6 +484,7 @@ export default function Home() {
                 {label}
               </a>
             ))}
+            <Link href="/pricing" className="font-body text-sm font-medium transition-colors hover:text-amber-400" style={{ color: "rgba(255,255,255,0.75)", textDecoration: "none" }}>Pricing</Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -515,6 +516,7 @@ export default function Home() {
                   {label}
                 </a>
               ))}
+              <Link href="/pricing" onClick={() => setMobileMenuOpen(false)} className="font-body text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>Pricing</Link>
               <Link href="/portal" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-medium px-4 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.85)" }}>Client Login</Link>
               <Link href="/ai-audit" onClick={() => setMobileMenuOpen(false)} className="text-center font-body text-sm font-semibold px-4 py-2 rounded-lg" style={{ background: "rgba(245,166,35,0.12)", border: "1px solid rgba(245,166,35,0.3)", color: "#F5A623" }}>Free AI Audit ✦</Link>
               <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="btn-primary text-center">Book a Free Call</a>
@@ -548,18 +550,47 @@ export default function Home() {
             </Reveal>
             <Reveal delay={80}>
               <h1 className="font-display font-extrabold leading-none mb-6" style={{ fontSize: "clamp(2.8rem, 6vw, 5rem)", color: "#FAFAF8" }}>
-                Your Admin,<br />
-                <span className="text-gradient">Solved by AI.</span>
+                Quote faster.<br />
+                <span className="text-gradient">Win more jobs.</span>
               </h1>
             </Reveal>
             <Reveal delay={160}>
-              <p className="font-body text-xl leading-relaxed mb-8 max-w-xl" style={{ color: "rgba(250,250,248,0.8)" }}>
-                Solvr is Australia's AI integration consultancy — we build, deploy, and support AI for trades, health professionals, and service businesses. Two flagship products. A full suite of services. Real results in weeks.
+              <p className="font-body text-xl leading-relaxed mb-6 max-w-xl" style={{ color: "rgba(250,250,248,0.8)" }}>
+                Solvr replaces your quoting, job management, and receptionist with AI — starting at <strong style={{ color: "#F5A623" }}>$49/mo</strong>. Built for Australian tradies.
               </p>
             </Reveal>
-            <Reveal delay={240}>
+
+            {/* Three-tier pricing pills */}
+            <Reveal delay={200}>
+              <div className="flex flex-wrap gap-3 mb-8">
+                {[
+                  { name: "Solvr Quotes", price: "$49/mo", desc: "Voice-to-quote in 90s", href: "/pricing" },
+                  { name: "Solvr Jobs", price: "$99/mo", desc: "Full job management", href: "/pricing", highlight: true },
+                  { name: "Solvr AI", price: "$197/mo", desc: "AI Receptionist 24/7", href: "/pricing" },
+                ].map((plan) => (
+                  <Link
+                    key={plan.name}
+                    href={plan.href}
+                    className="inline-flex flex-col px-4 py-3 rounded-xl font-body text-sm transition-all"
+                    style={{
+                      background: plan.highlight ? "rgba(245,166,35,0.18)" : "rgba(255,255,255,0.06)",
+                      border: plan.highlight ? "1px solid rgba(245,166,35,0.5)" : "1px solid rgba(255,255,255,0.1)",
+                      color: "#FAFAF8",
+                      textDecoration: "none",
+                      minWidth: "130px",
+                    }}
+                  >
+                    <span className="font-semibold" style={{ color: plan.highlight ? "#F5A623" : "#FAFAF8" }}>{plan.name}</span>
+                    <span className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>{plan.desc}</span>
+                    <span className="font-bold mt-1" style={{ color: plan.highlight ? "#F5A623" : "rgba(255,255,255,0.9)" }}>{plan.price}</span>
+                  </Link>
+                ))}
+              </div>
+            </Reveal>
+
+            <Reveal delay={260}>
               <div className="flex flex-wrap gap-4 mb-8">
-                <a href="#products" className="btn-primary text-base px-7 py-3.5">See Our Products →</a>
+                <Link href="/pricing" className="btn-primary text-base px-7 py-3.5">See All Plans →</Link>
                 <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="btn-outline text-base px-7 py-3.5">Book a Free Strategy Call</a>
               </div>
               <div className="mb-12">
@@ -579,8 +610,8 @@ export default function Home() {
             <Reveal delay={320}>
               <div className="flex flex-wrap gap-6">
                 {[
-                  { icon: "⚡", text: "Live in 2 weeks" },
-                  { icon: "🔒", text: "No tech skills needed" },
+                  { icon: "⚡", text: "Start quoting today" },
+                  { icon: "🔒", text: "No lock-in contracts" },
                   { icon: "🇦🇺", text: "Australian-built & supported" },
                 ].map((t, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm font-body" style={{ color: "rgba(255,255,255,0.7)" }}>

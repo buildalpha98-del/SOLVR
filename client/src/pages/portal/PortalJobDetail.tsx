@@ -13,7 +13,7 @@ import {
   DollarSign, CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
   Banknote, Receipt, Send, Copy, Check,
-  ChevronLeft, ChevronRight, ZoomIn,
+  ChevronLeft, ChevronRight, ZoomIn, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,8 +94,8 @@ function EditableField({
             </p>
             <button
               onClick={() => { setDraft(value ?? ""); setEditing(true); }}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0"
-              style={{ color: "rgba(255,255,255,0.5)" }}
+              className="flex items-center justify-center w-7 h-7 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 -mr-1"
+              style={{ color: "rgba(255,255,255,0.5)", minWidth: "28px", minHeight: "28px" }}
               aria-label={`Edit ${label}`}
             >
               <Edit2 className="w-3.5 h-3.5" />
@@ -610,6 +610,27 @@ function JobCostingSection({
 }
 
 // ─── Copy Report Link Button ───────────────────────────────────────────────────────────────
+function CopyStatusLinkButton({ token }: { token: string }) {
+  const [copied, setCopied] = useState(false);
+  const publicUrl = `${window.location.origin}/job/${token}`;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <Button
+      size="sm"
+      onClick={handleCopy}
+      title="Copy customer status link"
+      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(245,166,35,0.12)", color: copied ? "#22c55e" : "#F5A623", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(245,166,35,0.2)"}` }}
+    >
+      {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+    </Button>
+  );
+}
+
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const publicUrl = `${window.location.origin}/report/${token}`;
@@ -657,6 +678,23 @@ export default function PortalJobDetail() {
 
   const removePayment = trpc.portal.removeProgressPayment.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success("Payment removed"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const setRecurring = trpc.portal.setRecurring.useMutation({
+    onSuccess: (res) => {
+      utils.portal.getJobDetail.invalidate({ id: jobId });
+      const label = res.frequency === "weekly" ? "Weekly" : res.frequency === "fortnightly" ? "Fortnightly" : "Monthly";
+      toast.success(`${label} repeat enabled — 3 future jobs created`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const disableRecurring = trpc.portal.disableRecurring.useMutation({
+    onSuccess: () => {
+      utils.portal.getJobDetail.invalidate({ id: jobId });
+      toast.success("Repeat disabled");
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -774,6 +812,10 @@ export default function PortalJobDetail() {
               {job.invoiceNumber && ` · ${job.invoiceNumber}`}
             </p>
           </div>
+          {/* Share status link */}
+          {(job as any).customerStatusToken && (
+            <CopyStatusLinkButton token={(job as any).customerStatusToken} />
+          )}
           {/* Stage selector */}
           <select
             value={job.stage}
@@ -990,6 +1032,51 @@ export default function PortalJobDetail() {
           grossMarginPct={(data as any).grossMarginPct ?? null}
           onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
         />
+
+        {/* ── Repeat This Job ── */}
+        {!(job as any).parentJobId && (
+          <SectionCard
+            title="Repeat This Job"
+            action={<RefreshCw className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}
+          >
+            {(job as any).isRecurring ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
+                    <RefreshCw className="w-3 h-3" />
+                    {(job as any).recurrenceFrequency === "weekly" ? "Repeats weekly" : (job as any).recurrenceFrequency === "fortnightly" ? "Repeats fortnightly" : "Repeats monthly"}
+                  </span>
+                </div>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>3 upcoming jobs have been created in your job list. Disable repeat to stop creating new ones.</p>
+                <button
+                  onClick={() => disableRecurring.mutate({ jobId })}
+                  disabled={disableRecurring.isPending}
+                  className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+                  style={{ borderColor: "rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}
+                >
+                  {disableRecurring.isPending ? "Disabling..." : "Disable repeat"}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>Set this job to repeat for maintenance or regular clients. Creates the next 3 jobs automatically.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["weekly", "fortnightly", "monthly"] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      onClick={() => setRecurring.mutate({ jobId, frequency: freq })}
+                      disabled={setRecurring.isPending}
+                      className="py-2.5 rounded-xl text-sm font-medium border transition-all active:scale-95"
+                      style={{ borderColor: "rgba(245,166,35,0.3)", color: "#F5A623", background: "rgba(245,166,35,0.06)" }}
+                    >
+                      {setRecurring.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : freq.charAt(0).toUpperCase() + freq.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </SectionCard>
+        )}
 
         {/* ── Before/After Photos ── */}
         <PhotoSection

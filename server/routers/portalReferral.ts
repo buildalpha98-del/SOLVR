@@ -7,7 +7,7 @@ import { z } from "zod";
 import { publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getPortalClient } from "./portalAuth";
-import { getDb } from "../db";
+import { getDb, getAppSettings } from "../db";
 import { crmClients, clientReferrals } from "../../drizzle/schema";
 import { eq, and, count } from "drizzle-orm";
 
@@ -81,6 +81,12 @@ export const portalReferralProcedures = {
       totalConverted: convertedRows[0]?.total ?? 0,
       pendingDiscountPct: result.client.pendingDiscountPct ?? 0,
     };
+  }),
+
+  /** Check if the referral programme is currently enabled (for hiding/showing the referral page) */
+  isReferralEnabled: publicProcedure.query(async () => {
+    const settings = await getAppSettings();
+    return { enabled: settings.referralProgrammeEnabled };
   }),
 
   /** Look up a referral code and return the referrer's business name (for signup page) */

@@ -427,3 +427,115 @@
 - [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
 - [ ] Add test with actual failing LLM output shape (not mocked happy path)
 - [ ] Commit with evidence: quote failing field path + LLM output in commit message
+
+## Security Hardening (Build 3 pre-flight)
+- [x] Rate limiting on staff PIN login (10 attempts / 15 min per IP)
+- [x] Rate limiting on owner portal password login (10 attempts / 15 min per IP)
+- [x] Rate limiting on forgot-password (5 attempts / 1 hour per IP)
+- [x] Helmet security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.)
+- [x] adminPortal procedures upgraded from protectedProcedure → adminProcedure (role = admin required)
+- [x] listStaff strips staffPin and pushSubscription from response
+- [x] createSchedule IDOR guard — verifies jobId and staffId belong to authenticated client
+
+## Security Hardening (Build 3 pre-flight)
+- [x] Rate limiting on staff PIN login (10 attempts / 15 min per IP)
+- [x] Rate limiting on owner portal password login (10 attempts / 15 min per IP)
+- [x] Rate limiting on forgot-password (5 attempts / 1 hour per IP)
+- [x] Helmet security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.)
+- [x] adminPortal procedures upgraded from protectedProcedure to adminProcedure (role = admin required)
+- [x] listStaff strips staffPin and pushSubscription from response
+- [x] createSchedule IDOR guard - verifies jobId and staffId belong to authenticated client
+
+## Tradie UX Improvements (Audit April 2026)
+- [ ] P1 — Collapse portal nav to 4 core items + More drawer
+- [ ] P2 — Dashboard Today at a Glance strip
+- [ ] P3 — Plain-English labels on Compliance page
+- [ ] P4 — Staff card refactor to Manage bottom sheet
+- [ ] P5 — Drag handle + first-visit tooltip on schedule cards
+- [ ] P6 — Voice as primary CTA on Quotes page
+
+## Customer Job Status Enhancements (Apr 2026)
+- [x] Auto-send customer status link in booking SMS
+- [x] Customer feedback widget on status page (thumbs up/down + comment)
+- [x] Status page branding (tradie logo + trading name)
+
+## Customer Job Status Enhancements (Apr 2026)
+- [x] Auto-send customer status link in booking SMS
+- [x] Customer feedback widget on status page (thumbs up/down + comment)
+- [x] Status page branding (tradie logo + trading name)
+- [x] Capacitor appId decision documented (keep com.solvr.mobile)
+- [x] Inbound SMS reply webhook (Twilio -> job note + push notification)
+
+- [x] Pricing: rename plans to Solvr Quotes / Solvr Jobs / Solvr AI
+- [x] Pricing: update Stripe products and prices (AUD)
+- [x] Pricing: add +$5/mo per-seat add-on
+- [x] Pricing: update plan labels across portal and pricing page
+- [x] Pricing: web-first checkout flow
+
+- [ ] Add 14-day free trial to Stripe checkout
+- [ ] Create annual Stripe prices and wire to checkout
+- [ ] Add Pricing link to main site nav
+
+- [ ] Trial-end reminder email via Stripe webhook
+- [ ] Annual savings badge on Pricing page toggle
+- [ ] /subscription/expired page with Stripe customer portal CTA
+- [ ] Audit voice-to-quote LLM prompt — fix multi-page report generation (page 1: quote, pages 2-3: job detail with photos)
+- [ ] Auto-invoice on quote acceptance
+- [x] Fix referral page: Capacitor URL shows capacitor://localhost instead of https://solvr.com.au
+- [x] Fix referral page: WhatsApp button text invisible (contrast bug)
+- [x] Add referral programme on/off toggle in admin console
+- [x] Fix SubscriptionExpired ReferralNudge: same Capacitor URL bug (window.location.origin)
+- [x] Add appSettings table to schema for feature flags
+- [x] Add referral feature toggle to adminReferral router (getFeatureFlags / setFeatureFlag)
+- [x] Wire referral toggle to PortalReferral page (hide page if disabled)
+- [x] Wire referral toggle to PortalLayout nav (hide Gift link if disabled)
+- [x] Add feature flags panel to ConsoleReferrals admin page
+
+## App Store + Google Play Blockers (Apr 12 2026)
+
+### Prompt A — Compliance Doc Generation (BLOCKER)
+- [x] Debug complianceDocGeneration.ts — confirmed working, all 4 doc types pass end-to-end test
+- [x] LLM structured output schema — no mismatch found, JSON parse works correctly
+- [x] S3 upload / @react-pdf/renderer — no crash, PDFs generate successfully (16KB SWMS, 12KB Site Induction, etc.)
+- [x] Error surfacing — UI already shows Error badge + toast on failure
+- [x] Test all 4 doc types end-to-end: SWMS ✅ Site Induction ✅ Safety Certificate ✅ JSA ✅
+- [ ] Add integration test for compliance doc pipeline (vitest)
+
+### Prompt B — Pencil Icons Missing on PortalJobDetail Mobile (BLOCKER)
+- [x] Audit PortalJobDetail.tsx — EditableField pencil icons are rendered correctly
+- [x] Responsive classes confirmed: opacity-100 on mobile (visible), md:opacity-0 md:group-hover:opacity-100 on desktop (hover only)
+- [x] Fix: added w-7 h-7 tap target (28px) with minWidth/minHeight for iOS/Android touch compliance (Apple HIG: 44pt, Material: 48dp minimum)
+- [ ] Write component test verifying pencil icons in DOM
+
+### Prompt C — Reviewer Account Full Access (Apple + Google Play) (BLOCKER)
+- [x] Upgrade apple.review@solvr.com.au to active premium subscription (all features unlocked)
+- [x] Create android.review@solvr.com.au Google Play reviewer account (same full access)
+- [x] Enable all feature flags for both accounts (ai-receptionist, quote-engine, automation — all live)
+- [x] Seed 15 calls for both accounts
+- [x] Seed 8 jobs (new_lead/quoted/booked/completed) for both accounts
+- [x] Seed 7 calendar events (past + upcoming) for both accounts
+- [x] Seed 6 quotes (draft/sent/accepted) for both accounts
+- [x] Seed 2 staff members for both accounts
+- [x] Generate referral code for both accounts (APPLE20 / ANDROID20)
+- [x] Verify no onboarding wizard / paywall on login — package=full-managed, onboardingCompleted=1
+- [x] Confirm all sidebar menu items accessible for both accounts
+
+### Prompt E — Voice-to-Quote Zod Error (REPEAT BLOCKER)
+- [ ] Instrument ALL Zod schemas in voice-to-quote pipeline with detailed logging
+- [ ] Add try/catch with exact input, .issues array, path[], file+line for each .parse()/.safeParse()
+- [ ] Fix root cause (phone regex, postcode regex, currency regex, date format, or empty email)
+- [ ] Fix client-side form zodResolver validation
+- [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
+- [ ] Add test with actual failing LLM output shape (not mocked happy path)
+
+### Google Play Store Specific Requirements
+- [x] Add android.review@solvr.com.au reviewer account credentials to GOOGLE_PLAY_SUBMISSION.md
+- [x] Write full Google Play Data Safety declaration (GOOGLE_PLAY_SUBMISSION.md)
+- [x] Write Google Play store listing copy — short desc, full desc, release notes (GOOGLE_PLAY_SUBMISSION.md)
+- [x] Document RECORD_AUDIO permission justification for Play Console
+- [x] Write Apple App Store submission guide (APPLE_APP_STORE_SUBMISSION.md)
+- [ ] Verify deep link handling works on Android (solvr.com.au/portal/* paths) — test on device
+- [ ] Confirm back button behaviour on Android (hardware back = navigate back, not exit) — test on device
+- [ ] Verify Capacitor Android permissions declared in AndroidManifest.xml (microphone, camera)
+- [ ] Confirm minSdkVersion ≥ 24 and targetSdkVersion = 34 in build.gradle
+- [ ] Confirm app does not use clipboard without user action (Play policy)

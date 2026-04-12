@@ -1,0 +1,2 @@
+ALTER TABLE `portal_jobs` ADD `customerStatusToken` varchar(64);--> statement-breakpoint
+ALTER TABLE `portal_jobs` ADD CONSTRAINT `portal_jobs_customerStatusToken_unique` UNIQUE(`customerStatusToken`);

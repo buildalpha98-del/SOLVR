@@ -5,6 +5,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../_core/trpc";
+import React from "react";
+import { renderToBuffer, Document } from "@react-pdf/renderer";
 import {
   getQuoteByToken,
   getQuoteById,
@@ -17,6 +19,8 @@ import {
   createPortalCalendarEvent,
   getPortalSessionByClientId,
   createJobCostItem,
+  getClientProfile,
+  createPaymentLink,
 } from "../db";
 import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
@@ -24,6 +28,11 @@ import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
 import { crmClients, portalJobs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { fetchImageBuffer } from "../_core/pdfGeneration";
+import { InvoiceDocument } from "../_core/InvoiceDocument";
+import { storagePut } from "../storage";
+import { sendSms } from "../lib/sms";
+import { randomUUID } from "crypto";
 
 export const publicQuotesRouter = router({
   /**
@@ -216,6 +225,138 @@ export const publicQuotesRouter = router({
           endAt,
           color: "green",
         });
+
+        // ── Auto-generate and send invoice to customer ──────────────────────────
+        // When a customer accepts a quote, automatically generate a tax invoice
+        // and send it to the customer's email. The tradie is notified by push.
+        try {
+          const profile = await getClientProfile(quote.clientId);
+          const businessName = profile?.tradingName ?? client?.businessName ?? "Your Service Provider";
+          const totalCents = Math.round(parseFloat(quote.totalAmount ?? "0") * 100);
+          const gstCents = Math.round(totalCents / 11);
+          const subtotalCents = totalCents - gstCents;
+          const invoiceNumber = `INV-${String(Date.now()).slice(-6)}`;
+          const now = new Date();
+          const dueDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days
+          let logoBuffer: Buffer | null = null;
+          if (profile?.logoUrl) logoBuffer = await fetchImageBuffer(profile.logoUrl);
+          const quoteLineItems = await listQuoteLineItems(quote.id);
+          const pdfInput = {
+            invoice: {
+              invoiceNumber,
+              jobTitle: quote.jobTitle,
+              jobDescription: quote.jobDescription ?? null,
+              customerName: quote.customerName ?? null,
+              customerEmail: quote.customerEmail ?? null,
+              customerPhone: quote.customerPhone ?? null,
+              customerAddress: quote.customerAddress ?? null,
+              invoicedAt: now.toISOString(),
+              dueDate: dueDate.toISOString().split("T")[0],
+              subtotalCents,
+              gstCents,
+              totalCents,
+              amountPaidCents: 0,
+              balanceDueCents: totalCents,
+              paymentMethod: "bank_transfer" as const,
+              isCashPaid: false,
+              notes: quote.notes ?? null,
+            },
+            lineItems: quoteLineItems.map((li) => ({
+              description: li.description,
+              quantity: li.quantity,
+              unit: li.unit ?? null,
+              unitPrice: li.unitPrice ?? null,
+              lineTotal: li.lineTotal ?? null,
+            })),
+            progressPayments: [],
+            branding: {
+              businessName,
+              abn: profile?.abn ?? client?.quoteAbn ?? null,
+              phone: profile?.phone ?? client?.quotePhone ?? null,
+              address: profile?.address ?? client?.quoteAddress ?? null,
+              logoBuffer,
+              primaryColor: client?.quoteBrandPrimaryColor ?? "#1F2937",
+              secondaryColor: client?.quoteBrandSecondaryColor ?? "#2563EB",
+              bankName: profile?.bankName ?? null,
+              bankAccountName: profile?.bankAccountName ?? null,
+              bankBsb: profile?.bankBsb ?? null,
+              bankAccountNumber: profile?.bankAccountNumber ?? null,
+            },
+          };
+          const element = React.createElement(InvoiceDocument, { input: pdfInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+          const pdfBuffer = Buffer.from(await renderToBuffer(element));
+          const { url: invoicePdfUrl } = await storagePut(
+            `invoices/${quote.clientId}/${invoiceNumber}-${Date.now()}.pdf`,
+            pdfBuffer,
+            "application/pdf",
+          );
+          // Update the job with invoice details
+          if (jobId) {
+            await updatePortalJob(jobId, {
+              invoiceNumber,
+              invoiceStatus: quote.customerEmail ? "sent" : "draft",
+              invoicedAt: now,
+              invoicedAmount: totalCents,
+              invoicePdfUrl,
+            } as any);
+          }
+          // Send invoice email to customer
+          if (quote.customerEmail) {
+            await sendEmail({
+              to: quote.customerEmail,
+              subject: `Invoice ${invoiceNumber} from ${businessName}`,
+              html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
+<h2 style="color:#1F2937">Tax Invoice ${invoiceNumber}</h2>
+<p>Hi ${quote.customerName ?? "there"},</p>
+<p>Thank you for accepting our quote for <strong>${quote.jobTitle}</strong>.</p>
+<p>Please find your invoice attached. <strong>Total: $${(totalCents / 100).toFixed(2)} (inc. GST)</strong></p>
+${profile?.bankBsb ? `<div style="background:#F0FDF4;border-left:4px solid #16A34A;padding:16px;border-radius:4px;margin:16px 0">
+<p style="margin:0 0 8px;font-weight:bold;color:#15803D">Payment Details</p>
+${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` : ""}
+<p style="margin:0 0 4px">Account Name: ${profile.bankAccountName}</p>
+<p style="margin:0 0 4px">BSB: ${profile.bankBsb}</p>
+<p style="margin:0 0 4px">Account: ${profile.bankAccountNumber}</p>
+<p style="margin:0;font-weight:bold">Reference: ${invoiceNumber}</p>
+</div>` : ""}
+<p style="color:#6B7280;font-size:13px">Powered by <a href="https://solvr.com.au" style="color:#6B7280">Solvr</a></p>
+</div>`,
+              fromName: businessName,
+              attachments: [{ filename: `${invoiceNumber}.pdf`, content: pdfBuffer }],
+            });
+          }
+          // Send SMS payment link if customer has a phone
+          const customerPhone = quote.customerPhone ?? null;
+          if (customerPhone && totalCents > 0) {
+            try {
+              const token = randomUUID().replace(/-/g, "");
+              const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+              await createPaymentLink({
+                id: randomUUID(),
+                clientId: quote.clientId,
+                jobId: jobId ?? undefined,
+                token,
+                amountCents: totalCents,
+                customerName: quote.customerName ?? undefined,
+                customerPhone,
+                customerEmail: quote.customerEmail ?? undefined,
+                invoiceNumber,
+                expiresAt,
+              } as any);
+              const origin = "https://solvr.com.au";
+              const paymentLinkUrl = `${origin}/pay/${token}`;
+              await sendSms({
+                to: customerPhone,
+                body: `Hi ${quote.customerName ?? "there"}, your invoice ${invoiceNumber} from ${businessName} for $${(totalCents / 100).toFixed(2)} is ready. Pay securely: ${paymentLinkUrl}`,
+              });
+            } catch (smsErr) {
+              console.error("[QuoteAccept] Payment link SMS failed:", smsErr);
+            }
+          }
+          console.log(`[QuoteAccept] Auto-invoice ${invoiceNumber} generated and sent for quote ${quote.quoteNumber}`);
+        } catch (invoiceErr) {
+          // Non-fatal — job is still created even if auto-invoice fails
+          console.error(`[QuoteAccept] Auto-invoice failed for quote ${quote.quoteNumber}:`, invoiceErr);
+        }
 
         // ── Send push notification to the client's mobile app ───────────────────
         const portalSession = await getPortalSessionByClientId(quote.clientId);

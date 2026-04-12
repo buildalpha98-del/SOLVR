@@ -599,6 +599,8 @@ export const portalJobs = mysqlTable("portal_jobs", {
   completionReportUrl: varchar("completionReportUrl", { length: 512 }),
   /** Public token for read-only customer view of the completion report (no auth required) */
   completionReportToken: varchar("completionReportToken", { length: 64 }),
+  /** Public token for the customer job status page (no auth required) */
+  customerStatusToken: varchar("customerStatusToken", { length: 64 }).unique(),
   //  Completion 
   /** When the job was marked complete by the tradie */
   completedAt: timestamp("completedAt"),
@@ -608,6 +610,13 @@ export const portalJobs = mysqlTable("portal_jobs", {
   variationNotes: text("variationNotes"),
   /** Actual time spent on the job (hours, stored as decimal) */
   actualHours: decimal("actualHours", { precision: 6, scale: 2 }),
+  //  Recurrence 
+  /** Whether this job repeats on a schedule */
+  isRecurring: boolean("isRecurring").default(false).notNull(),
+  /** Repeat frequency — null if not recurring */
+  recurrenceFrequency: mysqlEnum("recurrenceFrequency", ["weekly", "fortnightly", "monthly"]),
+  /** FK to the original job in a recurring series (null if this IS the original) */
+  parentJobId: int("parentJobId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1424,11 +1433,26 @@ export const timeEntries = mysqlTable("time_entries", {
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
 
-// ─── Staff PIN Auth ───────────────────────────────────────────────────────────
+// ─── Staff Availability ──────────────────────────────────────────────────────
 /**
- * Staff portal sessions — created on successful PIN login.
- * Stored as a signed cookie on the staff device.
+ * Staff unavailability records — staff mark days they cannot work.
+ * Owner sees these as blocked (grey) cells in the schedule grid.
  */
+export const staffAvailability = mysqlTable("staff_availability", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  staffId: int("staffId").notNull(),
+  /** ISO date string YYYY-MM-DD for the unavailable day */
+  unavailableDate: varchar("unavailableDate", { length: 10 }).notNull(),
+  /** Optional reason: sick | personal | other */
+  reason: varchar("reason", { length: 50 }),
+  /** Optional free-text note */
+  note: text("note"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type StaffAvailability = typeof staffAvailability.$inferSelect;
+export type InsertStaffAvailability = typeof staffAvailability.$inferInsert;
+
 export const staffSessions = mysqlTable("staff_sessions", {
   id: int("id").autoincrement().primaryKey(),
   staffId: int("staffId").notNull(),
@@ -1439,3 +1463,31 @@ export const staffSessions = mysqlTable("staff_sessions", {
 });
 export type StaffSession = typeof staffSessions.$inferSelect;
 export type InsertStaffSession = typeof staffSessions.$inferInsert;
+
+// --- Job Feedback ---
+export const jobFeedback = mysqlTable('job_feedback', {
+  id: int('id').autoincrement().primaryKey(),
+  jobId: int('jobId').notNull().unique(),
+  clientId: int('clientId').notNull(),
+  positive: boolean('positive').notNull(),
+  comment: text('comment'),
+  customerName: varchar('customerName', { length: 255 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type JobFeedback = typeof jobFeedback.$inferSelect;
+export type InsertJobFeedback = typeof jobFeedback.$inferInsert;
+
+// ─── App Settings (Feature Flags) ────────────────────────────────────────────
+/**
+ * Global application settings and feature flags.
+ * Single-row table (id=1) — use upsert to update.
+ * Allows toggling features from the admin console without a code deploy.
+ */
+export const appSettings = mysqlTable("app_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Whether the tradie-to-tradie referral programme is active */
+  referralProgrammeEnabled: boolean("referralProgrammeEnabled").default(true).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AppSettings = typeof appSettings.$inferSelect;
+export type InsertAppSettings = typeof appSettings.$inferInsert;

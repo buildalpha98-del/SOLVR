@@ -2,21 +2,37 @@
  * Portal Referral Programme Page
  * Tradies share their unique referral link. When a referred tradie pays for the first time,
  * the referrer earns 20% off their next invoice.
+ *
+ * Fixes applied:
+ * - Capacitor URL: window.location.origin returns "capacitor://localhost" on iOS.
+ *   Hardcoded to "https://solvr.com.au" for referral link generation.
+ * - WhatsApp button: was white text on near-white bg (#25D366 on rgba(37,211,102,0.08)).
+ *   Fixed to white text on solid green background for legibility.
+ * - Feature toggle: if referral programme is disabled by admin, shows a "coming soon" state.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Gift, Copy, CheckCheck, Users, Percent, ExternalLink } from "lucide-react";
+import { Gift, Copy, CheckCheck, Users, Percent, MessageCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-const BASE_URL = typeof window !== "undefined" ? window.location.origin : "https://solvr.com.au";
+// Hardcoded — window.location.origin returns "capacitor://localhost" on iOS Capacitor.
+const SOLVR_ORIGIN = "https://solvr.com.au";
 
 export default function PortalReferral() {
-  const { data: codeData, isLoading: codeLoading } = trpc.portal.getReferralCode.useQuery();
-  const { data: stats, isLoading: statsLoading } = trpc.portal.getReferralStats.useQuery();
+  const { data: enabledData, isLoading: enabledLoading } = trpc.portal.isReferralEnabled.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: codeData, isLoading: codeLoading } = trpc.portal.getReferralCode.useQuery(undefined, {
+    enabled: enabledData?.enabled === true,
+  });
+  const { data: stats, isLoading: statsLoading } = trpc.portal.getReferralStats.useQuery(undefined, {
+    enabled: enabledData?.enabled === true,
+  });
   const [copied, setCopied] = useState(false);
 
+  // FIXED: Use hardcoded origin, not window.location.origin (Capacitor returns "capacitor://localhost")
   const referralLink = codeData?.referralCode
-    ? `${BASE_URL}/ref/${codeData.referralCode}`
+    ? `${SOLVR_ORIGIN}/portal/login?ref=${codeData.referralCode}`
     : null;
 
   function handleCopy() {
@@ -28,7 +44,25 @@ export default function PortalReferral() {
     });
   }
 
-  const isLoading = codeLoading || statsLoading;
+  const isLoading = enabledLoading || codeLoading || statsLoading;
+
+  // ── Feature disabled state ────────────────────────────────────────────────
+  if (!enabledLoading && enabledData?.enabled === false) {
+    return (
+      <div className="max-w-lg mx-auto py-16 text-center space-y-4">
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+          style={{ background: "rgba(245,166,35,0.10)", border: "1px solid rgba(245,166,35,0.2)" }}
+        >
+          <Gift className="w-8 h-8" style={{ color: "#F5A623" }} />
+        </div>
+        <h2 className="text-lg font-bold text-white">Referral Programme Coming Soon</h2>
+        <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+          The tradie referral programme will be launching shortly. Check back soon!
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-6 py-2">
@@ -111,7 +145,10 @@ export default function PortalReferral() {
         </p>
 
         {isLoading ? (
-          <div className="h-10 rounded-lg animate-pulse" style={{ background: "rgba(255,255,255,0.06)" }} />
+          <div className="flex items-center justify-center py-4 gap-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Generating your link…</span>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <div
@@ -188,23 +225,35 @@ export default function PortalReferral() {
       {/* Share buttons */}
       {referralLink && (
         <div className="flex gap-3">
+          {/* SMS share */}
           <a
             href={`sms:?body=Hey! I've been using Solvr to handle my calls with AI — saves me heaps of time. Use my link to get started: ${referralLink}`}
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
-            style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.1)" }}
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              color: "rgba(255,255,255,0.8)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
           >
-            <ExternalLink className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4" />
             Share via SMS
           </a>
+          {/* WhatsApp — FIXED: solid green bg with white text (was near-invisible green-on-white) */}
           <a
             href={`https://wa.me/?text=${encodeURIComponent(`Hey! I've been using Solvr to handle my calls with AI — saves me heaps of time. Use my link to get started: ${referralLink}`)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold"
-            style={{ background: "rgba(37,211,102,0.08)", color: "#25D366", border: "1px solid rgba(37,211,102,0.2)" }}
+            style={{
+              background: "#25D366",
+              color: "#ffffff",
+              border: "none",
+            }}
           >
-            <ExternalLink className="w-4 h-4" />
-            Share on WhatsApp
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            WhatsApp
           </a>
         </div>
       )}

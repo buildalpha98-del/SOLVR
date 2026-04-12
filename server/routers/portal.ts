@@ -99,6 +99,14 @@ import {
   getReviewRequestById,
   insertReviewRequest,
   getReviewRequestStats,
+  markStaffUnavailable,
+  removeStaffUnavailability,
+  listStaffUnavailability,
+  getLabourCostReport,
+  getPortalJobByStatusToken,
+  upsertJobFeedback,
+  getJobFeedback,
+  listJobFeedbackForClient,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 
@@ -440,6 +448,9 @@ export const portalRouter = router({
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const recentCalls = calls.filter(c => new Date(c.createdAt) > thirtyDaysAgo);
+      // Calls in the last 24 hours (for Today at a Glance)
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const callsSinceYesterday = calls.filter(c => new Date(c.createdAt) > yesterday).length;
 
       // Build daily call volume chart data (last 14 days)
       const callsByDay: Record<string, number> = {};
@@ -472,9 +483,13 @@ export const portalRouter = router({
         ? Math.round(wonRevenue / wonJobs.length)
         : (client.tradeType?.toLowerCase().includes("plumb") ? 450 : 380);
 
+      // Jobs due today — use stage "booked" as proxy since there's no scheduledDate field
+      const jobsDueToday = jobs.filter(j => j.stage === "booked").length;
+
       return {
         totalCalls: calls.length,
         callsThisMonth: recentCalls.length,
+        callsSinceYesterday,
         callVolumeChart,
         totalJobs,
         activeJobs: activeJobs.length,
@@ -482,6 +497,7 @@ export const portalRouter = router({
         potentialRevenue,
         wonRevenue,
         avgJobValue,
+        jobsDueToday,
         plan,
         features: PLAN_FEATURES[plan] ?? [],
       };
@@ -597,7 +613,8 @@ export const portalRouter = router({
       const { client } = result;
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
 
-      const { insertId } = await createPortalJob({ ...input, clientId: client.id });
+      const customerStatusToken = randomBytes(32).toString("hex");
+      const { insertId } = await createPortalJob({ ...input, clientId: client.id, customerStatusToken });
       return { success: true, id: insertId };
     }),
 
@@ -950,7 +967,9 @@ export const portalRouter = router({
       abn: z.string().max(50).optional(),
       phone: z.string().max(50).optional(),
       address: z.string().max(512).optional(),
-      replyToEmail: z.string().email().max(320).optional(),
+      // z.string().email() intentionally NOT used — Zod v4 rejects empty string
+      // on iOS Capacitor when the field is cleared. Transform empty string to undefined.
+      replyToEmail: z.union([z.string().email().max(320), z.literal("")]).optional().transform(v => (v === "" ? undefined : v)),
       paymentTerms: z.string().max(255).optional(),
       gstRate: z.string().regex(/^\d{1,3}(\.\d{1,2})?$/).optional(),
       validityDays: z.number().int().min(1).max(365).optional(),
@@ -1349,8 +1368,11 @@ export const portalRouter = router({
    */
   extractVoiceOnboarding: publicProcedure
     .input(z.object({
-      /** Pre-signed or CDN URL of the uploaded audio file */
-      audioUrl: z.string().url(),
+      /** Pre-signed or CDN URL of the uploaded audio file.
+       *  NOTE: z.string().url() is intentionally NOT used — Zod v4 rejects S3
+       *  presigned URLs with query params (X-Amz-Signature etc.) on iOS.
+       */
+      audioUrl: z.string().min(1),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
@@ -1823,7 +1845,10 @@ export const portalRouter = router({
     .query(async ({ ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
-      return listStaffMembers(portalClient.client.id);
+      const members = await listStaffMembers(portalClient.client.id);
+      // Strip sensitive fields — staffPin (bcrypt hash) and pushSubscription
+      // (Web Push endpoint) must never be returned to the browser client.
+      return members.map(({ staffPin: _pin, pushSubscription: _push, ...safe }) => safe);
     }),
 
   createStaff: publicProcedure
@@ -1837,6 +1862,13 @@ export const portalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+
+      // Count existing active staff BEFORE adding the new member.
+      // The first staff member (count 0 → 1) is included in the base plan.
+      // Every additional member (count 1+) triggers a +$5/mo seat charge.
+      const existingStaff = await listStaffMembers(portalClient.client.id);
+      const activeCount = existingStaff.filter((s) => s.isActive).length;
+
       const result = await createStaffMember({
         clientId: portalClient.client.id,
         name: input.name,
@@ -1846,6 +1878,44 @@ export const portalRouter = router({
         hourlyRate: input.hourlyRate !== undefined ? String(input.hourlyRate) : null,
         isActive: true,
       });
+
+      // Wire seat add-on to Stripe subscription if the client has one.
+      // We only charge for staff beyond the first (activeCount >= 1 means this is the 2nd+).
+      if (activeCount >= 1) {
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        const subId = (portalClient.client as Record<string, unknown>).stripeSubscriptionId as string | null | undefined;
+        if (stripeKey && subId) {
+          try {
+            const { ADDITIONAL_SEAT } = await import("../stripeProducts");
+            const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+            // Check if a seat item already exists on this subscription
+            const sub = await stripe.subscriptions.retrieve(subId, { expand: ["items"] });
+            const existingSeatItem = sub.items.data.find(
+              (item) => item.price.id === ADDITIONAL_SEAT.stripePriceId
+            );
+            if (existingSeatItem) {
+              // Increment quantity by 1
+              await stripe.subscriptionItems.update(existingSeatItem.id, {
+                quantity: (existingSeatItem.quantity ?? 1) + 1,
+                proration_behavior: "create_prorations",
+              });
+            } else {
+              // Add the seat line item for the first time
+              await stripe.subscriptionItems.create({
+                subscription: subId,
+                price: ADDITIONAL_SEAT.stripePriceId,
+                quantity: 1,
+                proration_behavior: "create_prorations",
+              });
+            }
+            console.log(`[Seats] Added 1 seat to subscription ${subId} for client ${portalClient.client.id}`);
+          } catch (err) {
+            // Log but don't block staff creation — billing can be reconciled manually
+            console.error("[Seats] Failed to add seat to Stripe subscription:", err);
+          }
+        }
+      }
+
       return { id: result.insertId };
     }),
 
@@ -1884,7 +1954,48 @@ export const portalRouter = router({
       if (!member || member.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
       }
+
+      // Count active staff BEFORE deletion to decide whether to remove a seat.
+      const existingStaff = await listStaffMembers(portalClient.client.id);
+      const activeCount = existingStaff.filter((s) => s.isActive).length;
+
       await deleteStaffMember(input.id);
+
+      // Remove one seat from Stripe if this deletion drops the count below 2
+      // (i.e. we were charging for extra seats and now have one fewer).
+      if (activeCount >= 2) {
+        const stripeKey = process.env.STRIPE_SECRET_KEY;
+        const subId = (portalClient.client as Record<string, unknown>).stripeSubscriptionId as string | null | undefined;
+        if (stripeKey && subId) {
+          try {
+            const { ADDITIONAL_SEAT } = await import("../stripeProducts");
+            const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+            const sub = await stripe.subscriptions.retrieve(subId, { expand: ["items"] });
+            const seatItem = sub.items.data.find(
+              (item) => item.price.id === ADDITIONAL_SEAT.stripePriceId
+            );
+            if (seatItem) {
+              const newQty = (seatItem.quantity ?? 1) - 1;
+              if (newQty <= 0) {
+                // Remove the line item entirely by cancelling it via the subscriptions API
+                await stripe.subscriptions.update(subId, {
+                  items: [{ id: seatItem.id, deleted: true }],
+                  proration_behavior: "create_prorations",
+                });
+              } else {
+                await stripe.subscriptionItems.update(seatItem.id, {
+                  quantity: newQty,
+                  proration_behavior: "create_prorations",
+                });
+              }
+              console.log(`[Seats] Removed 1 seat from subscription ${subId} for client ${portalClient.client.id}`);
+            }
+          } catch (err) {
+            console.error("[Seats] Failed to remove seat from Stripe subscription:", err);
+          }
+        }
+      }
+
       return { success: true };
     }),
 
@@ -1990,6 +2101,17 @@ export const portalRouter = router({
     .mutation(async ({ input, ctx }) => {
       const portalClient = await getPortalClient(ctx.req);
       if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      // IDOR guard: verify both jobId and staffId belong to the authenticated client
+      const [job, staff] = await Promise.all([
+        getPortalJob(input.jobId),
+        getStaffMember(input.staffId),
+      ]);
+      if (!job || job.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      if (!staff || staff.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
       const result = await createScheduleEntry({
         clientId: portalClient.client.id,
         jobId: input.jobId,
@@ -2044,6 +2166,28 @@ export const portalRouter = router({
       if (input.status) update.status = input.status;
       if (input.notes !== undefined) update.notes = input.notes;
       await updateScheduleEntry(input.id, update);
+      // Fire push notification when a shift is reassigned to a different staff member (drag-to-reassign)
+      if (input.staffId !== undefined && input.staffId !== entry.staffId) {
+        const newStaffId = input.staffId;
+        void (async () => {
+          try {
+            const { sendPushToStaff } = await import("../pushNotifications");
+            const job = await getPortalJob(entry.jobId);
+            const start = input.startTime ? new Date(input.startTime) : new Date(entry.startTime);
+            const timeStr = start.toLocaleString("en-AU", {
+              weekday: "short", month: "short", day: "numeric",
+              hour: "numeric", minute: "2-digit", hour12: true,
+            });
+            await sendPushToStaff(newStaffId, {
+              title: "Shift assigned — " + (portalClient.client.businessName ?? "Solvr"),
+              body: `${job?.jobType ?? "Job"} — ${timeStr}`,
+              url: "/staff/today",
+            });
+          } catch (e) {
+            console.error("[Push] Failed to notify staff on schedule reassign:", e);
+          }
+        })();
+      }
       return { success: true };
     }),
 
@@ -2185,7 +2329,10 @@ export const portalRouter = router({
    */
   saveGoogleReviewSettings: publicProcedure
     .input(z.object({
-      googleReviewLink: z.string().url().max(512).optional().nullable(),
+      // z.string().url() intentionally NOT used — Zod v4 rejects Google Maps
+      // review URLs which contain query params (placeid=, authuser= etc.) on iOS.
+      // Basic format check is done client-side before submission.
+      googleReviewLink: z.string().min(1).max(512).optional().nullable(),
       reviewRequestEnabled: z.boolean().optional(),
       reviewRequestDelayMinutes: z.number().int().min(0).max(1440).optional(),
     }))
@@ -2239,6 +2386,85 @@ export const portalRouter = router({
       return stats;
     }),
 
+  // ─── Staff Availability ────────────────────────────────────────────────────
+
+  /**
+   * Mark a staff member as unavailable on a specific date.
+   * Called from the staff portal roster — one tap to block a day.
+   */
+  markStaffUnavailable: publicProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+      reason: z.enum(["personal", "sick", "annual_leave", "other"]).optional(),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      // Verify staff member belongs to this client
+      const member = await getStaffMember(input.staffId);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      await markStaffUnavailable(portalClient.client.id, input.staffId, input.date, input.reason, input.note);
+      return { success: true };
+    }),
+
+  /**
+   * Remove an unavailability record (staff is available again on that date).
+   */
+  removeStaffUnavailability: publicProcedure
+    .input(z.object({
+      staffId: z.number().int().positive(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const member = await getStaffMember(input.staffId);
+      if (!member || member.clientId !== portalClient.client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
+      }
+      await removeStaffUnavailability(portalClient.client.id, input.staffId, input.date);
+      return { success: true };
+    }),
+
+  /**
+   * List all unavailability records for the client's staff within a week range.
+   * Used by the schedule grid to render blocked cells.
+   */
+  listStaffUnavailability: publicProcedure
+    .input(z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      return listStaffUnavailability(portalClient.client.id, input.from, input.to);
+    }),
+
+  // ─── Labour Cost Report ──────────────────────────────────────────────────────
+
+  /**
+   * Return labour cost breakdown by staff member for a given month.
+   * Pulls from timeEntries × staffMembers.hourlyRate.
+   */
+  getLabourCostReport: publicProcedure
+    .input(z.object({
+      year: z.number().int().min(2020).max(2100),
+      month: z.number().int().min(1).max(12), // 1-based
+    }))
+    .query(async ({ input, ctx }) => {
+      const portalClient = await getPortalClient(ctx.req);
+      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const from = new Date(input.year, input.month - 1, 1);
+      const to = new Date(input.year, input.month, 0, 23, 59, 59, 999); // last ms of last day
+      const rows = await getLabourCostReport(portalClient.client.id, from, to);
+      return { rows, year: input.year, month: input.month };
+    }),
+
   /**
    * Resend a review request for a specific job (manual trigger from the Reviews page).
    */
@@ -2263,5 +2489,83 @@ export const portalRouter = router({
         businessName: client.businessName,
       }).catch(err => console.error("[ReviewRequest] Resend error:", err));
       return { success: true };
+    }),
+
+  /**
+   * Public — no auth required. Returns job status, photos, invoice total, and tradie contact
+   * info for the customer-facing job status page.
+   */
+  getJobByCustomerToken: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+
+      // Fetch photos (URLs only — no auth needed, they're S3 public)
+      const photos = await listJobPhotos(job.id);
+
+      // Fetch tradie profile for contact details
+      const profile = await getClientProfile(job.clientId);
+
+      return {
+        id: job.id,
+        jobType: job.jobType,
+        description: job.description,
+        location: job.location,
+        customerName: job.customerName ?? job.callerName,
+        stage: job.stage,
+        preferredDate: job.preferredDate,
+        completedAt: job.completedAt,
+        notes: job.notes,
+        invoicedAmount: job.invoicedAmount,
+        invoicePdfUrl: job.invoicePdfUrl,
+        completionReportUrl: job.completionReportUrl,
+        photos: photos.map(p => ({ id: p.id, url: p.imageUrl, caption: p.caption, takenAt: p.createdAt })),
+        tradie: {
+          tradingName: profile?.tradingName ?? null,
+          phone: profile?.phone ?? null,
+          email: profile?.email ?? null,
+          logoUrl: profile?.logoUrl ?? null,
+        },
+        // Include existing feedback if any
+        feedback: await getJobFeedback(job.id).then(f => f ? { positive: f.positive, comment: f.comment } : null),
+      };
+    }),
+
+  /**
+   * submitJobFeedback — public, no auth.
+   * Customer submits thumbs up/down + optional comment from the status page.
+   */
+  submitJobFeedback: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      positive: z.boolean(),
+      comment: z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      await upsertJobFeedback({
+        jobId: job.id,
+        clientId: job.clientId,
+        positive: input.positive,
+        comment: input.comment ?? null,
+        customerName: job.customerName ?? job.callerName ?? null,
+      });
+      // If positive, optionally trigger Google Review request
+      const profile = await getClientProfile(job.clientId);
+      const googleReviewLink = profile?.googleReviewLink ?? null;
+      return { success: true, googleReviewLink };
+    }),
+
+  /**
+   * listJobFeedback — portal-authenticated.
+   * Owner can see all customer feedback in the portal.
+   */
+  listJobFeedback: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      return listJobFeedbackForClient(result.client.id);
     }),
 });

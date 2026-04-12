@@ -93,6 +93,75 @@ REPORT SECTIONS — generate all of the following:
    - Any other conditions the customer should be aware of.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRADE-SPECIFIC GUIDANCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Use the Trade Type field to tailor every section. Key guidance per trade:
+
+PLUMBER / PLUMBING:
+- Reference AS/NZS 3500 (Plumbing and Drainage) for all drainage and water supply work.
+- Mention pressure testing, water hammer protection, and backflow prevention where relevant.
+- Common exclusions: wall tiling after pipe replacement, concrete cutting/reinstatement unless quoted, council permits for new connections.
+- Methodology should include isolation of water supply, pressure test on completion, and compliance sign-off.
+- Materials: specify pipe material (copper, PEX, CPVC), fixture brand and grade, and any WELS star rating for tapware.
+
+ELECTRICIAN / ELECTRICAL:
+- Reference AS/NZS 3000 (Wiring Rules) for all electrical work.
+- Mention Certificate of Compliance for Electrical Work (CCEW) — required for all electrical work in Australia.
+- Common exclusions: patching of walls/ceilings after cable runs, switchboard upgrades unless quoted, asbestos testing.
+- Methodology should include isolation of circuit, testing and tagging, and CCEW issuance on completion.
+- Materials: specify cable rating (TPS, SDI), circuit breaker brand, and switchboard type.
+
+BUILDER / BUILDING:
+- Reference the National Construction Code (NCC/BCA) and relevant state building regulations.
+- Mention building permit requirements where applicable (works over $10,000 in most states).
+- Common exclusions: soil testing, engineering certificates (unless quoted), landscaping reinstatement, asbestos removal.
+- Methodology should include site preparation, structural sequence, and final inspection/certificate of occupancy.
+- Materials: specify timber grade (MGP10, MGP12), concrete strength (MPa), and any engineered products.
+
+CARPENTER / CARPENTRY:
+- Reference AS 1684 (Residential Timber Framing) for framing work.
+- Common exclusions: painting/finishing unless quoted, plasterboard supply unless quoted, engineering for structural changes.
+- Methodology should include timber selection, fixing schedule, and moisture content checks.
+- Materials: specify timber species, grade, treatment (H2, H3 for outdoor), and fixing type (structural screws, joist hangers).
+
+PAINTER / PAINTING:
+- Reference AS/NZS 2311 (Guide to the Painting of Buildings) for surface preparation standards.
+- Common exclusions: plasterboard repairs, mould remediation, lead paint encapsulation unless quoted.
+- Methodology should include surface preparation (sanding, filling, priming), number of coats, and dry time between coats.
+- Materials: specify paint brand, product line, sheen level, and colour reference (Dulux/Taubmans code).
+
+TILER / TILING:
+- Reference AS 3958 (Ceramic Tiles) for installation standards.
+- Common exclusions: waterproofing membrane unless quoted, removal of existing tiles unless quoted, grout colour selection (to be confirmed by client).
+- Methodology should include substrate preparation, waterproofing (wet areas), adhesive type, and grouting.
+- Materials: specify tile dimensions, adhesive type (flexible for wet areas), grout brand and colour.
+
+ROOFER / ROOFING:
+- Reference AS 1562 (Metal Roofing) or AS 4654 (Waterproofing Membranes) as applicable.
+- Common exclusions: guttering replacement unless quoted, fascia/soffit repairs, council permits for structural changes.
+- Methodology should include existing material removal, sarking installation, batten spacing, and ridge capping.
+- Materials: specify roofing product (Colorbond grade, tile brand), fixing schedule, and sarking type.
+
+AIR CONDITIONING / HVAC:
+- Reference AS/NZS 3000 (electrical) and AS 1668 (ventilation) as applicable.
+- Mention ARCtick licence requirement for refrigerant handling.
+- Common exclusions: ductwork modifications unless quoted, electrical switchboard upgrade, wall patching.
+- Methodology should include site survey, refrigerant line routing, electrical connection, and commissioning test.
+- Materials: specify unit brand, model, capacity (kW), energy star rating, and refrigerant type (R32, R410A).
+
+FENCER / FENCING:
+- Reference AS 1725 (Chain Link Fencing) or AS 1926 (Pool Fencing) as applicable.
+- Common exclusions: removal of existing fencing unless quoted, council permits for boundary disputes, tree root removal.
+- Methodology should include post hole depth, concrete footing specification, and panel alignment.
+- Materials: specify post size and grade, panel type, and fixing hardware (galvanised/powder coated).
+
+GENERAL TRADES / OTHER:
+- Apply relevant Australian Standards based on the specific work described in the line items.
+- Generate sensible trade-appropriate exclusions based on what is NOT mentioned in the quote.
+- Default warranty: 12 months workmanship, manufacturer warranty pass-through for materials.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WRITING RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

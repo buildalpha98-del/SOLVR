@@ -184,6 +184,75 @@ export function buildChecklistEmail(name: string, plan: string): string {
   `.trim();
 }
 
+export function buildTrialEndingEmail(name: string, plan: string, trialEndDate: string, addCardUrl: string): string {
+  const planLabels: Record<string, string> = {
+    solvr_quotes: "Solvr Quotes",
+    solvr_jobs: "Solvr Jobs",
+    solvr_ai: "Solvr AI",
+    starter: "Solvr AI",
+    professional: "Solvr AI",
+  };
+  const planLabel = planLabels[plan] ?? plan;
+  const firstName = name?.split(" ")[0] ?? "there";
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Solvr trial ends in 3 days</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:#0F1F3D;padding:32px 40px;text-align:center;">
+              <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp" alt="Solvr" height="36" style="display:block;margin:0 auto;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <div style="background:#FFF8EC;border:1px solid #F5A623;border-radius:8px;padding:16px 20px;margin-bottom:28px;text-align:center;">
+                <p style="margin:0;font-weight:700;color:#0F1F3D;font-size:14px;">⏰ Your free trial ends on ${trialEndDate}</p>
+              </div>
+              <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0F1F3D;">Don't lose your setup, ${firstName}</h1>
+              <p style="margin:0 0 20px;color:#718096;font-size:15px;line-height:1.6;">
+                Your 14-day free trial of <strong>${planLabel}</strong> ends in 3 days. Add a payment method now to keep everything running — your settings, job history, and AI configuration stay exactly as they are.
+              </p>
+              <div style="background:#F7FAFC;border-radius:8px;padding:24px;margin-bottom:28px;">
+                <p style="margin:0 0 12px;font-weight:600;color:#0F1F3D;font-size:14px;">What you keep after your trial:</p>
+                <table cellpadding="0" cellspacing="0" width="100%">
+                  <tr><td style="padding:6px 0;color:#4A5568;font-size:14px;">✓ All your quotes and job history</td></tr>
+                  <tr><td style="padding:6px 0;color:#4A5568;font-size:14px;">✓ Your AI Receptionist configuration</td></tr>
+                  <tr><td style="padding:6px 0;color:#4A5568;font-size:14px;">✓ Customer contacts and SMS history</td></tr>
+                  <tr><td style="padding:6px 0;color:#4A5568;font-size:14px;">✓ Your dedicated business phone number</td></tr>
+                </table>
+              </div>
+              <div style="text-align:center;margin-bottom:20px;">
+                <a href="${addCardUrl}" style="display:inline-block;background:#F5A623;color:#0F1F3D;font-weight:700;font-size:16px;padding:16px 40px;border-radius:8px;text-decoration:none;">Add Payment Method →</a>
+              </div>
+              <p style="margin:0;color:#A0AEC0;font-size:13px;text-align:center;line-height:1.6;">
+                No lock-in. Cancel any time from your portal.<br/>
+                Questions? Reply to this email — we're here to help.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#F7FAFC;padding:20px 40px;text-align:center;border-top:1px solid #E2E8F0;">
+              <p style="margin:0;color:#A0AEC0;font-size:12px;">Solvr · ABN 47 262 120 626 · <a href="https://solvr.com.au/privacy" style="color:#A0AEC0;">Privacy Policy</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
 export function buildCheckinEmail(name: string, plan: string): string {
   const planLabel = plan === "professional" ? "Professional" : "Starter";
   const firstName = name?.split(" ")[0] ?? "there";

@@ -267,6 +267,41 @@
       "when": 1775945764962,
       "tag": "0037_curvy_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1775954754292,
+      "tag": "0038_ambiguous_meggan",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1775961757420,
+      "tag": "0039_sloppy_inertia",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1775962579719,
+      "tag": "0040_lovely_black_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1775964745376,
+      "tag": "0041_low_zeigeist",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1775990717086,
+      "tag": "0042_medical_vargas",
+      "breakpoints": true
     }
   ]
 }

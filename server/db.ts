@@ -1439,3 +1439,235 @@ export async function listScheduleEntriesForLateCheckin(
   const checkedIn = new Set(existingCheckIns.map(ci => `${ci.staffId}:${ci.jobId}`));
   return entries.filter(e => !checkedIn.has(`${e.staffId}:${e.jobId}`)) as (JobScheduleEntry & { staffName: string | null; pushSubscription: string | null })[];
 }
+
+// ─── Staff Availability ───────────────────────────────────────────────────────
+import { staffAvailability } from "../drizzle/schema";
+
+/**
+ * Mark a staff member as unavailable on a specific date.
+ * Upserts — if a record already exists for (clientId, staffId, date), it is replaced.
+ */
+export async function markStaffUnavailable(
+  clientId: number,
+  staffId: number,
+  unavailableDate: string, // YYYY-MM-DD
+  reason?: string,
+  note?: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Delete any existing record first (upsert pattern)
+  await db
+    .delete(staffAvailability)
+    .where(
+      and(
+        eq(staffAvailability.clientId, clientId),
+        eq(staffAvailability.staffId, staffId),
+        eq(staffAvailability.unavailableDate, unavailableDate),
+      ),
+    );
+  await db.insert(staffAvailability).values({ clientId, staffId, unavailableDate, reason, note });
+}
+
+/**
+ * Remove an unavailability record (staff marks themselves available again).
+ */
+export async function removeStaffUnavailability(
+  clientId: number,
+  staffId: number,
+  unavailableDate: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .delete(staffAvailability)
+    .where(
+      and(
+        eq(staffAvailability.clientId, clientId),
+        eq(staffAvailability.staffId, staffId),
+        eq(staffAvailability.unavailableDate, unavailableDate),
+      ),
+    );
+}
+
+/**
+ * List all unavailability records for a client within a date range.
+ * Used by the portal schedule to render blocked cells.
+ */
+export async function listStaffUnavailability(
+  clientId: number,
+  from: string, // YYYY-MM-DD
+  to: string,   // YYYY-MM-DD
+): Promise<(typeof staffAvailability.$inferSelect & { staffName: string | null })[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select({
+      id: staffAvailability.id,
+      clientId: staffAvailability.clientId,
+      staffId: staffAvailability.staffId,
+      unavailableDate: staffAvailability.unavailableDate,
+      reason: staffAvailability.reason,
+      note: staffAvailability.note,
+      createdAt: staffAvailability.createdAt,
+      staffName: staffMembers.name,
+    })
+    .from(staffAvailability)
+    .leftJoin(staffMembers, eq(staffAvailability.staffId, staffMembers.id))
+    .where(
+      and(
+        eq(staffAvailability.clientId, clientId),
+        gte(staffAvailability.unavailableDate, from),
+        lte(staffAvailability.unavailableDate, to),
+      ),
+    )
+    .orderBy(staffAvailability.unavailableDate);
+  return rows as (typeof staffAvailability.$inferSelect & { staffName: string | null })[];
+}
+
+/**
+ * List unavailability records for a single staff member (used in staff portal).
+ */
+export async function listMyUnavailability(
+  staffId: number,
+  from: string,
+  to: string,
+): Promise<typeof staffAvailability.$inferSelect[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(staffAvailability)
+    .where(
+      and(
+        eq(staffAvailability.staffId, staffId),
+        gte(staffAvailability.unavailableDate, from),
+        lte(staffAvailability.unavailableDate, to),
+      ),
+    )
+    .orderBy(staffAvailability.unavailableDate);
+}
+
+// ─── Labour Cost Report ───────────────────────────────────────────────────────
+/**
+ * Aggregate time entries by staff member for a date range, joined with hourly rate.
+ * Returns one row per staff member with total hours and calculated labour cost.
+ */
+export async function getLabourCostReport(
+  clientId: number,
+  from: Date,
+  to: Date,
+): Promise<{
+  staffId: number;
+  staffName: string;
+  hourlyRate: string | null;
+  totalMinutes: number;
+  totalHours: number;
+  labourCost: number | null;
+  entryCount: number;
+}[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const entries = await db
+    .select({
+      staffId: timeEntries.staffId,
+      staffName: staffMembers.name,
+      hourlyRate: staffMembers.hourlyRate,
+      durationMinutes: timeEntries.durationMinutes,
+    })
+    .from(timeEntries)
+    .leftJoin(staffMembers, eq(timeEntries.staffId, staffMembers.id))
+    .where(
+      and(
+        eq(timeEntries.clientId, clientId),
+        gte(timeEntries.checkInAt, from),
+        lte(timeEntries.checkInAt, to),
+        // Only include completed entries
+        sql`${timeEntries.checkOutAt} IS NOT NULL`,
+      ),
+    );
+
+  // Group by staffId
+  const map = new Map<number, {
+    staffId: number;
+    staffName: string;
+    hourlyRate: string | null;
+    totalMinutes: number;
+    entryCount: number;
+  }>();
+
+  for (const row of entries) {
+    const existing = map.get(row.staffId);
+    const mins = row.durationMinutes ?? 0;
+    if (existing) {
+      existing.totalMinutes += mins;
+      existing.entryCount += 1;
+    } else {
+      map.set(row.staffId, {
+        staffId: row.staffId,
+        staffName: row.staffName ?? `Staff #${row.staffId}`,
+        hourlyRate: row.hourlyRate ?? null,
+        totalMinutes: mins,
+        entryCount: 1,
+      });
+    }
+  }
+
+  return Array.from(map.values()).map(r => {
+    const totalHours = r.totalMinutes / 60;
+    const rate = r.hourlyRate ? parseFloat(r.hourlyRate) : null;
+    const labourCost = rate != null ? Math.round(totalHours * rate * 100) / 100 : null;
+    return { ...r, totalHours: Math.round(totalHours * 100) / 100, labourCost };
+  }).sort((a, b) => b.totalMinutes - a.totalMinutes);
+}
+
+// ── Customer Job Status Token ─────────────────────────────────────────────────
+export async function getPortalJobByStatusToken(token: string): Promise<PortalJob | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalJobs).where(eq(portalJobs.customerStatusToken, token)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+// ── Job Feedback ──────────────────────────────────────────────────────────────
+import { jobFeedback, type InsertJobFeedback, type JobFeedback, appSettings } from "../drizzle/schema";
+
+export async function upsertJobFeedback(data: InsertJobFeedback): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(jobFeedback).values(data).onDuplicateKeyUpdate({
+    set: { positive: data.positive, comment: data.comment, customerName: data.customerName },
+  });
+}
+
+export async function getJobFeedback(jobId: number): Promise<JobFeedback | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(jobFeedback).where(eq(jobFeedback.jobId, jobId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function listJobFeedbackForClient(clientId: number): Promise<JobFeedback[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobFeedback)
+    .where(eq(jobFeedback.clientId, clientId))
+    .orderBy(jobFeedback.createdAt);
+}
+
+// ─── App Settings (Feature Flags) ────────────────────────────────────────────
+export async function getAppSettings() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(appSettings).limit(1);
+  if (rows.length > 0) return rows[0];
+  // Seed default row on first access
+  await db.insert(appSettings).values({ id: 1, referralProgrammeEnabled: true });
+  return { id: 1, referralProgrammeEnabled: true, updatedAt: new Date() };
+}
+export async function setFeatureFlag(flag: "referralProgrammeEnabled", value: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(appSettings).values({ id: 1, referralProgrammeEnabled: value })
+    .onDuplicateKeyUpdate({ set: { [flag]: value } });
+}
