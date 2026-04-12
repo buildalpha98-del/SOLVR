@@ -155,60 +155,62 @@ const howItWorks = [
 
 const pricing = [
   {
-    name: "Starter",
-    price: "$197",
+    name: "Solvr Quotes",
+    price: "$49",
     period: "/month",
     setupFee: null as string | null,
-    badge: "Founding Member Rate" as string | null,
-    desc: "Perfect for solo tradies wanting to stop missing calls. Founding member rate — locked in for life.",
+    badge: null as string | null,
+    desc: "The fastest way to turn a site visit into a paid invoice — by voice. Unlimited quotes and invoices, flat per-org pricing.",
     features: [
-      "AI Receptionist, 1 phone number",
-      "24/7 AI call answering",
-      "Basic job qualification",
-      "Calendar booking integration",
-      "SMS & email notifications to owner",
-      "Basic job logging",
-      "Client portal access",
-      "No setup fee — go live in 48 hrs",
+      "Voice-to-quote in 90 seconds",
+      "Unlimited quotes & invoices",
+      "Branded PDF quotes",
+      "Customer job status page",
+      "SMS booking notifications",
+      "Customer feedback widget",
+      "Web app + iOS/Android app",
+      "+$5/mo per extra staff member",
     ],
     cta: "Start Free Trial",
     highlight: false,
   },
   {
-    name: "Professional",
-    price: "$397",
+    name: "Solvr Jobs",
+    price: "$99",
     period: "/month",
     setupFee: null as string | null,
     badge: "Most Popular" as string | null,
-    desc: "For growing businesses that need CRM integration and advanced call handling. Founding member rate — locked in for life.",
+    desc: "Full job management for growing trade businesses. Replaces Tradify at a flat per-org rate — no per-user sting.",
     features: [
-      "Everything in Starter",
-      "CRM integration (ServiceM8, Tradify)",
-      "Call transcript delivery",
-      "Monthly prompt tuning session",
-      "Custom Aussie voice & tone",
-      "Priority phone & email support",
-      "No setup fee — go live in 48 hrs",
+      "Everything in Solvr Quotes",
+      "Job cards & scheduling",
+      "Crew assignment",
+      "Inbound SMS reply → job notes",
+      "Job activity timeline",
+      "Customer reply push notifications",
+      "Priority support",
+      "+$5/mo per extra staff member",
     ],
     cta: "Start Free Trial",
     highlight: true,
   },
   {
-    name: "Enterprise",
-    price: "Custom",
-    period: "",
+    name: "Solvr AI",
+    price: "$197",
+    period: "/month",
     setupFee: null as string | null,
-    badge: null as string | null,
-    desc: "For multi-site operations, franchises, and businesses with complex automation needs.",
+    badge: "Founding Rate — Locked for Life" as string | null,
+    desc: "Your AI receptionist answers calls 24/7, qualifies leads, and books jobs while you're on the tools. Founding member rate — locked in for life.",
     features: [
-      "Everything in Professional",
-      "n8n automation workflows",
-      "Custom integrations (any JMS)",
-      "Weekly performance reports",
-      "Dedicated account manager",
-      "Priority support & SLA guarantee",
+      "Everything in Solvr Jobs",
+      "AI Receptionist (24/7 call answering)",
+      "Dedicated business phone number",
+      "Call transcripts & summaries",
+      "Automated booking confirmations",
+      "Lead qualification & job logging",
+      "+$5/mo per extra staff member",
     ],
-    cta: "Book a Strategy Call",
+    cta: "Start Free Trial",
     highlight: false,
   },
 ];
@@ -272,8 +274,15 @@ function PricingSection() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const createCheckout = trpc.stripe.createCheckout.useMutation();
 
+  // Map display plan names to Stripe plan keys
+  const planKeyMap: Record<string, "starter" | "professional"> = {
+    "Solvr Quotes": "starter",   // maps to solvr_quotes Stripe product
+    "Solvr Jobs": "starter",     // maps to solvr_jobs Stripe product
+    "Solvr AI": "professional",  // maps to solvr_ai Stripe product
+  };
+
   async function handleCheckout(planName: string) {
-    const plan = planName.toLowerCase() as "starter" | "professional";
+    const plan = planKeyMap[planName] ?? ("starter" as "starter" | "professional");
     const billingCycle = isAnnual ? "annual" : "monthly";
     setCheckoutLoading(planName);
     try {
@@ -293,8 +302,9 @@ function PricingSection() {
   }
 
   const annualPrices: Record<string, { monthly: number; annual: number }> = {
-    Starter: { monthly: 197, annual: Math.round((197 * 10) / 12) },
-    Professional: { monthly: 397, annual: Math.round((397 * 10) / 12) },
+    "Solvr Quotes": { monthly: 49, annual: Math.round((49 * 10) / 12) },
+    "Solvr Jobs": { monthly: 99, annual: Math.round((99 * 10) / 12) },
+    "Solvr AI": { monthly: 197, annual: Math.round((197 * 10) / 12) },
   };
 
   const missedRevPerMonth = missedCalls * avgJobValue * 30 * 0.3;

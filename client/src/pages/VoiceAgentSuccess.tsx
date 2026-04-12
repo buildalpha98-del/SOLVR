@@ -22,12 +22,14 @@ export default function VoiceAgentSuccess() {
     { enabled: !!sessionId }
   );
 
-  const planLabel =
-    data?.plan === "starter"
-      ? "Starter"
-      : data?.plan === "professional"
-      ? "Professional"
-      : "Voice Agent";
+  const planLabel = (() => {
+    const p = data?.plan as string | null | undefined;
+    if (p === "solvr_ai" || p === "starter") return "Solvr AI";
+    if (p === "solvr_jobs") return "Solvr Jobs";
+    if (p === "solvr_quotes") return "Solvr Quotes";
+    if (p === "professional") return "Solvr AI — Full Managed";
+    return "Solvr";
+  })();
 
   return (
     <div

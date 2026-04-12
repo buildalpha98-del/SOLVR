@@ -465,3 +465,9 @@
 - [x] Status page branding (tradie logo + trading name)
 - [x] Capacitor appId decision documented (keep com.solvr.mobile)
 - [x] Inbound SMS reply webhook (Twilio -> job note + push notification)
+
+- [x] Pricing: rename plans to Solvr Quotes / Solvr Jobs / Solvr AI
+- [x] Pricing: update Stripe products and prices (AUD)
+- [x] Pricing: add +$5/mo per-seat add-on
+- [x] Pricing: update plan labels across portal and pricing page
+- [x] Pricing: web-first checkout flow
