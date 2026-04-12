@@ -94,8 +94,8 @@ function EditableField({
             </p>
             <button
               onClick={() => { setDraft(value ?? ""); setEditing(true); }}
-              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0"
-              style={{ color: "rgba(255,255,255,0.5)" }}
+              className="flex items-center justify-center w-7 h-7 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 -mr-1"
+              style={{ color: "rgba(255,255,255,0.5)", minWidth: "28px", minHeight: "28px" }}
               aria-label={`Edit ${label}`}
             >
               <Edit2 className="w-3.5 h-3.5" />

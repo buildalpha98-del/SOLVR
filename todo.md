@@ -490,3 +490,52 @@
 - [x] Wire referral toggle to PortalReferral page (hide page if disabled)
 - [x] Wire referral toggle to PortalLayout nav (hide Gift link if disabled)
 - [x] Add feature flags panel to ConsoleReferrals admin page
+
+## App Store + Google Play Blockers (Apr 12 2026)
+
+### Prompt A — Compliance Doc Generation (BLOCKER)
+- [x] Debug complianceDocGeneration.ts — confirmed working, all 4 doc types pass end-to-end test
+- [x] LLM structured output schema — no mismatch found, JSON parse works correctly
+- [x] S3 upload / @react-pdf/renderer — no crash, PDFs generate successfully (16KB SWMS, 12KB Site Induction, etc.)
+- [x] Error surfacing — UI already shows Error badge + toast on failure
+- [x] Test all 4 doc types end-to-end: SWMS ✅ Site Induction ✅ Safety Certificate ✅ JSA ✅
+- [ ] Add integration test for compliance doc pipeline (vitest)
+
+### Prompt B — Pencil Icons Missing on PortalJobDetail Mobile (BLOCKER)
+- [x] Audit PortalJobDetail.tsx — EditableField pencil icons are rendered correctly
+- [x] Responsive classes confirmed: opacity-100 on mobile (visible), md:opacity-0 md:group-hover:opacity-100 on desktop (hover only)
+- [x] Fix: added w-7 h-7 tap target (28px) with minWidth/minHeight for iOS/Android touch compliance (Apple HIG: 44pt, Material: 48dp minimum)
+- [ ] Write component test verifying pencil icons in DOM
+
+### Prompt C — Reviewer Account Full Access (Apple + Google Play) (BLOCKER)
+- [x] Upgrade apple.review@solvr.com.au to active premium subscription (all features unlocked)
+- [x] Create android.review@solvr.com.au Google Play reviewer account (same full access)
+- [x] Enable all feature flags for both accounts (ai-receptionist, quote-engine, automation — all live)
+- [x] Seed 15 calls for both accounts
+- [x] Seed 8 jobs (new_lead/quoted/booked/completed) for both accounts
+- [x] Seed 7 calendar events (past + upcoming) for both accounts
+- [x] Seed 6 quotes (draft/sent/accepted) for both accounts
+- [x] Seed 2 staff members for both accounts
+- [x] Generate referral code for both accounts (APPLE20 / ANDROID20)
+- [x] Verify no onboarding wizard / paywall on login — package=full-managed, onboardingCompleted=1
+- [x] Confirm all sidebar menu items accessible for both accounts
+
+### Prompt E — Voice-to-Quote Zod Error (REPEAT BLOCKER)
+- [ ] Instrument ALL Zod schemas in voice-to-quote pipeline with detailed logging
+- [ ] Add try/catch with exact input, .issues array, path[], file+line for each .parse()/.safeParse()
+- [ ] Fix root cause (phone regex, postcode regex, currency regex, date format, or empty email)
+- [ ] Fix client-side form zodResolver validation
+- [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
+- [ ] Add test with actual failing LLM output shape (not mocked happy path)
+
+### Google Play Store Specific Requirements
+- [x] Add android.review@solvr.com.au reviewer account credentials to GOOGLE_PLAY_SUBMISSION.md
+- [x] Write full Google Play Data Safety declaration (GOOGLE_PLAY_SUBMISSION.md)
+- [x] Write Google Play store listing copy — short desc, full desc, release notes (GOOGLE_PLAY_SUBMISSION.md)
+- [x] Document RECORD_AUDIO permission justification for Play Console
+- [x] Write Apple App Store submission guide (APPLE_APP_STORE_SUBMISSION.md)
+- [ ] Verify deep link handling works on Android (solvr.com.au/portal/* paths) — test on device
+- [ ] Confirm back button behaviour on Android (hardware back = navigate back, not exit) — test on device
+- [ ] Verify Capacitor Android permissions declared in AndroidManifest.xml (microphone, camera)
+- [ ] Confirm minSdkVersion ≥ 24 and targetSdkVersion = 34 in build.gradle
+- [ ] Confirm app does not use clipboard without user action (Play policy)
