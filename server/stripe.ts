@@ -10,7 +10,43 @@ import { buildWelcomeEmail, buildTrialEndingEmail } from "./lib/onboardingEmails
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-// ─── DB helpers ──────────────────────────────────────────────────────────────
+// ─── Plan → package mapping ─────────────────────────────────────────────────
+/**
+ * Maps a Stripe plan key to the crmClients.package value.
+ *
+ * solvr_quotes  → setup-only    (dashboard + calls; quote-engine feature comes
+ *                                 from the clientProducts add-on activated separately)
+ * solvr_jobs    → setup-monthly (dashboard + calls + jobs)
+ * solvr_ai      → full-managed  (everything incl. AI insights)
+ * starter/professional (legacy) → full-managed
+ */
+function planToPackage(plan: string): "setup-only" | "setup-monthly" | "full-managed" {
+  if (plan === "solvr_quotes") return "setup-only";
+  if (plan === "solvr_jobs")   return "setup-monthly";
+  // solvr_ai, starter, professional, and any unknown new plans → full-managed
+  return "full-managed";
+}
+
+/**
+ * Update crmClients.package for a given clientId based on their Stripe plan.
+ * Non-fatal — logs on failure but does not throw.
+ */
+async function syncClientPackage(clientId: number, plan: string): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    const pkg = planToPackage(plan);
+    await db
+      .update(crmClients)
+      .set({ package: pkg, updatedAt: new Date() })
+      .where(eq(crmClients.id, clientId));
+    console.log(`[Webhook] Synced client ${clientId} package → ${pkg} (plan: ${plan})`);
+  } catch (err) {
+    console.error(`[Webhook] Failed to sync package for client ${clientId}:`, err);
+  }
+}
+
+// ─── DB helpers ───────────────────────────────────────────────────────────────
 
 async function createSubscriptionRecord(data: {
   email: string;
@@ -366,6 +402,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 });
               }
               console.log(`[Webhook] Portal upgrade: linked clientId ${portalClientId} to subscription ${subId}`);
+              // Auto-sync client.package based on the purchased plan
+              await syncClientPackage(portalClientId, plan);
             }
           } else {
             // Standard public signup — update by session ID
@@ -523,6 +561,18 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             .update(voiceAgentSubscriptions)
             .set({ status: mapped, updatedAt: new Date() })
             .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id));
+          // Sync client.package when plan changes (e.g. upgrade from solvr_jobs → solvr_ai)
+          const planKey = sub.metadata?.plan ?? "";
+          if (planKey) {
+            const subRow = await db
+              .select({ clientId: voiceAgentSubscriptions.clientId })
+              .from(voiceAgentSubscriptions)
+              .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id))
+              .then(rows => rows[0] ?? null);
+            if (subRow?.clientId) {
+              await syncClientPackage(subRow.clientId, planKey);
+            }
+          }
         }
         break;
       }
