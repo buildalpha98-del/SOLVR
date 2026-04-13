@@ -6,7 +6,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
+import { getLoginUrl, getSolvrOrigin } from "./const";
 import "./index.css";
 
 // ─── Capacitor bootstrap ─────────────────────────────────────────────────────
@@ -85,7 +85,11 @@ if (isNative) {
   })();
 }
 
-const API_BASE_URL = isNative ? "https://solvr.com.au" : "";
+// getSolvrOrigin() returns "https://solvr.com.au" on Capacitor (where
+// window.location.origin is "capacitor://localhost") and window.location.origin
+// on web. This replaces our old API_BASE_URL constant and is also used by all
+// raw fetch() calls across the codebase (upload-audio, upload-photo, Stripe
+// checkout, etc.) — see client/src/const.ts.
 
 const queryClient = new QueryClient();
 
@@ -119,7 +123,7 @@ queryClient.getMutationCache().subscribe(event => {
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: `${API_BASE_URL}/api/trpc`,
+      url: `${getSolvrOrigin()}/api/trpc`,
       transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {

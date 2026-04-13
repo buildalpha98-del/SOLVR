@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import { toast } from "sonner";
 import {
   ArrowLeft, MapPin, User, Phone, Mail, Home, Briefcase,
@@ -279,7 +280,7 @@ function PhotoSection({
       const fd = new FormData();
       fd.append("file", file);
       fd.append("photoType", photoType);
-      const res = await fetch("/api/portal/upload-photo", { method: "POST", credentials: "include", body: fd });
+      const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
       const { url } = await res.json() as { url: string };
       // imageKey is the S3 key — extract from URL path for now (server handles actual key)

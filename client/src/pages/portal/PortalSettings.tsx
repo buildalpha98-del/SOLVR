@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -869,7 +870,7 @@ function BillingSection() {
 
           {/* Manage button */}
           <Button
-            onClick={() => billingPortal.mutate({ origin: window.location.origin })}
+            onClick={() => billingPortal.mutate({ origin: getSolvrOrigin() })}
             disabled={billingPortal.isPending}
             className="w-full flex items-center justify-center gap-2"
             style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}

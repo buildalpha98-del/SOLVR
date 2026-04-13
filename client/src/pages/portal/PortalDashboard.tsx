@@ -13,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X, CalendarCheck, Receipt } from "lucide-react";
+import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X, CalendarCheck, Receipt, ChevronDown, ChevronUp, Mic } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -211,6 +211,18 @@ export default function PortalDashboard() {
 
   const { isSupported, isSubscribed, isLoading: pushLoading, subscribe, unsubscribe } = usePushNotifications();
 
+  // Collapsible AI Insights — collapsed by default, persisted in sessionStorage
+  const [insightCollapsed, setInsightCollapsed] = useState(() => {
+    try { return sessionStorage.getItem("solvr-insight-collapsed") !== "0"; } catch { return true; }
+  });
+  function toggleInsightCollapsed() {
+    setInsightCollapsed((v) => {
+      const next = !v;
+      try { sessionStorage.setItem("solvr-insight-collapsed", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }
+
   // Referral programme
   const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, { staleTime: Infinity });
   const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
@@ -359,6 +371,20 @@ export default function PortalDashboard() {
                 <QuickJobButton />
               </>
             )}
+            {/* Quick Quote CTA */}
+            {features.includes("quote-engine") && (
+              <>
+                <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
+                <button
+                  onClick={() => navigate("/portal/quotes?record=1")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
+                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.35)" }}
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                  Quick Quote
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -495,16 +521,20 @@ export default function PortalDashboard() {
               </div>
             )}
 
-            {/* AI Weekly Insight */}
+            {/* AI Weekly Insight — collapsible */}
             {hasInsights ? (
               <div
-                className="rounded-xl p-5"
+                className="rounded-xl"
                 style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.18)" }}
               >
-                <div className="flex items-center justify-between mb-4">
+                {/* Header row — always visible, acts as toggle */}
+                <button
+                  onClick={toggleInsightCollapsed}
+                  className="w-full flex items-center justify-between px-5 py-3 text-left"
+                >
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
-                    <h2 className="text-sm font-semibold text-white">AI Weekly Insight</h2>
+                    <span className="text-sm font-semibold text-white">AI Weekly Insight</span>
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
                       style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
@@ -512,39 +542,53 @@ export default function PortalDashboard() {
                       Full Managed
                     </span>
                   </div>
-                  <button
-                    onClick={() => refetchInsight()}
-                    disabled={insightFetching}
-                    className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
-                    style={{ color: "rgba(255,255,255,0.4)" }}
-                    title="Refresh insight"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${insightFetching ? "animate-spin" : ""}`} />
-                  </button>
-                </div>
-                {insightLoading || insightFetching ? (
-                  <div className="flex items-center gap-2 py-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-xs">Generating your weekly insight…</span>
+                  <div className="flex items-center gap-2">
+                    {!insightCollapsed && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); refetchInsight(); }}
+                        disabled={insightFetching}
+                        className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
+                        style={{ color: "rgba(255,255,255,0.4)" }}
+                        title="Refresh insight"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${insightFetching ? "animate-spin" : ""}`} />
+                      </button>
+                    )}
+                    {insightCollapsed
+                      ? <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.35)" }} />
+                      : <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.35)" }} />
+                    }
                   </div>
-                ) : insightData?.insight ? (
-                  <div className="text-sm leading-relaxed prose-sm" style={{ color: "rgba(255,255,255,0.78)" }}>
-                    <Streamdown>{insightData.insight}</Streamdown>
+                </button>
+
+                {/* Expandable body */}
+                {!insightCollapsed && (
+                  <div className="px-5 pb-5">
+                    {insightLoading || insightFetching ? (
+                      <div className="flex items-center gap-2 py-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-xs">Generating your weekly insight…</span>
+                      </div>
+                    ) : insightData?.insight ? (
+                      <div className="text-sm leading-relaxed prose-sm" style={{ color: "rgba(255,255,255,0.78)" }}>
+                        <Streamdown>{insightData.insight}</Streamdown>
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        No insight available yet — your AI receptionist needs a few calls to generate meaningful analysis.
+                      </p>
+                    )}
+                    {/* Shortcut to full AI Insights page */}
+                    <div className="mt-4 pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                      <Link href="/portal/insights">
+                        <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
+                          <Sparkles className="w-3 h-3" />
+                          Open AI Insights <ArrowRight className="w-3 h-3" />
+                        </span>
+                      </Link>
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    No insight available yet — your AI receptionist needs a few calls to generate meaningful analysis.
-                  </p>
                 )}
-                {/* Shortcut to full AI Insights page */}
-                <div className="mt-4 pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-                  <Link href="/portal/insights">
-                    <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
-                      <Sparkles className="w-3 h-3" />
-                      Open AI Insights <ArrowRight className="w-3 h-3" />
-                    </span>
-                  </Link>
-                </div>
               </div>
             ) : (
               <div

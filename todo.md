@@ -539,3 +539,25 @@
 - [ ] Verify Capacitor Android permissions declared in AndroidManifest.xml (microphone, camera)
 - [ ] Confirm minSdkVersion ≥ 24 and targetSdkVersion = 34 in build.gradle
 - [ ] Confirm app does not use clipboard without user action (Play policy)
+
+## App Store Submission Follow-up (Apr 12 2026)
+- [ ] Add 14-day free trial to Stripe checkout (trial_period_days: 14)
+- [ ] Update pricing page to show "14-day free trial" on all plans
+- [ ] Update promotional text / App Store copy to reflect free trial
+- [ ] Verify AndroidManifest.xml has RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES permissions
+- [ ] Confirm minSdkVersion >= 24 and targetSdkVersion = 34 in build.gradle
+- [ ] Add Capacitor Android back button handler (prevent accidental app exit)
+
+## URGENT: Voice-to-Quote Zod Error in Production (Apr 13 2026)
+- [ ] Confirm solvr.com.au is running latest code (commit 0f40c154)
+- [ ] Instrument ALL .parse()/.safeParse() calls in voice-to-quote pipeline with detailed error logging
+- [ ] Fix exact failing Zod schema field (phone regex, email, url, postcode, or currency)
+- [ ] Fix tRPC input schema in quotes.ts (any strict z.string().url() or z.string().email() on optional fields)
+- [ ] Deploy fix to production via checkpoint + publish
+- [ ] Verify fix on production by hitting /api/trpc/portal.createQuoteFromVoice
+
+## UX Improvements (Apr 13 2026)
+- [ ] Fix quote list: tappable rows, always-visible total + action buttons on mobile
+- [ ] Auto-create job in "quoted" status when a quote is created (link quote → job)
+- [ ] Dashboard: collapsible AI insights panel (collapsed by default on mobile)
+- [ ] Dashboard: Quick Quote floating button that opens voice recording directly

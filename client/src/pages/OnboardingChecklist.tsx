@@ -18,7 +18,7 @@ import { useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, getSolvrOrigin } from "@/const";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -533,7 +533,7 @@ export default function OnboardingChecklist() {
               completedAt={(checklist as unknown as ChecklistData).formSentAt}
               actionLabel="Generate & Send Form Link"
               actionIcon={<ClipboardList className="w-3 h-3" />}
-              onAction={() => sendOnboardingForm.mutate({ clientId, origin: window.location.origin })}
+              onAction={() => sendOnboardingForm.mutate({ clientId, origin: getSolvrOrigin() })}
               actionLoading={sendOnboardingForm.isPending}
               skippable
               onSkip={() => updateStep.mutate({ clientId, step: "formSent", status: "skipped" })}
@@ -707,7 +707,7 @@ export default function OnboardingChecklist() {
               completedAt={(checklist as unknown as ChecklistData).clientLiveAt}
               actionLabel="Go Live!"
               actionIcon={<Rocket className="w-3 h-3" />}
-              onAction={() => goLive.mutate({ clientId, origin: window.location.origin })}
+              onAction={() => goLive.mutate({ clientId, origin: getSolvrOrigin() })}
               actionLoading={goLive.isPending}
               skippable
               onSkip={() => updateStep.mutate({ clientId, step: "clientLive", status: "skipped" })}

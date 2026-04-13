@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { getSolvrOrigin } from "@/const";
 
 interface UpgradeButtonProps {
   plan: "starter" | "professional";
@@ -34,7 +35,7 @@ export function UpgradeButton({
       const result = await upgrade.mutateAsync({
         plan,
         billingCycle,
-        origin: window.location.origin,
+        origin: getSolvrOrigin(),
       });
       toast.success("Redirecting to secure checkout…");
       window.open(result.url, "_blank");
