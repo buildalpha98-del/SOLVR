@@ -3,7 +3,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb } from "./db";
 import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals } from "../drizzle/schema";
-import { VOICE_AGENT_PLANS, SOLVR_PLANS, type PlanKey, type BillingCycle } from "./stripeProducts";
+import { VOICE_AGENT_PLANS, SOLVR_PLANS, PRODUCT_ID_TO_PLAN, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
 import { buildWelcomeEmail, buildTrialEndingEmail } from "./lib/onboardingEmails";
@@ -561,16 +561,26 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             .update(voiceAgentSubscriptions)
             .set({ status: mapped, updatedAt: new Date() })
             .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id));
-          // Sync client.package when plan changes (e.g. upgrade from solvr_jobs → solvr_ai)
-          const planKey = sub.metadata?.plan ?? "";
-          if (planKey) {
+          // Sync client.package when plan changes (upgrade OR downgrade).
+          // Prefer metadata.plan (set at checkout). Fall back to resolving the
+          // plan from the subscription's line-item product ID so that downgrades
+          // via the Stripe billing portal (which don’t carry metadata) are also
+          // handled correctly.
+          let resolvedPlan: string = sub.metadata?.plan ?? "";
+          if (!resolvedPlan && sub.items?.data?.length) {
+            const productId = sub.items.data[0]?.price?.product as string | undefined;
+            if (productId && PRODUCT_ID_TO_PLAN[productId]) {
+              resolvedPlan = PRODUCT_ID_TO_PLAN[productId];
+            }
+          }
+          if (resolvedPlan) {
             const subRow = await db
               .select({ clientId: voiceAgentSubscriptions.clientId })
               .from(voiceAgentSubscriptions)
               .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id))
               .then(rows => rows[0] ?? null);
             if (subRow?.clientId) {
-              await syncClientPackage(subRow.clientId, planKey);
+              await syncClientPackage(subRow.clientId, resolvedPlan);
             }
           }
         }

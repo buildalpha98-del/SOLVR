@@ -222,6 +222,17 @@ export const VOICE_AGENT_PLANS: Record<string, PlanConfig_Legacy> = {
 };
 
 /**
+ * Reverse lookup: Stripe product ID → PlanKey.
+ * Used by the subscription.updated webhook to resolve the plan when metadata
+ * is absent (e.g. downgrade via the Stripe billing portal).
+ */
+export const PRODUCT_ID_TO_PLAN: Record<string, PlanKey> = {
+  [SOLVR_PLANS.solvr_quotes.stripeProductId]: "solvr_quotes",
+  [SOLVR_PLANS.solvr_jobs.stripeProductId]:   "solvr_jobs",
+  [SOLVR_PLANS.solvr_ai.stripeProductId]:     "solvr_ai",
+};
+
+/**
  * Quote Engine Add-on — legacy, kept for existing subscribers.
  * New subscribers use the solvr_quotes plan which includes this.
  */

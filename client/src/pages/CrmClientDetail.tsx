@@ -437,9 +437,35 @@ export default function CrmClientDetail() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400 text-sm">Package</span>
-                    <span className="text-white text-sm font-medium">{c.package ? PACKAGE_LABELS[c.package] || c.package : "—"}</span>
+                  {/* Package override — inline select, saves immediately */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400 text-sm">Package</span>
+                      <span
+                        className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                        style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}
+                        title="Override the auto-assigned package for this client"
+                      >
+                        override
+                      </span>
+                    </div>
+                    <select
+                      value={c.package || ""}
+                      onChange={async (e) => {
+                        const newPkg = e.target.value as "setup-only" | "setup-monthly" | "full-managed";
+                        try {
+                          await updateMutation.mutateAsync({ id: c.id, package: newPkg });
+                          toast.success(`Package updated → ${PACKAGE_LABELS[newPkg] ?? newPkg}`);
+                        } catch {
+                          toast.error("Failed to update package");
+                        }
+                      }}
+                      className="text-xs font-medium rounded-lg px-2 py-1 border border-white/10 bg-[#0A1628] text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50 cursor-pointer"
+                    >
+                      <option value="setup-only">Setup Only</option>
+                      <option value="setup-monthly">Setup + Monthly</option>
+                      <option value="full-managed">Full Managed</option>
+                    </select>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 text-sm">MRR</span>
