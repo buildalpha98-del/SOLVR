@@ -537,9 +537,18 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
       <SessionExpiryBanner sessionExpiresAt={me?.sessionExpiresAt} />
 
       {/* ── Page content ────────────────────────────────────────────────── */}
-      {/* Add bottom padding on mobile so content isn't hidden behind the tab bar */}
-      {/* pt-4 on mobile (safe-area already pushes header down); py-6 on desktop */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 pt-4 pb-24 md:py-6 md:pb-6">
+      {/*
+        Mobile bottom padding: tab bar is 60px tall + iOS home indicator safe area.
+        Using env(safe-area-inset-bottom) ensures content clears the home indicator
+        on notched iPhones (e.g. iPhone X–16). Extra 72px clears the tab bar itself.
+        On desktop (md+) we revert to a simple 24px bottom padding.
+      */}
+      <main
+        className="flex-1 max-w-6xl mx-auto w-full px-4 pt-4 md:py-6"
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 72px)",
+        }}
+      >
         {children}
       </main>
 
