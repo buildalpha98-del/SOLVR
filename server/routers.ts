@@ -597,6 +597,28 @@ const crmRouter = router({
           });
         }
       }
+      // If package changed, log it as a system audit interaction
+      if (data.package) {
+        const PACKAGE_LABELS: Record<string, string> = {
+          "setup-only": "Setup Only",
+          "setup-monthly": "Setup + Monthly",
+          "full-managed": "Full Managed",
+        };
+        const current = await getCrmClientById(id);
+        if (current && current.package !== data.package) {
+          const prevLabel = current.package ? (PACKAGE_LABELS[current.package] ?? current.package) : "(none)";
+          const newLabel = PACKAGE_LABELS[data.package] ?? data.package;
+          await insertCrmInteraction({
+            clientId: id,
+            type: "system",
+            title: `Package changed: ${prevLabel} → ${newLabel}`,
+            body: `Package manually overridden to “${newLabel}” via admin console.`,
+            fromStage: current.package ?? undefined,
+            toStage: data.package,
+            isPinned: false,
+          });
+        }
+      }
       await updateCrmClient(id, data);
       return { success: true };
     }),

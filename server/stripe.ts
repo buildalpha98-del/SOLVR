@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
-import { getDb } from "./db";
+import { getDb, insertCrmInteraction, getCrmClientById } from "./db";
 import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, SOLVR_PLANS, PRODUCT_ID_TO_PLAN, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
@@ -31,7 +31,12 @@ function planToPackage(plan: string): "setup-only" | "setup-monthly" | "full-man
  * Update crmClients.package for a given clientId based on their Stripe plan.
  * Non-fatal — logs on failure but does not throw.
  */
-async function syncClientPackage(clientId: number, plan: string): Promise<void> {
+async function syncClientPackage(
+  clientId: number,
+  plan: string,
+  source: "stripe-webhook" | "admin-override" = "stripe-webhook",
+  previousPackage?: string,
+): Promise<void> {
   try {
     const db = await getDb();
     if (!db) return;
@@ -40,7 +45,30 @@ async function syncClientPackage(clientId: number, plan: string): Promise<void> 
       .update(crmClients)
       .set({ package: pkg, updatedAt: new Date() })
       .where(eq(crmClients.id, clientId));
-    console.log(`[Webhook] Synced client ${clientId} package → ${pkg} (plan: ${plan})`);
+    console.log(`[Webhook] Synced client ${clientId} package → ${pkg} (plan: ${plan}, source: ${source})`);
+    // ── Audit log ──────────────────────────────────────────────────────────────────
+    const PACKAGE_LABELS: Record<string, string> = {
+      "setup-only": "Setup Only",
+      "setup-monthly": "Setup + Monthly",
+      "full-managed": "Full Managed",
+    };
+    const pkgLabel = PACKAGE_LABELS[pkg] ?? pkg;
+    const prevLabel = previousPackage ? (PACKAGE_LABELS[previousPackage] ?? previousPackage) : null;
+    const sourceLabel = source === "admin-override" ? "admin override" : "Stripe webhook";
+    const title = prevLabel
+      ? `Package changed: ${prevLabel} → ${pkgLabel}`
+      : `Package set to ${pkgLabel}`;
+    const body = source === "admin-override"
+      ? `Package manually overridden to “${pkgLabel}” via admin console.`
+      : `Package automatically updated to “${pkgLabel}” via ${sourceLabel} (Stripe plan: ${plan}).`;
+    await insertCrmInteraction({
+      clientId,
+      type: "system",
+      title,
+      body,
+      fromStage: previousPackage ?? undefined,
+      toStage: pkg,
+    });
   } catch (err) {
     console.error(`[Webhook] Failed to sync package for client ${clientId}:`, err);
   }
@@ -403,7 +431,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               }
               console.log(`[Webhook] Portal upgrade: linked clientId ${portalClientId} to subscription ${subId}`);
               // Auto-sync client.package based on the purchased plan
-              await syncClientPackage(portalClientId, plan);
+              const prevClient = await getCrmClientById(portalClientId);
+              await syncClientPackage(portalClientId, plan, "stripe-webhook", prevClient?.package ?? undefined);
             }
           } else {
             // Standard public signup — update by session ID
@@ -580,7 +609,8 @@ export async function handleStripeWebhook(req: Request, res: Response) {
               .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id))
               .then(rows => rows[0] ?? null);
             if (subRow?.clientId) {
-              await syncClientPackage(subRow.clientId, resolvedPlan);
+              const prevClientRow = await getCrmClientById(subRow.clientId);
+              await syncClientPackage(subRow.clientId, resolvedPlan, "stripe-webhook", prevClientRow?.package ?? undefined);
             }
           }
         }
