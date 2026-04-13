@@ -555,3 +555,9 @@
 - [ ] Fix tRPC input schema in quotes.ts (any strict z.string().url() or z.string().email() on optional fields)
 - [ ] Deploy fix to production via checkpoint + publish
 - [ ] Verify fix on production by hitting /api/trpc/portal.createQuoteFromVoice
+
+## UX Improvements (Apr 13 2026)
+- [ ] Fix quote list: tappable rows, always-visible total + action buttons on mobile
+- [ ] Auto-create job in "quoted" status when a quote is created (link quote → job)
+- [ ] Dashboard: collapsible AI insights panel (collapsed by default on mobile)
+- [ ] Dashboard: Quick Quote floating button that opens voice recording directly

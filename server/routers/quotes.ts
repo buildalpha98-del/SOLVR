@@ -219,6 +219,27 @@ export const quotesRouter = router({
       });
 
       await insertQuoteLineItems(lineItemsWithTotals);
+
+      // Auto-create a linked job in "quoted" stage so it appears in the Jobs tab
+      try {
+        const customerStatusToken = randomBytes(32).toString("hex");
+        await createPortalJob({
+          clientId,
+          jobType: input.jobTitle,
+          description: input.jobDescription ?? null,
+          stage: "quoted",
+          sourceQuoteId: quoteId,
+          quotedAmount: financials.totalAmount,
+          customerName: input.customerName ?? null,
+          customerEmail: input.customerEmail ?? null,
+          customerPhone: input.customerPhone ?? null,
+          customerAddress: input.customerAddress ?? null,
+          customerStatusToken,
+        });
+      } catch {
+        // Non-fatal — don't block quote creation if job creation fails
+      }
+
       return { quoteId, quoteNumber };
     }),
 
@@ -342,6 +363,28 @@ export const quotesRouter = router({
 
         await insertQuoteLineItems(lineItemsWithTotals);
         console.log("[VTQ-DEBUG] Line items inserted OK", lineItemsWithTotals.length);
+
+        // Auto-create a linked job in "quoted" stage so it appears in the Jobs tab
+        try {
+          const customerStatusToken = randomBytes(32).toString("hex");
+          await createPortalJob({
+            clientId,
+            jobType: extracted.jobTitle,
+            description: extracted.jobDescription ?? null,
+            stage: "quoted",
+            sourceQuoteId: quoteId,
+            quotedAmount: financials.totalAmount,
+            customerName: extracted.customerName ?? null,
+            customerEmail: extracted.customerEmail ?? null,
+            customerPhone: extracted.customerPhone ?? null,
+            customerAddress: extracted.customerAddress ?? null,
+            customerStatusToken,
+          });
+          console.log("[VTQ-DEBUG] Linked job created OK (stage=quoted)");
+        } catch (jobErr) {
+          // Non-fatal — don't block quote creation if job creation fails
+          console.warn("[VTQ-DEBUG] Job creation failed (non-fatal):", jobErr);
+        }
 
         // Log extractionWarnings to the CRM timeline if any were flagged
         if (extracted.extractionWarnings && extracted.extractionWarnings.length > 0) {

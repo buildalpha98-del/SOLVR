@@ -134,6 +134,19 @@ export default function PortalQuotes() {
     }
   }, []);
 
+  // Handle ?record=1 from Quick Quote dashboard button — auto-open voice recording modal
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("record") !== "1") return;
+    setShowNewModal(true);
+    setNewMode("voice");
+    // Clean up the URL param
+    const url = new URL(window.location.href);
+    url.searchParams.delete("record");
+    window.history.replaceState({}, "", url.toString());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Handle ?prefill=1 from JobCard — pre-populate the manual form and auto-open the modal
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -424,7 +437,7 @@ export default function PortalQuotes() {
             .map((q: NonNullable<typeof quotes>[number]) => (
             <div
               key={q.id}
-              className="rounded-xl border p-4 flex items-center gap-4 group"
+              className="rounded-xl border p-4 flex items-center gap-4 group cursor-pointer active:opacity-80 transition-opacity"
               style={{
                 borderColor: (q as typeof q & { hasWarnings?: boolean }).hasWarnings
                   ? "rgba(245,166,35,0.3)"
@@ -433,6 +446,7 @@ export default function PortalQuotes() {
                   ? "rgba(245,166,35,0.04)"
                   : "rgba(255,255,255,0.02)",
               }}
+              onClick={() => navigate(`/portal/quotes/${q.id}`)}
             >
               {/* Quote number + title */}
               <div className="flex-1 min-w-0">
@@ -458,22 +472,26 @@ export default function PortalQuotes() {
                 )}
               </div>
 
-              {/* Total */}
-              <div className="text-right hidden sm:block">
+              {/* Total + date — always visible */}
+              <div className="text-right shrink-0">
                 <p className="font-bold text-white">{fmtAUD(q.totalAmount)}</p>
                 <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
                   {fmtDate(q.createdAt)}
                 </p>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Actions — always visible on mobile, hover-reveal on desktop */}
+              <div
+                className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="w-8 h-8 text-white/50 hover:text-white"
-                  onClick={() => navigate(`/portal/quotes/${q.id}`)}
+                  className="w-9 h-9 text-white/50 hover:text-white"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/portal/quotes/${q.id}`); }}
                   title="View / Edit"
+                  style={{ minWidth: 36, minHeight: 36 }}
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
@@ -481,9 +499,10 @@ export default function PortalQuotes() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="w-8 h-8 text-red-400/60 hover:text-red-400"
-                    onClick={() => handleDelete(q.id, q.quoteNumber)}
+                    className="w-9 h-9 text-red-400/60 hover:text-red-400"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(q.id, q.quoteNumber); }}
                     title="Delete"
+                    style={{ minWidth: 36, minHeight: 36 }}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
