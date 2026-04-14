@@ -85,7 +85,20 @@ CORE EXTRACTION RULES
     - A price that seems anomalous vs the memory file (>50% variance)
     - A line item with no price where a memory file price exists but wasn't applied (explain why)
     - Any ambiguity in the transcript that required a judgement call
-    - Leave the array empty [] if no warnings apply.`;
+    - Leave the array empty [] if no warnings apply.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MULTILINGUAL SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+14. LANGUAGE HANDLING — the transcript may be in ANY language (Arabic, Mandarin, Cantonese, Hindi, Vietnamese, Greek, or any other language):
+    - Accept and understand the transcript regardless of the language it is written in.
+    - ALL output fields (jobTitle, jobDescription, line item descriptions, notes, paymentTerms, extractionWarnings) MUST be written in professional Australian English.
+    - Translate naturally — do not transliterate. Use professional Australian trade terminology in the output.
+    - If the tradie mixes languages (e.g. Arabic sentence with English trade terms), handle gracefully — extract the meaning and output English.
+    - Australian trade slang spoken in another language should be mapped to its English equivalent (e.g. Arabic equivalent of "call-out fee" → "Call-Out Fee").
+    - Customer details (name, address) should be preserved as spoken — do not translate proper nouns.
+    - If the transcript language is detected, note it as an informational entry in extractionWarnings: "Transcript language: [Language]" (informational only, not an error).`;
 
 const QUOTE_EXTRACTION_SCHEMA = {
   type: "object",

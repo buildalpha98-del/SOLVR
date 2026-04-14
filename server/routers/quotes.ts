@@ -286,7 +286,7 @@ export const quotesRouter = router({
       try {
         // Step 1: Transcribe
         console.log("[VTQ-DEBUG] Step 1: starting transcription");
-        const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
+        const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl }); // no language lock — Whisper auto-detects for multilingual support
         if ("error" in transcriptionResult) {
           console.error("[VTQ-DEBUG] Transcription error:", transcriptionResult);
           throw new Error(transcriptionResult.details ?? transcriptionResult.error);
@@ -408,7 +408,7 @@ export const quotesRouter = router({
           }
         }
 
-        return { quoteId, quoteNumber, transcript: transcription.text, extracted };
+        return { quoteId, quoteNumber, transcript: transcription.text, detectedLanguage: transcription.language ?? null, extracted };
       } catch (err) {
         // ── DETAILED ERROR LOGGING for production diagnosis ──────────────────────────
         const errMsg = err instanceof Error ? err.message : String(err);

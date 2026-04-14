@@ -561,3 +561,8 @@
 - [ ] Auto-create job in "quoted" status when a quote is created (link quote → job)
 - [ ] Dashboard: collapsible AI insights panel (collapsed by default on mobile)
 - [ ] Dashboard: Quick Quote floating button that opens voice recording directly
+
+- [x] Update quoteExtraction.ts system prompt for multilingual input → English output
+- [x] Update voice onboarding extraction prompt for multilingual input → English output
+- [x] Add detected-language badge to voice recording modal UI
+- [x] Add detected-language badge to voice onboarding UI

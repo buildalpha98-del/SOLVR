@@ -27,7 +27,7 @@ import {
 import { toast } from "sonner";
 import {
   Mic, MicOff, Loader2, CheckCircle2,
-  AlertCircle, Volume2, Sparkles, Square,
+  AlertCircle, Volume2, Sparkles, Square, Globe,
 } from "lucide-react";
 import type { OnboardingExtraction } from "../../../../server/_core/onboardingExtraction";
 
@@ -325,6 +325,7 @@ export default function VoiceOnboarding() {
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
   const [missingValues, setMissingValues] = useState<Record<string, string>>({});
   const [showTranscript, setShowTranscript] = useState(false);
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
 
   // Review form state (pre-filled from extraction, editable)
   const [form, setForm] = useState<Partial<OnboardingExtraction>>({});
@@ -426,6 +427,9 @@ export default function VoiceOnboarding() {
       setTranscript(result.transcript);
       setExtraction(result.extraction);
       setMissingFields(result.missingFields as MissingField[]);
+      if (result.detectedLanguage && result.detectedLanguage !== "en") {
+        setDetectedLanguage(result.detectedLanguage);
+      }
       setForm({ ...result.extraction });
       const mv: Record<string, string> = {};
       for (const f of result.missingFields) mv[f.key] = "";
@@ -579,6 +583,16 @@ export default function VoiceOnboarding() {
                 We've filled in what we could. Review each section — tap the mic icon to re-record just that part.
               </p>
             </div>
+
+            {/* Language detection badge */}
+            {detectedLanguage && detectedLanguage !== "en" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)" }}>
+                <Globe className="w-4 h-4 flex-shrink-0" style={{ color: "#60A5FA" }} />
+                <span className="text-xs font-medium" style={{ color: "#60A5FA" }}>
+                  Voice detected in {detectedLanguage.toUpperCase()} — profile extracted and translated to English
+                </span>
+              </div>
+            )}
 
             {/* Transcript toggle */}
             {transcript && (

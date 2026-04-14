@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Mic, StopCircle, Plus, FileText, Eye, Trash2,
-  Loader2, CheckCircle, XCircle, Pencil, AlertTriangle,
+  Loader2, CheckCircle, XCircle, Pencil, AlertTriangle, Globe,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -210,6 +210,7 @@ export default function PortalQuotes() {
   // Multi-stage progress for voice processing
   type VoiceStage = "idle" | "uploading" | "transcribing" | "extracting" | "done";
   const [voiceStage, setVoiceStage] = useState<VoiceStage>("idle");
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
   const VOICE_STAGES: { key: VoiceStage; label: string; detail: string }[] = [
     { key: "uploading",    label: "Uploading audio",      detail: "Sending your recording securely…" },
     { key: "transcribing", label: "Transcribing speech",   detail: "Converting your voice to text…" },
@@ -277,6 +278,9 @@ export default function PortalQuotes() {
       });
       clearTimeout(extractingTimer);
       setVoiceStage("done");
+      if (result.detectedLanguage && result.detectedLanguage !== 'en') {
+        setDetectedLanguage(result.detectedLanguage);
+      }
       await utils.quotes.list.invalidate();
       toast.success(`Quote ${result.quoteNumber} created!`);
       // Brief pause so the user sees the "done" state
@@ -514,7 +518,7 @@ export default function PortalQuotes() {
       )}
 
       {/* ── New Quote modal ─────────────────────────────────────────────── */}
-      <Dialog open={showNewModal} onOpenChange={(o) => { setShowNewModal(o); if (!o) { setNewMode(null); voice.reset(); } }}>
+      <Dialog open={showNewModal} onOpenChange={(o) => { setShowNewModal(o); if (!o) { setNewMode(null); voice.reset(); setDetectedLanguage(null); } }}>
         <DialogContent
           className="max-w-lg"
           style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
@@ -663,6 +667,14 @@ export default function PortalQuotes() {
                             </span>
                           </div>
                           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>{current.detail}</p>
+                          {detectedLanguage && voiceStage === "done" && detectedLanguage !== "en" && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <Globe className="w-3.5 h-3.5" style={{ color: "#60A5FA" }} />
+                              <span className="text-xs font-medium" style={{ color: "#60A5FA" }}>
+                                Detected: {detectedLanguage.toUpperCase()} — translated to English
+                              </span>
+                            </div>
+                          )}
                         </div>
                       ) : null;
                     })()}

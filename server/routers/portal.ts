@@ -1379,7 +1379,7 @@ export const portalRouter = router({
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
 
       // Step 1: Transcribe
-      const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
+      const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl }); // no language lock — Whisper auto-detects for multilingual support
       if ("error" in transcriptionResult) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -1401,6 +1401,7 @@ export const portalRouter = router({
         transcript,
         extraction,
         missingFields,
+        detectedLanguage: transcriptionResult.language ?? null,
       };
     }),
 
