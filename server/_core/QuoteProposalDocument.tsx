@@ -379,8 +379,28 @@ function formatDate(d: Date | string | null | undefined): string {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+// Map of ISO-639-1 language codes to their native-language translation of "QUOTE"
+const QUOTE_TRANSLATIONS: Record<string, string> = {
+  ar: "عرض أسعار",
+  zh: "报价单",
+  hi: "कोटेशन",
+  vi: "Báo giá",
+  el: "Προσφορά",
+  it: "Preventivo",
+  ko: "견적서",
+  fr: "Devis",
+  es: "Presupuesto",
+  de: "Angebot",
+  pt: "Orçamento",
+  tr: "Teklif",
+  ru: "Смета",
+  ja: "見積書",
+};
+
 export interface QuoteProposalPdfInput {
   acceptUrl?: string | null;
+  /** ISO-639-1 language code of the original voice recording (e.g. "ar", "zh"). Used to render a translated subtitle in the PDF header. */
+  detectedLanguage?: string | null;
   quote: {
     quoteNumber: string;
     jobTitle: string;
@@ -444,6 +464,11 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.quoteLabel}>QUOTE</Text>
+          {input.detectedLanguage && input.detectedLanguage !== "en" && QUOTE_TRANSLATIONS[input.detectedLanguage] && (
+            <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginTop: 2, textAlign: "right" }}>
+              {QUOTE_TRANSLATIONS[input.detectedLanguage]}
+            </Text>
+          )}
           <Text style={styles.quoteNumber}>{quote.quoteNumber}</Text>
         </View>
       </View>

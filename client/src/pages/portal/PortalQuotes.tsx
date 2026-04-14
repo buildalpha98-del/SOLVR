@@ -211,6 +211,7 @@ export default function PortalQuotes() {
   type VoiceStage = "idle" | "uploading" | "transcribing" | "extracting" | "done";
   const [voiceStage, setVoiceStage] = useState<VoiceStage>("idle");
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [languageOverride, setLanguageOverride] = useState<string>("auto");
   const VOICE_STAGES: { key: VoiceStage; label: string; detail: string }[] = [
     { key: "uploading",    label: "Uploading audio",      detail: "Sending your recording securely…" },
     { key: "transcribing", label: "Transcribing speech",   detail: "Converting your voice to text…" },
@@ -275,6 +276,7 @@ export default function PortalQuotes() {
       const result = await processVoiceMutation.mutateAsync({
         audioUrl,
         durationSeconds: voice.durationSeconds,
+        ...(languageOverride !== "auto" ? { languageOverride } : {}),
       });
       clearTimeout(extractingTimer);
       setVoiceStage("done");
@@ -632,10 +634,45 @@ export default function PortalQuotes() {
                   </div>
                 )}
               </div>
+              {/* Language override selector — shown when recording is complete */}
+              {voice.audioBlob && !processingVoice && !uploadingAudio && (
+                <div className="px-1 pb-2">
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    <Globe className="w-3 h-3 inline mr-1" />
+                    Language spoken
+                  </label>
+                  <select
+                    value={languageOverride}
+                    onChange={(e) => setLanguageOverride(e.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-sm font-medium"
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      color: "#fff",
+                      outline: "none",
+                    }}
+                  >
+                    <option value="auto">🌐 Auto-detect (recommended)</option>
+                    <option value="en">🇦🇺 English</option>
+                    <option value="ar">🇱🇧 Arabic (عربي)</option>
+                    <option value="zh">🇨🇳 Mandarin (普通话)</option>
+                    <option value="hi">🇮🇳 Hindi (हिन्दी)</option>
+                    <option value="vi">🇻🇳 Vietnamese (Tiếng Việt)</option>
+                    <option value="el">🇬🇷 Greek (Ελληνικά)</option>
+                    <option value="it">🇮🇹 Italian (Italiano)</option>
+                    <option value="ko">🇰🇷 Korean (한국어)</option>
+                  </select>
+                  {languageOverride !== "auto" && (
+                    <p className="text-xs mt-1" style={{ color: "rgba(245,166,35,0.7)" }}>
+                      Whisper will transcribe in {languageOverride.toUpperCase()} and the AI will produce an English quote.
+                    </p>
+                  )}
+                </div>
+              )}
               <DialogFooter className="gap-2">
                 <Button
                   variant="ghost"
-                  onClick={() => { setNewMode(null); voice.reset(); }}
+                  onClick={() => { setNewMode(null); voice.reset(); setLanguageOverride("auto"); }}
                   className="text-white/50"
                 >
                   Back

@@ -566,3 +566,8 @@
 - [x] Update voice onboarding extraction prompt for multilingual input → English output
 - [x] Add detected-language badge to voice recording modal UI
 - [x] Add detected-language badge to voice onboarding UI
+
+- [x] Language selector dropdown in voice recording modal (PortalQuotes)
+- [x] Language selector dropdown in voice onboarding (VoiceOnboarding)
+- [x] Pass detected/selected language to PDF generation
+- [x] Add translated subtitle to quote PDF header for non-English languages

@@ -773,6 +773,9 @@ export const quotes = mysqlTable("quotes", {
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** S3 key of the generated PDF */
   pdfKey: varchar("pdfKey", { length: 512 }),
+  //  Language 
+  /** ISO-639-1 code detected by Whisper (e.g. "ar", "zh", "hi"). Null means English or undetected. */
+  detectedLanguage: varchar("detectedLanguage", { length: 10 }),
   //  Warnings 
   /** Set to true once the tradie has reviewed and dismissed AI extraction warnings */
   warningsAcknowledged: boolean("warningsAcknowledged").default(false).notNull(),

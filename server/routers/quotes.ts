@@ -256,6 +256,8 @@ export const quotesRouter = router({
         // when the server fetches it for transcription.
         audioUrl: z.string().min(1),
         durationSeconds: z.number().int().nonnegative().max(300).optional(),
+        /** ISO-639-1 language code override (e.g. "ar", "zh", "hi"). When provided, Whisper skips auto-detection. */
+        languageOverride: z.string().min(2).max(10).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -286,7 +288,10 @@ export const quotesRouter = router({
       try {
         // Step 1: Transcribe
         console.log("[VTQ-DEBUG] Step 1: starting transcription");
-        const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl }); // no language lock — Whisper auto-detects for multilingual support
+        const transcriptionResult = await transcribeAudio({
+          audioUrl: input.audioUrl,
+          ...(input.languageOverride ? { language: input.languageOverride } : {}),
+        }); // languageOverride forces a specific language; otherwise Whisper auto-detects
         if ("error" in transcriptionResult) {
           console.error("[VTQ-DEBUG] Transcription error:", transcriptionResult);
           throw new Error(transcriptionResult.details ?? transcriptionResult.error);
@@ -358,6 +363,7 @@ export const quotesRouter = router({
           notes: extracted.notes ?? null,
           customerToken,
           voiceRecordingId: recordingId,
+          detectedLanguage: transcription.language ?? null,
         });
         console.log("[VTQ-DEBUG] Quote inserted OK");
 
@@ -670,6 +676,7 @@ export const quotesRouter = router({
 
       const pdfBuffer = await generateQuotePdf({
         acceptUrl,
+        detectedLanguage: quote.detectedLanguage ?? null,
         quote: {
           quoteNumber: quote.quoteNumber,
           jobTitle: quote.jobTitle,
