@@ -11,7 +11,23 @@ import {
 import type { QuoteReportContent } from "./reportGeneration";
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
-// Using built-in Helvetica — no external font registration needed for PDF
+// Using built-in Helvetica for LTR languages.
+// Noto Sans Arabic is registered for Arabic (ar) to support RTL text rendering.
+Font.register({
+  family: "NotoSansArabic",
+  fonts: [
+    {
+      src: "https://fonts.gstatic.com/s/notosansarabic/v18/nwpxtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlhQ5l3sQWIHPqzCfyGybdQ.woff",
+      fontWeight: "normal",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/notosansarabic/v18/nwpxtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlhQ5l3sQWIHPqzCfyGyb9w.woff",
+      fontWeight: "bold",
+    },
+  ],
+});
+// Disable hyphenation for Arabic (words must not be split)
+Font.registerHyphenationCallback((word) => [word]);
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -728,6 +744,26 @@ function getPdfLabels(detectedLanguage?: string | null): PdfLabels {
   return PDF_LABELS[detectedLanguage] ?? EN_LABELS;
 }
 
+/** True when the detected language uses RTL script (currently Arabic only). */
+function isRTL(lang?: string | null): boolean {
+  return lang === "ar";
+}
+
+/**
+ * Returns style overrides for RTL pages:
+ * - fontFamily: NotoSansArabic (supports Arabic glyphs)
+ * - direction + textAlign: right-to-left
+ */
+function rtlStyle(lang?: string | null) {
+  if (!isRTL(lang)) return {};
+  return { fontFamily: "NotoSansArabic", direction: "rtl" as const, textAlign: "right" as const };
+}
+
+function rtlBoldStyle(lang?: string | null) {
+  if (!isRTL(lang)) return {};
+  return { fontFamily: "NotoSansArabic", fontWeight: "bold" as const, direction: "rtl" as const, textAlign: "right" as const };
+}
+
 export interface QuoteProposalPdfInput {
   acceptUrl?: string | null;
   /** ISO-639-1 language code of the original voice recording (e.g. "ar", "zh"). Used to render a translated subtitle in the PDF header. */
@@ -779,9 +815,14 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
   const primary = branding.primaryColor || "#1F2937";
   const accent = branding.secondaryColor || "#2563EB";
   const L = getPdfLabels(input.detectedLanguage);
+  const lang = input.detectedLanguage;
+  // RTL: base page font overrides for Arabic
+  const pageStyle = isRTL(lang)
+    ? [styles.page, { fontFamily: "NotoSansArabic" }]
+    : styles.page;
 
   return (
-    <Page size="A4" style={styles.page}>
+    <Page size="A4" style={pageStyle}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: primary }]}>
         <View style={styles.headerLeft}>
@@ -819,48 +860,48 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
 
       <View style={styles.body}>
         {/* Customer + Job info */}
-        <View style={styles.infoRow}>
+        <View style={isRTL(lang) ? [styles.infoRow, { flexDirection: "row-reverse" }] : styles.infoRow}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>{L.preparedFor}</Text>
+            <Text style={[styles.infoBoxTitle, rtlStyle(lang)]}>{L.preparedFor}</Text>
             {quote.customerName && (
-              <Text style={styles.infoTextBold}>{quote.customerName}</Text>
+              <Text style={[styles.infoTextBold, rtlStyle(lang)]}>{quote.customerName}</Text>
             )}
             {quote.customerAddress && (
-              <Text style={styles.infoText}>{quote.customerAddress}</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>{quote.customerAddress}</Text>
             )}
             {quote.customerPhone && (
-              <Text style={styles.infoText}>{quote.customerPhone}</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>{quote.customerPhone}</Text>
             )}
             {quote.customerEmail && (
-              <Text style={styles.infoText}>{quote.customerEmail}</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>{quote.customerEmail}</Text>
             )}
             {!quote.customerName && !quote.customerAddress && (
-              <Text style={styles.infoText}>—</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>—</Text>
             )}
           </View>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>{L.job}</Text>
-            <Text style={styles.infoTextBold}>{quote.jobTitle}</Text>
+            <Text style={[styles.infoBoxTitle, rtlStyle(lang)]}>{L.job}</Text>
+            <Text style={[styles.infoTextBold, rtlStyle(lang)]}>{quote.jobTitle}</Text>
             {quote.jobDescription && (
-              <Text style={[styles.infoText, { marginTop: 4 }]}>{quote.jobDescription}</Text>
+              <Text style={[styles.infoText, { marginTop: 4 }, rtlStyle(lang)]}>{quote.jobDescription}</Text>
             )}
           </View>
         </View>
 
         {/* Line items */}
-        <Text style={styles.sectionHeading}>{L.scopeAndPricing}</Text>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.colDesc, styles.colHeaderText]}>{L.description}</Text>
-          <Text style={[styles.colQty, styles.colHeaderText]}>{L.qty}</Text>
-          <Text style={[styles.colUnit, styles.colHeaderText]}>{L.unit}</Text>
-          <Text style={[styles.colPrice, styles.colHeaderText]}>{L.unitPrice}</Text>
-          <Text style={[styles.colTotal, styles.colHeaderText]}>{L.total}</Text>
+        <Text style={[styles.sectionHeading, rtlStyle(lang)]}>{L.scopeAndPricing}</Text>
+        <View style={isRTL(lang) ? [styles.tableHeader, { flexDirection: "row-reverse" }] : styles.tableHeader}>
+          <Text style={[styles.colDesc, styles.colHeaderText, rtlStyle(lang)]}>{L.description}</Text>
+          <Text style={[styles.colQty, styles.colHeaderText, rtlStyle(lang)]}>{L.qty}</Text>
+          <Text style={[styles.colUnit, styles.colHeaderText, rtlStyle(lang)]}>{L.unit}</Text>
+          <Text style={[styles.colPrice, styles.colHeaderText, rtlStyle(lang)]}>{L.unitPrice}</Text>
+          <Text style={[styles.colTotal, styles.colHeaderText, rtlStyle(lang)]}>{L.total}</Text>
         </View>
         {lineItems.map((li, i) => (
-          <View key={i} style={styles.tableRow}>
-            <Text style={styles.colDesc}>{li.description}</Text>
-            <Text style={styles.colQty}>{li.quantity}</Text>
-            <Text style={styles.colUnit}>{li.unit ?? "each"}</Text>
+          <View key={i} style={isRTL(lang) ? [styles.tableRow, { flexDirection: "row-reverse" }] : styles.tableRow}>
+            <Text style={[styles.colDesc, rtlStyle(lang)]}>{li.description}</Text>
+            <Text style={[styles.colQty, rtlStyle(lang)]}>{li.quantity}</Text>
+            <Text style={[styles.colUnit, rtlStyle(lang)]}>{li.unit ?? "each"}</Text>
             <Text style={styles.colPrice}>{formatCurrency(li.unitPrice)}</Text>
             <Text style={styles.colTotal}>{formatCurrency(li.lineTotal)}</Text>
           </View>
@@ -869,15 +910,15 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {/* Totals */}
         <View style={styles.totalsBlock}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{L.subtotal}</Text>
+            <Text style={[styles.totalLabel, rtlStyle(lang)]}>{L.subtotal}</Text>
             <Text style={styles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{L.gst} ({quote.gstRate}%)</Text>
+            <Text style={[styles.totalLabel, rtlStyle(lang)]}>{L.gst} ({quote.gstRate}%)</Text>
             <Text style={styles.totalValue}>{formatCurrency(quote.gstAmount)}</Text>
           </View>
           <View style={[styles.totalRow, { marginTop: 4 }]}>
-            <Text style={styles.grandTotalLabel}>{L.grandTotal}</Text>
+            <Text style={[styles.grandTotalLabel, rtlBoldStyle(lang)]}>{L.grandTotal}</Text>
             <Text style={[styles.grandTotalValue, { color: accent }]}>
               {formatCurrency(quote.totalAmount)}
             </Text>
@@ -885,46 +926,46 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         </View>
 
         {/* Terms */}
-        <View style={styles.termsRow}>
+        <View style={isRTL(lang) ? [styles.termsRow, { flexDirection: "row-reverse" }] : styles.termsRow}>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>{L.paymentTerms}</Text>
-            <Text style={styles.termValue}>{quote.paymentTerms ?? "Due on completion"}</Text>
+            <Text style={[styles.termLabel, rtlBoldStyle(lang)]}>{L.paymentTerms}</Text>
+            <Text style={[styles.termValue, rtlStyle(lang)]}>{quote.paymentTerms ?? "Due on completion"}</Text>
           </View>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>{L.validUntil}</Text>
-            <Text style={styles.termValue}>{formatDate(quote.validUntil)}</Text>
+            <Text style={[styles.termLabel, rtlBoldStyle(lang)]}>{L.validUntil}</Text>
+            <Text style={[styles.termValue, rtlStyle(lang)]}>{formatDate(quote.validUntil)}</Text>
           </View>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>{L.preparedBy}</Text>
-            <Text style={styles.termValue}>{branding.businessName}</Text>
+            <Text style={[styles.termLabel, rtlBoldStyle(lang)]}>{L.preparedBy}</Text>
+            <Text style={[styles.termValue, rtlStyle(lang)]}>{branding.businessName}</Text>
           </View>
         </View>
 
         {/* Notes */}
         {quote.notes && (
           <View style={styles.notesBox}>
-            <Text style={styles.notesText}>{quote.notes}</Text>
+            <Text style={[styles.notesText, rtlStyle(lang)]}>{quote.notes}</Text>
           </View>
         )}
 
         {/* Signature / Acceptance block */}
-        <View style={styles.signatureBlock}>
+        <View style={isRTL(lang) ? [styles.signatureBlock, { flexDirection: "row-reverse" }] : styles.signatureBlock}>
           <View style={styles.signatureItem}>
-            <Text style={styles.signatureLabel}>{L.customerSignature}</Text>
+            <Text style={[styles.signatureLabel, rtlBoldStyle(lang)]}>{L.customerSignature}</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureSubLabel}>{L.signatureDate}</Text>
+            <Text style={[styles.signatureSubLabel, rtlStyle(lang)]}>{L.signatureDate}</Text>
           </View>
           <View style={styles.signatureItem}>
-            <Text style={styles.signatureLabel}>{L.authorisedBy} ({branding.businessName})</Text>
+            <Text style={[styles.signatureLabel, rtlBoldStyle(lang)]}>{L.authorisedBy} ({branding.businessName})</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureSubLabel}>{L.signatureDate}</Text>
+            <Text style={[styles.signatureSubLabel, rtlStyle(lang)]}>{L.signatureDate}</Text>
           </View>
         </View>
 
         {/* Accept online CTA */}
         {input.acceptUrl && (
-          <View style={[styles.acceptBox, { backgroundColor: accent }]}>
-            <Text style={styles.acceptBoxText}>{L.acceptOnline}</Text>
+          <View style={isRTL(lang) ? [styles.acceptBox, { backgroundColor: accent, flexDirection: "row-reverse" }] : [styles.acceptBox, { backgroundColor: accent }]}>
+            <Text style={[styles.acceptBoxText, rtlBoldStyle(lang)]}>{L.acceptOnline}</Text>
             <Text style={styles.acceptBoxUrl}>{input.acceptUrl}</Text>
           </View>
         )}

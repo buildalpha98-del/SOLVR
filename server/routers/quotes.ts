@@ -268,14 +268,6 @@ export const quotesRouter = router({
 
       const client = portalAuth.client;
 
-      // ── DEBUG LOGGING (production diagnosis) ──────────────────────────────────
-      console.log("[VTQ-DEBUG] processVoiceRecording called", {
-        clientId,
-        audioUrl: input.audioUrl?.substring(0, 80),
-        durationSeconds: input.durationSeconds,
-        businessName: client.businessName,
-      });
-
       const recordingId = randomUUID();
       await insertQuoteVoiceRecording({
         id: recordingId,
@@ -287,17 +279,14 @@ export const quotesRouter = router({
 
       try {
         // Step 1: Transcribe
-        console.log("[VTQ-DEBUG] Step 1: starting transcription");
         const transcriptionResult = await transcribeAudio({
           audioUrl: input.audioUrl,
           ...(input.languageOverride ? { language: input.languageOverride } : {}),
         }); // languageOverride forces a specific language; otherwise Whisper auto-detects
         if ("error" in transcriptionResult) {
-          console.error("[VTQ-DEBUG] Transcription error:", transcriptionResult);
           throw new Error(transcriptionResult.details ?? transcriptionResult.error);
         }
         const transcription = transcriptionResult;
-        console.log("[VTQ-DEBUG] Transcription OK, length:", transcription.text?.length, "chars");
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "extracting",
           transcript: transcription.text,
@@ -305,13 +294,10 @@ export const quotesRouter = router({
 
         // Step 2: Extract quote data
         // Fetch the client's memory file for richer extraction context
-        console.log("[VTQ-DEBUG] Step 2: starting LLM extraction");
         const profile = await getClientProfile(clientId);
         const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : undefined;
         const rawExtracted = await extractQuoteData(transcription.text, client.businessName, memoryContext);
-        console.log("[VTQ-DEBUG] LLM extraction OK, raw:", JSON.stringify(rawExtracted).substring(0, 300));
         const extracted = sanitiseExtracted(rawExtracted);
-        console.log("[VTQ-DEBUG] Sanitised extraction OK, lineItems:", extracted.lineItems?.length);
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "complete",
           extractedJson: extracted as any,
@@ -341,7 +327,6 @@ export const quotesRouter = router({
         const financials = calcFinancials(lineItemsWithTotals, gstRate);
         const validUntil = addDays(validityDays);
 
-        console.log("[VTQ-DEBUG] Step 3: inserting quote", { quoteId, quoteNumber, totalAmount: financials.totalAmount });
         await insertQuote({
           id: quoteId,
           clientId,
@@ -365,10 +350,8 @@ export const quotesRouter = router({
           voiceRecordingId: recordingId,
           detectedLanguage: transcription.language ?? null,
         });
-        console.log("[VTQ-DEBUG] Quote inserted OK");
 
         await insertQuoteLineItems(lineItemsWithTotals);
-        console.log("[VTQ-DEBUG] Line items inserted OK", lineItemsWithTotals.length);
 
         // Auto-create a linked job in "quoted" stage so it appears in the Jobs tab
         try {
@@ -386,10 +369,8 @@ export const quotesRouter = router({
             customerAddress: extracted.customerAddress ?? null,
             customerStatusToken,
           });
-          console.log("[VTQ-DEBUG] Linked job created OK (stage=quoted)");
         } catch (jobErr) {
           // Non-fatal — don't block quote creation if job creation fails
-          console.warn("[VTQ-DEBUG] Job creation failed (non-fatal):", jobErr);
         }
 
         // Log extractionWarnings to the CRM timeline if any were flagged
@@ -416,18 +397,7 @@ export const quotesRouter = router({
 
         return { quoteId, quoteNumber, transcript: transcription.text, detectedLanguage: transcription.language ?? null, extracted };
       } catch (err) {
-        // ── DETAILED ERROR LOGGING for production diagnosis ──────────────────────────
         const errMsg = err instanceof Error ? err.message : String(err);
-        const errStack = err instanceof Error ? err.stack : undefined;
-        // Zod errors have an 'issues' array with path + message
-        const zodIssues = (err as { issues?: unknown[] })?.issues;
-        console.error("[VTQ-DEBUG] PIPELINE FAILED:", {
-          message: errMsg,
-          zodIssues: zodIssues ? JSON.stringify(zodIssues) : undefined,
-          stack: errStack?.split("\n").slice(0, 5).join(" | "),
-          clientId,
-          businessName: client.businessName,
-        });
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "failed",
           errorMessage: errMsg,
