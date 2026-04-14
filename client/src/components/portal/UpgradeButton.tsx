@@ -1,13 +1,16 @@
 /**
  * UpgradeButton — shared CTA for portal upgrade flows.
  * Calls portal.createUpgradeCheckout and opens Stripe checkout in a new tab.
+ *
+ * Apple Guideline 3.1.1: Returns null on native iOS/Android builds.
+ * Subscriptions must be purchased at solvr.com.au, not inside the app.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { getSolvrOrigin } from "@/const";
+import { getSolvrOrigin, isNativeApp } from "@/const";
 
 interface UpgradeButtonProps {
   plan: "starter" | "professional";
@@ -28,6 +31,9 @@ export function UpgradeButton({
 }: UpgradeButtonProps) {
   const [loading, setLoading] = useState(false);
   const upgrade = trpc.portal.createUpgradeCheckout.useMutation();
+
+  // Apple Guideline 3.1.1 — no purchase UI inside native app
+  if (isNativeApp()) return null;
 
   const handleClick = async () => {
     setLoading(true);

@@ -10,7 +10,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { getSolvrOrigin } from "@/const";
+import { getSolvrOrigin, isNativeApp } from "@/const";
 import PortalLayout from "./PortalLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -314,32 +314,38 @@ export default function PortalSubscription() {
                 </ul>
               )}
 
-              {/* Manage billing CTA */}
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={handleManageBilling}
-                  disabled={portalLoading || !sub.stripeCustomerId}
-                  className="flex items-center gap-2"
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
-                >
-                  {portalLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="w-4 h-4" />
-                  )}
-                  Manage Billing
-                </Button>
-                {sub.plan === "starter" && (
+              {/* Manage billing CTA — hidden on native iOS (Apple Guideline 3.1.1) */}
+              {isNativeApp() ? (
+                <p className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  To manage your subscription, visit solvr.com.au on your browser.
+                </p>
+              ) : (
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   <Button
-                    variant="outline"
-                    className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                    onClick={() => navigate("/voice-agent#pricing")}
+                    onClick={handleManageBilling}
+                    disabled={portalLoading || !sub.stripeCustomerId}
+                    className="flex items-center gap-2"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
                   >
-                    <Zap className="w-4 h-4" />
-                    Upgrade to Professional
+                    {portalLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="w-4 h-4" />
+                    )}
+                    Manage Billing
                   </Button>
-                )}
-              </div>
+                  {sub.plan === "starter" && (
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                      onClick={() => navigate("/voice-agent#pricing")}
+                    >
+                      <Zap className="w-4 h-4" />
+                      Upgrade to Professional
+                    </Button>
+                  )}
+                </div>
+              )}
               {!sub.stripeCustomerId && (
                 <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
                   Billing portal will be available once your subscription is fully activated. Contact{" "}

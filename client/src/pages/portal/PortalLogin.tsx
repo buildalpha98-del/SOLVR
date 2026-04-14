@@ -13,6 +13,7 @@ import { Loader2, ShieldCheck, AlertCircle, Eye, EyeOff, Phone, FileText, BarCha
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isNativeApp } from "@/const";
 
 const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
@@ -269,15 +270,25 @@ export default function PortalLogin() {
 
               {/* Tip for time-poor users */}
               <div className="mt-8 p-4 rounded-xl text-center" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.1)" }}>
-                <p className="text-white/40 text-xs">
-                  First time here? Your Solvr team will set up your account and send you your login details.
-                </p>
-                <a
-                  href="https://solvr.com.au"
-                  className="text-amber-400/70 hover:text-amber-400 text-xs transition-colors mt-1 inline-block"
-                >
-                  Learn more about Solvr →
-                </a>
+                {isNativeApp() ? (
+                  <>
+                    <p className="text-white/40 text-xs">
+                      New to Solvr? Subscribe at solvr.com.au on your browser, then log in here.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-white/40 text-xs">
+                      First time here? Your Solvr team will set up your account and send you your login details.
+                    </p>
+                    <a
+                      href="https://solvr.com.au"
+                      className="text-amber-400/70 hover:text-amber-400 text-xs transition-colors mt-1 inline-block"
+                    >
+                      Learn more about Solvr →
+                    </a>
+                  </>
+                )}
               </div>
             </form>
           )}

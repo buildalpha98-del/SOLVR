@@ -1,11 +1,16 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 /**
- * Returns the correct public origin for use in server-side URL fields.
- * On iOS Capacitor, window.location.origin returns "capacitor://localhost" which
- * fails Zod's z.string().url() validation. Always use this instead of
- * window.location.origin when passing origin to tRPC mutations.
+ * Returns true when running inside a Capacitor native app (iOS or Android).
+ * Use this to gate any purchase UI — Apple Guideline 3.1.1 requires that
+ * apps offering digital subscriptions use Apple IAP. Our approach is simpler:
+ * we remove all purchase UI from the native build entirely.
  */
+export const isNativeApp = (): boolean => {
+  const origin = window.location.origin;
+  return origin.startsWith("capacitor://") || origin.startsWith("ionic://");
+};
+
 export const getSolvrOrigin = (): string => {
   const origin = window.location.origin;
   // Capacitor iOS/Android returns "capacitor://localhost" — replace with real domain

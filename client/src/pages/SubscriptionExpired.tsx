@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Gift, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { isNativeApp } from "@/const";
 
 // Hardcoded — window.location.origin returns "capacitor://localhost" on iOS Capacitor.
 const SOLVR_ORIGIN = "https://solvr.com.au";
@@ -66,6 +67,25 @@ export default function SubscriptionExpired() {
   const [error, setError] = useState<string | null>(null);
 
   const createPortal = trpc.stripe.createBillingPortal.useMutation();
+
+  // Apple Guideline 3.1.1 — no purchase/billing UI inside native app
+  if (isNativeApp()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#FAFAF8" }}>
+        <div className="text-center max-w-sm">
+          <img src={LOGO} alt="Solvr" style={{ height: 32, objectFit: "contain", marginBottom: 24 }} />
+          <div className="text-4xl mb-4">⏰</div>
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#0F1F3D" }}>Your free trial has ended</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "#718096" }}>
+            To reactivate your account, visit solvr.com.au on your browser.
+          </p>
+          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
+            Back to Portal →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   async function handleAddCard() {
     if (!user?.email) {

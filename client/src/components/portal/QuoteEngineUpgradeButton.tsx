@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { getSolvrOrigin } from "@/const";
+import { getSolvrOrigin, isNativeApp } from "@/const";
 
 interface QuoteEngineUpgradeButtonProps {
   billingCycle?: "monthly" | "annual";
@@ -25,6 +25,9 @@ export function QuoteEngineUpgradeButton({
 }: QuoteEngineUpgradeButtonProps) {
   const [loading, setLoading] = useState(false);
   const checkout = trpc.portal.createQuoteEngineCheckout.useMutation();
+
+  // Apple Guideline 3.1.1 — no purchase UI inside native app
+  if (isNativeApp()) return null;
 
   const handleClick = async () => {
     setLoading(true);
