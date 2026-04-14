@@ -326,6 +326,7 @@ export default function VoiceOnboarding() {
   const [missingValues, setMissingValues] = useState<Record<string, string>>({});
   const [showTranscript, setShowTranscript] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [languageOverride, setLanguageOverride] = useState<string>("auto");
 
   // Review form state (pre-filled from extraction, editable)
   const [form, setForm] = useState<Partial<OnboardingExtraction>>({});
@@ -422,7 +423,10 @@ export default function VoiceOnboarding() {
       const { url } = await uploadRes.json();
 
       setStage("processing");
-      const result = await extractMutation.mutateAsync({ audioUrl: url });
+      const result = await extractMutation.mutateAsync({
+        audioUrl: url,
+        ...(languageOverride !== "auto" ? { languageOverride } : {}),
+      });
 
       setTranscript(result.transcript);
       setExtraction(result.extraction);
@@ -510,6 +514,47 @@ export default function VoiceOnboarding() {
                 I can take about 3 jobs a day. We work Monday to Friday, 7 till 5, and Saturday mornings.
                 My ABN is 12 345 678 901."
               </p>
+            </div>
+
+            {/* Language selector */}
+            <div className="text-left">
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <Globe className="w-3 h-3 inline mr-1" />
+                Language you'll speak in
+              </label>
+              <select
+                value={languageOverride}
+                onChange={(e) => setLanguageOverride(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 text-sm font-medium"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  outline: "none",
+                }}
+              >
+                <option value="auto">🌐 Auto-detect (recommended)</option>
+                <option value="en">🇦🇺 English</option>
+                <option value="ar">🇱🇧 Arabic (عربي)</option>
+                <option value="zh">🇨🇳 Mandarin (普通话)</option>
+                <option value="hi">🇮🇳 Hindi (हिन्दी)</option>
+                <option value="vi">🇻🇳 Vietnamese (Tiếng Việt)</option>
+                <option value="el">🇬🇷 Greek (Ελληνικά)</option>
+                <option value="it">🇮🇹 Italian (Italiano)</option>
+                <option value="ko">🇰🇷 Korean (한국어)</option>
+                <option value="fr">🇫🇷 French (Français)</option>
+                <option value="es">🇪🇸 Spanish (Español)</option>
+                <option value="de">🇩🇪 German (Deutsch)</option>
+                <option value="pt">🇧🇷 Portuguese (Português)</option>
+                <option value="tr">🇹🇷 Turkish (Türkçe)</option>
+                <option value="ru">🇷🇺 Russian (Русский)</option>
+                <option value="ja">🇯🇵 Japanese (日本語)</option>
+              </select>
+              {languageOverride !== "auto" && (
+                <p className="text-xs mt-1" style={{ color: "rgba(245,166,35,0.7)" }}>
+                  Whisper will transcribe in {languageOverride.toUpperCase()} and your profile will be extracted in English.
+                </p>
+              )}
             </div>
 
             {/* Mic button */}

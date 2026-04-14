@@ -397,6 +397,337 @@ const QUOTE_TRANSLATIONS: Record<string, string> = {
   ja: "見積書",
 };
 
+// ── PDF UI label translations ─────────────────────────────────────────────────
+type PdfLabels = {
+  preparedFor: string;
+  job: string;
+  scopeAndPricing: string;
+  description: string;
+  qty: string;
+  unit: string;
+  unitPrice: string;
+  total: string;
+  subtotal: string;
+  gst: string;
+  grandTotal: string;
+  paymentTerms: string;
+  validUntil: string;
+  preparedBy: string;
+  customerSignature: string;
+  authorisedBy: string;
+  signatureDate: string;
+  acceptOnline: string;
+};
+
+const PDF_LABELS: Record<string, PdfLabels> = {
+  ar: {
+    preparedFor: "مُعَدٌّ لـ",
+    job: "المهمة",
+    scopeAndPricing: "نطاق العمل والتسعير",
+    description: "الوصف",
+    qty: "الكمية",
+    unit: "الوحدة",
+    unitPrice: "سعر الوحدة",
+    total: "الإجمالي",
+    subtotal: "المجموع الفرعي",
+    gst: "ضريبة القيمة المضافة",
+    grandTotal: "الإجمالي الكلي",
+    paymentTerms: "شروط الدفع",
+    validUntil: "صالح حتى",
+    preparedBy: "أُعِدَّ بواسطة",
+    customerSignature: "توقيع العميل",
+    authorisedBy: "مُفَوَّض من",
+    signatureDate: "التوقيع / التاريخ",
+    acceptOnline: "✓  اقبل هذا العرض عبر الإنترنت",
+  },
+  zh: {
+    preparedFor: "客户",
+    job: "工作",
+    scopeAndPricing: "工作范围与报价",
+    description: "描述",
+    qty: "数量",
+    unit: "单位",
+    unitPrice: "单价",
+    total: "合计",
+    subtotal: "小计",
+    gst: "消费税",
+    grandTotal: "总计（澳元）",
+    paymentTerms: "付款条款",
+    validUntil: "有效期至",
+    preparedBy: "制作方",
+    customerSignature: "客户签名",
+    authorisedBy: "授权方",
+    signatureDate: "签名 / 日期",
+    acceptOnline: "✓  在线接受此报价",
+  },
+  hi: {
+    preparedFor: "के लिए तैयार",
+    job: "कार्य",
+    scopeAndPricing: "कार्य का दायरा और मूल्य",
+    description: "विवरण",
+    qty: "मात्रा",
+    unit: "इकाई",
+    unitPrice: "इकाई मूल्य",
+    total: "कुल",
+    subtotal: "उप-योग",
+    gst: "जीएसटी",
+    grandTotal: "कुल राशि (AUD)",
+    paymentTerms: "भुगतान शर्तें",
+    validUntil: "तक वैध",
+    preparedBy: "द्वारा तैयार",
+    customerSignature: "ग्राहक हस्ताक्षर",
+    authorisedBy: "अधिकृत",
+    signatureDate: "हस्ताक्षर / तारीख",
+    acceptOnline: "✓  इस कोटेशन को ऑनलाइन स्वीकार करें",
+  },
+  vi: {
+    preparedFor: "Chuẩn bị cho",
+    job: "Công việc",
+    scopeAndPricing: "Phạm vi công việc & Báo giá",
+    description: "Mô tả",
+    qty: "Số lượng",
+    unit: "Đơn vị",
+    unitPrice: "Đơn giá",
+    total: "Tổng",
+    subtotal: "Tạm tính",
+    gst: "GST",
+    grandTotal: "Tổng cộng (AUD)",
+    paymentTerms: "Điều khoản thanh toán",
+    validUntil: "Có hiệu lực đến",
+    preparedBy: "Chuẩn bị bởi",
+    customerSignature: "Chữ ký khách hàng",
+    authorisedBy: "Được uỷ quyền bởi",
+    signatureDate: "Chữ ký / Ngày",
+    acceptOnline: "✓  Chấp nhận báo giá trực tuyến",
+  },
+  el: {
+    preparedFor: "Προετοιμάστηκε για",
+    job: "Εργασία",
+    scopeAndPricing: "Εύρος Εργασιών & Τιμολόγηση",
+    description: "Περιγραφή",
+    qty: "Ποσ.",
+    unit: "Μονάδα",
+    unitPrice: "Τιμή Μονάδας",
+    total: "Σύνολο",
+    subtotal: "Υποσύνολο",
+    gst: "ΦΠΑ",
+    grandTotal: "ΣΥΝΟΛΟ (AUD)",
+    paymentTerms: "Όροι Πληρωμής",
+    validUntil: "Ισχύει έως",
+    preparedBy: "Εκδόθηκε από",
+    customerSignature: "Υπογραφή Πελάτη",
+    authorisedBy: "Εξουσιοδοτήθηκε από",
+    signatureDate: "Υπογραφή / Ημερομηνία",
+    acceptOnline: "✓  Αποδεχτείτε αυτή την προσφορά online",
+  },
+  it: {
+    preparedFor: "Preparato per",
+    job: "Lavoro",
+    scopeAndPricing: "Ambito Lavori e Prezzi",
+    description: "Descrizione",
+    qty: "Qtà",
+    unit: "Unità",
+    unitPrice: "Prezzo Unitario",
+    total: "Totale",
+    subtotal: "Subtotale",
+    gst: "IVA",
+    grandTotal: "TOTALE (AUD)",
+    paymentTerms: "Termini di Pagamento",
+    validUntil: "Valido fino al",
+    preparedBy: "Preparato da",
+    customerSignature: "Firma del Cliente",
+    authorisedBy: "Autorizzato da",
+    signatureDate: "Firma / Data",
+    acceptOnline: "✓  Accetta questo preventivo online",
+  },
+  ko: {
+    preparedFor: "수신인",
+    job: "작업",
+    scopeAndPricing: "작업 범위 및 가격",
+    description: "설명",
+    qty: "수량",
+    unit: "단위",
+    unitPrice: "단가",
+    total: "합계",
+    subtotal: "소계",
+    gst: "부가세",
+    grandTotal: "총액 (AUD)",
+    paymentTerms: "결제 조건",
+    validUntil: "유효 기간",
+    preparedBy: "작성자",
+    customerSignature: "고객 서명",
+    authorisedBy: "승인자",
+    signatureDate: "서명 / 날짜",
+    acceptOnline: "✓  온라인으로 견적 수락하기",
+  },
+  fr: {
+    preparedFor: "Préparé pour",
+    job: "Travail",
+    scopeAndPricing: "Portée des travaux et tarification",
+    description: "Description",
+    qty: "Qté",
+    unit: "Unité",
+    unitPrice: "Prix unitaire",
+    total: "Total",
+    subtotal: "Sous-total",
+    gst: "TVA",
+    grandTotal: "TOTAL (AUD)",
+    paymentTerms: "Conditions de paiement",
+    validUntil: "Valable jusqu'au",
+    preparedBy: "Préparé par",
+    customerSignature: "Signature du client",
+    authorisedBy: "Autorisé par",
+    signatureDate: "Signature / Date",
+    acceptOnline: "✓  Accepter ce devis en ligne",
+  },
+  es: {
+    preparedFor: "Preparado para",
+    job: "Trabajo",
+    scopeAndPricing: "Alcance de trabajos y precios",
+    description: "Descripción",
+    qty: "Cant.",
+    unit: "Unidad",
+    unitPrice: "Precio unitario",
+    total: "Total",
+    subtotal: "Subtotal",
+    gst: "IVA",
+    grandTotal: "TOTAL (AUD)",
+    paymentTerms: "Condiciones de pago",
+    validUntil: "Válido hasta",
+    preparedBy: "Preparado por",
+    customerSignature: "Firma del cliente",
+    authorisedBy: "Autorizado por",
+    signatureDate: "Firma / Fecha",
+    acceptOnline: "✓  Aceptar este presupuesto en línea",
+  },
+  de: {
+    preparedFor: "Erstellt für",
+    job: "Auftrag",
+    scopeAndPricing: "Leistungsumfang und Preise",
+    description: "Beschreibung",
+    qty: "Menge",
+    unit: "Einheit",
+    unitPrice: "Einzelpreis",
+    total: "Gesamt",
+    subtotal: "Zwischensumme",
+    gst: "MwSt.",
+    grandTotal: "GESAMT (AUD)",
+    paymentTerms: "Zahlungsbedingungen",
+    validUntil: "Gültig bis",
+    preparedBy: "Erstellt von",
+    customerSignature: "Unterschrift des Kunden",
+    authorisedBy: "Genehmigt von",
+    signatureDate: "Unterschrift / Datum",
+    acceptOnline: "✓  Angebot online annehmen",
+  },
+  pt: {
+    preparedFor: "Preparado para",
+    job: "Trabalho",
+    scopeAndPricing: "Escopo de trabalho e preços",
+    description: "Descrição",
+    qty: "Qtd.",
+    unit: "Unidade",
+    unitPrice: "Preço unitário",
+    total: "Total",
+    subtotal: "Subtotal",
+    gst: "IVA",
+    grandTotal: "TOTAL (AUD)",
+    paymentTerms: "Condições de pagamento",
+    validUntil: "Válido até",
+    preparedBy: "Preparado por",
+    customerSignature: "Assinatura do cliente",
+    authorisedBy: "Autorizado por",
+    signatureDate: "Assinatura / Data",
+    acceptOnline: "✓  Aceitar este orçamento online",
+  },
+  tr: {
+    preparedFor: "Hazırlayan",
+    job: "İş",
+    scopeAndPricing: "İş Kapsamı ve Fiyatlandırma",
+    description: "Açıklama",
+    qty: "Miktar",
+    unit: "Birim",
+    unitPrice: "Birim Fiyat",
+    total: "Toplam",
+    subtotal: "Ara Toplam",
+    gst: "KDV",
+    grandTotal: "TOPLAM (AUD)",
+    paymentTerms: "Ödeme Koşulları",
+    validUntil: "Geçerlilik Tarihi",
+    preparedBy: "Hazırlayan",
+    customerSignature: "Müşteri İmzası",
+    authorisedBy: "Yetkili",
+    signatureDate: "İmza / Tarih",
+    acceptOnline: "✓  Bu teklifi çevrimiçi kabul edin",
+  },
+  ru: {
+    preparedFor: "Подготовлено для",
+    job: "Работа",
+    scopeAndPricing: "Объём работ и стоимость",
+    description: "Описание",
+    qty: "Кол-во",
+    unit: "Ед.",
+    unitPrice: "Цена за ед.",
+    total: "Итого",
+    subtotal: "Подытог",
+    gst: "НДС",
+    grandTotal: "ИТОГО (AUD)",
+    paymentTerms: "Условия оплаты",
+    validUntil: "Действительно до",
+    preparedBy: "Подготовлено",
+    customerSignature: "Подпись клиента",
+    authorisedBy: "Уполномочен",
+    signatureDate: "Подпись / Дата",
+    acceptOnline: "✓  Принять смету онлайн",
+  },
+  ja: {
+    preparedFor: "宛先",
+    job: "作業内容",
+    scopeAndPricing: "作業範囲と価格",
+    description: "説明",
+    qty: "数量",
+    unit: "単位",
+    unitPrice: "単価",
+    total: "合計",
+    subtotal: "小計",
+    gst: "消費税",
+    grandTotal: "合計金額（AUD）",
+    paymentTerms: "支払条件",
+    validUntil: "有効期限",
+    preparedBy: "作成者",
+    customerSignature: "お客様署名",
+    authorisedBy: "承認者",
+    signatureDate: "署名 / 日付",
+    acceptOnline: "✓  オンラインで見積もりを承認する",
+  },
+};
+
+const EN_LABELS: PdfLabels = {
+  preparedFor: "Prepared For",
+  job: "Job",
+  scopeAndPricing: "Scope of Works & Pricing",
+  description: "Description",
+  qty: "Qty",
+  unit: "Unit",
+  unitPrice: "Unit Price",
+  total: "Total",
+  subtotal: "Subtotal",
+  gst: "GST",
+  grandTotal: "TOTAL (AUD)",
+  paymentTerms: "Payment Terms",
+  validUntil: "Valid Until",
+  preparedBy: "Prepared By",
+  customerSignature: "Customer Signature",
+  authorisedBy: "Authorised By",
+  signatureDate: "Signature / Date",
+  acceptOnline: "✓  Accept this quote online",
+};
+
+function getPdfLabels(detectedLanguage?: string | null): PdfLabels {
+  if (!detectedLanguage || detectedLanguage === "en") return EN_LABELS;
+  return PDF_LABELS[detectedLanguage] ?? EN_LABELS;
+}
+
 export interface QuoteProposalPdfInput {
   acceptUrl?: string | null;
   /** ISO-639-1 language code of the original voice recording (e.g. "ar", "zh"). Used to render a translated subtitle in the PDF header. */
@@ -447,6 +778,7 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
   const { quote, lineItems, branding } = input;
   const primary = branding.primaryColor || "#1F2937";
   const accent = branding.secondaryColor || "#2563EB";
+  const L = getPdfLabels(input.detectedLanguage);
 
   return (
     <Page size="A4" style={styles.page}>
@@ -489,7 +821,7 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {/* Customer + Job info */}
         <View style={styles.infoRow}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>Prepared For</Text>
+            <Text style={styles.infoBoxTitle}>{L.preparedFor}</Text>
             {quote.customerName && (
               <Text style={styles.infoTextBold}>{quote.customerName}</Text>
             )}
@@ -507,7 +839,7 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
             )}
           </View>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>Job</Text>
+            <Text style={styles.infoBoxTitle}>{L.job}</Text>
             <Text style={styles.infoTextBold}>{quote.jobTitle}</Text>
             {quote.jobDescription && (
               <Text style={[styles.infoText, { marginTop: 4 }]}>{quote.jobDescription}</Text>
@@ -516,13 +848,13 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         </View>
 
         {/* Line items */}
-        <Text style={styles.sectionHeading}>Scope of Works & Pricing</Text>
+        <Text style={styles.sectionHeading}>{L.scopeAndPricing}</Text>
         <View style={styles.tableHeader}>
-          <Text style={[styles.colDesc, styles.colHeaderText]}>Description</Text>
-          <Text style={[styles.colQty, styles.colHeaderText]}>Qty</Text>
-          <Text style={[styles.colUnit, styles.colHeaderText]}>Unit</Text>
-          <Text style={[styles.colPrice, styles.colHeaderText]}>Unit Price</Text>
-          <Text style={[styles.colTotal, styles.colHeaderText]}>Total</Text>
+          <Text style={[styles.colDesc, styles.colHeaderText]}>{L.description}</Text>
+          <Text style={[styles.colQty, styles.colHeaderText]}>{L.qty}</Text>
+          <Text style={[styles.colUnit, styles.colHeaderText]}>{L.unit}</Text>
+          <Text style={[styles.colPrice, styles.colHeaderText]}>{L.unitPrice}</Text>
+          <Text style={[styles.colTotal, styles.colHeaderText]}>{L.total}</Text>
         </View>
         {lineItems.map((li, i) => (
           <View key={i} style={styles.tableRow}>
@@ -537,15 +869,15 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {/* Totals */}
         <View style={styles.totalsBlock}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
+            <Text style={styles.totalLabel}>{L.subtotal}</Text>
             <Text style={styles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>GST ({quote.gstRate}%)</Text>
+            <Text style={styles.totalLabel}>{L.gst} ({quote.gstRate}%)</Text>
             <Text style={styles.totalValue}>{formatCurrency(quote.gstAmount)}</Text>
           </View>
           <View style={[styles.totalRow, { marginTop: 4 }]}>
-            <Text style={styles.grandTotalLabel}>TOTAL (AUD)</Text>
+            <Text style={styles.grandTotalLabel}>{L.grandTotal}</Text>
             <Text style={[styles.grandTotalValue, { color: accent }]}>
               {formatCurrency(quote.totalAmount)}
             </Text>
@@ -555,15 +887,15 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {/* Terms */}
         <View style={styles.termsRow}>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Payment Terms</Text>
+            <Text style={styles.termLabel}>{L.paymentTerms}</Text>
             <Text style={styles.termValue}>{quote.paymentTerms ?? "Due on completion"}</Text>
           </View>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Valid Until</Text>
+            <Text style={styles.termLabel}>{L.validUntil}</Text>
             <Text style={styles.termValue}>{formatDate(quote.validUntil)}</Text>
           </View>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Prepared By</Text>
+            <Text style={styles.termLabel}>{L.preparedBy}</Text>
             <Text style={styles.termValue}>{branding.businessName}</Text>
           </View>
         </View>
@@ -578,21 +910,21 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {/* Signature / Acceptance block */}
         <View style={styles.signatureBlock}>
           <View style={styles.signatureItem}>
-            <Text style={styles.signatureLabel}>Customer Signature</Text>
+            <Text style={styles.signatureLabel}>{L.customerSignature}</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureSubLabel}>Signature / Date</Text>
+            <Text style={styles.signatureSubLabel}>{L.signatureDate}</Text>
           </View>
           <View style={styles.signatureItem}>
-            <Text style={styles.signatureLabel}>Authorised By ({branding.businessName})</Text>
+            <Text style={styles.signatureLabel}>{L.authorisedBy} ({branding.businessName})</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureSubLabel}>Signature / Date</Text>
+            <Text style={styles.signatureSubLabel}>{L.signatureDate}</Text>
           </View>
         </View>
 
         {/* Accept online CTA */}
         {input.acceptUrl && (
           <View style={[styles.acceptBox, { backgroundColor: accent }]}>
-            <Text style={styles.acceptBoxText}>✓  Accept this quote online</Text>
+            <Text style={styles.acceptBoxText}>{L.acceptOnline}</Text>
             <Text style={styles.acceptBoxUrl}>{input.acceptUrl}</Text>
           </View>
         )}

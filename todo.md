@@ -571,3 +571,6 @@
 - [x] Language selector dropdown in voice onboarding (VoiceOnboarding)
 - [x] Pass detected/selected language to PDF generation
 - [x] Add translated subtitle to quote PDF header for non-English languages
+
+- [ ] Language selector dropdown in VoiceOnboarding screen (same as PortalQuotes)
+- [ ] Translated column headers in quote PDF line items table (Description, Qty, Unit Price, Total)

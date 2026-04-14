@@ -1373,13 +1373,20 @@ export const portalRouter = router({
        *  presigned URLs with query params (X-Amz-Signature etc.) on iOS.
        */
       audioUrl: z.string().min(1),
+      /** Optional language override — ISO-639-1 code (e.g. "ar", "zh", "hi").
+       *  When omitted, Whisper auto-detects the language.
+       */
+      languageOverride: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
 
-      // Step 1: Transcribe
-      const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl }); // no language lock — Whisper auto-detects for multilingual support
+      // Step 1: Transcribe (use languageOverride if provided, otherwise Whisper auto-detects)
+      const transcriptionResult = await transcribeAudio({
+        audioUrl: input.audioUrl,
+        ...(input.languageOverride ? { language: input.languageOverride } : {}),
+      });
       if ("error" in transcriptionResult) {
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
