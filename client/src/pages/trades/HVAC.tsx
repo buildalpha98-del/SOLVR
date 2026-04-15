@@ -81,6 +81,8 @@ const data: TradeData = {
       q: "How does the AI Receptionist handle emergency callouts after hours?",
       a: "It answers the call, confirms the emergency, applies your after-hours rate, and either books the job directly or sends you a notification to call back. You decide how much automation you want.",
     },
+  metaTitle: "Quoting App for HVAC Technicians — AI Quotes & Invoices | Solvr",
+  metaDescription: "Solvr is the AI quoting app built for Australian HVAC technicians. Speak the job on-site and get a professional quote with model specs, warranty terms, and installation scope sent to the customer in seconds. Try free for 14 days.",
   ],
 };
 

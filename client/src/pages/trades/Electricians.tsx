@@ -81,6 +81,8 @@ const data: TradeData = {
       a: "It answers 24/7, qualifies the emergency, collects the customer's details and address, and either books a callback or — if you've set it up — confirms an emergency callout rate and dispatches you directly.",
     },
   ],
+  metaTitle: "Quoting App for Electricians — AI Quotes & Invoices | Solvr",
+  metaDescription: "Solvr is the AI quoting app built for Australian electricians. Speak the job on-site and get a professional quote with compliance notes and your licence number sent to the customer in under 30 seconds. Try free for 14 days.",
 };
 
 export default function Electricians() {

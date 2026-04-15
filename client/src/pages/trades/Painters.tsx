@@ -81,6 +81,8 @@ const data: TradeData = {
       q: "How does the repeat business follow-up work exactly?",
       a: "When you complete a job, Solvr records the date. For exterior jobs, it sends a follow-up email to the customer after 7 years. For interior, after 5 years. You can adjust the timing in your settings.",
     },
+  metaTitle: "Quoting App for Painters — Room-by-Room Quotes in Seconds | Solvr",
+  metaDescription: "Solvr is the AI quoting app built for Australian painters. Speak the job on-site and get a room-by-room breakdown with paint specs, labour, and prep costs sent to the customer before you leave the site visit. Try free for 14 days.",
   ],
 };
 

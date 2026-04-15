@@ -84,6 +84,8 @@ const data: TradeData = {
       a: "Solvr generates quotes and contracts that include your licence number, insurance details, and statutory cooling-off period information — keeping you compliant without having to remember the details.",
     },
   ],
+  metaTitle: "Quoting App for Builders — Voice-to-Quote & Scope of Works | Solvr",
+  metaDescription: "Solvr is the AI quoting app built for Australian builders. Speak the job on-site and get a professional scope of works, materials breakdown, and staged payment terms sent to the client in under 30 seconds. Try free for 14 days.",
 };
 
 export default function Builders() {

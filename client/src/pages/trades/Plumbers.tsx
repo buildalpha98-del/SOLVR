@@ -85,6 +85,8 @@ const data: TradeData = {
       a: "Yes. Solvr works on iOS, Android, and any web browser. Record voice notes on your phone, manage jobs from your tablet, review reports on your laptop.",
     },
   ],
+  metaTitle: "Quoting App for Plumbers — Voice-to-Quote in 30 Seconds | Solvr",
+  metaDescription: "Solvr is the AI quoting app built for Australian plumbers. Speak the job on-site and get a professional, itemised quote sent to your customer in under 30 seconds. Start your 14-day free trial.",
 };
 
 export default function Plumbers() {

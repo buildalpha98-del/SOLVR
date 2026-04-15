@@ -2,6 +2,7 @@
  * TradePage — shared layout for all /trades/* SEO landing pages
  * Navy #0F1F3D | Amber #F5A623 | Warm White #FAFAF8
  */
+import { useEffect } from "react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
 
@@ -27,6 +28,8 @@ export interface TradeData {
   }[];
   seoKeywords: string[];      // shown as "Also searched for" chips
   faq: { q: string; a: string }[];
+  metaTitle?: string;          // <title> tag — defaults to "{title} Quoting App — Solvr"
+  metaDescription?: string;   // <meta name="description"> — defaults to heroDesc
 }
 
 const NAV_LINKS: [string, string][] = [
@@ -45,6 +48,43 @@ export default function TradePage({ data }: { data: TradeData }) {
     0
   );
   const gst = total * 0.1;
+
+  // Inject SEO meta tags into the document head
+  useEffect(() => {
+    const title = data.metaTitle ?? `${data.title} Quoting App — Solvr`;
+    const desc = data.metaDescription ?? data.heroDesc;
+
+    document.title = title;
+
+    let metaDesc = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement("meta");
+      metaDesc.name = "description";
+      document.head.appendChild(metaDesc);
+    }
+    metaDesc.content = desc;
+
+    let ogTitle = document.querySelector<HTMLMetaElement>('meta[property="og:title"]');
+    if (!ogTitle) {
+      ogTitle = document.createElement("meta");
+      ogTitle.setAttribute("property", "og:title");
+      document.head.appendChild(ogTitle);
+    }
+    ogTitle.content = title;
+
+    let ogDesc = document.querySelector<HTMLMetaElement>('meta[property="og:description"]');
+    if (!ogDesc) {
+      ogDesc = document.createElement("meta");
+      ogDesc.setAttribute("property", "og:description");
+      document.head.appendChild(ogDesc);
+    }
+    ogDesc.content = desc;
+
+    // Restore on unmount
+    return () => {
+      document.title = "Solvr — AI Tools for Australian Tradies";
+    };
+  }, [data.metaTitle, data.metaDescription, data.heroDesc, data.title]);
 
   return (
     <div style={{ background: "#FAFAF8", color: "#0F1F3D", fontFamily: "'DM Sans', sans-serif", minHeight: "100vh" }}>

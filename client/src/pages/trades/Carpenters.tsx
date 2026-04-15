@@ -81,6 +81,8 @@ const data: TradeData = {
       q: "What if I need to send a quote with photos of the site?",
       a: "You can attach photos to any quote in Solvr. Take them on-site, attach them before sending, and the customer receives a professional PDF with your photos included.",
     },
+  metaTitle: "Quoting App for Carpenters — Professional Proposals in Seconds | Solvr",
+  metaDescription: "Solvr is the AI quoting app built for Australian carpenters. Speak the job on-site and get a detailed proposal with inclusions, exclusions, and timeline sent to the client in under 30 seconds. Try free for 14 days.",
   ],
 };
 
