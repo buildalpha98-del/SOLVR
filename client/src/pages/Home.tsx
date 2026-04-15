@@ -71,36 +71,42 @@ const PAIN_POINTS = [
 const TRADES = [
   {
     trade: "Plumbers",
+    slug: "/trades/plumbers",
     example: '"Hot water system replacement, 315L Rheem, 3 hours labour, drain inspection included, call-out fee waived."',
     result: "Itemised quote with parts, labour, and GST — ready in 20 seconds.",
     icon: "🔧",
   },
   {
     trade: "Electricians",
+    slug: "/trades/electricians",
     example: '"Switchboard upgrade to 3-phase, 6 circuits, safety switch install, certificate of compliance included."',
     result: "Professional quote with compliance notes and your licence number — sent on the spot.",
     icon: "⚡",
   },
   {
     trade: "Builders",
+    slug: "/trades/builders",
     example: '"Deck build, hardwood spotted gum, 6x4m, stainless fixings, balustrade, 4-day job, two labourers."',
     result: "Scope of works, materials breakdown, and staged payment terms — all from a voice note.",
     icon: "🏗️",
   },
   {
     trade: "Carpenters",
+    slug: "/trades/carpenters",
     example: '"Custom wardrobe fit-out, 3 bays, soft-close drawers, full-height mirror doors, 2-day install."',
     result: "Detailed proposal with inclusions, exclusions, and timeline — looks like you have a full admin team.",
     icon: "🪚",
   },
   {
     trade: "Painters",
+    slug: "/trades/painters",
     example: '"Interior repaint, 4-bedroom house, walls and ceilings, 2 coats Dulux, prep and fill included."',
     result: "Room-by-room breakdown with paint specs, labour, and prep costs — sent before you leave the site visit.",
     icon: "🎨",
   },
   {
     trade: "HVAC",
+    slug: "/trades/hvac",
     example: '"Supply and install 8kW split system, Daikin, bedroom and living, electrical connection, 5-year warranty."',
     result: "Quote with model specs, warranty terms, and installation scope — professional every time.",
     icon: "❄️",
@@ -235,7 +241,6 @@ export default function Home() {
         <div className="hidden md:flex items-center gap-8">
           {[
             { label: "How it works", href: "#how-it-works" },
-            { label: "Trades", href: "#trades" },
             { label: "Pricing", href: "#pricing" },
           ].map((item) => (
             <a
@@ -249,6 +254,37 @@ export default function Home() {
               {item.label}
             </a>
           ))}
+
+          {/* Trades dropdown */}
+          <div className="relative group">
+            <button
+              className="font-body text-sm transition-colors flex items-center gap-1"
+              style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
+              onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
+            >
+              Trades
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <div
+              className="absolute top-full left-0 mt-2 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all"
+              style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", minWidth: 180, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
+            >
+              {TRADES.map((t) => (
+                <Link key={t.slug} href={t.slug}>
+                  <span
+                    className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer transition-colors"
+                    style={{ color: "rgba(255,255,255,0.65)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.65)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    <span>{t.icon}</span>
+                    {t.trade}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
           <Link href="/portal/login">
             <span
               className="font-body text-sm transition-colors cursor-pointer"
@@ -280,9 +316,9 @@ export default function Home() {
         </button>
       </nav>
 
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col pt-20 px-6 pb-8 gap-6" style={{ background: "#0F1F3D" }}>
-          {["How it works", "Trades", "Pricing"].map((item) => (
+        {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col pt-20 px-6 pb-8 gap-0 overflow-y-auto" style={{ background: "#0F1F3D" }}>
+          {["How it works", "Pricing"].map((item) => (
             <a
               key={item}
               href={`#${item.toLowerCase().replace(" ", "-")}`}
@@ -293,6 +329,20 @@ export default function Home() {
               {item}
             </a>
           ))}
+          <div className="border-b py-2" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+            <p className="text-xs font-semibold tracking-widest uppercase mb-2 mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>Trades</p>
+            {TRADES.map((t) => (
+              <Link key={t.slug} href={t.slug}>
+                <span
+                  className="flex items-center gap-3 py-3 text-lg font-semibold text-white cursor-pointer"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span>{t.icon}</span>
+                  {t.trade}
+                </span>
+              </Link>
+            ))}
+          </div>
           <Link href="/portal/login" onClick={() => setMobileMenuOpen(false)}>
             <span className="text-white text-xl font-semibold border-b py-4 block cursor-pointer" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
               Client Login
@@ -510,24 +560,33 @@ export default function Home() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {TRADES.map((t, i) => (
               <Reveal key={t.trade} delay={i * 80}>
-                <div
-                  className="rounded-2xl p-6 h-full flex flex-col"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">{t.icon}</span>
-                    <h3 className="font-display font-bold text-lg text-white">{t.trade}</h3>
-                  </div>
-                  <p className="font-body text-xs italic mb-4 flex-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    {t.example}
-                  </p>
+                <Link href={t.slug}>
                   <div
-                    className="rounded-xl p-3 text-xs font-semibold"
-                    style={{ background: "rgba(245,166,35,0.08)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.15)" }}
+                    className="rounded-2xl p-6 h-full flex flex-col cursor-pointer"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", transition: "border-color 0.2s, background 0.2s" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(245,166,35,0.35)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.07)"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
                   >
-                    ✓ {t.result}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">{t.icon}</span>
+                        <h3 className="font-display font-bold text-lg text-white">{t.trade}</h3>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ color: "rgba(255,255,255,0.25)" }}>
+                        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <p className="font-body text-xs italic mb-4 flex-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {t.example}
+                    </p>
+                    <div
+                      className="rounded-xl p-3 text-xs font-semibold"
+                      style={{ background: "rgba(245,166,35,0.08)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.15)" }}
+                    >
+                      ✓ {t.result}
+                    </div>
                   </div>
-                </div>
+                </Link>
               </Reveal>
             ))}
           </div>
