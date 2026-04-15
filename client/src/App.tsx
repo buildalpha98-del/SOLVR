@@ -6,14 +6,12 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 import Home from "./pages/Home";
-import LawFirms from "./pages/sectors/LawFirms";
-import Plumbers from "./pages/sectors/Plumbers";
-import Carpenters from "./pages/sectors/Carpenters";
-import Builders from "./pages/sectors/Builders";
-import HealthClinics from "./pages/sectors/HealthClinics";
-import Physiotherapists from "./pages/sectors/Physiotherapists";
-import AiAudit from "./pages/AiAudit";
-import Services from "./pages/Services";
+import TradesPlumbers from "./pages/trades/Plumbers";
+import TradesElectricians from "./pages/trades/Electricians";
+import TradesCarpenters from "./pages/trades/Carpenters";
+import TradesBuilders from "./pages/trades/Builders";
+import TradesHVAC from "./pages/trades/HVAC";
+import TradesPainters from "./pages/trades/Painters";
 import VoiceAgent from "./pages/VoiceAgent";
 import Pricing from "./pages/Pricing";
 import SubscriptionExpired from "./pages/SubscriptionExpired";
@@ -90,14 +88,12 @@ function Router() {
     <Switch>
       {/* ── Public marketing site ─────────────────────────────────────────── */}
       <Route path="/" component={Home} />
-      <Route path="/industries/law-firms" component={LawFirms} />
-      <Route path="/industries/plumbers" component={Plumbers} />
-      <Route path="/industries/carpenters" component={Carpenters} />
-      <Route path="/industries/builders" component={Builders} />
-      <Route path="/industries/health-clinics" component={HealthClinics} />
-      <Route path="/industries/physiotherapists" component={Physiotherapists} />
-      <Route path="/ai-audit" component={AiAudit} />
-      <Route path="/services" component={Services} />
+      <Route path="/trades/plumbers" component={TradesPlumbers} />
+      <Route path="/trades/electricians" component={TradesElectricians} />
+      <Route path="/trades/carpenters" component={TradesCarpenters} />
+      <Route path="/trades/builders" component={TradesBuilders} />
+      <Route path="/trades/hvac" component={TradesHVAC} />
+      <Route path="/trades/painters" component={TradesPainters} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/subscription/expired" component={SubscriptionExpired} />
       <Route path="/voice-agent" component={VoiceAgent} />

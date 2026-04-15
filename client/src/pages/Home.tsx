@@ -311,7 +311,8 @@ export default function Home() {
 
       {/* HERO */}
       <section className="min-h-screen flex flex-col justify-center pt-24 pb-16 px-6 md:px-12 max-w-6xl mx-auto">
-        <div className="max-w-3xl">
+        <div className="grid md:grid-cols-2 gap-16 items-center w-full">
+        <div className="max-w-xl">
           <div
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold mb-8"
             style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)" }}
@@ -357,10 +358,31 @@ export default function Home() {
           <p className="font-body text-xs mt-4" style={{ color: "rgba(255,255,255,0.3)" }}>
             No credit card required · Cancel any time · Works on iOS &amp; Android
           </p>
-        </div>
+        </div>{/* end left col */}
 
-        {/* Hero quote preview card */}
-        <div className="mt-16 max-w-lg">
+        {/* Right column: video + quote card */}
+        <div className="flex flex-col gap-6">
+          {/* ── VIDEO PLACEHOLDER ── Replace src with your mp4 CDN URL when ready */}
+          <Reveal>
+            <div
+              className="rounded-2xl overflow-hidden relative"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", aspectRatio: "16/9" }}
+            >
+              {/* Swap this div for: <video src="YOUR_CDN_URL.mp4" autoPlay muted loop playsInline className="w-full h-full object-cover" /> */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(245,166,35,0.15)", border: "1.5px solid rgba(245,166,35,0.3)" }}
+                >
+                  <span style={{ fontSize: 28 }}>▶</span>
+                </div>
+                <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>Voice-to-quote demo</p>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>15-second screen recording goes here</p>
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Hero quote preview card */}
           <Reveal>
             <div
               className="rounded-2xl p-6"
@@ -399,7 +421,9 @@ export default function Home() {
               </div>
             </div>
           </Reveal>
-        </div>
+        </div>{/* end right col */}
+        </div>{/* end grid */}
+
       </section>
 
       {/* HOW IT WORKS */}
