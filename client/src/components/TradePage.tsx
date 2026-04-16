@@ -80,11 +80,22 @@ export default function TradePage({ data }: { data: TradeData }) {
     }
     ogDesc.content = desc;
 
+    // Canonical link
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = `https://solvr.com.au/trades/${data.id}`;
+
     // Restore on unmount
     return () => {
       document.title = "Solvr — AI Tools for Australian Tradies";
+      const c = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+      if (c) c.remove();
     };
-  }, [data.metaTitle, data.metaDescription, data.heroDesc, data.title]);
+  }, [data.metaTitle, data.metaDescription, data.heroDesc, data.title, data.id]);
 
   return (
     <div style={{ background: "#FAFAF8", color: "#0F1F3D", fontFamily: "'DM Sans', sans-serif", minHeight: "100vh" }}>
