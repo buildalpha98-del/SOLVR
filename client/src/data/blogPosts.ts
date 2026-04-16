@@ -125,4 +125,42 @@ export const blogPosts: BlogPost[] = [
       "tradie business growth strategies",
     ],
   },
+  {
+    slug: "best-quoting-app-for-plumbers-australia-2026",
+    title: "Best Quoting App for Plumbers in Australia 2026",
+    excerpt:
+      "Plumbers need quotes out fast — before the customer calls someone else. We compare the top quoting apps built for Australian plumbers, including pricing, features, and which one wins jobs fastest.",
+    category: "App Reviews",
+    readTime: "9 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for Plumbers Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian plumbers in 2026: Solvr, Tradify, ServiceM8, and Fergus. Honest review of pricing, features, and which app wins more plumbing jobs.",
+    keywords: [
+      "best quoting app for plumbers Australia",
+      "plumber quoting software",
+      "plumbing quote app Australia 2026",
+      "quoting app for plumbers",
+      "plumber job management app",
+    ],
+  },
+  {
+    slug: "best-quoting-app-for-electricians-australia-2026",
+    title: "Best Quoting App for Electricians in Australia 2026",
+    excerpt:
+      "Electricians juggle compliance, materials pricing, and labour rates on every quote. We compare the top quoting apps for Australian electricians — which one handles the complexity without slowing you down?",
+    category: "App Reviews",
+    readTime: "9 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for Electricians Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian electricians in 2026: Solvr, Tradify, ServiceM8, and Fergus. Includes compliance tracking, materials pricing, and licence number features.",
+    keywords: [
+      "best quoting app for electricians Australia",
+      "electrician quoting software",
+      "electrical quote app Australia 2026",
+      "quoting app for electricians",
+      "electrician job management app",
+    ],
+  },
 ];
