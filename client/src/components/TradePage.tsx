@@ -107,8 +107,8 @@ export default function TradePage({ data }: { data: TradeData }) {
       },
       aggregateRating: {
         "@type": "AggregateRating",
-        ratingValue: "4.8",
-        reviewCount: "127",
+        ratingValue: "4.7",
+        reviewCount: "14",
         bestRating: "5",
         worstRating: "1",
       },

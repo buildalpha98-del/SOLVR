@@ -228,6 +228,38 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Inject Organisation JSON-LD for homepage
+  useEffect(() => {
+    const orgSchema = {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Solvr",
+      url: "https://solvr.com.au",
+      logo: "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-favicon-512_c9d1c262.png",
+      description: "AI quoting app built exclusively for Australian tradies. Voice-to-quote in 30 seconds.",
+      sameAs: [
+        "https://www.instagram.com/solvr.au",
+      ],
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        url: "https://solvr.com.au",
+        areaServed: "AU",
+        availableLanguage: "English",
+      },
+    };
+
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.setAttribute("data-solvr-jsonld", "org");
+    script.textContent = JSON.stringify(orgSchema);
+    document.head.appendChild(script);
+
+    return () => {
+      document.querySelector('script[data-solvr-jsonld="org"]')?.remove();
+    };
+  }, []);
+
   return (
     <div className="font-body" style={{ background: "#0F1F3D", color: "#FAFAF8" }}>
 
