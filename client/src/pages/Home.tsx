@@ -318,6 +318,41 @@ export default function Home() {
               ))}
             </div>
           </div>
+          {/* Compare dropdown */}
+          <div className="relative group">
+            <button
+              className="font-body text-sm transition-colors flex items-center gap-1"
+              style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#fff")}
+              onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.6)")}
+            >
+              Compare
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <div
+              className="absolute top-full left-0 mt-2 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all"
+              style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", minWidth: 200, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
+            >
+              <p className="px-4 pt-1 pb-2 text-xs font-semibold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>vs Competitors</p>
+              {[
+                { label: "Solvr vs Tradify", href: "/vs/tradify" },
+                { label: "Solvr vs ServiceM8", href: "/vs/servicem8" },
+                { label: "Solvr vs Fergus", href: "/vs/fergus" },
+                { label: "Solvr vs simPRO", href: "/vs/simpro" },
+              ].map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <span
+                    className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer transition-colors"
+                    style={{ color: "rgba(255,255,255,0.65)" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.65)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
           <Link href="/portal/login">
             <span
               className="font-body text-sm transition-colors cursor-pointer"
@@ -372,6 +407,24 @@ export default function Home() {
                 >
                   <span>{t.icon}</span>
                   {t.trade}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <div className="border-b py-2" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+            <p className="text-xs font-semibold tracking-widest uppercase mb-2 mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>Compare</p>
+            {[
+              { label: "Solvr vs Tradify", href: "/vs/tradify" },
+              { label: "Solvr vs ServiceM8", href: "/vs/servicem8" },
+              { label: "Solvr vs Fergus", href: "/vs/fergus" },
+              { label: "Solvr vs simPRO", href: "/vs/simpro" },
+            ].map((item) => (
+              <Link key={item.href} href={item.href}>
+                <span
+                  className="flex items-center gap-3 py-3 text-lg font-semibold text-white cursor-pointer"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.label}
                 </span>
               </Link>
             ))}
