@@ -5,6 +5,32 @@
 import { useEffect } from "react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
+import SiteFooter from "@/components/SiteFooter";
+
+// Blog articles relevant to all tradies — shown as internal-link CTAs
+const BLOG_ARTICLES = [
+  {
+    slug: "how-to-quote-faster-as-a-tradie",
+    title: "How to Quote Faster as a Tradie",
+    excerpt: "7 techniques to cut quoting time in half and win more jobs before competitors even respond.",
+    category: "Quoting & Invoicing",
+    readTime: "7 min read",
+  },
+  {
+    slug: "how-to-write-a-professional-tradie-quote",
+    title: "How to Write a Professional Tradie Quote That Wins Jobs",
+    excerpt: "The 10 sections every quote needs — and the common mistakes that cost tradies jobs.",
+    category: "Quoting & Invoicing",
+    readTime: "9 min read",
+  },
+  {
+    slug: "best-tradie-apps-australia-2026",
+    title: "Best Tradie Apps Australia 2026",
+    excerpt: "Honest comparison of quoting, job management, and accounting apps for Australian trade businesses.",
+    category: "Tools & Software",
+    readTime: "8 min read",
+  },
+];
 
 export interface TradeData {
   id: string;
@@ -327,6 +353,47 @@ export default function TradePage({ data }: { data: TradeData }) {
         </div>
       </section>
 
+      {/* ── Blog Articles CTA ── */}
+      <section style={{ padding: "72px 24px", background: "#FAFAF8", borderTop: "1px solid #E8EDF2" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <p style={{ color: "#F5A623", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Resources</p>
+            <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 32, color: "#0F1F3D", marginBottom: 12 }}>
+              Guides for {data.title}
+            </h2>
+            <p style={{ color: "#718096", fontSize: 16 }}>Practical advice to help you quote faster, win more jobs, and run a better trade business.</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+            {BLOG_ARTICLES.map((article) => (
+              <Link key={article.slug} href={`/blog/${article.slug}`}>
+                <div
+                  style={{ background: "#fff", border: "1px solid #E8E6DE", borderRadius: 14, padding: 24, cursor: "pointer", height: "100%" }}
+                >
+                  <span style={{ display: "inline-block", background: "rgba(245,166,35,0.12)", color: "#92400E", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {article.category}
+                  </span>
+                  <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#0F1F3D", lineHeight: 1.35, marginBottom: 10 }}>
+                    {article.title}
+                  </h3>
+                  <p style={{ color: "#718096", fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>{article.excerpt}</p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, color: "#9AA5B4" }}>{article.readTime}</span>
+                    <span style={{ color: "#F5A623", fontWeight: 700, fontSize: 13 }}>Read →</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <div style={{ textAlign: "center", marginTop: 32 }}>
+            <Link href="/blog">
+              <span style={{ color: "#0F1F3D", fontWeight: 700, fontSize: 14, borderBottom: "2px solid #F5A623", paddingBottom: 2, cursor: "pointer" }}>
+                View all articles →
+              </span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ── CTA ── */}
       <section style={{ padding: "80px 24px", background: "#F5A623", textAlign: "center" }}>
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 40, color: "#0F1F3D", marginBottom: 16 }}>
@@ -343,16 +410,7 @@ export default function TradePage({ data }: { data: TradeData }) {
       </section>
 
       {/* ── Footer ── */}
-      <footer style={{ background: "#0A1628", padding: "32px 24px", textAlign: "center" }}>
-        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>
-          © 2025 Solvr · Built by{" "}
-          <a href="https://clearpathaiagency.com.au" style={{ color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>
-            Clear Path AI Agency
-          </a>
-          {" "}· <Link href="/privacy"><span style={{ color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>Privacy</span></Link>
-          {" "}· <Link href="/terms"><span style={{ color: "rgba(255,255,255,0.4)", cursor: "pointer" }}>Terms</span></Link>
-        </p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
