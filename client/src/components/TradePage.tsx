@@ -56,6 +56,12 @@ export interface TradeData {
   faq: { q: string; a: string }[];
   metaTitle?: string;          // <title> tag — defaults to "{title} Quoting App — Solvr"
   metaDescription?: string;   // <meta name="description"> — defaults to heroDesc
+  relatedArticle?: {           // trade-specific blog article shown as featured card
+    slug: string;
+    title: string;
+    excerpt: string;
+    readTime: string;
+  };
 }
 
 const NAV_LINKS: [string, string][] = [
@@ -363,7 +369,26 @@ export default function TradePage({ data }: { data: TradeData }) {
             </h2>
             <p style={{ color: "#718096", fontSize: 16 }}>Practical advice to help you quote faster, win more jobs, and run a better trade business.</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: data.relatedArticle ? "1fr 1fr 1fr 1fr" : "repeat(3, 1fr)", gap: 24 }}>
+            {data.relatedArticle && (
+              <Link href={`/blog/${data.relatedArticle.slug}`}>
+                <div
+                  style={{ background: "#0F1F3D", border: "2px solid #F5A623", borderRadius: 14, padding: 24, cursor: "pointer", height: "100%" }}
+                >
+                  <span style={{ display: "inline-block", background: "rgba(245,166,35,0.2)", color: "#F5A623", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Featured Guide
+                  </span>
+                  <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#FAFAF8", lineHeight: 1.35, marginBottom: 10 }}>
+                    {data.relatedArticle.title}
+                  </h3>
+                  <p style={{ color: "rgba(250,250,248,0.7)", fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>{data.relatedArticle.excerpt}</p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, color: "rgba(250,250,248,0.5)" }}>{data.relatedArticle.readTime}</span>
+                    <span style={{ color: "#F5A623", fontWeight: 700, fontSize: 13 }}>Read guide →</span>
+                  </div>
+                </div>
+              </Link>
+            )}
             {BLOG_ARTICLES.map((article) => (
               <Link key={article.slug} href={`/blog/${article.slug}`}>
                 <div

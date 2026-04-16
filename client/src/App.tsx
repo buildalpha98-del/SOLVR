@@ -34,6 +34,8 @@ import HowToWriteAQuote from "./pages/blog/HowToWriteAQuote";
 import BestAccountingSoftware from "./pages/blog/BestAccountingSoftware";
 import BestQuotingAppPlumbers from "./pages/blog/BestQuotingAppPlumbers";
 import BestQuotingAppElectricians from "./pages/blog/BestQuotingAppElectricians";
+import BestQuotingAppBuilders from "./pages/blog/BestQuotingAppBuilders";
+import BestQuotingAppHVAC from "./pages/blog/BestQuotingAppHVAC";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
@@ -121,6 +123,8 @@ function Router() {
       <Route path="/blog/best-accounting-software-tradies-australia-2026" component={BestAccountingSoftware} />
       <Route path="/blog/best-quoting-app-for-plumbers-australia-2026" component={BestQuotingAppPlumbers} />
       <Route path="/blog/best-quoting-app-for-electricians-australia-2026" component={BestQuotingAppElectricians} />
+      <Route path="/blog/best-quoting-app-for-builders-australia-2026" component={BestQuotingAppBuilders} />
+      <Route path="/blog/best-quoting-app-for-hvac-technicians-australia-2026" component={BestQuotingAppHVAC} />
       <Route path="/trades/electricians" component={TradesElectricians} />
       <Route path="/trades/carpenters" component={TradesCarpenters} />
       <Route path="/trades/builders" component={TradesBuilders} />

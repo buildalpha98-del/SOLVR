@@ -84,6 +84,12 @@ const data: TradeData = {
   ],
   metaTitle: "Quoting App for Painters — Room-by-Room Quotes in Seconds | Solvr",
   metaDescription: "Solvr is the AI quoting app built for Australian painters. Speak the job on-site and get a room-by-room breakdown with paint specs, labour, and prep costs sent to the customer before you leave the site visit. Try free for 14 days.",
+  relatedArticle: {
+    slug: "how-to-quote-faster-as-a-tradie",
+    title: "How to Quote Faster as a Tradie: 7 Proven Techniques",
+    excerpt: "7 techniques to cut quoting time in half — from voice quoting to price book templates. Practical advice for painters who want to win more jobs.",
+    readTime: "8 min read",
+  },
 };
 
 export default function Painters() {

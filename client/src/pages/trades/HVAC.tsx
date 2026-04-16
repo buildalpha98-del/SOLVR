@@ -84,6 +84,12 @@ const data: TradeData = {
   ],
   metaTitle: "Quoting App for HVAC Technicians — AI Quotes & Invoices | Solvr",
   metaDescription: "Solvr is the AI quoting app built for Australian HVAC technicians. Speak the job on-site and get a professional quote with model specs, warranty terms, and installation scope sent to the customer in seconds. Try free for 14 days.",
+  relatedArticle: {
+    slug: "best-quoting-app-for-hvac-technicians-australia-2026",
+    title: "Best Quoting App for HVAC Technicians in Australia 2026",
+    excerpt: "We compare the top quoting apps for Australian HVAC technicians — equipment pricing, ARCtick compliance, and service contract features compared.",
+    readTime: "9 min read",
+  },
 };
 
 export default function HVAC() {

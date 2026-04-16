@@ -87,6 +87,12 @@ const data: TradeData = {
   ],
   metaTitle: "Quoting App for Plumbers — Voice-to-Quote in 30 Seconds | Solvr",
   metaDescription: "Solvr is the AI quoting app built for Australian plumbers. Speak the job on-site and get a professional, itemised quote sent to your customer in under 30 seconds. Start your 14-day free trial.",
+  relatedArticle: {
+    slug: "best-quoting-app-for-plumbers-australia-2026",
+    title: "Best Quoting App for Plumbers in Australia 2026",
+    excerpt: "We compare the top quoting apps for Australian plumbers — which one wins jobs fastest and handles compliance automatically.",
+    readTime: "9 min read",
+  },
 };
 
 export default function Plumbers() {

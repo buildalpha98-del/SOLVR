@@ -163,4 +163,42 @@ export const blogPosts: BlogPost[] = [
       "electrician job management app",
     ],
   },
+  {
+    slug: "best-quoting-app-for-builders-australia-2026",
+    title: "Best Quoting App for Builders in Australia 2026",
+    excerpt:
+      "Builder quotes are among the most complex in the trades — multi-trade pricing, provisional sums, variation management. We compare the top quoting apps for Australian builders and which one handles the complexity best.",
+    category: "App Reviews",
+    readTime: "10 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for Builders Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian builders in 2026: Solvr, Buildxact, Tradify, and simPRO. Includes scope of works, variation management, and provisional sum features.",
+    keywords: [
+      "best quoting app for builders Australia",
+      "builder quoting software Australia",
+      "building quote app 2026",
+      "quoting app for residential builders",
+      "builder estimating software Australia",
+    ],
+  },
+  {
+    slug: "best-quoting-app-for-hvac-technicians-australia-2026",
+    title: "Best Quoting App for HVAC Technicians in Australia 2026",
+    excerpt:
+      "HVAC quoting involves equipment pricing, installation complexity, ARCtick compliance, and service contracts. We compare the top quoting apps for Australian air conditioning and HVAC technicians.",
+    category: "App Reviews",
+    readTime: "9 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for HVAC Technicians Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian HVAC technicians in 2026: Solvr, ServiceM8, Tradify, and Fergus. Includes equipment pricing, ARCtick compliance, and service contract features.",
+    keywords: [
+      "best quoting app for HVAC technicians Australia",
+      "HVAC quoting software Australia",
+      "air conditioning quote app 2026",
+      "quoting app for HVAC",
+      "HVAC job management app Australia",
+    ],
+  },
 ];

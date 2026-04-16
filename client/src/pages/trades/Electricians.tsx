@@ -83,6 +83,12 @@ const data: TradeData = {
   ],
   metaTitle: "Quoting App for Electricians — AI Quotes & Invoices | Solvr",
   metaDescription: "Solvr is the AI quoting app built for Australian electricians. Speak the job on-site and get a professional quote with compliance notes and your licence number sent to the customer in under 30 seconds. Try free for 14 days.",
+  relatedArticle: {
+    slug: "best-quoting-app-for-electricians-australia-2026",
+    title: "Best Quoting App for Electricians in Australia 2026",
+    excerpt: "We compare the top quoting apps for Australian electricians — compliance tracking, materials pricing, and licence number handling compared.",
+    readTime: "9 min read",
+  },
 };
 
 export default function Electricians() {

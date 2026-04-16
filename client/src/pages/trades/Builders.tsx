@@ -86,6 +86,12 @@ const data: TradeData = {
   ],
   metaTitle: "Quoting App for Builders — Voice-to-Quote & Scope of Works | Solvr",
   metaDescription: "Solvr is the AI quoting app built for Australian builders. Speak the job on-site and get a professional scope of works, materials breakdown, and staged payment terms sent to the client in under 30 seconds. Try free for 14 days.",
+  relatedArticle: {
+    slug: "best-quoting-app-for-builders-australia-2026",
+    title: "Best Quoting App for Builders in Australia 2026",
+    excerpt: "We compare the top quoting apps for Australian builders — scope of works, variation management, and provisional sums compared.",
+    readTime: "10 min read",
+  },
 };
 
 export default function Builders() {
