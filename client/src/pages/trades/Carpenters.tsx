@@ -85,10 +85,10 @@ const data: TradeData = {
   metaTitle: "Quoting App for Carpenters — Professional Proposals in Seconds | Solvr",
   metaDescription: "Solvr is the AI quoting app built for Australian carpenters. Speak the job on-site and get a detailed proposal with inclusions, exclusions, and timeline sent to the client in under 30 seconds. Try free for 14 days.",
   relatedArticle: {
-    slug: "how-to-write-a-professional-tradie-quote",
-    title: "How to Write a Professional Tradie Quote That Wins Jobs",
-    excerpt: "The 10 sections every carpenter's quote needs — and the common mistakes that cost tradies jobs before the customer even calls back.",
-    readTime: "9 min read",
+    slug: "best-quoting-app-for-carpenters-australia-2026",
+    title: "Best Quoting App for Carpenters in Australia 2026",
+    excerpt: "We compare the top quoting apps for Australian carpenters — materials estimation, waste factors, variation management, and voice-to-quote features.",
+    readTime: "8 min read",
   },
 };
 

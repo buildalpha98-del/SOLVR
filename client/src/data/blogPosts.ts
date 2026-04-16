@@ -201,4 +201,61 @@ export const blogPosts: BlogPost[] = [
       "HVAC job management app Australia",
     ],
   },
+  {
+    slug: "best-quoting-app-for-carpenters-australia-2026",
+    title: "Best Quoting App for Carpenters in Australia 2026",
+    excerpt:
+      "Carpentry quotes involve materials lists with waste factors, hardware costs, multi-day labour, and variation management. We compare the top quoting apps for Australian carpenters.",
+    category: "App Reviews",
+    readTime: "8 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for Carpenters Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian carpenters in 2026: Solvr, Tradify, Fergus, and Buildxact. Includes materials estimation, waste factors, and variation management.",
+    keywords: [
+      "best quoting app for carpenters Australia",
+      "carpenter quoting software Australia",
+      "carpentry quote app 2026",
+      "quoting app for carpenters",
+      "carpenter job management app Australia",
+    ],
+  },
+  {
+    slug: "best-quoting-app-for-painters-australia-2026",
+    title: "Best Quoting App for Painters in Australia 2026",
+    excerpt:
+      "Painting quotes are won and lost on speed and presentation. We compare the top quoting apps for Australian painters — room-by-room quoting, paint spec tracking, and automated follow-up.",
+    category: "App Reviews",
+    readTime: "8 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for Painters Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian painters in 2026: Solvr, ServiceM8, Tradify, and Fergus. Includes room-by-room quoting, paint spec tracking, and automated quote follow-up.",
+    keywords: [
+      "best quoting app for painters Australia",
+      "painter quoting software Australia",
+      "painting quote app 2026",
+      "quoting app for painters",
+      "painter job management app Australia",
+    ],
+  },
+  {
+    slug: "best-quoting-app-for-roofers-australia-2026",
+    title: "Best Quoting App for Roofers in Australia 2026",
+    excerpt:
+      "Roofing quotes involve material quantity calculations, safety compliance, and variation management. We compare the top quoting apps for Australian roofers.",
+    category: "App Reviews",
+    readTime: "9 min read",
+    publishedDate: "2026-04-17",
+    metaTitle: "Best Quoting App for Roofers Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing the best quoting apps for Australian roofers in 2026: Solvr, Tradify, ServiceM8, and Fergus. Includes material quantity calculation, safety compliance, and voice-to-quote features.",
+    keywords: [
+      "best quoting app for roofers Australia",
+      "roofer quoting software Australia",
+      "roofing quote app 2026",
+      "quoting app for roofers",
+      "roofer job management app Australia",
+    ],
+  },
 ];

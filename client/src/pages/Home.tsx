@@ -111,6 +111,13 @@ const TRADES = [
     result: "Quote with model specs, warranty terms, and installation scope — professional every time.",
     icon: "❄️",
   },
+  {
+    trade: "Roofers",
+    slug: "/trades/roofers",
+    example: '"Re-roof 180sqm, Colorbond Surfmist, 25-degree pitch, two valleys, replace flashings and gutters, skip bin for disposal."',
+    result: "Itemised quote with material quantities, safety allowances, and disposal costs — sent before you leave the site.",
+    icon: "🏠",
+  },
 ];
 
 const FAQS = [
