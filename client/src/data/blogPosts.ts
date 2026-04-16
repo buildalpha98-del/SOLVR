@@ -69,6 +69,44 @@ export const blogPosts: BlogPost[] = [
     ],
   },
   {
+    slug: "how-to-write-a-professional-tradie-quote",
+    title: "How to Write a Professional Tradie Quote That Wins Jobs",
+    excerpt:
+      "A professional quote does more than list prices — it builds trust, sets expectations, and positions you above competitors. Here's exactly what to include in every quote you send.",
+    category: "Quoting & Invoicing",
+    readTime: "9 min read",
+    publishedDate: "2026-05-01",
+    metaTitle: "How to Write a Professional Tradie Quote — Template & Tips | Solvr",
+    metaDescription:
+      "Learn how to write a professional tradie quote that wins more jobs. Includes a quote template, what to include, common mistakes, and how to present pricing confidently.",
+    keywords: [
+      "how to write a tradie quote",
+      "professional tradie quote template",
+      "tradie quote example Australia",
+      "what to include in a trade quote",
+      "quoting tips for tradies",
+    ],
+  },
+  {
+    slug: "best-accounting-software-tradies-australia-2026",
+    title: "Best Accounting Software for Tradies in Australia 2026",
+    excerpt:
+      "Xero, MYOB, QuickBooks, or something simpler? We compare the top accounting options for Australian trade businesses — including which ones integrate directly with your quoting app.",
+    category: "Business Growth",
+    readTime: "10 min read",
+    publishedDate: "2026-05-15",
+    metaTitle: "Best Accounting Software for Tradies Australia 2026 | Solvr",
+    metaDescription:
+      "Comparing Xero, MYOB, QuickBooks, and Wave for Australian tradies in 2026. Honest pricing, features, and which accounting software integrates best with your quoting app.",
+    keywords: [
+      "best accounting software tradies Australia",
+      "Xero for tradies",
+      "MYOB vs Xero tradie",
+      "accounting app for small trade business",
+      "tradie bookkeeping software 2026",
+    ],
+  },
+  {
     slug: "tradie-business-tips-grow-revenue",
     title: "10 Practical Ways to Grow Your Tradie Business Revenue in 2026",
     excerpt:

@@ -30,6 +30,8 @@ import HowToQuoteFaster from "./pages/blog/HowToQuoteFaster";
 import BestTradieApps from "./pages/blog/BestTradieApps";
 import AIReceptionist from "./pages/blog/AIReceptionist";
 import GrowTradieRevenue from "./pages/blog/GrowTradieRevenue";
+import HowToWriteAQuote from "./pages/blog/HowToWriteAQuote";
+import BestAccountingSoftware from "./pages/blog/BestAccountingSoftware";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
@@ -113,6 +115,8 @@ function Router() {
       <Route path="/blog/best-tradie-apps-australia-2026" component={BestTradieApps} />
       <Route path="/blog/ai-receptionist-for-tradies" component={AIReceptionist} />
       <Route path="/blog/tradie-business-tips-grow-revenue" component={GrowTradieRevenue} />
+      <Route path="/blog/how-to-write-a-professional-tradie-quote" component={HowToWriteAQuote} />
+      <Route path="/blog/best-accounting-software-tradies-australia-2026" component={BestAccountingSoftware} />
       <Route path="/trades/electricians" component={TradesElectricians} />
       <Route path="/trades/carpenters" component={TradesCarpenters} />
       <Route path="/trades/builders" component={TradesBuilders} />
