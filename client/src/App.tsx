@@ -7,6 +7,10 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 import Home from "./pages/Home";
 import TradesPlumbers from "./pages/trades/Plumbers";
+import VsTradify from "./pages/vs/Tradify";
+import VsServiceM8 from "./pages/vs/ServiceM8";
+import VsFergus from "./pages/vs/Fergus";
+import VsSimPRO from "./pages/vs/SimPRO";
 import TradesElectricians from "./pages/trades/Electricians";
 import TradesCarpenters from "./pages/trades/Carpenters";
 import TradesBuilders from "./pages/trades/Builders";
@@ -19,6 +23,13 @@ import VoiceAgentSuccess from "./pages/VoiceAgentSuccess";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Support from "./pages/Support";
+
+// ── Blog pages ──────────────────────────────────────────────────────────────
+import Blog from "./pages/Blog";
+import HowToQuoteFaster from "./pages/blog/HowToQuoteFaster";
+import BestTradieApps from "./pages/blog/BestTradieApps";
+import AIReceptionist from "./pages/blog/AIReceptionist";
+import GrowTradieRevenue from "./pages/blog/GrowTradieRevenue";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
 import Demo from "./pages/Demo";
@@ -89,6 +100,19 @@ function Router() {
       {/* ── Public marketing site ─────────────────────────────────────────── */}
       <Route path="/" component={Home} />
       <Route path="/trades/plumbers" component={TradesPlumbers} />
+
+      {/* ── Competitor comparison pages (SEO) ─────────────────────────────── */}
+      <Route path="/vs/tradify" component={VsTradify} />
+      <Route path="/vs/servicem8" component={VsServiceM8} />
+      <Route path="/vs/fergus" component={VsFergus} />
+      <Route path="/vs/simpro" component={VsSimPRO} />
+
+      {/* ── Blog (SEO content hub) ────────────────────────────────────────── */}
+      <Route path="/blog" component={Blog} />
+      <Route path="/blog/how-to-quote-faster-as-a-tradie" component={HowToQuoteFaster} />
+      <Route path="/blog/best-tradie-apps-australia-2026" component={BestTradieApps} />
+      <Route path="/blog/ai-receptionist-for-tradies" component={AIReceptionist} />
+      <Route path="/blog/tradie-business-tips-grow-revenue" component={GrowTradieRevenue} />
       <Route path="/trades/electricians" component={TradesElectricians} />
       <Route path="/trades/carpenters" component={TradesCarpenters} />
       <Route path="/trades/builders" component={TradesBuilders} />
