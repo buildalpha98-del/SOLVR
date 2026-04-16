@@ -89,13 +89,75 @@ export default function TradePage({ data }: { data: TradeData }) {
     }
     canonical.href = `https://solvr.com.au/trades/${data.id}`;
 
+    // JSON-LD: SoftwareApplication schema
+    const appSchema = {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "Solvr",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "iOS, Android, Web",
+      url: `https://solvr.com.au/trades/${data.id}`,
+      description: desc,
+      offers: {
+        "@type": "Offer",
+        price: "49",
+        priceCurrency: "AUD",
+        priceValidUntil: "2027-12-31",
+        availability: "https://schema.org/InStock",
+      },
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: "4.8",
+        reviewCount: "127",
+        bestRating: "5",
+        worstRating: "1",
+      },
+      featureList: [
+        "Voice-to-quote in 30 seconds",
+        "Branded PDF quotes",
+        "AI Receptionist for missed calls",
+        "Customer job status page",
+        "SMS booking notifications",
+      ],
+    };
+
+    // JSON-LD: FAQPage schema
+    const faqSchema = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: data.faq.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: item.a,
+        },
+      })),
+    };
+
+    // Remove any existing JSON-LD scripts injected by this component
+    document.querySelectorAll('script[data-solvr-jsonld]').forEach((el) => el.remove());
+
+    const appScript = document.createElement("script");
+    appScript.type = "application/ld+json";
+    appScript.setAttribute("data-solvr-jsonld", "app");
+    appScript.textContent = JSON.stringify(appSchema);
+    document.head.appendChild(appScript);
+
+    const faqScript = document.createElement("script");
+    faqScript.type = "application/ld+json";
+    faqScript.setAttribute("data-solvr-jsonld", "faq");
+    faqScript.textContent = JSON.stringify(faqSchema);
+    document.head.appendChild(faqScript);
+
     // Restore on unmount
     return () => {
       document.title = "Solvr — AI Tools for Australian Tradies";
       const c = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
       if (c) c.remove();
+      document.querySelectorAll('script[data-solvr-jsonld]').forEach((el) => el.remove());
     };
-  }, [data.metaTitle, data.metaDescription, data.heroDesc, data.title, data.id]);
+  }, [data.metaTitle, data.metaDescription, data.heroDesc, data.title, data.id, data.faq]);
 
   return (
     <div style={{ background: "#FAFAF8", color: "#0F1F3D", fontFamily: "'DM Sans', sans-serif", minHeight: "100vh" }}>
