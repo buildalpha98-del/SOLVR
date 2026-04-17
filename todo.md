@@ -584,11 +584,14 @@
 - [x] B6: Bulk quote expiry cron — already in quoteFollowUp.ts; fixed broken acceptUrl in follow-up emails; removed dead legacy GET endpoint
 
 ## Sprint 1 — Price List & AI Memory File
-- [ ] Price list file upload (PDF/CSV) + manual entry UI
-- [ ] Structured price items table (name, unit, cost, sell, margin)
-- [ ] AI quote generation injects tradie's price list as context
-- [ ] Quote line items show itemised materials + labour
-- [ ] Default markup % per category (materials, labour, call-out)
+- [x] Structured price items table (name, unit, cost, sell, margin) — price_list_items schema + migration (0044)
+- [x] CRUD tRPC router (priceList.list/create/update/delete) with portal auth guard
+- [x] AI quote generation injects tradie's price list as context (extractQuoteData now accepts priceListContext)
+- [x] Portal UI page (/portal/price-list) — grouped by category, inline edit/delete, live margin preview, add modal
+- [x] Price List nav item added to PortalLayout (More dropdown, quote-engine feature gate)
+- [x] 7 new vitest tests (207 total passing)
+- [ ] Price list file upload (PDF/CSV) — deferred to Sprint 1b
+- [ ] Default markup % per category — deferred to Sprint 1b
 
 ## Sprint 2 — Customer Job Tracking Portal
 - [ ] Public /job-status/:token page (no login)

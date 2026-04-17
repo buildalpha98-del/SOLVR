@@ -1494,3 +1494,59 @@ export const appSettings = mysqlTable("app_settings", {
 });
 export type AppSettings = typeof appSettings.$inferSelect;
 export type InsertAppSettings = typeof appSettings.$inferInsert;
+
+// ─── Price List Items ─────────────────────────────────────────────────────────
+/**
+ * Tradie's personal price list — a catalogue of services, materials, and labour
+ * rates that the AI uses as context when generating quotes from voice recordings.
+ *
+ * Each item has a cost price (what the tradie pays) and a sell price (what they
+ * charge the customer). The margin is derived at query time.
+ *
+ * Items are grouped by category (labour, materials, call-out, other) so the
+ * tradie can apply default markup rules per category.
+ */
+export const priceListItems = mysqlTable("price_list_items", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — each tradie has their own price list */
+  clientId: int("clientId").notNull(),
+  /** Display name shown in quotes and to the AI (e.g. "Replace tap washer") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Optional longer description for the AI context */
+  description: text("description"),
+  /** Unit of measure (e.g. "each", "hour", "m²", "m", "kit") */
+  unit: varchar("unit", { length: 50 }).default("each").notNull(),
+  /**
+   * Category for grouping and default markup rules.
+   * labour = time-based work | materials = physical parts/supplies
+   * call_out = travel/call-out fees | subcontractor = pass-through costs
+   * other = anything else
+   */
+  category: mysqlEnum("price_list_category", [
+    "labour",
+    "materials",
+    "call_out",
+    "subcontractor",
+    "other",
+  ])
+    .default("labour")
+    .notNull(),
+  /**
+   * Cost price in cents (what the tradie pays, e.g. wholesale).
+   * Nullable — tradies may only want to track sell price.
+   */
+  costCents: int("costCents"),
+  /**
+   * Sell price in cents (what the tradie charges the customer).
+   * This is the value injected into AI quote context.
+   */
+  sellCents: int("sellCents").notNull(),
+  /** Whether this item is active (soft-delete pattern) */
+  isActive: boolean("isActive").default(true).notNull(),
+  /** Sort order within the category for display */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PriceListItem = typeof priceListItems.$inferSelect;
+export type InsertPriceListItem = typeof priceListItems.$inferInsert;

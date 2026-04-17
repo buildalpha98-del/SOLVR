@@ -309,6 +309,13 @@
       "when": 1776150270162,
       "tag": "0043_overjoyed_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1776426857375,
+      "tag": "0044_parallel_rockslide",
+      "breakpoints": true
     }
   ]
 }

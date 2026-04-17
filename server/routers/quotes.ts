@@ -39,6 +39,7 @@ import {
   updateCrmClient,
   getClientProfile,
   buildMemoryContext,
+  buildPriceListContext,
   insertCrmInteraction,
 } from "../db";
 import { randomUUID, randomBytes } from "crypto";
@@ -293,10 +294,11 @@ export const quotesRouter = router({
         });
 
         // Step 2: Extract quote data
-        // Fetch the client's memory file for richer extraction context
+        // Fetch the client's memory file and price list for richer extraction context
         const profile = await getClientProfile(clientId);
         const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : undefined;
-        const rawExtracted = await extractQuoteData(transcription.text, client.businessName, memoryContext);
+        const priceListCtx = await buildPriceListContext(clientId);
+        const rawExtracted = await extractQuoteData(transcription.text, client.businessName, memoryContext, priceListCtx);
         const extracted = sanitiseExtracted(rawExtracted);
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "complete",

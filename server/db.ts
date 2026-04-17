@@ -1671,3 +1671,92 @@ export async function setFeatureFlag(flag: "referralProgrammeEnabled", value: bo
   await db.insert(appSettings).values({ id: 1, referralProgrammeEnabled: value })
     .onDuplicateKeyUpdate({ set: { [flag]: value } });
 }
+
+// ─── Price List Items ─────────────────────────────────────────────────────────
+import { priceListItems, type InsertPriceListItem, type PriceListItem } from "../drizzle/schema";
+
+export async function listPriceListItems(clientId: number): Promise<PriceListItem[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(priceListItems)
+    .where(and(eq(priceListItems.clientId, clientId), eq(priceListItems.isActive, true)))
+    .orderBy(priceListItems.category, priceListItems.sortOrder, priceListItems.name);
+}
+
+export async function getPriceListItem(id: number, clientId: number): Promise<PriceListItem | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .select()
+    .from(priceListItems)
+    .where(and(eq(priceListItems.id, id), eq(priceListItems.clientId, clientId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function insertPriceListItem(data: InsertPriceListItem): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(priceListItems).values(data);
+}
+
+export async function updatePriceListItem(
+  id: number,
+  clientId: number,
+  data: Partial<Pick<PriceListItem, "name" | "description" | "unit" | "category" | "costCents" | "sellCents" | "isActive" | "sortOrder">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(priceListItems)
+    .set(data)
+    .where(and(eq(priceListItems.id, id), eq(priceListItems.clientId, clientId)));
+}
+
+export async function deletePriceListItem(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Soft-delete: mark inactive rather than hard-delete
+  await db
+    .update(priceListItems)
+    .set({ isActive: false })
+    .where(and(eq(priceListItems.id, id), eq(priceListItems.clientId, clientId)));
+}
+
+/**
+ * Build a formatted price list string for injection into AI quote context.
+ * Returns null if the client has no price list items.
+ */
+export async function buildPriceListContext(clientId: number): Promise<string | null> {
+  const items = await listPriceListItems(clientId);
+  if (items.length === 0) return null;
+
+  const formatCents = (cents: number | null | undefined) =>
+    cents != null ? `$${(cents / 100).toFixed(2)}` : null;
+
+  const grouped: Record<string, string[]> = {};
+  for (const item of items) {
+    const cat = item.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    const cost = formatCents(item.costCents);
+    const sell = formatCents(item.sellCents);
+    const priceStr = cost ? `cost ${cost}, sell ${sell}` : `${sell}`;
+    grouped[cat].push(`  - ${item.name} (${item.unit}): ${priceStr}${item.description ? ` — ${item.description}` : ""}`);
+  }
+
+  const lines: string[] = ["PRICE LIST (use these prices when building quotes):"];
+  const categoryLabels: Record<string, string> = {
+    labour: "Labour",
+    materials: "Materials",
+    call_out: "Call-Out / Travel",
+    subcontractor: "Subcontractor",
+    other: "Other",
+  };
+  for (const [cat, catItems] of Object.entries(grouped)) {
+    lines.push(`${categoryLabels[cat] ?? cat}:`);
+    lines.push(...catItems);
+  }
+  return lines.join("\n");
+}

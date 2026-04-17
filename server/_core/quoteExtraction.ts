@@ -199,29 +199,25 @@ export async function extractQuoteData(
   transcript: string,
   clientBusinessName: string,
   memoryContext?: string,
+  priceListContext?: string | null,
 ): Promise<QuoteExtraction> {
-  const userContent = memoryContext
-    ? `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":
----
-${transcript}
----
+  // Build the supplementary context block (memory file + price list)
+  const contextBlocks: string[] = [];
+  if (memoryContext) contextBlocks.push(`--- BUSINESS PROFILE (Memory File) ---\n${memoryContext}\n--- END MEMORY FILE ---`);
+  if (priceListContext) contextBlocks.push(`--- PRICE LIST ---\n${priceListContext}\n--- END PRICE LIST ---`);
+  const contextSection = contextBlocks.length > 0 ? `\n\n${contextBlocks.join("\n\n")}` : "";
 
---- BUSINESS PROFILE (Memory File) ---
-${memoryContext}
---- END MEMORY FILE ---
-
-Instructions:
+  const instructions = contextBlocks.length > 0
+    ? `\n\nInstructions:
 1. Extract all quote data from the transcript above.
 2. Where the tradie uses shorthand like "standard callout", "usual rate", or "the normal fee", look up the exact value from the Memory File and use it as the unitPrice.
-3. Where the transcript does not specify payment terms or validity, use the Memory File defaults.
-4. Flag any price anomalies (>50% variance from Memory File rates) in extractionWarnings.
-5. Return valid JSON only — no markdown, no explanation.`
-    : `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":
----
-${transcript}
----
+3. Where the transcript references a service or material in the PRICE LIST, use the listed sell price as the unitPrice.
+4. Where the transcript does not specify payment terms or validity, use the Memory File defaults.
+5. Flag any price anomalies (>50% variance from Memory File or Price List rates) in extractionWarnings.
+6. Return valid JSON only — no markdown, no explanation.`
+    : "";
 
-Extract all quote data from the transcript. Return valid JSON only — no markdown, no explanation.`;
+  const userContent = `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---${contextSection}${instructions || "\n\nExtract all quote data from the transcript. Return valid JSON only — no markdown, no explanation."}`;
 
   const response = await invokeLLM({
     messages: [

@@ -30,6 +30,7 @@ import { quotesRouter } from "./routers/quotes";
 import { publicQuotesRouter } from "./routers/publicQuotes";
 import { portalInvoiceChasingRouter, adminInvoiceChasingRouter } from "./routers/invoiceChasing";
 import { staffPortalRouter } from "./routers/staffPortal";
+import { priceListRouter } from "./routers/priceList";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1567,6 +1568,7 @@ export const appRouter = router({
   adminInvoiceChasing: adminInvoiceChasingRouter,
   support: supportRouter,
   staffPortal: staffPortalRouter,
+  priceList: router(priceListRouter),
 });
 
 export type AppRouter = typeof appRouter;
