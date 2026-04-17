@@ -502,6 +502,9 @@ export const portalRouter = router({
         jobsDueToday,
         plan,
         features: PLAN_FEATURES[plan] ?? [],
+        vapiAgentId: client.vapiAgentId ?? null,
+        businessName: client.quoteTradingName ?? client.businessName ?? null,
+        tradeType: client.tradeType ?? null,
       };
     }),
 

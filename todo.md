@@ -661,3 +661,29 @@
 - [ ] SMS notification to customer on each job status change (Twilio)
 - [ ] "Share with Customer" button on job card generates/copies tracking URL
 - [ ] Add vitest for job status procedures
+
+## Sprint 7 — Vapi AI Receptionist Demo Flow
+- [x] VapiDemoWidget component on PortalDashboard — live call button, waveform, transcript feed, end call
+- [x] Setup prompt shown when vapiAgentId is null (links to /portal/settings)
+- [x] getDashboard returns vapiAgentId, businessName, tradeType for widget personalisation
+- [x] Persona config built from tradie's business name and trade type
+
+## Sprint 8 — Customer CRM Auto-Population
+- [x] upsertTradieCustomer called in publicQuotes.accept (quote accepted → customer record created/updated)
+- [x] upsertTradieCustomer already wired in markInvoicePaid (invoice paid → customer record updated)
+- [x] CRM upsert is non-fatal (errors caught and logged, flow continues)
+- [x] Customer record includes: name, phone, email, address, jobType, jobCount, totalSpent, firstJobAt, lastJobAt
+
+## Sprint 9 — Multi-Staff Portal Accounts
+- [x] portal_team_members table: id, clientId, name, email, role (admin/viewer), passwordHash, inviteToken, sessionToken, isActive, timestamps
+- [x] db:push migration applied (0047_soft_silver_centurion.sql)
+- [x] DB helpers: listPortalTeamMembers, createPortalTeamMember, getPortalTeamMemberByInviteToken, getPortalTeamMemberBySessionToken, getPortalTeamMemberByEmail, updatePortalTeamMember, deletePortalTeamMember
+- [x] portalTeam.ts router: list, invite, getInvite, acceptInvite, login, updateRole, remove, resendInvite, me procedures
+- [x] getPortalClientOrTeamMember helper: owner cookie OR team member cookie auth
+- [x] Invite email sent via sendEmail with magic link (/portal/team/accept?token=...)
+- [x] 5-member cap on team invites
+- [x] PortalTeam.tsx page (/portal/team) — member list, invite dialog, role selector, remove confirm, resend invite
+- [x] PortalTeamAccept.tsx page (/portal/team/accept) — password set form, invite metadata display
+- [x] Team nav item added to PortalLayout (UserPlus icon, Pro badge)
+- [x] /portal/team and /portal/team/accept routes added to App.tsx
+- [x] 8 vitest tests for portalTeam router (227 total passing)

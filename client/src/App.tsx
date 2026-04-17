@@ -91,6 +91,8 @@ import PortalSchedule from "./pages/portal/PortalSchedule";
 import PortalStaffCheckIn from "./pages/portal/PortalStaffCheckIn";
 import PortalReviews from "./pages/portal/PortalReviews";
 import PortalPriceList from "./pages/portal/PortalPriceList";
+import PortalTeam from "./pages/portal/PortalTeam";
+import PortalTeamAccept from "./pages/portal/PortalTeamAccept";
 
 // ── Staff Portal (PIN auth) ──────────────────────────────────────────────
 import StaffLogin from "./pages/staff/StaffLogin";
@@ -212,6 +214,8 @@ function Router() {
       <Route path="/portal/checkin" component={PortalStaffCheckIn} />
       <Route path="/portal/reviews" component={PortalReviews} />
       <Route path="/portal/price-list" component={PortalPriceList} />
+      <Route path="/portal/team" component={PortalTeam} />
+      <Route path="/portal/team/accept" component={PortalTeamAccept} />
 
       {/* ── Staff Portal (PIN auth) ─────────────────────────────────────── */}
       <Route path="/staff" component={StaffLogin} />

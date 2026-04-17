@@ -1760,3 +1760,65 @@ export async function buildPriceListContext(clientId: number): Promise<string | 
   }
   return lines.join("\n");
 }
+
+// ─── Portal Team Members (Sprint 9) ──────────────────────────────────────────
+import {
+  portalTeamMembers,
+  type PortalTeamMember,
+  type InsertPortalTeamMember,
+} from "../drizzle/schema";
+
+export async function listPortalTeamMembers(clientId: number): Promise<PortalTeamMember[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(portalTeamMembers)
+    .where(eq(portalTeamMembers.clientId, clientId))
+    .orderBy(desc(portalTeamMembers.createdAt));
+}
+
+export async function getPortalTeamMemberByInviteToken(token: string): Promise<PortalTeamMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(portalTeamMembers)
+    .where(eq(portalTeamMembers.inviteToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPortalTeamMemberBySessionToken(token: string): Promise<PortalTeamMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(portalTeamMembers)
+    .where(eq(portalTeamMembers.sessionToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPortalTeamMemberByEmail(clientId: number, email: string): Promise<PortalTeamMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(portalTeamMembers)
+    .where(and(eq(portalTeamMembers.clientId, clientId), eq(portalTeamMembers.email, email)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createPortalTeamMember(data: InsertPortalTeamMember): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(portalTeamMembers).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function updatePortalTeamMember(id: number, data: Partial<InsertPortalTeamMember>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(portalTeamMembers).set(data).where(eq(portalTeamMembers.id, id));
+}
+
+export async function deletePortalTeamMember(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(portalTeamMembers)
+    .where(and(eq(portalTeamMembers.id, id), eq(portalTeamMembers.clientId, clientId)));
+}

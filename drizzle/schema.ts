@@ -1553,3 +1553,22 @@ export const priceListItems = mysqlTable("price_list_items", {
 });
 export type PriceListItem = typeof priceListItems.$inferSelect;
 export type InsertPriceListItem = typeof priceListItems.$inferInsert;
+
+// Portal Team Members (Sprint 9 - Multi-staff accounts)
+export const portalTeamMembers = mysqlTable("portal_team_members", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  role: mysqlEnum("portal_team_role", ["admin", "viewer"]).default("viewer").notNull(),
+  passwordHash: varchar("passwordHash", { length: 255 }),
+  inviteToken: varchar("inviteToken", { length: 128 }).unique(),
+  inviteExpiresAt: timestamp("inviteExpiresAt"),
+  sessionToken: varchar("sessionToken", { length: 128 }).unique(),
+  sessionExpiresAt: timestamp("sessionExpiresAt"),
+  isActive: boolean("isActive").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PortalTeamMember = typeof portalTeamMembers.$inferSelect;
+export type InsertPortalTeamMember = typeof portalTeamMembers.$inferInsert;

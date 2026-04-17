@@ -6,6 +6,7 @@
  * - Call volume chart (last 14 days)
  * - Pipeline revenue estimate
  * - AI Weekly Insight (full-managed plan) — live LLM-generated summary
+ * - AI Receptionist Test Widget (Sprint 7) — live Vapi call using the tradie's own agent
  * - Upgrade prompt for locked features
  */
 import PortalLayout from "./PortalLayout";
@@ -13,14 +14,14 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X, CalendarCheck, Receipt, ChevronDown, ChevronUp, Mic } from "lucide-react";
+import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -28,6 +29,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useVapi, type PersonaConfig } from "@/hooks/useVapi";
+import { Waveform } from "@/components/Waveform";
+import { TranscriptFeed } from "@/components/TranscriptFeed";
 
 // ─── Quick Job Button ────────────────────────────────────────────────────────
 function QuickJobButton() {
@@ -161,6 +165,228 @@ function UpgradeCard({ feature, plan }: { feature: string; plan: string }) {
       </p>
       <div className="mt-1">
         <UpgradeButton plan="professional" label="Upgrade Now" size="sm" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Vapi Demo Widget ────────────────────────────────────────────────────────
+function formatDuration(seconds: number) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function VapiDemoWidget({
+  vapiAgentId,
+  businessName,
+  tradeType,
+}: {
+  vapiAgentId: string | null;
+  businessName: string | null;
+  tradeType: string | null;
+}) {
+  // Build a persona from the tradie's own profile data
+  const persona = useMemo<PersonaConfig>(() => ({
+    businessName: businessName ?? "Your Business",
+    ownerName: "the team",
+    tradeType: tradeType ?? "trade",
+    services: "General trade services",
+    serviceArea: "Your service area",
+    hours: "Mon–Fri 7am–5pm",
+    emergencyFee: "$150 + labour",
+  }), [businessName, tradeType]);
+
+  const {
+    status,
+    transcript,
+    isSpeaking,
+    callDuration,
+    error,
+    startCall,
+    endCall,
+    resetDemo,
+  } = useVapi(persona);
+
+  const isIdle = status === "idle";
+  const isConnecting = status === "connecting";
+  const isActive = status === "active";
+  const isEnded = status === "ended";
+  const callInProgress = isConnecting || isActive;
+
+  // If no agent is configured yet, show a setup prompt
+  if (!vapiAgentId) {
+    return (
+      <div
+        className="rounded-xl p-5"
+        style={{ background: "#0F1F3D", border: "1px solid rgba(245,166,35,0.2)" }}
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(245,166,35,0.12)" }}
+          >
+            <Bot className="w-4 h-4" style={{ color: "#F5A623" }} />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Test Your AI Receptionist</h2>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Your AI agent isn't configured yet.
+            </p>
+          </div>
+        </div>
+        <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.5)" }}>
+          Your Solvr AI receptionist needs to be set up before you can test it here. Contact your Solvr account manager or complete your onboarding to get your agent live.
+        </p>
+        <Link href="/portal/settings">
+          <button
+            className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition-all"
+            style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Go to Settings
+          </button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: "#0F1F3D", border: "1px solid rgba(245,166,35,0.2)" }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-5 py-3"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(245,166,35,0.12)" }}
+          >
+            <Bot className="w-4 h-4" style={{ color: "#F5A623" }} />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Test Your AI Receptionist</h2>
+            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+              {businessName ?? "Your Business"} · {tradeType ?? "Trade"}
+            </p>
+          </div>
+        </div>
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          {isActive && (
+            <span className="font-mono text-xs font-bold" style={{ color: "#F5A623" }}>
+              {formatDuration(callDuration)}
+            </span>
+          )}
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{
+              background: isActive
+                ? "rgba(74,222,128,0.12)"
+                : isConnecting
+                ? "rgba(245,166,35,0.12)"
+                : isEnded
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(255,255,255,0.06)",
+              color: isActive
+                ? "#4ade80"
+                : isConnecting
+                ? "#F5A623"
+                : "rgba(255,255,255,0.4)",
+            }}
+          >
+            {isActive ? "● LIVE" : isConnecting ? "Connecting…" : isEnded ? "Call ended" : "Ready"}
+          </span>
+        </div>
+      </div>
+
+      {/* Waveform + transcript area */}
+      <div className="px-5 pt-4 pb-2">
+        {/* Waveform */}
+        <div className="flex justify-center mb-4">
+          <Waveform isActive={callInProgress} isSpeaking={isSpeaking} className="h-10" />
+        </div>
+
+        {/* Transcript feed — show when a call has started */}
+        {(callInProgress || isEnded) && (
+          <div
+            className="rounded-lg overflow-hidden mb-4"
+            style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <TranscriptFeed entries={transcript} isActive={callInProgress} />
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div
+            className="rounded-lg px-3 py-2 mb-3 text-xs"
+            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5" }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Idle hint */}
+        {isIdle && (
+          <p className="text-xs text-center mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>
+            Call your AI receptionist exactly as a customer would. Test how it handles bookings, emergencies, and pricing questions.
+          </p>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div
+        className="flex items-center justify-center gap-3 px-5 py-4"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {isIdle && (
+          <button
+            onClick={startCall}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
+          >
+            <Phone className="w-4 h-4" />
+            Start Test Call
+          </button>
+        )}
+
+        {isConnecting && (
+          <button
+            disabled
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm cursor-not-allowed"
+            style={{ background: "rgba(245,166,35,0.2)", color: "#F5A623" }}
+          >
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Connecting…
+          </button>
+        )}
+
+        {isActive && (
+          <button
+            onClick={endCall}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+            style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }}
+          >
+            <PhoneOff className="w-4 h-4" />
+            End Call
+          </button>
+        )}
+
+        {isEnded && (
+          <button
+            onClick={resetDemo}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Call Again
+          </button>
+        )}
       </div>
     </div>
   );
@@ -508,6 +734,13 @@ export default function PortalDashboard() {
                 <UpgradeCard feature="Revenue Tracking" plan="Pro" />
               )}
             </div>
+
+            {/* ── AI Receptionist Test Widget (Sprint 7) ─────────────────── */}
+            <VapiDemoWidget
+              vapiAgentId={data.vapiAgentId}
+              businessName={data.businessName}
+              tradeType={data.tradeType}
+            />
 
             {/* Call volume chart */}
             <div

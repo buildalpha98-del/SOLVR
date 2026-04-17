@@ -21,6 +21,10 @@ import {
   createJobCostItem,
   getClientProfile,
   createPaymentLink,
+  getTradieCustomerByPhone,
+  getTradieCustomerByEmail,
+  createTradieCustomer,
+  updateTradieCustomer,
 } from "../db";
 import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
@@ -225,6 +229,42 @@ export const publicQuotesRouter = router({
           endAt,
           color: "green",
         });
+
+        // ── CRM: Upsert customer record on quote acceptance ─────────────────────
+        // Create or update the tradie's customer database entry so the customer
+        // appears in the CRM from the moment they accept — not just when paid.
+        try {
+          const customerName = quote.customerName ?? "Unknown Customer";
+          const customerPhone = quote.customerPhone ?? undefined;
+          const customerEmail = quote.customerEmail ?? undefined;
+          let existingCustomer = null;
+          if (customerPhone) existingCustomer = await getTradieCustomerByPhone(quote.clientId, customerPhone);
+          if (!existingCustomer && customerEmail) existingCustomer = await getTradieCustomerByEmail(quote.clientId, customerEmail);
+          if (existingCustomer) {
+            // Update last job type — don't increment jobCount (that happens on invoice paid)
+            await updateTradieCustomer(existingCustomer.id, {
+              lastJobType: quote.jobTitle,
+              lastJobAt: new Date(),
+            });
+          } else {
+            await createTradieCustomer({
+              clientId: quote.clientId,
+              name: customerName,
+              phone: customerPhone,
+              email: customerEmail,
+              address: quote.customerAddress ?? undefined,
+              jobCount: 0,
+              totalSpentCents: 0,
+              firstJobAt: new Date(),
+              lastJobAt: new Date(),
+              lastJobType: quote.jobTitle,
+            });
+          }
+          console.log(`[QuoteAccept] CRM upsert for '${customerName}' (job ${jobId})`);
+        } catch (crmErr) {
+          // Non-fatal — CRM failure must not block quote acceptance
+          console.error(`[QuoteAccept] CRM upsert failed for job ${jobId}:`, crmErr);
+        }
 
         // ── Auto-generate and send invoice to customer ──────────────────────────
         // When a customer accepts a quote, automatically generate a tax invoice
