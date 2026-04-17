@@ -1927,3 +1927,48 @@ export async function getSmsCampaignRecipients(campaignId: number): Promise<SmsC
   return db.select().from(smsCampaignRecipients)
     .where(eq(smsCampaignRecipients.campaignId, campaignId));
 }
+
+// ─── SMS Opt-Out helpers ──────────────────────────────────────────────────────
+
+/**
+ * Generate (or return existing) a unique unsubscribe token for a customer.
+ * Called lazily when a bulk SMS is dispatched to that customer.
+ */
+export async function ensureSmsUnsubscribeToken(customerId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ token: tradieCustomers.smsUnsubscribeToken })
+    .from(tradieCustomers)
+    .where(eq(tradieCustomers.id, customerId));
+  if (rows[0]?.token) return rows[0].token;
+  const { randomBytes } = await import("crypto");
+  const token = randomBytes(32).toString("hex");
+  await db.update(tradieCustomers)
+    .set({ smsUnsubscribeToken: token })
+    .where(eq(tradieCustomers.id, customerId));
+  return token;
+}
+
+/**
+ * Look up a customer by their unsubscribe token.
+ */
+export async function getTradieCustomerByUnsubscribeToken(
+  token: string,
+): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(tradieCustomers)
+    .where(eq(tradieCustomers.smsUnsubscribeToken, token));
+  return rows[0] ?? null;
+}
+
+/**
+ * Mark a customer as opted out of SMS marketing.
+ */
+export async function optOutCustomerSms(customerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tradieCustomers)
+    .set({ optedOutSms: true })
+    .where(eq(tradieCustomers.id, customerId));
+}

@@ -1174,6 +1174,10 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   notes: text("notes"),
   /** Tags for segmentation (e.g. "repeat", "referral", "commercial") */
   tags: json("tags").$type<string[]>(),
+  /** Whether this customer has opted out of bulk SMS marketing */
+  optedOutSms: boolean("optedOutSms").default(false).notNull(),
+  /** Unique token used in the public /sms/unsubscribe?token=xxx URL */
+  smsUnsubscribeToken: varchar("smsUnsubscribeToken", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

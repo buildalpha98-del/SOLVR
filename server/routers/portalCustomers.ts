@@ -24,6 +24,9 @@ import {
   updateSmsCampaignRecipient,
   listSmsCampaigns as dbListSmsCampaigns,
   getSmsCampaignRecipients,
+  ensureSmsUnsubscribeToken,
+  getTradieCustomerByUnsubscribeToken,
+  optOutCustomerSms,
 } from "../db";
 import { sendSms } from "../lib/sms";
 
@@ -125,15 +128,15 @@ export const portalCustomersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { clientId } = await requirePortalWrite(ctx);
 
-      // Resolve recipients
+      // Resolve recipients — skip opted-out customers
       const allCustomers = await listTradieCustomers(clientId);
       const targets = allCustomers.filter(
-        (c) => input.customerIds.includes(c.id) && !!c.phone,
+        (c) => input.customerIds.includes(c.id) && !!c.phone && !c.optedOutSms,
       );
       if (targets.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "No valid phone numbers found for the selected customers",
+          message: "No valid phone numbers found for the selected customers (some may have opted out)",
         });
       }
 
@@ -166,11 +169,29 @@ export const portalCustomersRouter = router({
       // Fetch inserted rows to get their IDs
       const recipientRows = await getSmsCampaignRecipients(campaignId);
 
+      // Pre-generate unsubscribe tokens for all recipients
+      const tokenMap = new Map<number, string>();
+      for (const target of targets) {
+        const token = await ensureSmsUnsubscribeToken(target.id);
+        tokenMap.set(target.id, token);
+      }
+
+      // Build a map from phone → customerId so we can look up the token per recipient row
+      const phoneToCustomerId = new Map(targets.map((t) => [t.phone!, t.id]));
+
       let sentCount = 0;
       let failedCount = 0;
 
       for (const recipient of recipientRows) {
-        const result = await sendSms({ to: recipient.phone, body: input.message });
+        const customerId = phoneToCustomerId.get(recipient.phone);
+        const unsubToken = customerId ? tokenMap.get(customerId) : undefined;
+        // Append opt-out footer to every message (Twilio compliance)
+        const origin = (ctx.req as { headers: Record<string, string | undefined> }).headers.origin ?? "";
+        const unsubUrl = unsubToken ? `${origin}/sms/unsubscribe?token=${unsubToken}` : "";
+        const body = unsubToken
+          ? `${input.message}\n\nReply STOP or unsubscribe: ${unsubUrl}`
+          : input.message;
+        const result = await sendSms({ to: recipient.phone, body });
         if (result.success) {
           sentCount++;
           await updateSmsCampaignRecipient(recipient.id, {
@@ -200,4 +221,41 @@ export const portalCustomersRouter = router({
     const { clientId } = await requirePortalAuth(ctx);
     return dbListSmsCampaigns(clientId);
   }),
+
+  /**
+   * Public procedure — no auth required.
+   * Looks up a customer by their unsubscribe token and marks them as opted out.
+   * Returns the customer name so the frontend can show a confirmation.
+   */
+  smsUnsubscribe: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const customer = await getTradieCustomerByUnsubscribeToken(input.token);
+      if (!customer) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or expired unsubscribe link" });
+      }
+      if (customer.optedOutSms) {
+        // Already opted out — return success idempotently
+        return { success: true, name: customer.name, alreadyOptedOut: true };
+      }
+      await optOutCustomerSms(customer.id);
+      return { success: true, name: customer.name, alreadyOptedOut: false };
+    }),
+
+  /**
+   * Get per-recipient delivery details for a specific campaign.
+   * Returns name, phone, status, twilioSid, errorMessage, sentAt.
+   * Verifies the campaign belongs to the authenticated tradie.
+   */
+  getCampaignRecipients: publicProcedure
+    .input(z.object({ campaignId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalAuth(ctx);
+      const campaigns = await dbListSmsCampaigns(clientId);
+      const campaign = campaigns.find((c) => c.id === input.campaignId);
+      if (!campaign) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+      }
+      return getSmsCampaignRecipients(input.campaignId);
+    }),
 });

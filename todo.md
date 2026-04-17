@@ -729,3 +729,11 @@
 - [x] CustomerJobStatus.tsx public page at /job/:token — stage timeline, photos, feedback widget, contact tradie
 - [x] "Share tracking link with customer" button on job card (copies URL, toast confirmation)
 - [x] Existing vitest coverage via jobFeedback.test.ts
+
+## Campaign History & SMS Opt-Out & Job Status Branding
+- [x] Campaign History: expandable recipient rows (per-recipient status, Twilio SID, phone, name) — getCampaignRecipients procedure + UI accordion
+- [x] SMS opt-out: optedOutSms boolean + smsUnsubscribeToken on tradieCustomers table + db:push (migration 0049)
+- [x] SMS opt-out: public /sms/unsubscribe?token=xxx page (no auth, marks opt-out, shows confirmation) — SmsUnsubscribe.tsx + /sms/unsubscribe route
+- [x] SMS opt-out: filter opted-out customers from sendBulkSms recipients
+- [x] SMS opt-out: include unsubscribe link in bulk SMS message footer (Twilio compliance)
+- [x] Job status page: logoUrl already wired in CustomerJobStatus.tsx header (tradie.logoUrl from getJobByCustomerToken)

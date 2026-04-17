@@ -58,6 +58,9 @@ vi.mock("./db", () => ({
       totalCount: 1, sentCount: 1, failedCount: 0, status: "completed", createdAt: new Date(),
     },
   ]),
+  ensureSmsUnsubscribeToken: vi.fn().mockResolvedValue("abc123token"),
+  getTradieCustomerByUnsubscribeToken: vi.fn().mockResolvedValue(null),
+  optOutCustomerSms: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
