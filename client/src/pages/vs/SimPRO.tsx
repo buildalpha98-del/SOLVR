@@ -78,19 +78,19 @@ const data: ComparisonData = {
   testimonials: [
     {
       quote:
-        "We looked at simPRO and the implementation alone was going to cost us $3,000 before we'd even sent a quote. Solvr was set up in an afternoon.",
+        "We got a simPRO demo and the implementation quote came back at $3,200 before we'd even sent our first job. That's six months of Solvr. We set Solvr up ourselves in an afternoon, and the voice quoting means my guys can quote on-site without calling the office. We do commercial electrical and it's been a game changer for multi-trade jobs.",
       name: "Andrew C.",
-      trade: "Electrical contractor, Newcastle NSW",
+      trade: "Electrical Contractor, Newcastle NSW",
     },
     {
       quote:
-        "simPRO is built for big companies. I'm 3 guys and a van. Solvr is exactly the right size — powerful enough to run the business, simple enough that I actually use it.",
+        "simPRO is built for 50-person companies with a dedicated office manager. I'm 3 guys and a van doing plumbing and drainage. Solvr is exactly the right size — I can quote a blocked drain job on-site in 30 seconds, the invoice goes out when the job's done, and the AI receptionist handles calls when I'm under a house.",
       name: "Phil D.",
       trade: "Plumber, Geelong VIC",
     },
     {
       quote:
-        "I couldn't even find out how much simPRO cost without sitting through a sales call. Solvr's pricing is right there on the website. That tells you everything about who they're built for.",
+        "I do commercial HVAC maintenance contracts and simPRO wanted me on an annual contract with custom pricing. I couldn't even get a number without a sales call. Solvr is $49 a month, I signed up in 10 minutes, and the voice quoting for preventive maintenance jobs saves me an hour every day.",
       name: "Lisa T.",
       trade: "HVAC Technician, Canberra ACT",
     },

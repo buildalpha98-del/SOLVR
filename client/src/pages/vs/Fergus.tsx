@@ -78,19 +78,19 @@ const data: ComparisonData = {
   testimonials: [
     {
       quote:
-        "Fergus is great for job management but I was paying extra for SMS and certs on top. Solvr is all-in and the voice quoting saves me an hour a day.",
+        "Fergus kept adding charges on top of the base plan — $15 for SMS, $50 for compliance certs, Pro plan for phone support. By the time I added it all up I was paying $180 a month. Solvr is $49 all-in. I do more board and switchboard work now and the voice quoting on-site is genuinely faster than anything I had before.",
       name: "Craig B.",
       trade: "Electrician, Brisbane QLD",
     },
     {
       quote:
-        "I needed phone support and Fergus wanted me to upgrade. Solvr just picks up the phone. That matters when you're stuck on a job.",
+        "I do a lot of commercial HVAC maintenance and I'm on the tools all day. Fergus's AI receptionist is basically non-existent — missed calls just go to voicemail. Solvr picks up, qualifies the job, and books it in. I've picked up two commercial contracts this quarter from calls I would have missed.",
       name: "Natalie H.",
       trade: "HVAC Technician, Sydney NSW",
     },
     {
       quote:
-        "The AI receptionist is the thing that sold me. I was losing jobs to voicemail. Now Solvr books them while I'm on the tools.",
+        "I run a plumbing business in a competitive area. Speed to quote wins jobs. Fergus still makes you type every line item. With Solvr I speak the job at the van and the quote is sent before the customer has walked back inside. I'm winning more jobs just by being first.",
       name: "Dean P.",
       trade: "Plumber, Gold Coast QLD",
     },

@@ -78,19 +78,19 @@ const data: ComparisonData = {
   testimonials: [
     {
       quote:
-        "I used Tradify for two years. Solvr is just faster. I speak the job while I'm still in the driveway and the quote is sent before I've driven off.",
+        "I used Tradify for two years. The quoting was always the bottleneck — I'd get home at 7pm and still have three quotes to type up. With Solvr I speak the job on-site and the quote is sent before I've driven off. Won three jobs this month just from being first to quote.",
       name: "Marcus T.",
       trade: "Plumber, Sydney NSW",
     },
     {
       quote:
-        "The AI receptionist alone is worth it. I was losing jobs to missed calls. Now Solvr picks up, books them in, and I get a notification. Game changer.",
+        "Tradify doesn't pick up the phone when I'm on the tools. Solvr's AI receptionist does. It books the job, sends me a summary, and the customer gets a confirmation SMS. I've stopped losing jobs to voicemail — that alone paid for the subscription in week one.",
       name: "Darren K.",
       trade: "Electrician, Melbourne VIC",
     },
     {
       quote:
-        "Tradify's per-user pricing was killing us as we grew. Solvr's flat rate means I can add staff without dreading the invoice.",
+        "Tradify charges per user and we have four guys. That's $200+ a month before any add-ons. Solvr is flat rate — the whole team, all features, one price. We switched, saved $150 a month, and the voice quoting is faster than anything we had before.",
       name: "Bec W.",
       trade: "Builder, Brisbane QLD",
     },

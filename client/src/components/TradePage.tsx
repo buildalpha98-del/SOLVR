@@ -419,6 +419,42 @@ export default function TradePage({ data }: { data: TradeData }) {
         </div>
       </section>
 
+      {/* ── Comparing tools? ── */}
+      <section style={{ padding: "64px 24px", background: "#0a1628" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <p style={{ fontFamily: "'Syne', sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#F5A623", marginBottom: 12 }}>Comparing your options?</p>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 28, color: "#FAFAF8", marginBottom: 8 }}>See how Solvr stacks up</h2>
+          <p style={{ color: "rgba(250,250,248,0.6)", fontSize: 16, marginBottom: 32, maxWidth: 560 }}>Honest, side-by-side comparisons with the tools most {data.title.toLowerCase()} are already using.</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {[
+              { label: "Solvr vs Tradify", href: "/vs/tradify" },
+              { label: "Solvr vs ServiceM8", href: "/vs/servicem8" },
+              { label: "Solvr vs Fergus", href: "/vs/fergus" },
+              { label: "Solvr vs simPRO", href: "/vs/simpro" },
+              { label: "Solvr vs Buildxact", href: "/vs/buildxact" },
+            ].map((item) => (
+              <Link key={item.href} href={item.href}>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 20px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(245,166,35,0.35)",
+                  background: "rgba(245,166,35,0.08)",
+                  color: "#F5A623",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {item.label} →
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
       {/* ── CTA ── */}
       <section style={{ padding: "80px 24px", background: "#F5A623", textAlign: "center" }}>
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 40, color: "#0F1F3D", marginBottom: 16 }}>

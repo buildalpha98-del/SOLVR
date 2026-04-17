@@ -79,19 +79,19 @@ const data: ComparisonData = {
   testimonials: [
     {
       quote:
-        "I was on ServiceM8 Growing at $79/month and still hitting the job cap in busy months. Solvr is cheaper and I never have to think about caps.",
+        "ServiceM8 hit me with a job cap in a busy month and I had to upgrade mid-month to keep working. Solvr is unlimited jobs, flat rate. I run 80-100 plumbing jobs a month and the price never changes. That predictability matters when you're running a small business.",
       name: "Joel F.",
       trade: "Plumber, Perth WA",
     },
     {
       quote:
-        "ServiceM8 is great if you're on iPhone. I switched to Android and the app was basically unusable. Solvr works perfectly on my Samsung.",
+        "ServiceM8 is iOS-first and I'm on Android. The app was slow, the forms were clunky, and half the features didn't work right. Switched to Solvr and it works perfectly on my Samsung on-site. The voice quoting is the real difference — I quote while I'm still at the board.",
       name: "Tony R.",
       trade: "Electrician, Adelaide SA",
     },
     {
       quote:
-        "The voice quoting is the thing. I'm standing in someone's kitchen, I speak the job, and the quote is in their inbox before I've walked out the door.",
+        "I do a lot of multi-split installs with long equipment lists. ServiceM8 made me type every line item. With Solvr I speak the scope — indoor units, outdoor unit, lineset, commissioning — and the quote is itemised and sent before I've packed up the tools. Saves me 45 minutes per job.",
       name: "Sarah M.",
       trade: "HVAC Technician, Melbourne VIC",
     },

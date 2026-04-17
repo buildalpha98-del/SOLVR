@@ -80,21 +80,21 @@ const data: ComparisonData = {
   testimonials: [
     {
       quote:
-        "Buildxact is great for big residential projects with detailed takeoffs. But for most of my day-to-day builder jobs, Solvr is 10x faster. I speak the scope, the quote is done.",
+        "Buildxact is powerful for big residential projects with detailed takeoffs, but I'm doing knockdown-rebuild and renovation work, not 50-lot estates. For my day-to-day jobs, Solvr is 10x faster. I speak the scope on-site, the quote is itemised and sent, and the customer gets a professional PDF. Buildxact Pro was $399 a month. Solvr is $49. Easy decision.",
       name: "Chris M.",
       trade: "Builder, Sydney NSW",
     },
     {
       quote:
-        "I couldn't justify $399 a month for Buildxact Pro when I'm a one-man operation. Solvr gives me professional quotes and an AI receptionist for $49. No brainer.",
+        "I do custom carpentry and fit-outs. Buildxact's digital takeoff tools are built for volume builders, not for what I do. I was paying $199 a month for Foundation and barely using it. Switched to Solvr, speak the job scope on-site, and the quote is out in 30 seconds. My close rate has gone up because I'm first to quote every time.",
       name: "Liam F.",
-      trade: "Carpenter & Builder, Melbourne VIC",
+      trade: "Carpenter, Melbourne VIC",
     },
     {
       quote:
-        "The AI receptionist is the thing that sold me. I was losing jobs to missed calls while I was on the tools. Solvr picks up, books them in, and sends me a summary. Buildxact doesn't do any of that.",
+        "I roof residential and light commercial. Buildxact doesn't have anything for roofers specifically. Solvr lets me speak the job — square metres, pitch, material, ridge and valley lengths — and generates a proper itemised quote. The AI receptionist picks up calls when I'm on the roof. I've stopped losing jobs to competitors who answer faster.",
       name: "Tanya R.",
-      trade: "Builder, Brisbane QLD",
+      trade: "Roofer, Brisbane QLD",
     },
   ],
   faq: [
