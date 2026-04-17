@@ -11,6 +11,7 @@ import VsTradify from "./pages/vs/Tradify";
 import VsServiceM8 from "./pages/vs/ServiceM8";
 import VsFergus from "./pages/vs/Fergus";
 import VsSimPRO from "./pages/vs/SimPRO";
+import VsBuildxact from "./pages/vs/Buildxact";
 import TradesElectricians from "./pages/trades/Electricians";
 import TradesCarpenters from "./pages/trades/Carpenters";
 import TradesBuilders from "./pages/trades/Builders";
@@ -116,6 +117,7 @@ function Router() {
       <Route path="/vs/servicem8" component={VsServiceM8} />
       <Route path="/vs/fergus" component={VsFergus} />
       <Route path="/vs/simpro" component={VsSimPRO} />
+      <Route path="/vs/buildxact" component={VsBuildxact} />
 
       {/* ── Blog (SEO content hub) ────────────────────────────────────────── */}
       <Route path="/blog" component={Blog} />

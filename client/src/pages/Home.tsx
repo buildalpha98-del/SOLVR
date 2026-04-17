@@ -346,6 +346,7 @@ export default function Home() {
                 { label: "Solvr vs ServiceM8", href: "/vs/servicem8" },
                 { label: "Solvr vs Fergus", href: "/vs/fergus" },
                 { label: "Solvr vs simPRO", href: "/vs/simpro" },
+                { label: "Solvr vs Buildxact", href: "/vs/buildxact" },
               ].map((item) => (
                 <Link key={item.href} href={item.href}>
                   <span
@@ -425,6 +426,7 @@ export default function Home() {
               { label: "Solvr vs ServiceM8", href: "/vs/servicem8" },
               { label: "Solvr vs Fergus", href: "/vs/fergus" },
               { label: "Solvr vs simPRO", href: "/vs/simpro" },
+              { label: "Solvr vs Buildxact", href: "/vs/buildxact" },
             ].map((item) => (
               <Link key={item.href} href={item.href}>
                 <span

@@ -28,6 +28,7 @@ export default function SiteFooter() {
         { label: "Carpenters", href: "/trades/carpenters" },
         { label: "Painters", href: "/trades/painters" },
         { label: "HVAC", href: "/trades/hvac" },
+        { label: "Roofers", href: "/trades/roofers" },
       ],
     },
     {
@@ -37,6 +38,7 @@ export default function SiteFooter() {
         { label: "Solvr vs ServiceM8", href: "/vs/servicem8" },
         { label: "Solvr vs Fergus", href: "/vs/fergus" },
         { label: "Solvr vs simPRO", href: "/vs/simpro" },
+        { label: "Solvr vs Buildxact", href: "/vs/buildxact" },
       ],
     },
     {
@@ -46,8 +48,9 @@ export default function SiteFooter() {
         { label: "How to Quote Faster", href: "/blog/how-to-quote-faster-as-a-tradie" },
         { label: "Write a Professional Quote", href: "/blog/how-to-write-a-professional-tradie-quote" },
         { label: "Best Tradie Apps 2026", href: "/blog/best-tradie-apps-australia-2026" },
-        { label: "AI Receptionist for Tradies", href: "/blog/ai-receptionist-for-tradies" },
-        { label: "Best Accounting Software", href: "/blog/best-accounting-software-tradies-australia-2026" },
+        { label: "Quoting App for Carpenters", href: "/blog/best-quoting-app-for-carpenters-australia-2026" },
+        { label: "Quoting App for Painters", href: "/blog/best-quoting-app-for-painters-australia-2026" },
+        { label: "Quoting App for Roofers", href: "/blog/best-quoting-app-for-roofers-australia-2026" },
       ],
     },
     {
