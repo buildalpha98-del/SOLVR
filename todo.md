@@ -687,3 +687,22 @@
 - [x] Team nav item added to PortalLayout (UserPlus icon, Pro badge)
 - [x] /portal/team and /portal/team/accept routes added to App.tsx
 - [x] 8 vitest tests for portalTeam router (227 total passing)
+
+## Sprint 10 — Team Member Role-Based Access Control
+- [x] Audit all portal procedures — identify mutations that must be blocked for viewer role
+- [x] Replace getPortalClient with requirePortalAuth/requirePortalWrite in portal procedures (portal.ts, portalJobs.ts, quotes.ts, priceList.ts)
+- [x] viewer role: block all mutations (create/update/delete), allow all queries
+- [x] admin role: full access (same as owner)
+- [x] Frontend: PortalRoleContext + usePortalRole hook, ViewerBanner + WriteGuard components
+- [x] ViewerBanner and WriteGuard applied to Jobs and Quotes pages
+- [x] requirePortalAuth refactored to avoid double getCrmClientById call (fixes calendar test regressions)
+- [x] 235 vitest tests passing, 0 regressions
+
+## Sprint 11 — CRM Customer History UI
+- [x] portalCustomers.ts router: list, get, updateNotes, bulkSmsPreview procedures
+- [x] getJobsByCustomerPhone and getTradieCustomer DB helpers added
+- [x] PortalCustomers.tsx list page — search, sort, bulk SMS preview, View History link
+- [x] PortalCustomerDetail.tsx — full job history table, re-quote button, notes editor, back navigation
+- [x] Customers nav item added to PortalLayout
+- [x] /portal/customers and /portal/customers/:id routes added to App.tsx
+- [x] 8 vitest tests for portalCustomers router (235 total passing)

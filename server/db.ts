@@ -1,4 +1,4 @@
-import { desc, eq, and, lte, gte, sql } from "drizzle-orm";
+import { desc, eq, and, or, lte, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertClientOnboarding, InsertSavedPrompt, InsertStrategyCallLead, InsertUser,
@@ -1821,4 +1821,43 @@ export async function deletePortalTeamMember(id: number, clientId: number): Prom
   if (!db) throw new Error("Database not available");
   await db.delete(portalTeamMembers)
     .where(and(eq(portalTeamMembers.id, id), eq(portalTeamMembers.clientId, clientId)));
+}
+
+// ─── Customer History ─────────────────────────────────────────────────────────
+/**
+ * List all portal jobs for a given customer (matched by phone number).
+ * Returns jobs ordered by most recent first.
+ */
+export async function getJobsByCustomerPhone(
+  clientId: number,
+  phone: string,
+): Promise<PortalJob[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(portalJobs)
+    .where(
+      and(
+        eq(portalJobs.clientId, clientId),
+        or(eq(portalJobs.callerPhone, phone), eq(portalJobs.customerPhone, phone)),
+      ),
+    )
+    .orderBy(desc(portalJobs.createdAt));
+}
+
+/**
+ * Update notes on a tradie customer record.
+ */
+export async function updateTradieCustomerNotes(
+  id: number,
+  clientId: number,
+  notes: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(tradieCustomers)
+    .set({ notes, updatedAt: new Date() })
+    .where(and(eq(tradieCustomers.id, id), eq(tradieCustomers.clientId, clientId)));
 }

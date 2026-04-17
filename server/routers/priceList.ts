@@ -23,7 +23,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure } from "../_core/trpc";
-import { getPortalClient } from "../_core/portalAuth";
+import { getPortalClient, requirePortalAuth, requirePortalWrite } from "../_core/portalAuth";
 import {
   listPriceListItems,
   getPriceListItem,
@@ -141,8 +141,7 @@ export const priceListRouter = {
    * Returns items sorted by category → sortOrder → name.
    */
   list: publicProcedure.query(async ({ ctx }) => {
-    const portalAuth = await getPortalClient(ctx.req);
-    if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+    const portalAuth = await requirePortalAuth(ctx.req);
     return listPriceListItems(portalAuth.client.id);
   }),
 
@@ -152,8 +151,7 @@ export const priceListRouter = {
   create: publicProcedure
     .input(priceListItemInput)
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       await insertPriceListItem({
@@ -183,8 +181,7 @@ export const priceListRouter = {
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       const existing = await getPriceListItem(input.id, clientId);
@@ -210,8 +207,7 @@ export const priceListRouter = {
   delete: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       const existing = await getPriceListItem(input.id, clientId);
@@ -244,8 +240,7 @@ export const priceListRouter = {
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       const rows = parseCsvRows(input.csv);

@@ -32,6 +32,7 @@ import { portalInvoiceChasingRouter, adminInvoiceChasingRouter } from "./routers
 import { staffPortalRouter } from "./routers/staffPortal";
 import { priceListRouter } from "./routers/priceList";
 import { portalTeamRouter } from "./routers/portalTeam";
+import { portalCustomersRouter } from "./routers/portalCustomers";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1570,7 +1571,7 @@ export const appRouter = router({
   support: supportRouter,
   staffPortal: staffPortalRouter,
   priceList: router(priceListRouter),
-  portalTeam: portalTeamRouter,
+   portalTeam: portalTeamRouter,
+  portalCustomers: portalCustomersRouter,
 });
-
 export type AppRouter = typeof appRouter;

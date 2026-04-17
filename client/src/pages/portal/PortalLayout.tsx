@@ -11,6 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
+import { PortalRoleContext } from "@/contexts/PortalRoleContext";
+import { usePortalRole } from "@/hooks/usePortalRole";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
@@ -316,6 +318,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
+  const { role, canWrite } = usePortalRole();
 
   // Feature flag: hide referral nav items when programme is disabled
   const { data: referralFlag } = trpc.portal.isReferralEnabled.useQuery(undefined, {
@@ -551,7 +554,9 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
           paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 72px)",
         }}
       >
-        {children}
+        <PortalRoleContext.Provider value={{ role, canWrite }}>
+          {children}
+        </PortalRoleContext.Provider>
       </main>
 
       {/* ── Footer (desktop only) ───────────────────────────────────────── */}

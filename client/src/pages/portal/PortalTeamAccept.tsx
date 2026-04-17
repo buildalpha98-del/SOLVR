@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 /**
  * PortalTeamAccept.tsx — Accept a team invite and set password.
  * Public page — no auth required.
@@ -9,14 +10,14 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+
 import { RefreshCw, CheckCircle, AlertCircle, Lock } from "lucide-react";
 
 const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
 export default function PortalTeamAccept() {
   const [, navigate] = useLocation();
-  const { toast } = useToast();
+  
 
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
 
@@ -34,7 +35,7 @@ export default function PortalTeamAccept() {
       setDone(true);
       setTimeout(() => navigate("/portal/dashboard"), 2000);
     },
-    onError: (e) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e) => toast.error("Error", { description: e.message }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,7 +45,7 @@ export default function PortalTeamAccept() {
       return;
     }
     if (password.length < 8) {
-      toast({ title: "Password too short", description: "Minimum 8 characters.", variant: "destructive" });
+      toast.error("Password too short", { description: "Minimum 8 characters." });
       return;
     }
     accept.mutate({ token, password });

@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 /**
  * PortalTeam.tsx — Multi-staff account management (Sprint 9)
  *
@@ -30,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+
 import {
   UserPlus,
   Mail,
@@ -52,7 +53,7 @@ type TeamMember = {
 };
 
 export default function PortalTeam() {
-  const { toast } = useToast();
+  
   const utils = trpc.useUtils();
 
   const { data: members = [], isLoading } = trpc.portalTeam.list.useQuery();
@@ -64,34 +65,34 @@ export default function PortalTeam() {
 
   const invite = trpc.portalTeam.invite.useMutation({
     onSuccess: () => {
-      toast({ title: "Invite sent!", description: `${inviteForm.name} will receive an email with their invite link.` });
+      toast.success("Invite sent!", { description: `${inviteForm.name} will receive an email with their invite link.` });
       setShowInvite(false);
       setInviteForm({ name: "", email: "", role: "viewer" });
       utils.portalTeam.list.invalidate();
     },
-    onError: (e) => toast({ title: "Invite failed", description: e.message, variant: "destructive" }),
+    onError: (e) => toast.error("Invite failed", { description: e.message }),
   });
 
   const updateRole = trpc.portalTeam.updateRole.useMutation({
     onSuccess: () => {
-      toast({ title: "Role updated" });
+      toast.success("Role updated");
       utils.portalTeam.list.invalidate();
     },
-    onError: (e) => toast({ title: "Update failed", description: e.message, variant: "destructive" }),
+    onError: (e) => toast.error("Update failed", { description: e.message }),
   });
 
   const remove = trpc.portalTeam.remove.useMutation({
     onSuccess: () => {
-      toast({ title: "Team member removed" });
+      toast.success("Team member removed");
       setConfirmRemoveId(null);
       utils.portalTeam.list.invalidate();
     },
-    onError: (e) => toast({ title: "Remove failed", description: e.message, variant: "destructive" }),
+    onError: (e) => toast.error("Remove failed", { description: e.message }),
   });
 
   const resendInvite = trpc.portalTeam.resendInvite.useMutation({
-    onSuccess: () => toast({ title: "Invite resent", description: "A fresh invite link has been sent." }),
-    onError: (e) => toast({ title: "Resend failed", description: e.message, variant: "destructive" }),
+    onSuccess: () => toast.success("Invite resent", { description: "A fresh invite link has been sent." }),
+    onError: (e) => toast.error("Resend failed", { description: e.message }),
   });
 
   const roleIcon = (role: "admin" | "viewer") =>

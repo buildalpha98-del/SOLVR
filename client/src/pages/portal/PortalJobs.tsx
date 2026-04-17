@@ -13,6 +13,7 @@ import {
   Sparkles, ArrowRight, Share2,
 } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
+import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import { toast } from "sonner";
 
 type JobStage = "new_lead" | "quoted" | "booked" | "in_progress" | "completed" | "lost";
@@ -513,6 +514,7 @@ export default function PortalJobs() {
         />
       )}
       <div className="space-y-4">
+        <ViewerBanner />
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -521,13 +523,15 @@ export default function PortalJobs() {
               Your job pipeline — from first call to completed job.
             </p>
           </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-          >
-            <Plus className="w-4 h-4" /> Add Job
-          </button>
+          <WriteGuard>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              <Plus className="w-4 h-4" /> Add Job
+            </button>
+          </WriteGuard>
         </div>
 
         {/* Revenue summary */}

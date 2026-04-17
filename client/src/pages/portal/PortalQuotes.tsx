@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import {
   Mic, StopCircle, Plus, FileText, Eye, Trash2,
   Loader2, CheckCircle, XCircle, Pencil, AlertTriangle, Globe,
@@ -344,7 +345,8 @@ export default function PortalQuotes() {
 
   return (
     <PortalLayout activeTab="quotes">
-      {/* ── Header ────────────────────────────────────────────────────────────────── */}
+      <ViewerBanner />
+      {/* ── Header ──────────────────────────────────────────────────────────────────────────────── */}
       {/* On mobile: stack title + buttons vertically. On desktop: side-by-side. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
@@ -363,15 +365,17 @@ export default function PortalQuotes() {
           >
             Branding
           </Button>
-          <Button
-            size="sm"
-            onClick={() => { setShowNewModal(true); setNewMode(null); }}
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-            className="flex-1 sm:flex-none font-semibold"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            New Quote
-          </Button>
+          <WriteGuard>
+            <Button
+              size="sm"
+              onClick={() => { setShowNewModal(true); setNewMode(null); }}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              className="flex-1 sm:flex-none font-semibold"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              New Quote
+            </Button>
+          </WriteGuard>
         </div>
       </div>
 

@@ -15,7 +15,7 @@ import { router, publicProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import { parse as parseCookieHeader } from "cookie";
-import { getPortalClient } from "./portalAuth";
+import { getPortalClient, TEAM_COOKIE } from "./portalAuth";
 import {
   listPortalTeamMembers,
   getPortalTeamMemberByInviteToken,
@@ -28,35 +28,8 @@ import {
 } from "../db";
 import { sendEmail } from "../_core/email";
 
-const TEAM_COOKIE = "solvr_team_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-/** Resolve the authenticated portal client from either the owner cookie or the team member cookie. */
-export async function getPortalClientOrTeamMember(req: {
-  cookies?: Record<string, string>;
-  headers?: Record<string, string | string[] | undefined>;
-}): Promise<{ clientId: number; role: "owner" | "admin" | "viewer"; memberId?: number } | null> {
-  // Try owner session first
-  const ownerResult = await getPortalClient(req);
-  if (ownerResult) return { clientId: ownerResult.client.id, role: "owner" };
-
-  // Try team member session
-  let sessionToken: string | undefined;
-  const rawHeader = (req.headers as Record<string, string | undefined>)?.cookie;
-  if (rawHeader) {
-    const parsed = parseCookieHeader(rawHeader);
-    sessionToken = parsed[TEAM_COOKIE];
-  } else {
-    sessionToken = req.cookies?.[TEAM_COOKIE];
-  }
-  if (!sessionToken) return null;
-  const member = await getPortalTeamMemberBySessionToken(sessionToken);
-  if (!member) return null;
-  if (member.sessionExpiresAt && new Date(member.sessionExpiresAt) < new Date()) return null;
-  if (!member.isActive) return null;
-  return { clientId: member.clientId, role: member.role, memberId: member.id };
-}
 
 export const portalTeamRouter = router({
   /**

@@ -111,9 +111,9 @@ import {
   listJobFeedbackForClient,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
+import { getPortalClient, PORTAL_COOKIE, requirePortalAuth, requirePortalWrite } from "./portalAuth";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PORTAL_COOKIE = "solvr_portal_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ─── Plan feature matrix ──────────────────────────────────────────────────────
@@ -138,25 +138,6 @@ function requireFeature(plan: SolvrPlan, feature: string) {
   }
 }
 
-// ─── Portal auth helper ───────────────────────────────────────────────────────
-async function getPortalClient(req: { cookies?: Record<string, string>; headers?: Record<string, string | string[] | undefined> }) {
-  // Parse cookies from raw header — req.cookies is not populated without cookie-parser middleware
-  let sessionToken: string | undefined;
-  const rawHeader = (req.headers as Record<string, string | undefined>)?.cookie;
-  if (rawHeader) {
-    const parsed = parseCookieHeader(rawHeader);
-    sessionToken = parsed[PORTAL_COOKIE];
-  } else {
-    sessionToken = req.cookies?.[PORTAL_COOKIE];
-  }
-  if (!sessionToken) return null;
-  const session = await getPortalSessionBySessionToken(sessionToken);
-  if (!session) return null;
-  if (session.sessionExpiresAt && new Date(session.sessionExpiresAt) < new Date()) return null;
-  const client = await getCrmClientById(session.clientId);
-  if (!client) return null;
-  return { session, client };
-}
 
 // // ─── Router ───────────────────────────────────────────────────────────────────
 export const portalRouter = router({
@@ -363,9 +344,7 @@ export const portalRouter = router({
       newPassword: z.string().min(8, "Password must be at least 8 characters"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalAuth = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
-      const { client } = portalAuth;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
 
       if (!client.portalPasswordHash) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No password set. Please use the forgot password flow." });
@@ -437,9 +416,7 @@ export const portalRouter = router({
    */
   getDashboard: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const plan = (client.package ?? "setup-monthly") as SolvrPlan;
       requireFeature(plan, "dashboard");
 
@@ -521,9 +498,7 @@ export const portalRouter = router({
       offset: z.number().min(0).default(0),
     }))
     .query(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "calls");
 
       const interactions = await listCrmInteractionsByClient(client.id);
@@ -551,9 +526,7 @@ export const portalRouter = router({
    */
   listJobs: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
       return listPortalJobsWithQuote(client.id);
     }),
@@ -584,9 +557,7 @@ export const portalRouter = router({
       callerPhone: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
 
       const job = await getPortalJob(input.id);
@@ -613,9 +584,7 @@ export const portalRouter = router({
       preferredDate: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
 
       const customerStatusToken = randomBytes(32).toString("hex");
@@ -629,9 +598,7 @@ export const portalRouter = router({
   deleteJob: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
 
       const job = await getPortalJob(input.id);
@@ -659,9 +626,7 @@ export const portalRouter = router({
    */
   listCalendarEvents: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "calendar");
       return listPortalCalendarEvents(client.id);
     }),
@@ -683,9 +648,7 @@ export const portalRouter = router({
       jobId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "calendar");
 
       const { insertId } = await createPortalCalendarEvent({ ...input, clientId: client.id });
@@ -713,9 +676,7 @@ export const portalRouter = router({
       color: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "calendar");
 
       const { id, ...data } = input;
@@ -729,9 +690,7 @@ export const portalRouter = router({
   deleteCalendarEvent: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "calendar");
       await deletePortalCalendarEvent(input.id);
       return { success: true };
@@ -745,9 +704,7 @@ export const portalRouter = router({
    */
   getWeeklyInsight: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "ai-insights");
 
       const interactions = await listCrmInteractionsByClient(client.id);
@@ -794,9 +751,7 @@ export const portalRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
 
       // Dynamic import to avoid Stripe initialisation errors when key is absent
       const stripeModule = await import("stripe").catch(() => null);
@@ -859,9 +814,7 @@ export const portalRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
 
       const stripeModule = await import("stripe").catch(() => null);
       if (!stripeModule) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Stripe not available." });
@@ -941,9 +894,7 @@ export const portalRouter = router({
    */
   getBusinessProfile: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const profile = await getClientProfile(client.id);
       return {
         tradingName: client.quoteTradingName ?? client.businessName ?? "",
@@ -986,9 +937,7 @@ export const portalRouter = router({
       bankAccountNumber: z.string().max(20).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       // Quote branding fields go to crmClients
       await updateCrmClient(client.id, {
         ...(input.tradingName !== undefined && { quoteTradingName: input.tradingName }),
@@ -1022,9 +971,7 @@ export const portalRouter = router({
    */
   getOnboardingProfile: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const profile = await getOrCreateClientProfile(client.id);
       return {
         profile,
@@ -1045,9 +992,7 @@ export const portalRouter = router({
       data: z.record(z.string(), z.unknown()),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       // Ensure profile exists
       await getOrCreateClientProfile(client.id);
       // Save the step data + update the current step marker
@@ -1062,9 +1007,7 @@ export const portalRouter = router({
    */
   completeOnboarding: publicProcedure
     .mutation(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const profile = await getClientProfile(client.id);
       if (!profile) throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found." });
 
@@ -1100,9 +1043,7 @@ export const portalRouter = router({
    */
   getFullProfile: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const profile = await getOrCreateClientProfile(client.id);
       return { profile };
     }),
@@ -1157,9 +1098,7 @@ export const portalRouter = router({
       defaultNotes: z.string().max(2000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const profile = await getOrCreateClientProfile(client.id);
       await updateClientProfile(profile.id, input as any);
       return { success: true };
@@ -1167,9 +1106,7 @@ export const portalRouter = router({
 
   getMemoryContext: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const profile = await getClientProfile(client.id);
       if (!profile) return { context: "" };
       return { context: buildMemoryContext(profile, client.businessName) };
@@ -1186,8 +1123,7 @@ export const portalRouter = router({
       token: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const result = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       await updateCrmClient(result.client.id, { pushToken: input.token });
       return { success: true };
     }),
@@ -1198,8 +1134,7 @@ export const portalRouter = router({
    */
   unregisterPushToken: publicProcedure
     .mutation(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const result = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       await updateCrmClient(result.client.id, { pushToken: null });
       return { success: true };
     }),
@@ -1211,9 +1146,7 @@ export const portalRouter = router({
    * Fetches live billing dates from Stripe if STRIPE_SECRET_KEY is configured.
    */
   getSubscriptionStatus: publicProcedure.query(async ({ ctx }) => {
-    const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-    if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-    const { client } = result;
+    const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable." });
@@ -1273,9 +1206,7 @@ export const portalRouter = router({
   createBillingPortalSession: publicProcedure
     .input(z.object({ origin: z.string().url() }))
     .mutation(async ({ ctx, input }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const { getDb } = await import("../db");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable." });
@@ -1315,9 +1246,7 @@ export const portalRouter = router({
    */
   requestDeletion: publicProcedure
     .mutation(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
 
       const clientName = client.contactName || "Unknown";
       const clientEmail = client.contactEmail || "Unknown";
@@ -1384,8 +1313,7 @@ export const portalRouter = router({
       languageOverride: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const result = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
 
       // Step 1: Transcribe (use languageOverride if provided, otherwise Whisper auto-detects)
       const transcriptionResult = await transcribeAudio({
@@ -1460,9 +1388,7 @@ export const portalRouter = router({
       voiceOnboardingTranscript: z.string().optional().nullable(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
 
       // P1-C: Completion gate — validate required fields before marking onboarding complete.
       // The AI receptionist cannot function without these six fields.
@@ -1533,9 +1459,7 @@ export const portalRouter = router({
    * Returns the current notification preferences for the authenticated portal client.
    */
   getNotificationPrefs: publicProcedure.query(async ({ ctx }) => {
-    const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-    if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-    const { client } = result;
+    const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
     const profile = await getClientProfile(client.id);
     return {
       notifyEmailNewCall: profile?.notifyEmailNewCall ?? true,
@@ -1568,9 +1492,7 @@ export const portalRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       // Build update payload from only the fields provided
       const updatePayload: Record<string, boolean> = {};
       const fields = [
@@ -1705,8 +1627,7 @@ export const portalRouter = router({
       insuranceExpiryDate: z.string().max(20).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const { client } = portalClient;
       await updateClientProfile(client.id, {
         licenceNumber: input.licenceNumber ?? null,
@@ -1735,8 +1656,7 @@ export const portalRouter = router({
       jobId: z.number().int().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const { client } = portalClient;
 
       // Get or create the client profile for licence/insurance data
@@ -1817,8 +1737,7 @@ export const portalRouter = router({
   getComplianceDoc: publicProcedure
     .input(z.object({ docId: z.string().uuid() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const doc = await getComplianceDocument(input.docId);
       if (!doc || doc.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
@@ -1831,8 +1750,7 @@ export const portalRouter = router({
    */
   listComplianceDocs: publicProcedure
     .query(async ({ ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       return listComplianceDocuments(portalClient.client.id);
     }),
 
@@ -1842,8 +1760,7 @@ export const portalRouter = router({
   deleteComplianceDoc: publicProcedure
     .input(z.object({ docId: z.string().uuid() }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const doc = await getComplianceDocument(input.docId);
       if (!doc || doc.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
@@ -1856,8 +1773,7 @@ export const portalRouter = router({
 
   listStaff: publicProcedure
     .query(async ({ ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const members = await listStaffMembers(portalClient.client.id);
       // Strip sensitive fields — staffPin (bcrypt hash) and pushSubscription
       // (Web Push endpoint) must never be returned to the browser client.
@@ -1873,8 +1789,7 @@ export const portalRouter = router({
       hourlyRate: z.number().min(0).max(9999).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
 
       // Count existing active staff BEFORE adding the new member.
       // The first staff member (count 0 → 1) is included in the base plan.
@@ -1942,8 +1857,7 @@ export const portalRouter = router({
       hourlyRate: z.number().min(0).max(9999).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const member = await getStaffMember(input.id);
       if (!member || member.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
@@ -1961,8 +1875,7 @@ export const portalRouter = router({
   deleteStaff: publicProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const member = await getStaffMember(input.id);
       if (!member || member.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
@@ -2022,8 +1935,7 @@ export const portalRouter = router({
       pin: z.string().regex(/^\d{4,8}$/, "PIN must be 4–8 digits."),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const member = await getStaffMember(input.id);
       if (!member || member.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
@@ -2041,8 +1953,7 @@ export const portalRouter = router({
       to: z.string(),   // ISO date string e.g. "2025-04-30"
     }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const from = new Date(input.from);
       from.setHours(0, 0, 0, 0);
       const to = new Date(input.to);
@@ -2085,8 +1996,7 @@ export const portalRouter = router({
   listScheduleWeek: publicProcedure
     .input(z.object({ weekStart: z.string() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const start = new Date(input.weekStart);
       start.setHours(0, 0, 0, 0);
       const end = new Date(start);
@@ -2098,8 +2008,7 @@ export const portalRouter = router({
   listScheduleForJob: publicProcedure
     .input(z.object({ jobId: z.number().int() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       return listScheduleEntriesForJob(input.jobId);
     }),
 
@@ -2112,8 +2021,7 @@ export const portalRouter = router({
       notes: z.string().max(1000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       // IDOR guard: verify both jobId and staffId belong to the authenticated client
       const [job, staff] = await Promise.all([
         getPortalJob(input.jobId),
@@ -2166,8 +2074,7 @@ export const portalRouter = router({
       notes: z.string().max(1000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const entry = await getScheduleEntry(input.id);
       if (!entry || entry.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Schedule entry not found." });
@@ -2207,8 +2114,7 @@ export const portalRouter = router({
   deleteSchedule: publicProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const entry = await getScheduleEntry(input.id);
       if (!entry || entry.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Schedule entry not found." });
@@ -2228,8 +2134,7 @@ export const portalRouter = router({
       lng: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const existing = await getActiveCheckIn(input.staffId, input.jobId);
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "Already checked in to this job." });
@@ -2257,8 +2162,7 @@ export const portalRouter = router({
       lng: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const entry = await getTimeEntry(input.timeEntryId);
       if (!entry || entry.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found." });
@@ -2284,32 +2188,28 @@ export const portalRouter = router({
   getActiveCheckIn: publicProcedure
     .input(z.object({ staffId: z.number().int(), jobId: z.number().int() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       return getActiveCheckIn(input.staffId, input.jobId);
     }),
 
   listTimeEntriesForJob: publicProcedure
     .input(z.object({ jobId: z.number().int() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       return listTimeEntriesForJob(input.jobId);
     }),
 
   listTimeEntriesForStaff: publicProcedure
     .input(z.object({ staffId: z.number().int() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       return listTimeEntriesForStaff(input.staffId, portalClient.client.id);
     }),
 
   weeklyTimesheet: publicProcedure
     .input(z.object({ weekStart: z.string() }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const start = new Date(input.weekStart);
       start.setHours(0, 0, 0, 0);
       const end = new Date(start);
@@ -2350,8 +2250,7 @@ export const portalRouter = router({
       reviewRequestDelayMinutes: z.number().int().min(0).max(1440).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const profile = await getOrCreateClientProfile(portalClient.client.id);
       await updateClientProfile(profile.id, {
         googleReviewLink: input.googleReviewLink ?? null,
@@ -2366,8 +2265,7 @@ export const portalRouter = router({
    */
   getGoogleReviewSettings: publicProcedure
     .query(async ({ ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const profile = await getOrCreateClientProfile(portalClient.client.id);
       return {
         googleReviewLink: profile.googleReviewLink ?? "",
@@ -2382,8 +2280,7 @@ export const portalRouter = router({
   listReviewRequests: publicProcedure
     .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const requests = await listReviewRequests(portalClient.client.id, input.limit);
       return { requests };
     }),
@@ -2393,8 +2290,7 @@ export const portalRouter = router({
    */
   getReviewRequestStats: publicProcedure
     .query(async ({ ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const stats = await getReviewRequestStats(portalClient.client.id);
       return stats;
     }),
@@ -2413,8 +2309,7 @@ export const portalRouter = router({
       note: z.string().max(500).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       // Verify staff member belongs to this client
       const member = await getStaffMember(input.staffId);
       if (!member || member.clientId !== portalClient.client.id) {
@@ -2433,8 +2328,7 @@ export const portalRouter = router({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const member = await getStaffMember(input.staffId);
       if (!member || member.clientId !== portalClient.client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Staff member not found." });
@@ -2453,8 +2347,7 @@ export const portalRouter = router({
       to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       return listStaffUnavailability(portalClient.client.id, input.from, input.to);
     }),
 
@@ -2470,8 +2363,7 @@ export const portalRouter = router({
       month: z.number().int().min(1).max(12), // 1-based
     }))
     .query(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalAuth(ctx.req);
       const from = new Date(input.year, input.month - 1, 1);
       const to = new Date(input.year, input.month, 0, 23, 59, 59, 999); // last ms of last day
       const rows = await getLabourCostReport(portalClient.client.id, from, to);
@@ -2484,8 +2376,7 @@ export const portalRouter = router({
   resendReviewRequest: publicProcedure
     .input(z.object({ jobId: z.number().int() }))
     .mutation(async ({ input, ctx }) => {
-      const portalClient = await getPortalClient(ctx.req);
-      if (!portalClient) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required." });
+      const portalClient = await requirePortalWrite(ctx.req);
       const { client } = portalClient;
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
@@ -2577,8 +2468,7 @@ export const portalRouter = router({
    */
   listJobFeedback: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const result = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       return listJobFeedbackForClient(result.client.id);
     }),
 
@@ -2590,8 +2480,7 @@ export const portalRouter = router({
    */
   getActivationChecklist: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const result = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const clientId = result.client.id;
 
       const profile = await getClientProfile(clientId);
@@ -2655,8 +2544,7 @@ export const portalRouter = router({
    */
   dismissActivationChecklist: publicProcedure
     .mutation(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const result = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       await updateClientProfile(result.client.id, {
         activationChecklistDismissedAt: new Date(),
       } as any);

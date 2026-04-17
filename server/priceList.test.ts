@@ -103,6 +103,25 @@ vi.mock("./_core/portalAuth", () => ({
       isActive: true, createdAt: new Date(), updatedAt: new Date(),
     },
   }),
+  requirePortalAuth: vi.fn().mockResolvedValue({
+    clientId: 5, role: "owner" as const, memberId: undefined,
+    client: {
+      id: 5, contactName: "Dave Plumber", businessName: "Dave's Plumbing",
+      contactEmail: "dave@davesplumbing.com.au", contactPhone: "0411 222 333",
+      tradeType: "Plumbing", stage: "active", package: "pro-monthly",
+      isActive: true, createdAt: new Date(), updatedAt: new Date(),
+    },
+  }),
+  requirePortalWrite: vi.fn().mockResolvedValue({
+    clientId: 5, role: "owner" as const, memberId: undefined,
+    client: {
+      id: 5, contactName: "Dave Plumber", businessName: "Dave's Plumbing",
+      contactEmail: "dave@davesplumbing.com.au", contactPhone: "0411 222 333",
+      tradeType: "Plumbing", stage: "active", package: "pro-monthly",
+      isActive: true, createdAt: new Date(), updatedAt: new Date(),
+    },
+  }),
+  PORTAL_COOKIE: "solvr_portal_session",
 }));
 
 vi.mock("./_core/notification", () => ({ notifyOwner: vi.fn().mockResolvedValue(true) }));

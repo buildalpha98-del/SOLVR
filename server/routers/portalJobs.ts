@@ -8,7 +8,7 @@ import React from "react";
 import { renderToBuffer, Document } from "@react-pdf/renderer";
 import { publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getPortalClient } from "./portalAuth";
+import { getPortalClient, requirePortalAuth, requirePortalWrite } from "./portalAuth";
 import { storagePut } from "../storage";
 import { sendEmail } from "../_core/email";
 import { sendSms } from "../lib/sms";
@@ -56,9 +56,7 @@ export const portalJobsProcedures = {
   getJobDetail: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.id);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -112,9 +110,7 @@ export const portalJobsProcedures = {
       paymentMethod: z.enum(["bank_transfer", "cash", "stripe", "other"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.id);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -169,9 +165,7 @@ export const portalJobsProcedures = {
       receivedAt: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -197,9 +191,7 @@ export const portalJobsProcedures = {
   removeProgressPayment: publicProcedure
     .input(z.object({ id: z.number(), jobId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -227,9 +219,7 @@ export const portalJobsProcedures = {
       caption: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -245,9 +235,7 @@ export const portalJobsProcedures = {
   removeJobPhoto: publicProcedure
     .input(z.object({ id: z.string(), jobId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const photo = await getJobPhoto(input.id);
       if (!photo || photo.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Photo not found." });
@@ -268,9 +256,7 @@ export const portalJobsProcedures = {
       actualValue: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.id);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -335,9 +321,7 @@ export const portalJobsProcedures = {
       sendEmail: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -522,9 +506,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       amountCents: z.number().int().positive(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -573,9 +555,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
    */
   listTradieCustomers: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       return listTradieCustomers(client.id);
     }),
 
@@ -591,9 +571,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       customerEmail: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -770,9 +748,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       address: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const customer = await getTradieCustomer(input.id);
       if (!customer || customer.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found." });
@@ -797,9 +773,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       reference: z.string().max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -822,9 +796,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
   deleteJobCostItem: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const item = await getJobCostItem(input.id);
       if (!item || item.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Cost item not found." });
@@ -839,9 +811,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
   getJobProfitSummary: publicProcedure
     .input(z.object({ jobId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -871,9 +841,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       frequency: z.enum(["weekly", "fortnightly", "monthly"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -928,9 +896,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
   disableRecurring: publicProcedure
     .input(z.object({ jobId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
