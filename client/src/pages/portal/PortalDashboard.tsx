@@ -223,6 +223,15 @@ export default function PortalDashboard() {
     });
   }
 
+  // Activation checklist
+  const { data: checklist, refetch: refetchChecklist } = trpc.portal.getActivationChecklist.useQuery(undefined, {
+    staleTime: 60 * 1000,
+  });
+  const dismissChecklistMutation = trpc.portal.dismissActivationChecklist.useMutation({
+    onSuccess: () => refetchChecklist(),
+  });
+  const showChecklist = checklist && !checklist.dismissed && !checklist.allComplete;
+
   // Referral programme
   const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, { staleTime: Infinity });
   const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
@@ -280,6 +289,74 @@ export default function PortalDashboard() {
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Activation Checklist — shown to new tradies until all 4 steps are complete */}
+        {showChecklist && (
+          <div
+            className="rounded-xl p-5"
+            style={{ background: "#0F1F3D", border: "1px solid rgba(245,166,35,0.25)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
+                <span className="text-sm font-bold text-white">Get set up in 4 steps</span>
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                  style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                >
+                  {checklist.steps.filter(s => s.completed).length}/{checklist.steps.length} done
+                </span>
+              </div>
+              <button
+                onClick={() => dismissChecklistMutation.mutate()}
+                className="p-1 rounded-lg"
+                style={{ color: "rgba(255,255,255,0.3)" }}
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {checklist.steps.map((step) => (
+                <Link key={step.id} href={step.href}>
+                  <div
+                    className="flex items-start gap-3 p-3 rounded-lg cursor-pointer"
+                    style={{
+                      background: step.completed ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.04)",
+                      border: step.completed ? "1px solid rgba(34,197,94,0.25)" : "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                      style={{
+                        background: step.completed ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.08)",
+                        border: step.completed ? "1px solid rgba(34,197,94,0.5)" : "1px solid rgba(255,255,255,0.15)",
+                      }}
+                    >
+                      {step.completed ? (
+                        <Check className="w-3 h-3" style={{ color: "#22c55e" }} />
+                      ) : (
+                        <ArrowRight className="w-3 h-3" style={{ color: "rgba(255,255,255,0.4)" }} />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p
+                        className="text-sm font-semibold"
+                        style={{ color: step.completed ? "rgba(255,255,255,0.5)" : "white",
+                          textDecoration: step.completed ? "line-through" : "none" }}
+                      >
+                        {step.label}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        {step.description}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         )}

@@ -139,8 +139,9 @@ export const publicQuotesRouter = router({
         }
       }
 
-      const client = await getCrmClientById(quote.clientId);
-
+       const client = await getCrmClientById(quote.clientId);
+      // Fetch tradie profile once — used for invoice branding AND tradie SMS notification
+      const profile = await getClientProfile(quote.clientId);
       // Mark quote as accepted
       await updateQuote(quote.id, {
         status: "accepted",
@@ -225,12 +226,10 @@ export const publicQuotesRouter = router({
           endAt,
           color: "green",
         });
-
-        // ── Auto-generate and send invoice to customer ──────────────────────────
+        // ── Auto-generate and send invoice to customer ───────────────────────────────────────────────────────
         // When a customer accepts a quote, automatically generate a tax invoice
         // and send it to the customer's email. The tradie is notified by push.
         try {
-          const profile = await getClientProfile(quote.clientId);
           const businessName = profile?.tradingName ?? client?.businessName ?? "Your Service Provider";
           const totalCents = Math.round(parseFloat(quote.totalAmount ?? "0") * 100);
           const gstCents = Math.round(totalCents / 11);
@@ -411,6 +410,24 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
             fromName: "Solvr",
             replyTo: quote.customerEmail ?? undefined,
           });
+        }
+
+        // ── SMS to tradie ─────────────────────────────────────────────────────────────────
+        // Send SMS to the tradie's own phone so they know the moment a job is confirmed.
+        // Uses profile.phone (set in portal settings) as the primary number.
+        const tradiePhone = profile?.phone ?? null;
+        if (tradiePhone) {
+          try {
+            const totalFormatted = `$${parseFloat(quote.totalAmount ?? "0").toFixed(2)}`;
+            const portalUrl = `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/portal/jobs`;
+            await sendSms({
+              to: tradiePhone,
+              body: `✅ Job confirmed! ${quote.customerName ?? "A customer"} accepted quote ${quote.quoteNumber} (${totalFormatted}). View job: ${portalUrl}`,
+            });
+          } catch (smsErr) {
+            // Non-fatal — push + email already sent
+            console.error("[QuoteAccept] Tradie SMS failed:", smsErr);
+          }
         }
       }
 

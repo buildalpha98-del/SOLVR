@@ -1760,3 +1760,47 @@ export async function buildPriceListContext(clientId: number): Promise<string | 
   }
   return lines.join("\n");
 }
+
+// ─── Price List Markup Settings ──────────────────────────────────────────────
+import {
+  priceListMarkupSettings,
+  type PriceListMarkupSetting,
+} from "../drizzle/schema";
+
+/** Return all markup settings for a client (one row per category). */
+export async function listMarkupSettings(clientId: number): Promise<PriceListMarkupSetting[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(priceListMarkupSettings)
+    .where(eq(priceListMarkupSettings.clientId, clientId))
+    .orderBy(priceListMarkupSettings.category);
+}
+
+/**
+ * Upsert a single category markup.
+ * Creates the row if it doesn't exist; updates markupPct if it does.
+ */
+export async function upsertMarkupSetting(
+  clientId: number,
+  category: string,
+  markupPct: number,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .insert(priceListMarkupSettings)
+    .values({ clientId, category, markupPct: String(markupPct) })
+    .onDuplicateKeyUpdate({ set: { markupPct: String(markupPct) } });
+}
+
+/** Build a lookup map of category → markup % for a client. */
+export async function getMarkupMap(clientId: number): Promise<Record<string, number>> {
+  const settings = await listMarkupSettings(clientId);
+  const map: Record<string, number> = {};
+  for (const s of settings) {
+    map[s.category] = parseFloat(s.markupPct);
+  }
+  return map;
+}

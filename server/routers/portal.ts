@@ -54,6 +54,8 @@ import {
   getOrCreateClientProfile,
   updateClientProfile,
   buildMemoryContext,
+  listPriceListItems,
+  listQuotesByClient,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import Stripe from "stripe";
@@ -2575,5 +2577,83 @@ export const portalRouter = router({
       const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
       if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
       return listJobFeedbackForClient(result.client.id);
+    }),
+
+  // ─── Activation Checklist ──────────────────────────────────────────────────
+  /**
+   * getActivationChecklist — returns the 4-step activation state for the tradie.
+   * Computed from existing data — no separate checklist table needed.
+   *
+   * Steps:
+   *   1. profile_photo  — clientProfiles.logoUrl is set
+   *   2. callout_fee    — clientProfiles.callOutFee is set and > 0
+   *   3. price_list     — at least 1 active price_list_items row exists
+   *   4. first_quote    — at least 1 quote with status != 'draft' exists
+   */
+  getActivationChecklist: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const { client } = result;
+
+      const [profile, priceItems, allQuotes] = await Promise.all([
+        getClientProfile(client.id),
+        listPriceListItems(client.id),
+        listQuotesByClient(client.id),
+      ]);
+
+      const hasPriceListItem = priceItems.some(i => i.isActive);
+      const hasSentQuote = allQuotes.some(q => q.status !== "draft");
+
+      const steps = [
+        {
+          id: "profile_photo",
+          label: "Upload your logo",
+          description: "Add your business logo so quotes look professional.",
+          href: "/portal/settings",
+          completed: !!(profile?.logoUrl),
+        },
+        {
+          id: "callout_fee",
+          label: "Set your call-out fee",
+          description: "Tell the AI your standard call-out rate so it can quote accurately.",
+          href: "/portal/settings",
+          completed: !!(profile?.callOutFee && parseFloat(profile.callOutFee) > 0),
+        },
+        {
+          id: "price_list",
+          label: "Add a price list item",
+          description: "Add at least one service or material so the AI can pre-fill quotes.",
+          href: "/portal/price-list",
+          completed: hasPriceListItem,
+        },
+        {
+          id: "first_quote",
+          label: "Send your first quote",
+          description: "Create and send a quote to a customer to complete setup.",
+          href: "/portal/quotes",
+          completed: hasSentQuote,
+        },
+      ];
+
+      const allComplete = steps.every(s => s.completed);
+      const dismissed = !!(profile?.activationChecklistDismissedAt);
+
+      return { steps, allComplete, dismissed };
+    }),
+
+  /**
+   * dismissActivationChecklist — marks the checklist as dismissed for this tradie.
+   * Called when the tradie clicks "Got it" or all steps are complete.
+   */
+  dismissActivationChecklist: publicProcedure
+    .mutation(async ({ ctx }) => {
+      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
+      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
+      const profile = await getOrCreateClientProfile(result.client.id);
+      await updateClientProfile(profile.id, {
+        activationChecklistDismissedAt: new Date(),
+      } as any);
+      return { success: true };
     }),
 });

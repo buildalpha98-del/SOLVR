@@ -30,6 +30,9 @@ import {
   insertPriceListItem,
   updatePriceListItem,
   deletePriceListItem,
+  listMarkupSettings,
+  upsertMarkupSetting,
+  getMarkupMap,
 } from "../db";
 
 // ── Shared Zod schemas ────────────────────────────────────────────────────────
@@ -286,6 +289,9 @@ export const priceListRouter = {
         await Promise.all(existing.map((item) => deletePriceListItem(item.id, clientId)));
       }
 
+      // Load the tradie's default markup % per category for auto-calculating sell price
+      const markupMap = await getMarkupMap(clientId);
+
       const skipped: Array<{ row: number; reason: string }> = [];
       let imported = 0;
 
@@ -299,9 +305,20 @@ export const priceListRouter = {
           continue;
         }
 
-        const sellCents = parseCents(row[sellIdx]);
+        let sellCents = parseCents(row[sellIdx]);
+
+        // If sell price is missing but cost is present, try to auto-calculate from markup
+        if ((!sellCents || sellCents <= 0)) {
+          const costForMarkup = costIdx !== -1 ? parseCents(row[costIdx]) : null;
+          const cat = mapCategory(categoryIdx !== -1 ? row[categoryIdx] : undefined);
+          const markup = markupMap[cat] ?? 0;
+          if (costForMarkup && costForMarkup > 0 && markup > 0) {
+            sellCents = Math.round(costForMarkup * (1 + markup / 100));
+          }
+        }
+
         if (!sellCents || sellCents <= 0) {
-          skipped.push({ row: rowNum, reason: `"${name}" — missing or zero sell price.` });
+          skipped.push({ row: rowNum, reason: `"${name}" — missing or zero sell price (no markup default set for this category).` });
           continue;
         }
 
@@ -327,5 +344,55 @@ export const priceListRouter = {
       }
 
       return { imported, skipped };
+    }),
+
+  /**
+   * Get default markup % settings for all 5 categories.
+   * Returns an array of { category, markupPct } objects.
+   * Categories with no saved setting return markupPct = 0.
+   */
+  listMarkupSettings: publicProcedure.query(async ({ ctx }) => {
+    const portalAuth = await getPortalClient(ctx.req);
+    if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+    const clientId = portalAuth.client.id;
+
+    const saved = await listMarkupSettings(clientId);
+    const savedMap: Record<string, number> = {};
+    for (const s of saved) savedMap[s.category] = parseFloat(s.markupPct);
+
+    const CATEGORIES = ["labour", "materials", "call_out", "subcontractor", "other"] as const;
+    return CATEGORIES.map((cat) => ({
+      category: cat,
+      markupPct: savedMap[cat] ?? 0,
+    }));
+  }),
+
+  /**
+   * Save markup % for one or more categories.
+   * Accepts an array of { category, markupPct } pairs.
+   * Existing rows are updated; new rows are created.
+   */
+  saveMarkupSettings: publicProcedure
+    .input(
+      z.array(
+        z.object({
+          category: categoryEnum,
+          /** Markup percentage 0–300 */
+          markupPct: z.number().min(0).max(300),
+        }),
+      ).min(1).max(5),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const portalAuth = await getPortalClient(ctx.req);
+      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const clientId = portalAuth.client.id;
+
+      await Promise.all(
+        input.map(({ category, markupPct }) =>
+          upsertMarkupSetting(clientId, category, markupPct),
+        ),
+      );
+
+      return { success: true };
     }),
 };

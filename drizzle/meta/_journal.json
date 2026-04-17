@@ -323,6 +323,20 @@
       "when": 1776429239867,
       "tag": "0045_medical_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1776447713683,
+      "tag": "0046_jazzy_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1776448009691,
+      "tag": "0047_bizarre_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

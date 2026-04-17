@@ -27,6 +27,10 @@ vi.mock("./db", () => ({
   insertPriceListItem: vi.fn().mockResolvedValue({}),
   updatePriceListItem: vi.fn().mockResolvedValue({}),
   deletePriceListItem: vi.fn().mockResolvedValue({}),
+  // Markup settings mocks
+  listMarkupSettings: vi.fn().mockResolvedValue([]),
+  upsertMarkupSetting: vi.fn().mockResolvedValue(undefined),
+  getMarkupMap: vi.fn().mockResolvedValue({}),
   // Other mocks required by routers.ts
   upsertUser: vi.fn(),
   getUserByOpenId: vi.fn(),

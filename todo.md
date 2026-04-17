@@ -661,3 +661,20 @@
 - [ ] SMS notification to customer on each job status change (Twilio)
 - [ ] "Share with Customer" button on job card generates/copies tracking URL
 - [ ] Add vitest for job status procedures
+
+## Sprint 3 — Tradie Activation Checklist (Portal Dashboard)
+- [ ] tRPC procedure: portal.getActivationChecklist (4 steps: profile photo, call-out fee, price list item, first quote sent)
+- [ ] Dashboard widget in PortalDashboard.tsx — dismissible once all 4 complete
+- [ ] Each step links to the relevant portal page
+- [ ] Persist dismiss state in client_profiles (checklistDismissedAt column)
+
+## Sprint 4 — Quote Acceptance SMS to Tradie
+- [ ] Add SMS to tradie's contactPhone in publicQuotes.accept (gap: push + email already exist)
+- [ ] SMS body: customer name, quote number, job title, total amount, portal link
+
+## Sprint 1b Extension — Default Markup % Per Category
+- [ ] price_list_markup_settings table (clientId, category, markupPct) + migration
+- [ ] tRPC: priceList.getMarkupSettings + priceList.upsertMarkupSettings
+- [ ] Markup settings UI in PortalPriceList.tsx (collapsible section, 5 category rows)
+- [ ] CSV import uses markup settings to auto-calculate sellCents when only costCents provided
+- [ ] AI extraction context includes markup settings for correct margin application
