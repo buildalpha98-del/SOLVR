@@ -23,7 +23,6 @@ import { scheduleQuoteFollowUpCron } from "../cron/quoteFollowUp";
 import { scheduleStaffTimesheetCrons } from "../cron/staffTimesheet";
 import { scheduleReviewRequestDispatchCron } from "../cron/reviewRequestDispatch";
 import { scheduleLateCheckinAlertCron } from "../cron/lateCheckinAlert";
-import { quoteAcceptRouter } from "../quoteAccept";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -144,9 +143,6 @@ async function startServer() {
   app.use("/api", audioUploadRouter);
   // Photo upload for job before/after photos
   app.use("/api", photoUploadRouter);
-  // Quote acceptance — public GET /api/quotes/:token/accept
-  app.use("/api", quoteAcceptRouter);
-
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

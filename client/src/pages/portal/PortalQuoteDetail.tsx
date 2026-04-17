@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Send, FileText, Sparkles, Camera, Trash2,
   Loader2, CheckCircle, Download, Plus, XCircle, RefreshCw,
-  ExternalLink, AlertTriangle,
+  ExternalLink, AlertTriangle, Copy,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -666,15 +666,28 @@ export default function PortalQuoteDetail() {
               style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
             >
               <h3 className="font-semibold text-white mb-2 text-sm">Customer Link</h3>
-              <a
-                href={`/quote/${quote.customerToken}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 break-all"
-              >
-                <ExternalLink className="w-3 h-3 shrink-0" />
-                /quote/{quote.customerToken?.slice(0, 16)}…
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`${window.location.origin}/quote/${quote.customerToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 break-all flex-1 min-w-0"
+                >
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{window.location.origin}/quote/{quote.customerToken?.slice(0, 16)}…</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/quote/${quote.customerToken}`);
+                    toast.success("Link copied to clipboard");
+                  }}
+                  className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Copy link"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>

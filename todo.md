@@ -574,3 +574,62 @@
 
 - [ ] Language selector dropdown in VoiceOnboarding screen (same as PortalQuotes)
 - [ ] Translated column headers in quote PDF line items table (Description, Qty, Unit Price, Total)
+
+## Sprint 0 — Critical Bug Fixes
+- [x] B1: Fix broken customer quote link — now uses window.location.origin + added one-tap copy button
+- [x] B2: Quote email CTA button — already implemented, no fix needed
+- [x] B3: Duplicate job creation — not a bug; createDraft creates "quoted" job, accept creates "booked" job (correct pipeline)
+- [x] B4: Auto-promote to "booked" on acceptance — already implemented in publicQuotes.accept
+- [x] B5: Auto-create calendar entry on booking — already implemented in publicQuotes.accept
+- [x] B6: Bulk quote expiry cron — already in quoteFollowUp.ts; fixed broken acceptUrl in follow-up emails; removed dead legacy GET endpoint
+
+## Sprint 1 — Price List & AI Memory File
+- [ ] Price list file upload (PDF/CSV) + manual entry UI
+- [ ] Structured price items table (name, unit, cost, sell, margin)
+- [ ] AI quote generation injects tradie's price list as context
+- [ ] Quote line items show itemised materials + labour
+- [ ] Default markup % per category (materials, labour, call-out)
+
+## Sprint 2 — Customer Job Tracking Portal
+- [ ] Public /job-status/:token page (no login)
+- [ ] Status timeline: Quoted → Accepted → Scheduled → In Progress → Completed → Invoiced
+- [ ] "Accept Quote" button on public page triggers B4 auto-promotion
+- [ ] Photo updates pushed from job card to customer portal
+- [ ] SMS notification to customer on job status change
+
+## Sprint 3 — Subcontractor Management
+- [ ] Subcontractor profiles (name, trade, ABN, contact, rate)
+- [ ] Assign subbie to job from job card
+- [ ] Subbie gets magic-link email with read-only job card
+- [ ] Subbie timesheet (log hours against job)
+- [ ] Subbie invoice tracking (cost recorded against job)
+
+## Sprint 4 — Purchase Orders
+- [ ] Create PO from job (pulls materials from quote line items)
+- [ ] Supplier management (name, contact, account number)
+- [ ] Send PO as branded PDF email to supplier
+- [ ] Record actual cost when PO received
+- [ ] PO status: Draft → Sent → Received → Invoiced
+
+## Sprint 5 — Digital Forms & Certificates
+- [ ] Form builder (text, checkbox, signature, photo fields)
+- [ ] Pre-built templates: electrical cert, SWMS, gas compliance, handover
+- [ ] Mobile-first form completion with customer signature capture
+- [ ] PDF generation from completed form, attached to job
+- [ ] Option to block invoice until required form is completed
+
+## Sprint 6 — Job Costing & Reporting
+- [ ] Actual vs estimated cost on job card
+- [ ] Profit margin per job (revenue − actual costs)
+- [ ] Job costing report (list, sorted by margin)
+- [ ] Revenue dashboard (monthly revenue, outstanding, avg job value, conversion rate)
+- [ ] Quote conversion rate tracking
+
+## Sprint 7 — Automated Comms
+- [ ] Auto SMS to customer when quote is sent
+- [ ] Auto follow-up SMS/email at day 3 if quote not accepted
+- [ ] Auto quote expiry at day 14 (status → expired, tradie notified)
+- [ ] Auto draft invoice on job completion
+- [ ] Payment reminder SMS/email at day 7 for unpaid invoices
+- [ ] Appointment reminder SMS 24hr before scheduled job
+- [ ] Job completion email with photos and invoice link
