@@ -337,6 +337,13 @@
       "when": 1776462289058,
       "tag": "0047_soft_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1776467963906,
+      "tag": "0048_tranquil_redwing",
+      "breakpoints": true
     }
   ]
 }

@@ -42,6 +42,8 @@ import {
   Crown,
   Users,
 } from "lucide-react";
+import { usePortalRole } from "@/hooks/usePortalRole";
+import ViewerBanner from "@/components/portal/ViewerBanner";
 
 type TeamMember = {
   id: number;
@@ -53,7 +55,7 @@ type TeamMember = {
 };
 
 export default function PortalTeam() {
-  
+  const { canWrite } = usePortalRole();
   const utils = trpc.useUtils();
 
   const { data: members = [], isLoading } = trpc.portalTeam.list.useQuery();
@@ -124,12 +126,15 @@ export default function PortalTeam() {
           </div>
           <Button
             onClick={() => setShowInvite(true)}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold"
+            disabled={!canWrite}
+            className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold disabled:opacity-40"
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Invite Member
           </Button>
         </div>
+
+        {!canWrite && <ViewerBanner />}
 
         {/* Pro plan note */}
         <div className="bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-3 mb-6 text-sm text-slate-400">
@@ -222,7 +227,7 @@ export default function PortalTeam() {
                       className="h-7 w-7 p-0 text-slate-400 hover:text-amber-400"
                       title="Resend invite"
                       onClick={() => resendInvite.mutate({ memberId: member.id })}
-                      disabled={resendInvite.isPending}
+                      disabled={resendInvite.isPending || !canWrite}
                     >
                       <Mail className="w-4 h-4" />
                     </Button>
@@ -235,6 +240,7 @@ export default function PortalTeam() {
                     className="h-7 w-7 p-0 text-slate-400 hover:text-red-400"
                     title="Remove member"
                     onClick={() => setConfirmRemoveId(member.id)}
+                    disabled={!canWrite}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

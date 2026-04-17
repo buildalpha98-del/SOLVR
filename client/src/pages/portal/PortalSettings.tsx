@@ -18,6 +18,8 @@ import {
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
 import { toast } from "sonner";
+import { usePortalRole } from "@/hooks/usePortalRole";
+import ViewerBanner from "@/components/portal/ViewerBanner";
 
 // ─── Shared input style ──────────────────────────────────────────────────────
 const inputStyle = {
@@ -62,6 +64,7 @@ function SectionCard({
 
 export default function PortalSettings() {
   const [, navigate] = useLocation();
+  const { canWrite } = usePortalRole();
 
   // ─── Logout ──────────────────────────────────────────────────────────────
   const logoutMutation = trpc.portal.logout.useMutation({
@@ -199,6 +202,8 @@ export default function PortalSettings() {
           </p>
         </div>
 
+        {!canWrite && <ViewerBanner />}
+
         {/* ── Business Profile ─────────────────────────────────────────── */}
         <SectionCard
           icon={Building2}
@@ -320,9 +325,9 @@ export default function PortalSettings() {
               <div className="pt-2">
                 <Button
                   type="submit"
-                  disabled={updateProfile.isPending}
+                  disabled={updateProfile.isPending || !canWrite}
                   className="font-semibold"
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  style={{ background: canWrite ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0F1F3D" }}
                 >
                   {updateProfile.isPending ? (
                     <>
@@ -408,9 +413,9 @@ export default function PortalSettings() {
             <div className="pt-1">
               <Button
                 type="submit"
-                disabled={updateBankDetails.isPending}
+                disabled={updateBankDetails.isPending || !canWrite}
                 className="font-semibold"
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
+                style={{ background: canWrite ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0F1F3D" }}
               >
                 {updateBankDetails.isPending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
@@ -552,12 +557,13 @@ export default function PortalSettings() {
                 type="submit"
                 disabled={
                   changePassword.isPending ||
+                  !canWrite ||
                   !currentPassword ||
                   newPassword.length < 8 ||
                   newPassword !== confirmPassword
                 }
                 className="w-full font-semibold"
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
+                style={{ background: canWrite ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0F1F3D" }}
               >
                 {changePassword.isPending ? "Updating..." : "Update Password"}
               </Button>

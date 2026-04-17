@@ -706,3 +706,26 @@
 - [x] Customers nav item added to PortalLayout
 - [x] /portal/customers and /portal/customers/:id routes added to App.tsx
 - [x] 8 vitest tests for portalCustomers router (235 total passing)
+
+## Viewer Lockdown — Remaining Pages
+- [x] Apply ViewerBanner + WriteGuard to PortalSettings.tsx (Update Profile, Save Payment Details, Change Password)
+- [x] Apply ViewerBanner + WriteGuard to PortalTeam.tsx (Invite Member, Remove Member)
+- [x] Apply ViewerBanner + WriteGuard to PortalPriceList.tsx (Add Item, Edit Item, Delete Item)
+- [x] Apply ViewerBanner + WriteGuard to PortalCalendar.tsx (Add Event, Edit Event)
+
+## Sprint 12 — Bulk SMS Execution
+- [x] Add sms_campaigns and sms_campaign_recipients tables to schema.ts
+- [x] Run db:push to create tables
+- [x] Twilio credentials already configured via existing sms helper (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER)
+- [x] Add sendBulkSms procedure to portalCustomers.ts (creates campaign, sends via Twilio, records per-recipient status)
+- [x] Add listSmsCampaigns procedure to portalCustomers.ts (campaign send history)
+- [x] Update PortalCustomers.tsx: two-step preview → confirm → send flow, campaign history tab
+- [x] 4 vitest tests for sendBulkSms + listSmsCampaigns (239 total passing)
+
+## Sprint 13 — Customer Job Status Tracking
+- [x] customerStatusToken column already in portalJobs (added in prior sprint, 64-char hex, unique)
+- [x] Auto-generated on job creation in portal.ts, quotes.ts, and portalJobs.ts routers
+- [x] getJobByCustomerToken public procedure (no auth) in portal.ts — returns job, photos, tradie contact, feedback
+- [x] CustomerJobStatus.tsx public page at /job/:token — stage timeline, photos, feedback widget, contact tradie
+- [x] "Share tracking link with customer" button on job card (copies URL, toast confirmation)
+- [x] Existing vitest coverage via jobFeedback.test.ts

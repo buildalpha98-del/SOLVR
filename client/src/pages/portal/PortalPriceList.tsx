@@ -22,6 +22,8 @@ import {
   Plus, Pencil, Trash2, Loader2, Tag, DollarSign, Info,
   Upload, FileText, AlertTriangle, CheckCircle2,
 } from "lucide-react";
+import { usePortalRole } from "@/hooks/usePortalRole";
+import ViewerBanner from "@/components/portal/ViewerBanner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -299,6 +301,7 @@ function CsvImportModal({ open, onClose, onImported }: CsvImportModalProps) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function PortalPriceList() {
+  const { canWrite } = usePortalRole();
   const utils = trpc.useUtils();
 
   const { data: items = [], isLoading } = trpc.priceList.list.useQuery();
@@ -403,6 +406,7 @@ export default function PortalPriceList() {
             <Button
               variant="outline"
               onClick={() => setShowImport(true)}
+              disabled={!canWrite}
               style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)", background: "transparent" }}
             >
               <Upload className="w-4 h-4 mr-1" />
@@ -410,13 +414,15 @@ export default function PortalPriceList() {
             </Button>
             <Button
               onClick={openCreate}
-              style={{ background: "#F5A623", color: "#0F1F3D" }}
+              disabled={!canWrite}
+              style={{ background: canWrite ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0F1F3D" }}
             >
               <Plus className="w-4 h-4 mr-1" />
               Add Item
             </Button>
           </div>
         </div>
+        {!canWrite && <ViewerBanner />}
 
         {/* AI context notice */}
         <div
@@ -525,7 +531,8 @@ export default function PortalPriceList() {
                           <button
                             type="button"
                             onClick={() => openEdit(item)}
-                            className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                            disabled={!canWrite}
+                            className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Edit"
                           >
                             <Pencil className="w-3.5 h-3.5" />
@@ -537,7 +544,8 @@ export default function PortalPriceList() {
                                 deleteMutation.mutate({ id: item.id });
                               }
                             }}
-                            className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                            disabled={!canWrite}
+                            className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Remove"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

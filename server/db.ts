@@ -1861,3 +1861,69 @@ export async function updateTradieCustomerNotes(
     .set({ notes, updatedAt: new Date() })
     .where(and(eq(tradieCustomers.id, id), eq(tradieCustomers.clientId, clientId)));
 }
+
+// ─── SMS Campaigns (Sprint 12) ────────────────────────────────────────────────
+import {
+  smsCampaigns,
+  smsCampaignRecipients,
+  type SmsCampaign,
+  type InsertSmsCampaign,
+  type SmsCampaignRecipient,
+  type InsertSmsCampaignRecipient,
+} from "../drizzle/schema";
+
+export async function createSmsCampaign(data: InsertSmsCampaign): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(smsCampaigns).values(data);
+  return (result[0] as { insertId: number }).insertId;
+}
+
+export async function updateSmsCampaignStatus(
+  id: number,
+  status: SmsCampaign["status"],
+  counts?: { sentCount?: number; failedCount?: number },
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(smsCampaigns)
+    .set({
+      status,
+      ...(counts ?? {}),
+      ...(status === "completed" || status === "failed" ? { completedAt: new Date() } : {}),
+    })
+    .where(eq(smsCampaigns.id, id));
+}
+
+export async function insertSmsCampaignRecipients(
+  rows: InsertSmsCampaignRecipient[],
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (rows.length === 0) return;
+  await db.insert(smsCampaignRecipients).values(rows);
+}
+
+export async function updateSmsCampaignRecipient(
+  id: number,
+  data: Partial<Pick<SmsCampaignRecipient, "status" | "twilioSid" | "errorMessage" | "sentAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(smsCampaignRecipients).set(data).where(eq(smsCampaignRecipients.id, id));
+}
+
+export async function listSmsCampaigns(clientId: number): Promise<SmsCampaign[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaigns)
+    .where(eq(smsCampaigns.clientId, clientId))
+    .orderBy(desc(smsCampaigns.createdAt));
+}
+
+export async function getSmsCampaignRecipients(campaignId: number): Promise<SmsCampaignRecipient[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaignRecipients)
+    .where(eq(smsCampaignRecipients.campaignId, campaignId));
+}

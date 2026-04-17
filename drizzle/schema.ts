@@ -1572,3 +1572,47 @@ export const portalTeamMembers = mysqlTable("portal_team_members", {
 });
 export type PortalTeamMember = typeof portalTeamMembers.$inferSelect;
 export type InsertPortalTeamMember = typeof portalTeamMembers.$inferInsert;
+
+// SMS Campaigns (Sprint 12 - Bulk SMS execution)
+export const smsCampaigns = mysqlTable("sms_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  /** Short label for the campaign, e.g. "Winter promo — inactive customers" */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** The message body sent to all recipients */
+  message: text("message").notNull(),
+  /** Total number of recipients targeted */
+  totalCount: int("totalCount").default(0).notNull(),
+  /** Number successfully sent */
+  sentCount: int("sentCount").default(0).notNull(),
+  /** Number that failed */
+  failedCount: int("failedCount").default(0).notNull(),
+  /** Campaign status */
+  status: mysqlEnum("sms_campaign_status", ["pending", "sending", "completed", "failed"])
+    .default("pending")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+export type SmsCampaign = typeof smsCampaigns.$inferSelect;
+export type InsertSmsCampaign = typeof smsCampaigns.$inferInsert;
+
+// SMS Campaign Recipients — one row per phone number per campaign
+export const smsCampaignRecipients = mysqlTable("sms_campaign_recipients", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  /** Customer display name */
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Delivery status */
+  status: mysqlEnum("sms_recipient_status", ["pending", "sent", "failed"])
+    .default("pending")
+    .notNull(),
+  /** Twilio message SID on success */
+  twilioSid: varchar("twilioSid", { length: 64 }),
+  /** Error message on failure */
+  errorMessage: varchar("errorMessage", { length: 512 }),
+  sentAt: timestamp("sentAt"),
+});
+export type SmsCampaignRecipient = typeof smsCampaignRecipients.$inferSelect;
+export type InsertSmsCampaignRecipient = typeof smsCampaignRecipients.$inferInsert;

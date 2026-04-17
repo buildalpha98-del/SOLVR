@@ -2,10 +2,12 @@
  * portalCustomers.ts — CRM Customer History router
  *
  * Procedures:
- *  - list          : list all tradie customers (ordered by lastJobAt desc)
- *  - get           : get a single customer + their job history
- *  - updateNotes   : update notes on a customer record
- *  - bulkSms       : send an SMS blast to a list of customer phone numbers via Vapi/Twilio
+ *  - list            : list all tradie customers (ordered by lastJobAt desc)
+ *  - get             : get a single customer + their job history
+ *  - updateNotes     : update notes on a customer record
+ *  - bulkSmsPreview  : build the payload (recipients + message) for review
+ *  - sendBulkSms     : dispatch the SMS campaign via Twilio; records results in sms_campaigns
+ *  - listSmsCampaigns: return send history for the authenticated tradie
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -16,7 +18,14 @@ import {
   getTradieCustomer,
   getJobsByCustomerPhone,
   updateTradieCustomerNotes,
+  createSmsCampaign,
+  updateSmsCampaignStatus,
+  insertSmsCampaignRecipients,
+  updateSmsCampaignRecipient,
+  listSmsCampaigns as dbListSmsCampaigns,
+  getSmsCampaignRecipients,
 } from "../db";
+import { sendSms } from "../lib/sms";
 
 export const portalCustomersRouter = router({
   /**
@@ -38,7 +47,6 @@ export const portalCustomersRouter = router({
       if (!customer || customer.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
       }
-      // Fetch job history by phone number (callerPhone or customerPhone)
       const jobs = customer.phone
         ? await getJobsByCustomerPhone(clientId, customer.phone)
         : [];
@@ -66,13 +74,8 @@ export const portalCustomersRouter = router({
     }),
 
   /**
-   * Bulk SMS — send a message to a list of customer IDs.
-   * Uses the Vapi outbound call / SMS API if configured, otherwise returns a
-   * draft payload for the tradie to copy into their SMS app.
-   *
-   * For now this returns a structured list so the frontend can render a
-   * "copy to clipboard" or "open in SMS app" fallback. Full Vapi SMS
-   * integration can be wired in a future sprint once the Vapi account is live.
+   * Preview the bulk SMS payload — returns recipients + message for confirmation.
+   * No messages are sent; this is the "review before send" step.
    */
   bulkSmsPreview: publicProcedure
     .input(
@@ -83,7 +86,6 @@ export const portalCustomersRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const { clientId } = await requirePortalWrite(ctx);
-      // Fetch only customers that belong to this tradie
       const allCustomers = await listTradieCustomers(clientId);
       const targets = allCustomers.filter(
         (c) => input.customerIds.includes(c.id) && !!c.phone,
@@ -104,4 +106,98 @@ export const portalCustomersRouter = router({
         })),
       };
     }),
+
+  /**
+   * Send the bulk SMS campaign via Twilio.
+   * Creates a campaign record, inserts one recipient row per phone, dispatches
+   * each SMS sequentially (rate-limit safe), and updates delivery status.
+   *
+   * Returns the campaign ID and a summary of sent/failed counts.
+   */
+  sendBulkSms: publicProcedure
+    .input(
+      z.object({
+        customerIds: z.array(z.number().int().positive()).min(1).max(200),
+        message: z.string().min(1).max(320),
+        campaignName: z.string().min(1).max(255).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalWrite(ctx);
+
+      // Resolve recipients
+      const allCustomers = await listTradieCustomers(clientId);
+      const targets = allCustomers.filter(
+        (c) => input.customerIds.includes(c.id) && !!c.phone,
+      );
+      if (targets.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No valid phone numbers found for the selected customers",
+        });
+      }
+
+      const campaignName =
+        input.campaignName ??
+        `SMS blast — ${new Date().toLocaleDateString("en-AU", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })}`;
+
+      const campaignId = await createSmsCampaign({
+        clientId,
+        name: campaignName,
+        message: input.message,
+        totalCount: targets.length,
+        status: "sending",
+      });
+
+      // Insert recipient rows (all pending)
+      await insertSmsCampaignRecipients(
+        targets.map((c) => ({
+          campaignId,
+          name: c.name,
+          phone: c.phone!,
+          status: "pending" as const,
+        })),
+      );
+
+      // Fetch inserted rows to get their IDs
+      const recipientRows = await getSmsCampaignRecipients(campaignId);
+
+      let sentCount = 0;
+      let failedCount = 0;
+
+      for (const recipient of recipientRows) {
+        const result = await sendSms({ to: recipient.phone, body: input.message });
+        if (result.success) {
+          sentCount++;
+          await updateSmsCampaignRecipient(recipient.id, {
+            status: "sent",
+            twilioSid: result.sid,
+            sentAt: new Date(),
+          });
+        } else {
+          failedCount++;
+          await updateSmsCampaignRecipient(recipient.id, {
+            status: "failed",
+            errorMessage: result.error ?? "Unknown error",
+          });
+        }
+      }
+
+      const finalStatus = failedCount === targets.length ? "failed" : "completed";
+      await updateSmsCampaignStatus(campaignId, finalStatus, { sentCount, failedCount });
+
+      return { campaignId, sentCount, failedCount, total: targets.length };
+    }),
+
+  /**
+   * List SMS campaigns for the authenticated tradie (most recent first).
+   */
+  listSmsCampaigns: publicProcedure.query(async ({ ctx }) => {
+    const { clientId } = await requirePortalAuth(ctx);
+    return dbListSmsCampaigns(clientId);
+  }),
 });

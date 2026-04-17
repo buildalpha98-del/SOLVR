@@ -46,13 +46,24 @@ export default function PortalCustomers() {
     staleTime: 60_000,
   });
 
-  const bulkSmsMutation = trpc.portalCustomers.bulkSmsPreview.useMutation({
+  const bulkSmsPreviewMutation = trpc.portalCustomers.bulkSmsPreview.useMutation({
+    onSuccess: () => setSmsSent(true),
+    onError: (err) => toast.error(err.message),
+  });
+  const sendBulkSmsMutation = trpc.portalCustomers.sendBulkSms.useMutation({
     onSuccess: (data) => {
-      setSmsSent(true);
-      toast.success(`SMS preview ready for ${data.count} customer${data.count !== 1 ? "s" : ""}`);
+      toast.success(
+        `Sent ${data.sentCount} of ${data.total} SMS${
+          data.failedCount > 0 ? ` (${data.failedCount} failed)` : ""
+        }`,
+      );
+      setShowBulkSms(false);
+      setSelected(new Set());
     },
     onError: (err) => toast.error(err.message),
   });
+  // alias for the preview step
+  const bulkSmsMutation = bulkSmsPreviewMutation;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -301,7 +312,7 @@ export default function PortalCustomers() {
               Bulk SMS — {selected.size} customer{selected.size !== 1 ? "s" : ""}
             </DialogTitle>
             <DialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-              Compose your message. You'll get a phone number list to copy into your SMS app.
+              Compose your message, preview recipients, then send via Twilio.
             </DialogDescription>
           </DialogHeader>
 
@@ -324,17 +335,36 @@ export default function PortalCustomers() {
                   </div>
                 ))}
               </div>
-              <Button
-                className="w-full font-semibold"
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
-                onClick={() => {
-                  const lines = bulkSmsMutation.data!.recipients.map((r) => r.phone).join(", ");
-                  navigator.clipboard.writeText(lines);
-                  toast.success("Phone numbers copied to clipboard");
-                }}
-              >
-                Copy Phone Numbers
-              </Button>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  className="flex-1 border-white/10 text-white/60"
+                  onClick={() => {
+                    const lines = bulkSmsMutation.data!.recipients.map((r) => r.phone).join(", ");
+                    navigator.clipboard.writeText(lines);
+                    toast.success("Numbers copied to clipboard");
+                  }}
+                >
+                  Copy Numbers
+                </Button>
+                <Button
+                  className="flex-1 font-semibold"
+                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  disabled={sendBulkSmsMutation.isPending}
+                  onClick={() =>
+                    sendBulkSmsMutation.mutate({
+                      customerIds: Array.from(selected),
+                      message: smsMessage.trim(),
+                    })
+                  }
+                >
+                  {sendBulkSmsMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Send via Twilio"
+                  )}
+                </Button>
+              </div>
             </div>
           ) : (
             <>
@@ -368,7 +398,7 @@ export default function PortalCustomers() {
                   disabled={bulkSmsMutation.isPending || !smsMessage.trim()}
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
                 >
-                  {bulkSmsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Preview SMS"}
+                  {bulkSmsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Preview Recipients"}
                 </Button>
               </DialogFooter>
             </>
