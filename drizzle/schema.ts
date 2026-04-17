@@ -1041,11 +1041,12 @@ export const clientProfiles = mysqlTable("client_profiles", {
   googleReviewLink: varchar("googleReviewLink", { length: 512 }),
   /** Whether to auto-send a review request when a job is marked complete */
   reviewRequestEnabled: boolean("reviewRequestEnabled").default(true).notNull(),
-   /** Delay in minutes before the review request is sent after job completion (default 30) */
+  /** Delay in minutes before the review request is sent after job completion (default 30) */
   reviewRequestDelayMinutes: int("reviewRequestDelayMinutes").default(30).notNull(),
-  // ── Activation Checklist ─────────────────────────────────────────────────────
-  /** When the tradie dismissed the activation checklist widget (null = not dismissed) */
+
+  /** Timestamp when the tradie dismissed the activation checklist (null = not yet dismissed) */
   activationChecklistDismissedAt: timestamp("activationChecklistDismissedAt"),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1552,25 +1553,3 @@ export const priceListItems = mysqlTable("price_list_items", {
 });
 export type PriceListItem = typeof priceListItems.$inferSelect;
 export type InsertPriceListItem = typeof priceListItems.$inferInsert;
-
-// ─── Price List Markup Settings ──────────────────────────────────────────────
-/**
- * Per-category default markup percentages for a tradie's price list.
- * When a CSV import provides only cost prices, the AI uses these markups
- * to auto-calculate sell prices.
- *
- * One row per (clientId, category) pair — upserted on save.
- * markupPct is stored as a decimal (e.g. 40.00 = 40%).
- */
-export const priceListMarkupSettings = mysqlTable("price_list_markup_settings", {
-  id: int("id").autoincrement().primaryKey(),
-  clientId: int("clientId").notNull(),
-  /** Category matching the priceListItems.category enum */
-  category: varchar("category", { length: 50 }).notNull(),
-  /** Markup percentage (e.g. 40.00 = 40%). Stored as DECIMAL(5,2). */
-  markupPct: decimal("markupPct", { precision: 5, scale: 2 }).notNull().default("0.00"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
-export type PriceListMarkupSetting = typeof priceListMarkupSettings.$inferSelect;
-export type InsertPriceListMarkupSetting = typeof priceListMarkupSettings.$inferInsert;

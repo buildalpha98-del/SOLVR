@@ -7,7 +7,7 @@
  *
  * Categories: Labour | Materials | Call-Out / Travel | Subcontractor | Other
  */
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import {
   Plus, Pencil, Trash2, Loader2, Tag, DollarSign, Info,
-  Upload, FileText, AlertTriangle, CheckCircle2, Settings2,
+  Upload, FileText, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -303,41 +303,6 @@ export default function PortalPriceList() {
 
   const { data: items = [], isLoading } = trpc.priceList.list.useQuery();
 
-  // ── Markup settings state ────────────────────────────────────────────────────
-  const { data: markupData } = trpc.priceList.listMarkupSettings.useQuery();
-  const [showMarkup, setShowMarkup] = useState(false);
-  const [markupForm, setMarkupForm] = useState<Record<string, string>>({
-    labour: "", materials: "", call_out: "", subcontractor: "", other: "",
-  });
-
-  // Sync markupForm when server data arrives
-  useEffect(() => {
-    if (!markupData) return;
-    const next: Record<string, string> = {};
-    for (const { category, markupPct } of markupData) {
-      next[category] = markupPct > 0 ? String(markupPct) : "";
-    }
-    setMarkupForm(next);
-  }, [markupData]);
-
-  const saveMarkupMutation = trpc.priceList.saveMarkupSettings.useMutation({
-    onSuccess: () => {
-      utils.priceList.listMarkupSettings.invalidate();
-      toast.success("Default markups saved");
-      setShowMarkup(false);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  function handleSaveMarkup() {
-    const CATEGORIES = ["labour", "materials", "call_out", "subcontractor", "other"] as const;
-    const payload = CATEGORIES.map((cat) => ({
-      category: cat,
-      markupPct: parseFloat(markupForm[cat] || "0") || 0,
-    }));
-    saveMarkupMutation.mutate(payload);
-  }
-
   const createMutation = trpc.priceList.create.useMutation({
     onSuccess: () => {
       utils.priceList.list.invalidate();
@@ -435,15 +400,6 @@ export default function PortalPriceList() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowMarkup(true)}
-              title="Default markup %"
-              style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)", background: "transparent" }}
-            >
-              <Settings2 className="w-4 h-4 mr-1" />
-              Markup %
-            </Button>
             <Button
               variant="outline"
               onClick={() => setShowImport(true)}
@@ -737,73 +693,6 @@ export default function PortalPriceList() {
         onClose={() => setShowImport(false)}
         onImported={() => utils.priceList.list.invalidate()}
       />
-
-      {/* ── Default Markup % modal ───────────────────────────────────────────── */}
-      <Dialog open={showMarkup} onOpenChange={setShowMarkup}>
-        <DialogContent
-          className="max-w-md"
-          style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Settings2 className="w-4 h-4 text-amber-400" />
-              Default Markup % by Category
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-gray-400 mb-4">
-            When you import a CSV with cost prices but no sell prices, these markups are used to auto-calculate the sell price.
-            Leave blank to skip auto-calculation for that category.
-          </p>
-          <div className="space-y-3">
-            {(["labour", "materials", "call_out", "subcontractor", "other"] as const).map((cat) => (
-              <div key={cat} className="flex items-center gap-3">
-                <span
-                  className="text-xs font-semibold uppercase tracking-wide w-32 shrink-0 px-2 py-0.5 rounded-full text-center"
-                  style={{ background: `${CATEGORY_COLORS[cat]}22`, color: CATEGORY_COLORS[cat] }}
-                >
-                  {CATEGORY_LABELS[cat]}
-                </span>
-                <div className="relative flex-1">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="300"
-                    step="1"
-                    value={markupForm[cat]}
-                    onChange={(e) => setMarkupForm({ ...markupForm, [cat]: e.target.value })}
-                    placeholder="0"
-                    className="pr-8"
-                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "white" }}
-                  />
-                  <span className="absolute right-3 top-2.5 text-gray-400 text-sm">%</span>
-                </div>
-                {markupForm[cat] && (
-                  <span className="text-xs text-gray-400 shrink-0 w-24">
-                    e.g. $100 cost → ${(100 * (1 + (parseFloat(markupForm[cat]) || 0) / 100)).toFixed(0)} sell
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-          <DialogFooter className="gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowMarkup(false)}
-              style={{ borderColor: "rgba(255,255,255,0.2)", color: "white", background: "transparent" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveMarkup}
-              disabled={saveMarkupMutation.isPending}
-              style={{ background: "#F5A623", color: "#0F1F3D" }}
-            >
-              {saveMarkupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-              Save Markups
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </PortalLayout>
   );
 }
