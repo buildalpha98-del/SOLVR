@@ -1,0 +1,1 @@
+ALTER TABLE `portal_jobs` MODIFY COLUMN `stage` enum('new_lead','quoted','booked','in_progress','completed','lost') NOT NULL DEFAULT 'new_lead';

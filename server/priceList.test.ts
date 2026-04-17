@@ -191,4 +191,99 @@ describe("priceListRouter", () => {
       });
     });
   });
+
+  describe("importCsv", () => {
+    it("imports valid rows from a standard CSV", async () => {
+      const { insertPriceListItem } = await import("./db");
+      const caller = makeCaller();
+      const csv = [
+        "Name,Unit,Cost,Sell,Category",
+        "Replace tap washer,each,15.00,95.00,Labour",
+        "Standard call-out fee,visit,,150.00,Call-Out",
+        "Copper pipe (per metre),m,8.50,22.00,Materials",
+      ].join("\n");
+
+      const result = await caller.priceList.importCsv({ csv, replace: false });
+      expect(result.imported).toBe(3);
+      expect(result.skipped).toHaveLength(0);
+      expect(insertPriceListItem).toHaveBeenCalledTimes(3);
+    });
+
+    it("skips rows with missing name", async () => {
+      const { insertPriceListItem } = await import("./db");
+      const caller = makeCaller();
+      // Use a row with only whitespace so it has cells but no name
+      const csv = [
+        "Name,Sell",
+        "   ,50.00",
+        "Valid item,50.00",
+      ].join("\n");
+
+      const result = await caller.priceList.importCsv({ csv, replace: false });
+      expect(result.imported).toBe(1);
+      expect(result.skipped).toHaveLength(1);
+      expect(result.skipped[0].reason).toContain("Empty name");
+      expect(insertPriceListItem).toHaveBeenCalledTimes(1);
+    });
+
+    it("skips rows with zero or missing sell price", async () => {
+      const { insertPriceListItem } = await import("./db");
+      const caller = makeCaller();
+      const csv = [
+        "Name,Sell",
+        "No price item,0",
+        "Missing price item,",
+        "Valid item,75.00",
+      ].join("\n");
+
+      const result = await caller.priceList.importCsv({ csv, replace: false });
+      expect(result.imported).toBe(1);
+      expect(result.skipped).toHaveLength(2);
+      expect(insertPriceListItem).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles dollar signs and commas in price columns", async () => {
+      const { insertPriceListItem } = await import("./db");
+      const caller = makeCaller();
+      // The price cell must be quoted in CSV when it contains a comma
+      const csv = [
+        "Item,Rate",
+        'Premium service,"$1,250.00"',
+      ].join("\n");
+
+      const result = await caller.priceList.importCsv({ csv, replace: false });
+      expect(result.imported).toBe(1);
+      expect(insertPriceListItem).toHaveBeenCalledWith(
+        expect.objectContaining({ sellCents: 125000 }),
+      );
+    });
+
+    it("throws BAD_REQUEST when no Name column is found", async () => {
+      const caller = makeCaller();
+      const csv = "Description,Cost\nSome item,50.00";
+      await expect(caller.priceList.importCsv({ csv, replace: false })).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    it("throws BAD_REQUEST when no Price column is found", async () => {
+      const caller = makeCaller();
+      const csv = "Name,Notes\nSome item,some note";
+      await expect(caller.priceList.importCsv({ csv, replace: false })).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    it("deletes existing items before import when replace=true", async () => {
+      const { deletePriceListItem, listPriceListItems } = await import("./db");
+      const caller = makeCaller();
+      const csv = "Name,Sell\nNew item,99.00";
+
+      const result = await caller.priceList.importCsv({ csv, replace: true });
+      // Should have deleted the 1 existing mock item
+      expect(deletePriceListItem).toHaveBeenCalledWith(1, 5);
+      expect(result.imported).toBe(1);
+      expect(listPriceListItems).toHaveBeenCalledWith(5);
+    });
+  });
 });

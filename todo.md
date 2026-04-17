@@ -636,3 +636,28 @@
 - [ ] Payment reminder SMS/email at day 7 for unpaid invoices
 - [ ] Appointment reminder SMS 24hr before scheduled job
 - [ ] Job completion email with photos and invoice link
+
+## Sprint 0 Follow-up — Voice-to-Quote Zod Error (LIVE BLOCKER)
+- [ ] Audit all .parse()/.safeParse() calls in voice-to-quote pipeline with detailed logging
+- [ ] Identify exact failing Zod schema field (phone, email, url, postcode, currency, date)
+- [ ] Fix root cause in quoteExtraction.ts schema + quotes.ts tRPC input schema
+- [ ] Fix client-side form zodResolver validation
+- [ ] Add vitest covering 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
+- [ ] Verify fix on production
+
+## Sprint 1b — Price List CSV Import
+- [ ] CSV/Xero parser (name, unit, sell price, cost price, category columns)
+- [ ] tRPC procedure: priceList.importCsv (parse, validate, bulk insert, return summary)
+- [ ] UI: "Import CSV" button on /portal/price-list with drag-and-drop upload + preview table
+- [ ] Column mapping UI (map CSV headers to price list fields)
+- [ ] Duplicate detection (skip or overwrite existing items by name match)
+- [ ] Add vitest for CSV parser
+
+## Sprint 2 — Customer Job Tracking Portal
+- [ ] Add customerToken + statusHistory columns to portalJobs schema + migration
+- [ ] Build public /job-status/:token page (no auth) with status timeline
+- [ ] Status timeline: Quoted → Accepted → Scheduled → In Progress → Completed → Invoiced
+- [ ] "Accept Quote" button on public page triggers auto-promotion to booked
+- [ ] SMS notification to customer on each job status change (Twilio)
+- [ ] "Share with Customer" button on job card generates/copies tracking URL
+- [ ] Add vitest for job status procedures

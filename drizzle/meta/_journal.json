@@ -316,6 +316,13 @@
       "when": 1776426857375,
       "tag": "0044_parallel_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1776429239867,
+      "tag": "0045_medical_infant_terrible",
+      "breakpoints": true
     }
   ]
 }

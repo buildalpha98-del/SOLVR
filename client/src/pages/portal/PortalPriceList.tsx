@@ -2,11 +2,12 @@
  * PortalPriceList — Manage the tradie's personal price catalogue.
  *
  * Tradies can add, edit, and delete items from their price list.
+ * They can also bulk-import from a CSV (Xero export, Tradify export, or custom).
  * The AI uses this list when generating quotes from voice recordings.
  *
  * Categories: Labour | Materials | Call-Out / Travel | Subcontractor | Other
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, Tag, DollarSign, Info } from "lucide-react";
+import {
+  Plus, Pencil, Trash2, Loader2, Tag, DollarSign, Info,
+  Upload, FileText, AlertTriangle, CheckCircle2,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -84,6 +88,214 @@ const EMPTY_FORM = {
   sellDisplay: "",
 };
 
+// ── CSV Import Modal ──────────────────────────────────────────────────────────
+
+interface ImportResult {
+  imported: number;
+  skipped: Array<{ row: number; reason: string }>;
+}
+
+interface CsvImportModalProps {
+  open: boolean;
+  onClose: () => void;
+  onImported: () => void;
+}
+
+function CsvImportModal({ open, onClose, onImported }: CsvImportModalProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [csvText, setCsvText] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  const importMutation = trpc.priceList.importCsv.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      if (data.imported > 0) onImported();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 50_000) {
+      toast.error("File too large — max 50 KB. Split your CSV into smaller batches.");
+      return;
+    }
+    setFileName(file.name);
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setCsvText((ev.target?.result as string) ?? null);
+    };
+    reader.readAsText(file);
+  }
+
+  function handleImport() {
+    if (!csvText) { toast.error("Please select a CSV file first."); return; }
+    importMutation.mutate({ csv: csvText, replace: replaceMode });
+  }
+
+  function handleClose() {
+    setCsvText(null);
+    setFileName(null);
+    setResult(null);
+    setReplaceMode(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent
+        className="max-w-lg"
+        style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
+      >
+        <DialogHeader>
+          <DialogTitle className="text-white flex items-center gap-2">
+            <Upload className="w-4 h-4 text-amber-400" />
+            Import Price List from CSV
+          </DialogTitle>
+        </DialogHeader>
+
+        {!result ? (
+          <div className="space-y-4 py-2">
+            {/* Format hint */}
+            <div
+              className="rounded-lg p-3 text-xs space-y-1"
+              style={{ background: "rgba(245,166,35,0.07)", border: "1px solid rgba(245,166,35,0.2)", color: "rgba(255,255,255,0.7)" }}
+            >
+              <p className="font-semibold text-amber-400 mb-1">Accepted CSV formats</p>
+              <p>Works with <strong>Xero</strong>, <strong>Tradify</strong>, <strong>ServiceM8</strong>, or any spreadsheet export.</p>
+              <p>Required columns: <code className="bg-white/10 px-1 rounded">Name</code> and <code className="bg-white/10 px-1 rounded">Price</code> (or Sell Price / Rate / Amount).</p>
+              <p>Optional: <code className="bg-white/10 px-1 rounded">Unit</code>, <code className="bg-white/10 px-1 rounded">Cost</code>, <code className="bg-white/10 px-1 rounded">Category</code>, <code className="bg-white/10 px-1 rounded">Notes</code>.</p>
+              <p className="text-gray-500">Max 200 rows per import.</p>
+            </div>
+
+            {/* File picker */}
+            <div>
+              <Label className="text-gray-300 text-sm mb-2 block">Select CSV file</Label>
+              <div
+                className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-6 cursor-pointer text-center"
+                style={{ borderColor: "rgba(255,255,255,0.15)" }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {fileName ? (
+                  <>
+                    <FileText className="w-8 h-8 text-amber-400 mb-2" />
+                    <p className="text-white text-sm font-medium">{fileName}</p>
+                    <p className="text-gray-400 text-xs mt-1">Click to change file</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8 text-gray-500 mb-2" />
+                    <p className="text-gray-300 text-sm">Click to select a CSV file</p>
+                    <p className="text-gray-500 text-xs mt-1">or drag and drop</p>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
+            </div>
+
+            {/* Replace mode toggle */}
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={replaceMode}
+                onChange={(e) => setReplaceMode(e.target.checked)}
+                className="mt-0.5 accent-amber-400"
+              />
+              <div>
+                <p className="text-sm text-white font-medium">Replace existing price list</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  If checked, all current items will be removed before importing. Otherwise, new items are added alongside existing ones.
+                </p>
+              </div>
+            </label>
+
+            {replaceMode && (
+              <div
+                className="flex items-start gap-2 rounded-lg p-3 text-xs"
+                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>This will permanently delete all existing price list items before importing. This cannot be undone.</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Import result summary */
+          <div className="space-y-4 py-2">
+            <div
+              className="flex items-center gap-3 rounded-xl p-4"
+              style={{ background: result.imported > 0 ? "rgba(5,150,105,0.1)" : "rgba(245,166,35,0.08)", border: `1px solid ${result.imported > 0 ? "rgba(5,150,105,0.3)" : "rgba(245,166,35,0.3)"}` }}
+            >
+              <CheckCircle2 className="w-6 h-6 shrink-0" style={{ color: result.imported > 0 ? "#059669" : "#F5A623" }} />
+              <div>
+                <p className="font-semibold text-white">
+                  {result.imported} item{result.imported !== 1 ? "s" : ""} imported successfully
+                </p>
+                {result.skipped.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {result.skipped.length} row{result.skipped.length !== 1 ? "s" : ""} skipped
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {result.skipped.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Skipped rows</p>
+                <div
+                  className="rounded-lg overflow-hidden text-xs divide-y"
+                  style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  {result.skipped.map((s) => (
+                    <div key={s.row} className="flex items-start gap-2 px-3 py-2" style={{ background: "rgba(255,255,255,0.02)" }}>
+                      <span className="text-gray-500 shrink-0">Row {s.row}</span>
+                      <span className="text-gray-300">{s.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            style={{ borderColor: "rgba(255,255,255,0.2)", color: "white", background: "transparent" }}
+          >
+            {result ? "Close" : "Cancel"}
+          </Button>
+          {!result && (
+            <Button
+              onClick={handleImport}
+              disabled={!csvText || importMutation.isPending}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {importMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-1" /> Importing…</>
+              ) : (
+                <><Upload className="w-4 h-4 mr-1" /> Import</>
+              )}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function PortalPriceList() {
@@ -119,6 +331,7 @@ export default function PortalPriceList() {
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingItem, setEditingItem] = useState<PriceListItem | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -186,14 +399,23 @@ export default function PortalPriceList() {
               Your personal catalogue of services, materials, and rates. The AI uses this when generating quotes from voice recordings.
             </p>
           </div>
-          <Button
-            onClick={openCreate}
-            className="shrink-0 ml-4"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Item
-          </Button>
+          <div className="flex items-center gap-2 shrink-0 ml-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowImport(true)}
+              style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)", background: "transparent" }}
+            >
+              <Upload className="w-4 h-4 mr-1" />
+              Import CSV
+            </Button>
+            <Button
+              onClick={openCreate}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Item
+            </Button>
+          </div>
         </div>
 
         {/* AI context notice */}
@@ -220,12 +442,22 @@ export default function PortalPriceList() {
             <Tag className="w-10 h-10 text-gray-600 mx-auto mb-3" />
             <h3 className="text-white font-semibold mb-1">No items yet</h3>
             <p className="text-gray-400 text-sm mb-4">
-              Add your standard rates and the AI will use them when building quotes.
+              Add your standard rates or import from a CSV — the AI will use them when building quotes.
             </p>
-            <Button onClick={openCreate} style={{ background: "#F5A623", color: "#0F1F3D" }}>
-              <Plus className="w-4 h-4 mr-1" />
-              Add First Item
-            </Button>
+            <div className="flex items-center justify-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowImport(true)}
+                style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)", background: "transparent" }}
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                Import CSV
+              </Button>
+              <Button onClick={openCreate} style={{ background: "#F5A623", color: "#0F1F3D" }}>
+                <Plus className="w-4 h-4 mr-1" />
+                Add First Item
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-6">
@@ -454,6 +686,13 @@ export default function PortalPriceList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── CSV Import modal ──────────────────────────────────────────────────── */}
+      <CsvImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={() => utils.priceList.list.invalidate()}
+      />
     </PortalLayout>
   );
 }

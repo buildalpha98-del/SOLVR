@@ -558,7 +558,7 @@ export const portalJobs = mysqlTable("portal_jobs", {
   /** Address or suburb mentioned */
   location: varchar("location", { length: 255 }),
   /** Pipeline stage */
-  stage: mysqlEnum("stage", ["new_lead", "quoted", "booked", "completed", "lost"]).default("new_lead").notNull(),
+  stage: mysqlEnum("stage", ["new_lead", "quoted", "booked", "in_progress", "completed", "lost"]).default("new_lead").notNull(),
   /** Estimated job value (set by client when quoting) */
   estimatedValue: int("estimatedValue"),
   /** Actual job value (set by client when marking complete) */

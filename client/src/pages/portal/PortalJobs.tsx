@@ -10,19 +10,20 @@ import { trpc } from "@/lib/trpc";
 import {
   Plus, DollarSign, X, Loader2, Lock, ChevronRight,
   LayoutGrid, List, Search, MapPin, Phone, Calendar,
-  Sparkles, ArrowRight,
+  Sparkles, ArrowRight, Share2,
 } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 
-type JobStage = "new_lead" | "quoted" | "booked" | "completed" | "lost";
+type JobStage = "new_lead" | "quoted" | "booked" | "in_progress" | "completed" | "lost";
 type ViewMode = "board" | "list";
 
 const COLUMNS: { key: JobStage; label: string; color: string; bg: string }[] = [
-  { key: "new_lead",  label: "New Lead",  color: "#F5A623", bg: "rgba(245,166,35,0.08)" },
-  { key: "quoted",    label: "Quoted",    color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
-  { key: "booked",    label: "Booked",    color: "#8b5cf6", bg: "rgba(139,92,246,0.08)" },
-  { key: "completed", label: "Completed", color: "#4ade80", bg: "rgba(74,222,128,0.08)" },
+  { key: "new_lead",    label: "New Lead",    color: "#F5A623", bg: "rgba(245,166,35,0.08)" },
+  { key: "quoted",      label: "Quoted",      color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
+  { key: "booked",      label: "Booked",      color: "#8b5cf6", bg: "rgba(139,92,246,0.08)" },
+  { key: "in_progress", label: "In Progress", color: "#f97316", bg: "rgba(249,115,22,0.08)" },
+  { key: "completed",   label: "Completed",   color: "#4ade80", bg: "rgba(74,222,128,0.08)" },
 ];
 
 const STAGE_ALL = [...COLUMNS.map(c => c.key), "lost" as JobStage];
@@ -39,6 +40,7 @@ interface Job {
   actualValue: number | null;
   notes: string | null;
   createdAt: Date;
+  customerStatusToken: string | null;
   sourceQuoteNumber?: string | null;
   sourceQuoteStatus?: string | null;
 }
@@ -158,6 +160,25 @@ function JobCard({
           </button>
         )}
       </div>
+
+      {/* Share tracking link — only for booked/in_progress/completed jobs with a token */}
+      {job.customerStatusToken && ["booked", "in_progress", "completed"].includes(job.stage) && (
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            const url = `${window.location.origin}/job/${job.customerStatusToken}`;
+            navigator.clipboard.writeText(url).then(
+              () => toast.success("Tracking link copied — send it to your customer"),
+              () => toast.error("Could not copy link"),
+            );
+          }}
+          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium w-full"
+          style={{ background: "rgba(96,165,250,0.08)", color: "#60a5fa" }}
+        >
+          <Share2 className="w-2.5 h-2.5" />
+          Share tracking link with customer
+        </button>
+      )}
 
       <div className="flex gap-1 flex-wrap">
         {COLUMNS.filter(c => c.key !== job.stage).map(col => (
@@ -448,7 +469,8 @@ export default function PortalJobs() {
   const jobs = (rawJobs ?? []) as Job[];
 
   const handleMove = (id: number, stage: JobStage) => {
-    updateJobMutation.mutate({ id, stage });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateJobMutation.mutate({ id, stage: stage as any });
   };
 
   const handleSetValue = (id: number, actualValue: number) => {

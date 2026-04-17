@@ -101,7 +101,7 @@ export const portalJobsProcedures = {
       description: z.string().optional(),
       location: z.string().optional(),
       notes: z.string().optional(),
-      stage: z.enum(["new_lead", "quoted", "booked", "completed", "lost"]).optional(),
+      stage: z.enum(["new_lead", "quoted", "booked", "in_progress", "completed", "lost"]).optional(),
       estimatedValue: z.number().optional(),
       actualValue: z.number().optional(),
       preferredDate: z.string().optional(),
@@ -124,11 +124,13 @@ export const portalJobsProcedures = {
       await updatePortalJob(id, data as any);
 
       // ── Job status SMS ────────────────────────────────────────────────────
-      // Fire a non-blocking SMS to the customer when stage changes to
-      // "booked" (confirmed / on the way) or "completed" (job done).
-      if (input.stage && input.stage !== job.stage) {
+      // Fire a non-blocking SMS to the customer when stage changes.
+      // Stages that trigger an SMS: booked, in_progress, completed.
+      // invoiced is handled separately in the invoice generation flow.
+      const SMS_STAGES = ["booked", "in_progress", "completed"] as const;
+      if (input.stage && input.stage !== job.stage && (SMS_STAGES as readonly string[]).includes(input.stage)) {
         const customerPhone = job.customerPhone ?? job.callerPhone ?? null;
-        if (customerPhone && (input.stage === "booked" || input.stage === "completed")) {
+        if (customerPhone) {
           void (async () => {
             try {
               const profile = await getClientProfile(client.id);
@@ -136,9 +138,12 @@ export const portalJobsProcedures = {
               const firstName = (job.customerName ?? job.callerName ?? "").split(" ")[0] || "there";
               const publicBase = process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";
               const statusLink = job.customerStatusToken ? ` Track your job: ${publicBase}/job/${job.customerStatusToken}` : "";
-              const body = input.stage === "booked"
-                ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly.${statusLink} Reply STOP to opt out.`
-                : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business!${statusLink} Reply STOP to opt out.`;
+              const body =
+                input.stage === "booked"
+                  ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly.${statusLink} Reply STOP to opt out.`
+                  : input.stage === "in_progress"
+                  ? `Hi ${firstName}, ${businessName} is on the way and work is now underway.${statusLink} Reply STOP to opt out.`
+                  : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business!${statusLink} Reply STOP to opt out.`;
               await sendSms({ to: customerPhone, body });
               console.log(`[JobSMS] '${input.stage}' SMS sent to ${customerPhone} for job ${id}`);
             } catch (e) {

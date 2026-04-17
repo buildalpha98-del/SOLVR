@@ -827,6 +827,7 @@ export default function PortalJobDetail() {
             <option value="new_lead">New Lead</option>
             <option value="quoted">Quoted</option>
             <option value="booked">Booked</option>
+            <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
             <option value="lost">Lost</option>
           </select>
