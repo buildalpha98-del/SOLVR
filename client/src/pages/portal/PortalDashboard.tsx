@@ -14,7 +14,7 @@ import { trpc } from "@/lib/trpc";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
-import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings } from "lucide-react";
+import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings, Receipt, FileText } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -740,6 +740,89 @@ export default function PortalDashboard() {
                 <UpgradeCard feature="Revenue Tracking" plan="Pro" />
               )}
             </div>
+
+            {/* ── What's Next — actionable items ─────────────────────── */}
+            {features.includes("jobs") && (() => {
+              const actions: { label: string; count: number; href: string; color: string; icon: React.ReactNode }[] = [];
+              if ((data as any).draftQuotesCount > 0) {
+                actions.push({
+                  label: `${(data as any).draftQuotesCount} draft quote${(data as any).draftQuotesCount > 1 ? "s" : ""} to send`,
+                  count: (data as any).draftQuotesCount,
+                  href: "/portal/quotes",
+                  color: "#3b82f6",
+                  icon: <FileText className="w-4 h-4" />,
+                });
+              }
+              if ((data as any).jobsNeedInvoiceCount > 0) {
+                actions.push({
+                  label: `${(data as any).jobsNeedInvoiceCount} completed job${(data as any).jobsNeedInvoiceCount > 1 ? "s" : ""} need invoicing`,
+                  count: (data as any).jobsNeedInvoiceCount,
+                  href: "/portal/invoices",
+                  color: "#4ade80",
+                  icon: <Receipt className="w-4 h-4" />,
+                });
+              }
+              if ((data as any).idleLeadsCount > 0) {
+                actions.push({
+                  label: `${(data as any).idleLeadsCount} lead${(data as any).idleLeadsCount > 1 ? "s" : ""} waiting 3+ days`,
+                  count: (data as any).idleLeadsCount,
+                  href: "/portal/jobs",
+                  color: "#F5A623",
+                  icon: <Briefcase className="w-4 h-4" />,
+                });
+              }
+              if (chaseStats && (chaseStats.activeCount > 0 || chaseStats.escalatedCount > 0)) {
+                const overdueCount = chaseStats.activeCount + chaseStats.escalatedCount;
+                actions.push({
+                  label: `${overdueCount} unpaid invoice${overdueCount > 1 ? "s" : ""} to chase`,
+                  count: overdueCount,
+                  href: "/portal/invoices",
+                  color: "#ef4444",
+                  icon: <DollarSign className="w-4 h-4" />,
+                });
+              }
+
+              if (actions.length === 0) return null;
+
+              return (
+                <div
+                  className="rounded-xl p-4"
+                  style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.18)" }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
+                    <h2 className="text-sm font-semibold text-white">What's Next</h2>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                      style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                    >
+                      {actions.reduce((s, a) => s + a.count, 0)} action{actions.reduce((s, a) => s + a.count, 0) !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {actions.map((action, i) => (
+                      <Link key={i} href={action.href}>
+                        <div
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-all hover:brightness-110"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                            style={{ background: `${action.color}20` }}
+                          >
+                            <span style={{ color: action.color }}>{action.icon}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-white truncate">{action.label}</p>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── AI Receptionist Test Widget (Sprint 7) ─────────────────── */}
             <VapiDemoWidget

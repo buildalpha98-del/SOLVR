@@ -465,6 +465,35 @@ export const portalRouter = router({
       // Jobs due today — use stage "booked" as proxy since there's no scheduledDate field
       const jobsDueToday = jobs.filter(j => j.stage === "booked").length;
 
+      // ── What's Next action counts ─────────────────────────────────────
+      // 1. Draft quotes that need sending
+      let draftQuotesCount = 0;
+      if (hasFeature(plan, "jobs")) {
+        const allQuotes = await listQuotesByClient(client.id);
+        draftQuotesCount = allQuotes.filter(q => q.status === "draft").length;
+      }
+
+      // 2. Completed jobs that haven't been invoiced
+      const jobsNeedInvoiceCount = jobs.filter(
+        j => j.stage === "completed" && (j.invoiceStatus === "not_invoiced" || j.invoiceStatus === null)
+      ).length;
+
+      // 3. New-lead jobs idle for 3+ days (need follow-up)
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const idleLeadsCount = jobs.filter(
+        j => j.stage === "new_lead" && new Date(j.createdAt) < threeDaysAgo
+      ).length;
+
+      // 4. Calls in the last 7 days that don't have a linked job
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const recentCallsWeek = calls.filter(c => new Date(c.createdAt) > sevenDaysAgo);
+      const jobCallerPhones = new Set(jobs.map(j => j.callerPhone).filter(Boolean));
+      const unfollowedCallsCount = recentCallsWeek.filter(c => {
+        // A call is "unfollowed" if we don't have a job with the same phone
+        const phone = (c as any).callerPhone ?? (c as any).phone;
+        return !phone || !jobCallerPhones.has(phone);
+      }).length;
+
       return {
         totalCalls: calls.length,
         callsThisMonth: recentCalls.length,
@@ -482,6 +511,11 @@ export const portalRouter = router({
         vapiAgentId: client.vapiAgentId ?? null,
         businessName: client.quoteTradingName ?? client.businessName ?? null,
         tradeType: client.tradeType ?? null,
+        // What's Next counts
+        draftQuotesCount,
+        jobsNeedInvoiceCount,
+        idleLeadsCount,
+        unfollowedCallsCount,
       };
     }),
 

@@ -986,3 +986,33 @@
 - [x] /vs/fergus comparison page (already built + /vs/simpro + /vs/buildxact)
 - [x] SEO meta tags for each page (already built)
 - [x] Link from main site footer/navigation (already built)
+
+## UX Rebuild Sprint — Tradie-First Navigation (Apr 18 2026)
+
+### Phase 1: Navigation Consolidation
+- [ ] Consolidate 11 sidebar items into 6 core tabs: Dashboard, Jobs, Calendar, Invoices, AI Assistant, Settings
+- [ ] Merge Quotes into Jobs page as a tab/section
+- [ ] Move Calls, Compliance, Price List, Customers into "More" expandable section or Settings sub-pages
+- [ ] Update PortalLayout.tsx with new nav structure
+- [ ] Ensure mobile bottom nav matches the 6 core tabs
+
+### Phase 2: What's Next Dashboard Card
+- [x] Build "What's Next" action card component for dashboard
+- [x] Query: quotes pending send, jobs needing invoicing, calls needing follow-up
+- [x] Display as prioritised action list with one-tap navigation
+
+### Phase 3: Job Detail Tabs
+- [x] Refactor PortalJobDetail.tsx from long scroll to tabbed layout
+- [x] Tabs: Overview | Money | Work (3-tab mobile-first layout)
+- [x] Progressive disclosure — show most important info first
+
+### Phase 3b: Mobile-First Polish
+- [x] Increase touch targets to 44px minimum on job detail tabs
+- [x] Stack client/job detail cards vertically on mobile (single column layout)
+- [x] Ensure tab bar is sticky and thumb-reachable (backdrop blur, z-30)
+- [ ] Test all modals on 375px viewport
+
+### Phase 4: Calendar Rename
+- [ ] Rename "Schedule" to "Calendar" across all nav, routes, and components
+- [ ] Simplify default view for solo tradies (job calendar, not staff roster)
+- [ ] Keep staff roster as toggle for multi-staff accounts

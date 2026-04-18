@@ -1,7 +1,7 @@
 /**
- * Portal Job Detail — full job view.
- * Shows client info, location, linked quote, progress payments, before/after photos,
- * invoice generation, and job completion.
+ * Portal Job Detail — tabbed job view.
+ * Three tabs: Overview · Money · Work
+ * Designed for tradies — minimal taps to find anything.
  */
 import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
 
@@ -50,19 +51,10 @@ function formatDate(d: Date | string | null | undefined) {
 
 // ─── Editable Field ───────────────────────────────────────────────────────────
 function EditableField({
-  label,
-  value,
-  onSave,
-  icon,
-  placeholder = "—",
-  type = "text",
+  label, value, onSave, icon, placeholder = "—", type = "text",
 }: {
-  label: string;
-  value: string | null | undefined;
-  onSave: (v: string) => void;
-  icon?: React.ReactNode;
-  placeholder?: string;
-  type?: string;
+  label: string; value: string | null | undefined; onSave: (v: string) => void;
+  icon?: React.ReactNode; placeholder?: string; type?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
@@ -75,9 +67,7 @@ function EditableField({
         {editing ? (
           <div className="flex items-center gap-1">
             <input
-              type={type}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
+              type={type} value={draft} onChange={e => setDraft(e.target.value)}
               className="flex-1 text-sm px-2 py-1 rounded outline-none"
               style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)" }}
               autoFocus
@@ -91,9 +81,7 @@ function EditableField({
           </div>
         ) : (
           <div className="flex items-center gap-1">
-            <p className="text-sm" style={{ color: value ? "#fff" : "rgba(255,255,255,0.3)" }}>
-              {value || placeholder}
-            </p>
+            <p className="text-sm" style={{ color: value ? "#fff" : "rgba(255,255,255,0.3)" }}>{value || placeholder}</p>
             <button
               onClick={() => { setDraft(value ?? ""); setEditing(true); }}
               className="flex items-center justify-center w-7 h-7 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 -mr-1"
@@ -126,16 +114,11 @@ function SectionCard({ title, children, action }: { title: string; children: Rea
 type LightboxPhoto = { imageUrl: string; caption: string | null; photoType: string; uploadedByStaffName?: string | null };
 
 function PhotoLightbox({
-  photos,
-  initialIndex,
-  onClose,
+  photos, initialIndex, onClose,
 }: {
-  photos: LightboxPhoto[];
-  initialIndex: number;
-  onClose: () => void;
+  photos: LightboxPhoto[]; initialIndex: number; onClose: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
-
   const prev = useCallback(() => setIndex(i => (i - 1 + photos.length) % photos.length), [photos.length]);
   const next = useCallback(() => setIndex(i => (i + 1) % photos.length), [photos.length]);
 
@@ -149,83 +132,31 @@ function PhotoLightbox({
     return () => window.removeEventListener("keydown", onKey);
   }, [prev, next, onClose]);
 
-  // Touch swipe
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
-
   const current = photos[index];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.92)" }}
-      onClick={onClose}
-    >
-      {/* Close */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 p-2 rounded-full"
-        style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
-      >
-        <X className="w-5 h-5" />
-      </button>
-
-      {/* Counter */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs font-medium px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>
-        {index + 1} / {photos.length}
-      </div>
-
-      {/* Prev */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.92)" }} onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "white" }}><X className="w-5 h-5" /></button>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs font-medium px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{index + 1} / {photos.length}</div>
       {photos.length > 1 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); prev(); }}
-          className="absolute left-3 p-2 rounded-full"
-          style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
+        <button onClick={(e) => { e.stopPropagation(); prev(); }} className="absolute left-3 p-2 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "white" }}><ChevronLeft className="w-5 h-5" /></button>
       )}
-
-      {/* Image */}
-      <div
-        className="max-w-[90vw] max-h-[80vh] flex flex-col items-center gap-3"
-        onClick={(e) => e.stopPropagation()}
+      <div className="max-w-[90vw] max-h-[80vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-        onTouchEnd={(e) => {
-          if (touchStartX === null) return;
-          const dx = e.changedTouches[0].clientX - touchStartX;
-          if (dx > 50) prev();
-          else if (dx < -50) next();
-          setTouchStartX(null);
-        }}
+        onTouchEnd={(e) => { if (touchStartX === null) return; const dx = e.changedTouches[0].clientX - touchStartX; if (dx > 50) prev(); else if (dx < -50) next(); setTouchStartX(null); }}
       >
-        <img
-          src={current.imageUrl}
-          alt={current.caption ?? current.photoType}
-          className="rounded-xl object-contain"
-          style={{ maxWidth: "90vw", maxHeight: "70vh" }}
-        />
+        <img src={current.imageUrl} alt={current.caption ?? current.photoType} className="rounded-xl object-contain" style={{ maxWidth: "90vw", maxHeight: "70vh" }} />
         {(current.caption || current.uploadedByStaffName) && (
           <div className="text-center space-y-0.5">
-            {current.uploadedByStaffName && (
-              <p className="text-xs font-semibold" style={{ color: "#F5A623" }}>{current.uploadedByStaffName}</p>
-            )}
-            {current.caption && (
-              <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{current.caption}</p>
-            )}
+            {current.uploadedByStaffName && <p className="text-xs font-semibold" style={{ color: "#F5A623" }}>{current.uploadedByStaffName}</p>}
+            {current.caption && <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{current.caption}</p>}
             <p className="text-xs capitalize" style={{ color: "rgba(255,255,255,0.35)" }}>{current.photoType}</p>
           </div>
         )}
       </div>
-
-      {/* Next */}
       {photos.length > 1 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); next(); }}
-          className="absolute right-3 p-2 rounded-full"
-          style={{ background: "rgba(255,255,255,0.1)", color: "white" }}
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        <button onClick={(e) => { e.stopPropagation(); next(); }} className="absolute right-3 p-2 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "white" }}><ChevronRight className="w-5 h-5" /></button>
       )}
     </div>
   );
@@ -235,22 +166,13 @@ function PhotoLightbox({
 type JobPhoto = { id: string; photoType: string; imageUrl: string; imageKey: string; caption: string | null; uploadedByStaffName?: string | null };
 
 function PhotoSection({
-  jobId,
-  beforePhotos,
-  afterPhotos,
-  staffPhotos,
-  onRefresh,
+  jobId, beforePhotos, afterPhotos, staffPhotos, onRefresh,
 }: {
-  jobId: number;
-  beforePhotos: JobPhoto[];
-  afterPhotos: JobPhoto[];
-  staffPhotos: JobPhoto[];
-  onRefresh: () => void;
+  jobId: number; beforePhotos: JobPhoto[]; afterPhotos: JobPhoto[]; staffPhotos: JobPhoto[]; onRefresh: () => void;
 }) {
   const [uploading, setUploading] = useState<"before" | "after" | null>(null);
   const [lightbox, setLightbox] = useState<{ photos: LightboxPhoto[]; index: number } | null>(null);
 
-  // Build a combined flat list of all photos for lightbox navigation
   const allPhotosForLightbox: LightboxPhoto[] = [
     ...beforePhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
     ...afterPhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
@@ -262,15 +184,8 @@ function PhotoSection({
     setLightbox({ photos: allPhotosForLightbox, index: idx >= 0 ? idx : 0 });
   }
 
-  const addPhoto = trpc.portal.addJobPhoto.useMutation({
-    onSuccess: () => { onRefresh(); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const removePhoto = trpc.portal.removeJobPhoto.useMutation({
-    onSuccess: () => { onRefresh(); },
-    onError: (e) => toast.error(e.message),
-  });
+  const addPhoto = trpc.portal.addJobPhoto.useMutation({ onSuccess: () => { onRefresh(); }, onError: (e) => toast.error(e.message) });
+  const removePhoto = trpc.portal.removeJobPhoto.useMutation({ onSuccess: () => { onRefresh(); }, onError: (e) => toast.error(e.message) });
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>, photoType: "before" | "after") {
     const file = e.target.files?.[0];
@@ -284,7 +199,6 @@ function PhotoSection({
       const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
       const { url } = await res.json() as { url: string };
-      // imageKey is the S3 key — extract from URL path for now (server handles actual key)
       addPhoto.mutate({ jobId, photoType, imageUrl: url, imageKey: url.split("/").pop() ?? url });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
@@ -298,17 +212,13 @@ function PhotoSection({
     return (
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>
-            {type === "before" ? "Before" : "After"} ({photos.length})
-          </p>
+          <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>{type === "before" ? "Before" : "After"} ({photos.length})</p>
           <label className="cursor-pointer">
             <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
             {uploading === type ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#F5A623" }} />
             ) : (
-              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded" style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}>
-                <Plus className="w-3 h-3" /> Add
-              </span>
+              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded" style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}><Plus className="w-3 h-3" /> Add</span>
             )}
           </label>
         </div>
@@ -316,31 +226,16 @@ function PhotoSection({
           <label className="cursor-pointer block">
             <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
             <div className="rounded-lg flex flex-col items-center justify-center h-24 gap-1 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.25)" }}>
-              <Camera className="w-4 h-4" />
-              Click to upload
+              <Camera className="w-4 h-4" />Click to upload
             </div>
           </label>
         ) : (
           <div className="grid grid-cols-2 gap-1.5">
             {photos.map(p => (
               <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "4/3" }}>
-                <img
-                  src={p.imageUrl}
-                  alt={p.caption ?? type}
-                  className="w-full h-full object-cover"
-                  onClick={() => openLightbox(p)}
-                />
-                {/* Zoom hint */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}>
-                  <ZoomIn className="w-5 h-5 text-white" />
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }}
-                  className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{ background: "rgba(239,68,68,0.85)" }}
-                >
-                  <Trash2 className="w-2.5 h-2.5 text-white" />
-                </button>
+                <img src={p.imageUrl} alt={p.caption ?? type} className="w-full h-full object-cover" onClick={() => openLightbox(p)} />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}><ZoomIn className="w-5 h-5 text-white" /></div>
+                <button onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(239,68,68,0.85)" }}><Trash2 className="w-2.5 h-2.5 text-white" /></button>
                 {p.caption && <p className="absolute bottom-0 left-0 right-0 text-[10px] px-1.5 py-1 truncate" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>{p.caption}</p>}
               </div>
             ))}
@@ -352,19 +247,12 @@ function PhotoSection({
 
   return (
     <>
-      {lightbox && (
-        <PhotoLightbox
-          photos={lightbox.photos}
-          initialIndex={lightbox.index}
-          onClose={() => setLightbox(null)}
-        />
-      )}
+      {lightbox && <PhotoLightbox photos={lightbox.photos} initialIndex={lightbox.index} onClose={() => setLightbox(null)} />}
       <SectionCard title="Before & After Photos" action={<Camera className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
         <div className="grid grid-cols-2 gap-4">
           <PhotoGrid photos={beforePhotos} type="before" />
           <PhotoGrid photos={afterPhotos} type="after" />
         </div>
-        {/* Staff-uploaded photos (during / other) */}
         {staffPhotos.length > 0 && (
           <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Staff Photos ({staffPhotos.length})</p>
@@ -372,23 +260,12 @@ function PhotoSection({
               {staffPhotos.map(p => (
                 <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "1" }}>
                   <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" onClick={() => openLightbox(p)} />
-                  {/* Zoom hint */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}>
-                    <ZoomIn className="w-4 h-4 text-white" />
-                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}><ZoomIn className="w-4 h-4 text-white" /></div>
                   <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1" style={{ background: "rgba(0,0,0,0.65)" }}>
-                    {p.uploadedByStaffName && (
-                      <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>
-                    )}
+                    {p.uploadedByStaffName && <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>}
                     <p className="text-[9px] capitalize" style={{ color: "rgba(255,255,255,0.6)" }}>{p.photoType}{p.caption ? ` — ${p.caption}` : ""}</p>
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }}
-                    className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ background: "rgba(239,68,68,0.85)" }}
-                  >
-                    <Trash2 className="w-2.5 h-2.5 text-white" />
-                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(239,68,68,0.85)" }}><Trash2 className="w-2.5 h-2.5 text-white" /></button>
                 </div>
               ))}
             </div>
@@ -399,7 +276,7 @@ function PhotoSection({
   );
 }
 
-// ─── Job Costing Section ───────────────────────────────────────────────────────────────
+// ─── Job Costing Section ───────────────────────────────────────────────────────
 type CostItem = { id: number; category: string; description: string; amountCents: number; supplier?: string | null; reference?: string | null };
 
 const COST_CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -411,21 +288,10 @@ const COST_CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 function JobCostingSection({
-  jobId,
-  costItems,
-  totalCostCents,
-  invoicedCents,
-  grossProfitCents,
-  grossMarginPct,
-  onRefresh,
+  jobId, costItems, totalCostCents, invoicedCents, grossProfitCents, grossMarginPct, onRefresh,
 }: {
-  jobId: number;
-  costItems: CostItem[];
-  totalCostCents: number;
-  invoicedCents: number;
-  grossProfitCents: number;
-  grossMarginPct: number | null;
-  onRefresh: () => void;
+  jobId: number; costItems: CostItem[]; totalCostCents: number; invoicedCents: number;
+  grossProfitCents: number; grossMarginPct: number | null; onRefresh: () => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [category, setCategory] = useState<"materials" | "labour" | "subcontractor" | "equipment" | "other">("materials");
@@ -438,7 +304,6 @@ function JobCostingSection({
     onSuccess: () => { onRefresh(); setShowAdd(false); setDescription(""); setAmount(""); setSupplier(""); setReference(""); toast.success("Cost item added"); },
     onError: (e) => toast.error(e.message),
   });
-
   const deleteCost = trpc.portal.deleteJobCostItem.useMutation({
     onSuccess: () => { onRefresh(); toast.success("Cost item removed"); },
     onError: (e) => toast.error(e.message),
@@ -448,18 +313,7 @@ function JobCostingSection({
   const marginColor = grossMarginPct === null ? "rgba(255,255,255,0.4)" : grossMarginPct >= 30 ? "#4ade80" : grossMarginPct >= 15 ? "#F5A623" : "#ef4444";
 
   return (
-    <SectionCard
-      title="Job Costing & Profit"
-      action={
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5"
-          style={{ color: "#F5A623" }}
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Cost
-        </button>
-      }
-    >
+    <SectionCard title="Job Costing & Profit" action={<button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#F5A623" }}><Plus className="w-3.5 h-3.5" /> Add Cost</button>}>
       {/* Profit Summary */}
       <div className="grid grid-cols-3 gap-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div>
@@ -472,26 +326,17 @@ function JobCostingSection({
         </div>
         <div>
           <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Gross Profit</p>
-          <p className="text-base font-bold" style={{ color: isProfitable ? "#4ade80" : "#ef4444" }}>
-            {isProfitable ? "+" : ""}{centsToAud(grossProfitCents)}
-          </p>
+          <p className="text-base font-bold" style={{ color: isProfitable ? "#4ade80" : "#ef4444" }}>{isProfitable ? "+" : ""}{centsToAud(grossProfitCents)}</p>
         </div>
       </div>
-
-      {/* Margin indicator */}
       {grossMarginPct !== null && (
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <div
-              className="h-1.5 rounded-full transition-all"
-              style={{ width: `${Math.min(100, Math.max(0, grossMarginPct))}%`, background: marginColor }}
-            />
+            <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, grossMarginPct))}%`, background: marginColor }} />
           </div>
           <span className="text-xs font-semibold" style={{ color: marginColor }}>{grossMarginPct}% margin</span>
         </div>
       )}
-
-      {/* Cost items list */}
       {costItems.length === 0 && !showAdd ? (
         <p className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>No costs recorded yet. Add materials, labour, or subcontractor costs.</p>
       ) : (
@@ -501,40 +346,25 @@ function JobCostingSection({
             return (
               <div key={item.id} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0" style={{ background: catStyle.bg, color: catStyle.text }}>
-                    {item.category}
-                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0" style={{ background: catStyle.bg, color: catStyle.text }}>{item.category}</span>
                   <span className="text-white truncate">{item.description}</span>
                   {item.supplier && <span className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.35)" }}>{item.supplier}</span>}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="font-medium" style={{ color: "#ef4444" }}>{centsToAud(item.amountCents)}</span>
-                  <button
-                    onClick={() => deleteCost.mutate({ id: item.id })}
-                    className="hover:text-red-400 transition-colors"
-                    style={{ color: "rgba(255,255,255,0.2)" }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
+                  <button onClick={() => deleteCost.mutate({ id: item.id })} className="hover:text-red-400 transition-colors" style={{ color: "rgba(255,255,255,0.2)" }}><Trash2 className="w-3 h-3" /></button>
                 </div>
               </div>
             );
           })}
         </div>
       )}
-
-      {/* Add cost form */}
       {showAdd && (
         <div className="pt-2 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Category</label>
-              <select
-                value={category}
-                onChange={e => setCategory(e.target.value as typeof category)}
-                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-              >
+              <select value={category} onChange={e => setCategory(e.target.value as typeof category)} className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}>
                 <option value="materials">Materials</option>
                 <option value="labour">Labour</option>
                 <option value="subcontractor">Subcontractor</option>
@@ -544,63 +374,30 @@ function JobCostingSection({
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount (AUD)</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-              />
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
             </div>
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Description *</label>
-            <input
-              type="text"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="e.g. 20m copper pipe, 3 hrs labour"
-              className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-              style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-            />
+            <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g. 20m copper pipe, 3 hrs labour" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Supplier (optional)</label>
-              <input
-                type="text"
-                value={supplier}
-                onChange={e => setSupplier(e.target.value)}
-                placeholder="e.g. Reece Plumbing"
-                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-              />
+              <input type="text" value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="e.g. Reece Plumbing" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Reference (optional)</label>
-              <input
-                type="text"
-                value={reference}
-                onChange={e => setReference(e.target.value)}
-                placeholder="e.g. INV-001"
-                className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-              />
+              <input type="text" value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. INV-001" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                const cents = Math.round(parseFloat(amount) * 100);
-                if (!cents || isNaN(cents) || cents < 1) { toast.error("Enter a valid amount"); return; }
-                if (!description.trim()) { toast.error("Enter a description"); return; }
-                addCost.mutate({ jobId, category, description: description.trim(), amountCents: cents, supplier: supplier || undefined, reference: reference || undefined });
-              }}
-              disabled={addCost.isPending}
-              style={{ background: "#F5A623", color: "#0F1F3D" }}
-            >
+            <Button size="sm" onClick={() => {
+              const cents = Math.round(parseFloat(amount) * 100);
+              if (!cents || isNaN(cents) || cents < 1) { toast.error("Enter a valid amount"); return; }
+              if (!description.trim()) { toast.error("Enter a description"); return; }
+              addCost.mutate({ jobId, category, description: description.trim(), amountCents: cents, supplier: supplier || undefined, reference: reference || undefined });
+            }} disabled={addCost.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
               {addCost.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Add Cost"}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
@@ -611,23 +408,14 @@ function JobCostingSection({
   );
 }
 
-// ─── Copy Report Link Button ───────────────────────────────────────────────────────────────
+// ─── Copy Link Buttons ───────────────────────────────────────────────────────
 function CopyStatusLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const publicUrl = `${window.location.origin}/job/${token}`;
-  const handleCopy = () => {
-    navigator.clipboard.writeText(publicUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
+  const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
   return (
-    <Button
-      size="sm"
-      onClick={handleCopy}
-      title="Copy customer status link"
-      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(245,166,35,0.12)", color: copied ? "#22c55e" : "#F5A623", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(245,166,35,0.2)"}` }}
-    >
+    <Button size="sm" onClick={handleCopy} title="Copy customer status link"
+      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(245,166,35,0.12)", color: copied ? "#22c55e" : "#F5A623", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(245,166,35,0.2)"}` }}>
       {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
     </Button>
   );
@@ -636,25 +424,19 @@ function CopyStatusLinkButton({ token }: { token: string }) {
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const publicUrl = `${window.location.origin}/report/${token}`;
-  const handleCopy = () => {
-    navigator.clipboard.writeText(publicUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
+  const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
   return (
-    <Button
-      size="sm"
-      onClick={handleCopy}
-      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", color: copied ? "#22c55e" : "rgba(255,255,255,0.6)", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)"}` }}
-    >
+    <Button size="sm" onClick={handleCopy}
+      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", color: copied ? "#22c55e" : "rgba(255,255,255,0.6)", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)"}` }}>
       {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
       {copied ? "Copied!" : "Copy Link"}
     </Button>
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
 // ─── Main Page ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function PortalJobDetail() {
   const [, params] = useRoute("/portal/jobs/:id");
   const [, navigate] = useLocation();
@@ -693,10 +475,7 @@ export default function PortalJobDetail() {
   });
 
   const disableRecurring = trpc.portal.disableRecurring.useMutation({
-    onSuccess: () => {
-      utils.portal.getJobDetail.invalidate({ id: jobId });
-      toast.success("Repeat disabled");
-    },
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success("Repeat disabled"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -788,40 +567,27 @@ export default function PortalJobDetail() {
 
   return (
     <PortalLayout>
-      <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <div className="max-w-4xl mx-auto space-y-4 pb-12">
 
-        {/* ── Header ── */}
+        {/* ── Header (always visible) ── */}
         <div className="flex items-start gap-3">
-          <button
-            onClick={() => navigate("/portal/jobs")}
-            className="mt-1 p-1.5 rounded-lg transition-colors hover:bg-white/5"
-            style={{ color: "rgba(255,255,255,0.4)" }}
-          >
+          <button onClick={() => navigate("/portal/jobs")} className="mt-1 p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "rgba(255,255,255,0.4)" }}>
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-white">{job.jobType}</h1>
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: stageStyle.bg, color: stageStyle.text }}>
-                {stageStyle.label}
-              </span>
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: invoiceStyle.bg, color: invoiceStyle.text }}>
-                {invoiceStyle.label}
-              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: stageStyle.bg, color: stageStyle.text }}>{stageStyle.label}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: invoiceStyle.bg, color: invoiceStyle.text }}>{invoiceStyle.label}</span>
             </div>
             <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
               Created {formatDate(job.createdAt)}
               {job.invoiceNumber && ` · ${job.invoiceNumber}`}
             </p>
           </div>
-          {/* Share status link */}
-          {(job as any).customerStatusToken && (
-            <CopyStatusLinkButton token={(job as any).customerStatusToken} />
-          )}
-          {/* Stage selector */}
+          {(job as any).customerStatusToken && <CopyStatusLinkButton token={(job as any).customerStatusToken} />}
           <select
-            value={job.stage}
-            onChange={e => save("stage", e.target.value)}
+            value={job.stage} onChange={e => save("stage", e.target.value)}
             className="text-xs px-3 py-1.5 rounded-lg outline-none cursor-pointer"
             style={{ background: "#0F1F3D", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
           >
@@ -834,633 +600,511 @@ export default function PortalJobDetail() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          {/* ── Client Details ── */}
-          <SectionCard title="Client Details" action={<User className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-            <EditableField label="Name" value={job.customerName ?? job.callerName} onSave={v => save("customerName", v)} icon={<User className="w-3.5 h-3.5" />} placeholder="Not set" />
-            <EditableField label="Phone" value={job.customerPhone ?? job.callerPhone} onSave={v => save("customerPhone", v)} icon={<Phone className="w-3.5 h-3.5" />} placeholder="Not set" type="tel" />
-            <EditableField label="Email" value={job.customerEmail} onSave={v => save("customerEmail", v)} icon={<Mail className="w-3.5 h-3.5" />} placeholder="Not set" type="email" />
-            <EditableField label="Address" value={job.customerAddress ?? job.location} onSave={v => save("customerAddress", v)} icon={<Home className="w-3.5 h-3.5" />} placeholder="Not set" />
-          </SectionCard>
-
-          {/* ── Job Details ── */}
-          <SectionCard title="Job Details" action={<Briefcase className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-            <EditableField label="Job Type" value={job.jobType} onSave={v => save("jobType", v)} icon={<Briefcase className="w-3.5 h-3.5" />} />
-            <EditableField label="Location" value={job.location} onSave={v => save("location", v)} icon={<MapPin className="w-3.5 h-3.5" />} placeholder="Not set" />
-            <EditableField label="Preferred Date" value={job.preferredDate} onSave={v => save("preferredDate", v)} icon={<Clock className="w-3.5 h-3.5" />} placeholder="Not set" />
-            <EditableField label="Notes" value={job.notes} onSave={v => save("notes", v)} icon={<FileText className="w-3.5 h-3.5" />} placeholder="Add notes..." />
-            <div className="flex items-center gap-4 pt-1">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Est. Value</p>
-                <p className="text-sm font-semibold" style={{ color: "#F5A623" }}>
-                  {job.estimatedValue ? `$${job.estimatedValue.toLocaleString()}` : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Actual Value</p>
-                <p className="text-sm font-semibold" style={{ color: "#4ade80" }}>
-                  {job.actualValue ? `$${job.actualValue.toLocaleString()}` : "—"}
-                </p>
-              </div>
-            </div>
-          </SectionCard>
-        </div>
-
-        {/* ── Linked Quote ── */}
-        {quote && (
-          <SectionCard title="Linked Quote" action={<FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Quote #{(quote as { quoteNumber?: string }).quoteNumber ?? quote.id}</p>
-                <p className="text-lg font-bold text-white mt-0.5">
-                  ${(parseFloat(String((quote as unknown as { totalAmount?: string | number }).totalAmount ?? 0)) || 0).toLocaleString()}
-                </p>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                {(quote as { status?: string }).status ?? "draft"}
-              </Badge>
-            </div>
-            {(lineItems as Array<{ id: string; description: string; quantity: number; unitPrice: number }>).length > 0 && (
-              <div className="space-y-1 pt-1">
-                {(lineItems as Array<{ id: string; description: string; quantity: number; unitPrice: number }>).map(item => (
-                  <div key={item.id} className="flex items-center justify-between text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
-                    <span>{item.description} × {item.quantity}</span>
-                    <span>${(item.unitPrice * item.quantity).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
-        )}
-
-        {/* ── Progress Payments ── */}
-        <SectionCard
-          title="Progress Payments"
-          action={
-            <button
-              onClick={() => setShowAddPayment(true)}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5"
-              style={{ color: "#F5A623" }}
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Payment
-            </button>
-          }
-        >
-          {/* Summary */}
-          <div className="grid grid-cols-3 gap-3 pb-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Invoiced</p>
-              <p className="text-base font-bold text-white">{centsToAud(invoicedCents)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Received</p>
-              <p className="text-base font-bold" style={{ color: "#4ade80" }}>{centsToAud(totalPaidCents)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Outstanding</p>
-              <p className="text-base font-bold" style={{ color: remainingCents > 0 ? "#ef4444" : "#4ade80" }}>{centsToAud(remainingCents)}</p>
-            </div>
-          </div>
-
-          {/* Payment list */}
-          {progressPayments.length === 0 ? (
-            <p className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.3)" }}>No payments recorded yet.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {progressPayments.map(p => (
-                <div key={p.id} className="flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-white font-medium">{centsToAud(p.amountCents)}</span>
-                    <span className="ml-2 px-1.5 py-0.5 rounded text-[10px]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
-                      {p.method.replace("_", " ")}
-                    </span>
-                    {p.note && <span className="ml-2" style={{ color: "rgba(255,255,255,0.4)" }}>{p.note}</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: "rgba(255,255,255,0.35)" }}>{formatDate(p.receivedAt)}</span>
-                    <button
-                      onClick={() => removePayment.mutate({ id: p.id, jobId })}
-                      className="hover:text-red-400 transition-colors"
-                      style={{ color: "rgba(255,255,255,0.2)" }}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add payment form */}
-          {showAddPayment && (
-            <div className="pt-2 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount (AUD)</label>
-                  <input
-                    type="number"
-                    value={paymentAmount}
-                    onChange={e => setPaymentAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Method</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={e => setPaymentMethod(e.target.value as typeof paymentMethod)}
-                    className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="stripe">Card (Stripe)</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Date Received</label>
-                  <input
-                    type="date"
-                    value={paymentDate}
-                    onChange={e => setPaymentDate(e.target.value)}
-                    className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Note (optional)</label>
-                  <input
-                    type="text"
-                    value={paymentNote}
-                    onChange={e => setPaymentNote(e.target.value)}
-                    placeholder="e.g. Deposit"
-                    className="w-full text-sm px-2 py-1.5 rounded-lg outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const cents = Math.round(parseFloat(paymentAmount) * 100);
-                    if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
-                    addPayment.mutate({ jobId, amountCents: cents, method: paymentMethod, note: paymentNote || undefined, receivedAt: paymentDate });
-                  }}
-                  disabled={addPayment.isPending}
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
-                >
-                  {addPayment.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Payment"}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowAddPayment(false)}>Cancel</Button>
-              </div>
-            </div>
-          )}
-        </SectionCard>
-
-        {/* ── Job Costing & Profit Tracker ── */}
-        <JobCostingSection
-          jobId={jobId}
-          costItems={(data as any).costItems ?? []}
-          totalCostCents={(data as any).totalCostCents ?? 0}
-          invoicedCents={invoicedCents}
-          grossProfitCents={(data as any).grossProfitCents ?? 0}
-          grossMarginPct={(data as any).grossMarginPct ?? null}
-          onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
-        />
-
-        {/* ── Job Tasks ── */}
-        <JobTasksSection
-          jobId={jobId}
-          jobType={(job as any).jobType ?? ""}
-          jobDescription={(job as any).description ?? null}
-          jobStage={(job as any).stage ?? "new_lead"}
-          nextActionSuggestion={(job as any).nextActionSuggestion ?? null}
-          onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
-        />
-
-        {/* ── Repeat This Job ── */}
-        {!(job as any).parentJobId && (
-          <SectionCard
-            title="Repeat This Job"
-            action={<RefreshCw className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── TABBED LAYOUT ── */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <Tabs defaultValue="overview" className="w-full">
+          {/* Sticky tab bar — thumb-reachable on mobile */}
+          <TabsList
+            className="w-full grid grid-cols-3 h-12 rounded-xl p-1 sticky top-0 z-30"
+            style={{ background: "rgba(15,31,61,0.97)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}
           >
-            {(job as any).isRecurring ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
-                    <RefreshCw className="w-3 h-3" />
-                    {(job as any).recurrenceFrequency === "weekly" ? "Repeats weekly" : (job as any).recurrenceFrequency === "fortnightly" ? "Repeats fortnightly" : "Repeats monthly"}
-                  </span>
+            <TabsTrigger
+              value="overview"
+              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
+              style={{ color: "rgba(255,255,255,0.45)" }}
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="money"
+              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
+              style={{ color: "rgba(255,255,255,0.45)" }}
+            >
+              Money
+            </TabsTrigger>
+            <TabsTrigger
+              value="work"
+              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
+              style={{ color: "rgba(255,255,255,0.45)" }}
+            >
+              Work
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ─── TAB 1: Overview ─── */}
+          <TabsContent value="overview" className="space-y-4 mt-4">
+            <div className="grid grid-cols-1 gap-4">
+              {/* Client Details */}
+              <SectionCard title="Client Details" action={<User className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+                <EditableField label="Name" value={job.customerName ?? job.callerName} onSave={v => save("customerName", v)} icon={<User className="w-3.5 h-3.5" />} placeholder="Not set" />
+                <EditableField label="Phone" value={job.customerPhone ?? job.callerPhone} onSave={v => save("customerPhone", v)} icon={<Phone className="w-3.5 h-3.5" />} placeholder="Not set" type="tel" />
+                <EditableField label="Email" value={job.customerEmail} onSave={v => save("customerEmail", v)} icon={<Mail className="w-3.5 h-3.5" />} placeholder="Not set" type="email" />
+                <EditableField label="Address" value={job.customerAddress ?? job.location} onSave={v => save("customerAddress", v)} icon={<Home className="w-3.5 h-3.5" />} placeholder="Not set" />
+              </SectionCard>
+
+              {/* Job Details */}
+              <SectionCard title="Job Details" action={<Briefcase className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+                <EditableField label="Job Type" value={job.jobType} onSave={v => save("jobType", v)} icon={<Briefcase className="w-3.5 h-3.5" />} />
+                <EditableField label="Location" value={job.location} onSave={v => save("location", v)} icon={<MapPin className="w-3.5 h-3.5" />} placeholder="Not set" />
+                <EditableField label="Preferred Date" value={job.preferredDate} onSave={v => save("preferredDate", v)} icon={<Clock className="w-3.5 h-3.5" />} placeholder="Not set" />
+                <EditableField label="Notes" value={job.notes} onSave={v => save("notes", v)} icon={<FileText className="w-3.5 h-3.5" />} placeholder="Add notes..." />
+                <div className="flex items-center gap-4 pt-1">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Est. Value</p>
+                    <p className="text-sm font-semibold" style={{ color: "#F5A623" }}>{job.estimatedValue ? `$${job.estimatedValue.toLocaleString()}` : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Actual Value</p>
+                    <p className="text-sm font-semibold" style={{ color: "#4ade80" }}>{job.actualValue ? `$${job.actualValue.toLocaleString()}` : "—"}</p>
+                  </div>
                 </div>
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>3 upcoming jobs have been created in your job list. Disable repeat to stop creating new ones.</p>
-                <button
-                  onClick={() => disableRecurring.mutate({ jobId })}
-                  disabled={disableRecurring.isPending}
-                  className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
-                  style={{ borderColor: "rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}
-                >
-                  {disableRecurring.isPending ? "Disabling..." : "Disable repeat"}
-                </button>
-              </div>
+              </SectionCard>
+            </div>
+
+            {/* Linked Quote */}
+            {quote && (
+              <SectionCard title="Linked Quote" action={<FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Quote #{(quote as { quoteNumber?: string }).quoteNumber ?? quote.id}</p>
+                    <p className="text-lg font-bold text-white mt-0.5">
+                      ${(parseFloat(String((quote as unknown as { totalAmount?: string | number }).totalAmount ?? 0)) || 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs">{(quote as { status?: string }).status ?? "draft"}</Badge>
+                </div>
+                {(lineItems as Array<{ id: string; description: string; quantity: number; unitPrice: number }>).length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {(lineItems as Array<{ id: string; description: string; quantity: number; unitPrice: number }>).map(item => (
+                      <div key={item.id} className="flex items-center justify-between text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+                        <span>{item.description} × {item.quantity}</span>
+                        <span>${(item.unitPrice * item.quantity).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+            )}
+
+            {/* Completion status */}
+            {(job.stage === "completed" || job.completedAt) ? (
+              <SectionCard title="Completion Details" action={<CheckCircle2 className="w-4 h-4" style={{ color: "#4ade80" }} />}>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Completed</p>
+                    <p className="text-sm text-white">{formatDate(job.completedAt)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Hours</p>
+                    <p className="text-sm text-white">{job.actualHours ? `${job.actualHours} hrs` : "—"}</p>
+                  </div>
+                </div>
+                {job.completionNotes && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>What was done</p>
+                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{job.completionNotes}</p>
+                  </div>
+                )}
+                {job.variationNotes && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Variations</p>
+                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{job.variationNotes}</p>
+                  </div>
+                )}
+              </SectionCard>
             ) : (
-              <div className="space-y-3">
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>Set this job to repeat for maintenance or regular clients. Creates the next 3 jobs automatically.</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["weekly", "fortnightly", "monthly"] as const).map((freq) => (
-                    <button
-                      key={freq}
-                      onClick={() => setRecurring.mutate({ jobId, frequency: freq })}
-                      disabled={setRecurring.isPending}
-                      className="py-2.5 rounded-xl text-sm font-medium border transition-all active:scale-95"
-                      style={{ borderColor: "rgba(245,166,35,0.3)", color: "#F5A623", background: "rgba(245,166,35,0.06)" }}
-                    >
-                      {setRecurring.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : freq.charAt(0).toUpperCase() + freq.slice(1)}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex justify-center">
+                <Button onClick={() => setShowCompleteModal(true)} style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Job Complete
+                </Button>
               </div>
             )}
-          </SectionCard>
-        )}
+          </TabsContent>
 
-        {/* ── Before/After Photos ── */}
-        <PhotoSection
-          jobId={jobId}
-          beforePhotos={beforePhotos}
-          afterPhotos={afterPhotos}
-          staffPhotos={staffPhotos}
-          onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
-        />
-
-        {/* ── Staff Activity ── */}
-        {(() => {
-          const scheduleEntries = (data as any).scheduleEntries ?? [];
-          const timeEntries = (data as any).timeEntries ?? [];
-          if (scheduleEntries.length === 0 && timeEntries.length === 0) return null;
-          const REASON_LABELS: Record<string, string> = { sick: "Sick", unavailable: "Unavailable", personal: "Personal", other: "Other" };
-          return (
-            <SectionCard title="Staff Activity">
-              {scheduleEntries.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Scheduled Staff</p>
-                  {scheduleEntries.map((entry: any) => (
-                    <div key={entry.id} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                      <div className="flex items-center gap-2">
-                        {entry.staffDeclinedAt ? (
-                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>✗</span>
-                        ) : entry.staffConfirmedAt ? (
-                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>✓</span>
-                        ) : (
-                          <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)" }}>?</span>
-                        )}
-                        <div>
-                          <p className="text-sm text-white">{entry.staffName ?? `Staff #${entry.staffId}`}</p>
-                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                            {new Date(entry.startTime).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })}
-                            {entry.staffDeclinedAt && entry.declineReason && (
-                              <span className="ml-2 text-red-400/70">— {REASON_LABELS[entry.declineReason] ?? entry.declineReason}</span>
-                            )}
-                          </p>
-                        </div>
+          {/* ─── TAB 2: Money ─── */}
+          <TabsContent value="money" className="space-y-4 mt-4">
+            {/* Progress Payments */}
+            <SectionCard title="Progress Payments" action={
+              <button onClick={() => setShowAddPayment(true)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#F5A623" }}>
+                <Plus className="w-3.5 h-3.5" /> Add Payment
+              </button>
+            }>
+              <div className="grid grid-cols-3 gap-3 pb-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Invoiced</p>
+                  <p className="text-base font-bold text-white">{centsToAud(invoicedCents)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Received</p>
+                  <p className="text-base font-bold" style={{ color: "#4ade80" }}>{centsToAud(totalPaidCents)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Outstanding</p>
+                  <p className="text-base font-bold" style={{ color: remainingCents > 0 ? "#ef4444" : "#4ade80" }}>{centsToAud(remainingCents)}</p>
+                </div>
+              </div>
+              {progressPayments.length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.3)" }}>No payments recorded yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {progressPayments.map(p => (
+                    <div key={p.id} className="flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-white font-medium">{centsToAud(p.amountCents)}</span>
+                        <span className="ml-2 px-1.5 py-0.5 rounded text-[10px]" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>{p.method.replace("_", " ")}</span>
+                        {p.note && <span className="ml-2" style={{ color: "rgba(255,255,255,0.4)" }}>{p.note}</span>}
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        entry.status === "completed" ? "bg-green-500/15 text-green-400" :
-                        entry.status === "confirmed" ? "bg-amber-500/15 text-amber-400" :
-                        entry.status === "in_progress" ? "bg-blue-500/15 text-blue-400" :
-                        entry.staffDeclinedAt ? "bg-red-500/15 text-red-400" :
-                        "bg-white/8 text-white/40"
-                      }`}>
-                        {entry.staffDeclinedAt ? "Declined" : entry.status.replace("_", " ")}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span style={{ color: "rgba(255,255,255,0.35)" }}>{formatDate(p.receivedAt)}</span>
+                        <button onClick={() => removePayment.mutate({ id: p.id, jobId })} className="hover:text-red-400 transition-colors" style={{ color: "rgba(255,255,255,0.2)" }}><Trash2 className="w-3 h-3" /></button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
-              {timeEntries.length > 0 && (
-                <div className="space-y-2 mt-3">
-                  <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Check-in / Check-out Log</p>
-                  {timeEntries.map((te: any) => {
-                    const durationMins = te.checkOutAt
-                      ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
-                      : null;
-                    const checkInMapUrl = te.checkInLat && te.checkInLng
-                      ? `https://www.google.com/maps?q=${te.checkInLat},${te.checkInLng}`
-                      : null;
-                    const checkOutMapUrl = te.checkOutLat && te.checkOutLng
-                      ? `https://www.google.com/maps?q=${te.checkOutLat},${te.checkOutLng}`
-                      : null;
-                    return (
-                      <div key={te.id} className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                        <p className="text-sm font-medium text-white">{te.staffName ?? `Staff #${te.staffId}`}</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked in</p>
-                            <p style={{ color: "rgba(255,255,255,0.7)" }}>
-                              {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                            </p>
-                            {checkInMapUrl && (
-                              <a href={checkInMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 text-[10px] flex items-center gap-0.5 mt-0.5">
-                                📍 View location
-                              </a>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked out</p>
-                            {te.checkOutAt ? (
-                              <>
-                                <p style={{ color: "rgba(255,255,255,0.7)" }}>
-                                  {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                                </p>
-                                {checkOutMapUrl && (
-                                  <a href={checkOutMapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400 text-[10px] flex items-center gap-0.5 mt-0.5">
-                                    📍 View location
-                                  </a>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-amber-400/60">Still on-site</p>
-                            )}
-                          </div>
-                        </div>
-                        {durationMins !== null && (
-                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                            Duration: {durationMins >= 60 ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : `${durationMins}m`}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+              {showAddPayment && (
+                <div className="pt-2 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount (AUD)</label>
+                      <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Method</label>
+                      <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as typeof paymentMethod)} className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}>
+                        <option value="cash">Cash</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="stripe">Card (Stripe)</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Date Received</label>
+                      <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Note (optional)</label>
+                      <input type="text" value={paymentNote} onChange={e => setPaymentNote(e.target.value)} placeholder="e.g. Deposit" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => {
+                      const cents = Math.round(parseFloat(paymentAmount) * 100);
+                      if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
+                      addPayment.mutate({ jobId, amountCents: cents, method: paymentMethod, note: paymentNote || undefined, receivedAt: paymentDate });
+                    }} disabled={addPayment.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
+                      {addPayment.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Payment"}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowAddPayment(false)}>Cancel</Button>
+                  </div>
                 </div>
               )}
             </SectionCard>
-          );
-        })()}
 
-        {/* ── Completion ── */}
-        {(job.stage === "completed" || job.completedAt) ? (
-          <SectionCard title="Completion Details" action={<CheckCircle2 className="w-4 h-4" style={{ color: "#4ade80" }} />}>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Completed</p>
-                <p className="text-sm text-white">{formatDate(job.completedAt)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Hours</p>
-                <p className="text-sm text-white">{job.actualHours ? `${job.actualHours} hrs` : "—"}</p>
-              </div>
-            </div>
-            {job.completionNotes && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>What was done</p>
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{job.completionNotes}</p>
-              </div>
-            )}
-            {job.variationNotes && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Variations</p>
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{job.variationNotes}</p>
-              </div>
-            )}
-          </SectionCard>
-        ) : (
-          <div className="flex justify-center">
-            <Button
-              onClick={() => setShowCompleteModal(true)}
-              style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}
-            >
-              <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Job Complete
-            </Button>
-          </div>
-        )}
+            {/* Job Costing */}
+            <JobCostingSection
+              jobId={jobId}
+              costItems={(data as any).costItems ?? []}
+              totalCostCents={(data as any).totalCostCents ?? 0}
+              invoicedCents={invoicedCents}
+              grossProfitCents={(data as any).grossProfitCents ?? 0}
+              grossMarginPct={(data as any).grossMarginPct ?? null}
+              onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
+            />
 
-        {/* ── Completion Report ── */}
-        <SectionCard title="Completion Report" action={<FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-          {(job as any).completionReportUrl ? (
-            <div className="space-y-3">
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report generated and ready to send to your customer.</p>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  size="sm"
-                  onClick={() => window.open((job as any).completionReportUrl, "_blank")}
-                  style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
-                >
-                  <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
-                </Button>
-                {(job as any).completionReportToken && (
-                  <CopyReportLinkButton token={(job as any).completionReportToken} />
+            {/* Invoice */}
+            <SectionCard title="Invoice" action={<Receipt className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+              {job.invoiceStatus === "not_invoiced" || !job.invoiceStatus ? (
+                <div className="flex flex-col items-center gap-3 py-2">
+                  {hasQuoteEngine ? (
+                    <>
+                      <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>No invoice generated yet. Generate one from the accepted quote or job value.</p>
+                      <Button onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })} disabled={generateInvoice.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
+                        {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                        Generate Invoice
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="w-full rounded-xl p-4 text-center space-y-3" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}>
+                      <div className="text-2xl">🧾</div>
+                      <p className="text-sm font-semibold text-white">Professional Invoicing</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Generate branded PDF invoices with your bank details, GST breakdown, and payment tracking. Included in the Quote Engine add-on.</p>
+                      <QuoteEngineUpgradeButton size="sm" label="Unlock for $97/mo" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{job.invoiceNumber}</p>
+                      <p className="text-xl font-bold text-white">{centsToAud(invoicedCents)}</p>
+                    </div>
+                    <span className="text-xs px-2 py-1 rounded-full" style={{ background: invoiceStyle.bg, color: invoiceStyle.text }}>{invoiceStyle.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    <span>Invoiced {formatDate(job.invoicedAt)}</span>
+                    {job.paidAt && <><span>·</span><span>Paid {formatDate(job.paidAt)}</span></>}
+                  </div>
+                  {(job as any).invoicePdfUrl && (
+                    <Button size="sm" onClick={() => window.open((job as any).invoicePdfUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                      <FileText className="w-3.5 h-3.5 mr-1.5" /> View PDF
+                    </Button>
+                  )}
+                  {job.invoiceStatus !== "paid" && (
+                    <div className="flex gap-2 pt-1 flex-wrap">
+                      <Button size="sm" onClick={() => { setSendInvoiceEmail(job.customerEmail ?? ""); setShowSendInvoice(true); }} style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
+                        <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
+                      </Button>
+                      <Button size="sm" onClick={() => { setPaidAmount(String((invoicedCents / 100).toFixed(2))); setShowMarkPaid(true); }} style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                        <Banknote className="w-3.5 h-3.5 mr-1.5" /> Mark as Paid
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => updateJob.mutate({ id: jobId, invoiceStatus: "sent" })}>Mark Sent</Button>
+                    </div>
+                  )}
+                  {showSendInvoice && (
+                    <div className="mt-2 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send invoice to:</p>
+                      <div className="flex gap-2">
+                        <input type="email" value={sendInvoiceEmail} onChange={e => setSendInvoiceEmail(e.target.value)} placeholder="customer@email.com" className="flex-1 text-xs px-3 py-1.5 rounded-md" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }} />
+                        <Button size="sm" onClick={() => {
+                          if (!sendInvoiceEmail) { toast.error("Enter a customer email"); return; }
+                          generateInvoice.mutate({ jobId, sendEmail: true, customerEmail: sendInvoiceEmail }, {
+                            onSuccess: (res) => { setShowSendInvoice(false); toast.success(res.sent ? "Invoice sent to client" : "Invoice generated (email not sent)"); }
+                          });
+                        }} disabled={generateInvoice.isPending} style={{ background: "#22c55e", color: "white" }}>
+                          {generateInvoice.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowSendInvoice(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </SectionCard>
+          </TabsContent>
+
+          {/* ─── TAB 3: Work ─── */}
+          <TabsContent value="work" className="space-y-4 mt-4">
+            {/* Job Tasks */}
+            <JobTasksSection
+              jobId={jobId}
+              jobType={(job as any).jobType ?? ""}
+              jobDescription={(job as any).description ?? null}
+              jobStage={(job as any).stage ?? "new_lead"}
+              nextActionSuggestion={(job as any).nextActionSuggestion ?? null}
+              onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
+            />
+
+            {/* Repeat This Job */}
+            {!(job as any).parentJobId && (
+              <SectionCard title="Repeat This Job" action={<RefreshCw className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+                {(job as any).isRecurring ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
+                        <RefreshCw className="w-3 h-3" />
+                        {(job as any).recurrenceFrequency === "weekly" ? "Repeats weekly" : (job as any).recurrenceFrequency === "fortnightly" ? "Repeats fortnightly" : "Repeats monthly"}
+                      </span>
+                    </div>
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>3 upcoming jobs have been created in your job list. Disable repeat to stop creating new ones.</p>
+                    <button onClick={() => disableRecurring.mutate({ jobId })} disabled={disableRecurring.isPending} className="text-xs px-3 py-1.5 rounded-lg border transition-colors" style={{ borderColor: "rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}>
+                      {disableRecurring.isPending ? "Disabling..." : "Disable repeat"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>Set this job to repeat for maintenance or regular clients. Creates the next 3 jobs automatically.</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(["weekly", "fortnightly", "monthly"] as const).map((freq) => (
+                        <button key={freq} onClick={() => setRecurring.mutate({ jobId, frequency: freq })} disabled={setRecurring.isPending}
+                          className="py-2.5 rounded-xl text-sm font-medium border transition-all active:scale-95"
+                          style={{ borderColor: "rgba(245,166,35,0.3)", color: "#F5A623", background: "rgba(245,166,35,0.06)" }}>
+                          {setRecurring.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : freq.charAt(0).toUpperCase() + freq.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setSendReportEmail(job.customerEmail ?? "");
-                    setShowSendReport(true);
-                  }}
-                  style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
-                >
-                  <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => generateCompletionReport.mutate({ jobId })}
-                  disabled={generateCompletionReport.isPending}
-                  style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
-                >
-                  {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
-                  Regenerate
-                </Button>
-              </div>
-              {/* Send Report modal */}
-              {showSendReport && (
-                <div className="mt-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send completion report to:</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      value={sendReportEmail}
-                      onChange={e => setSendReportEmail(e.target.value)}
-                      placeholder="customer@email.com"
-                      className="flex-1 text-xs px-3 py-1.5 rounded-md"
-                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        if (!sendReportEmail) { toast.error("Enter a customer email"); return; }
-                        generateCompletionReport.mutate({ jobId, sendEmail: true, customerEmail: sendReportEmail }, {
-                          onSuccess: (res) => {
-                            setShowSendReport(false);
-                            toast.success(res.sent ? "Report sent to client" : "Report generated (email not sent)");
-                          }
-                        });
-                      }}
-                      disabled={generateCompletionReport.isPending}
-                      style={{ background: "#22c55e", color: "white" }}
-                    >
-                      {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowSendReport(false)} style={{ color: "rgba(255,255,255,0.4)" }}>
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-2">
-              {hasQuoteEngine ? (
-                <>
-                  <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    Generate a client-facing report showing what was done, variations, and before/after photos.
-                  </p>
-                  <Button
-                    onClick={() => generateCompletionReport.mutate({ jobId })}
-                    disabled={generateCompletionReport.isPending}
-                    style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
-                  >
-                    {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                    Generate Completion Report
-                  </Button>
-                </>
-              ) : (
-                <div className="w-full rounded-xl p-4 text-center space-y-3" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}>
-                  <div className="text-2xl">📋</div>
-                  <p className="text-sm font-semibold text-white">Completion Reports</p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-                    Send professional completion reports with before/after photos directly to your customers. Included in the Quote Engine add-on.
-                  </p>
-                  <QuoteEngineUpgradeButton size="sm" label="Unlock for $97/mo" />
-                </div>
-              )}
-            </div>
-          )}
-        </SectionCard>
+              </SectionCard>
+            )}
 
-        {/* ── Invoice Actions ── */}
-        <SectionCard title="Invoice" action={<Receipt className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-          {job.invoiceStatus === "not_invoiced" || !job.invoiceStatus ? (
-            <div className="flex flex-col items-center gap-3 py-2">
-              {hasQuoteEngine ? (
-                <>
-                  <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    No invoice generated yet. Generate one from the accepted quote or job value.
-                  </p>
-                  <Button
-                    onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })}
-                    disabled={generateInvoice.isPending}
-                    style={{ background: "#F5A623", color: "#0F1F3D" }}
-                  >
-                    {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                    Generate Invoice
-                  </Button>
-                </>
-              ) : (
-                <div className="w-full rounded-xl p-4 text-center space-y-3" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}>
-                  <div className="text-2xl">🧾</div>
-                  <p className="text-sm font-semibold text-white">Professional Invoicing</p>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-                    Generate branded PDF invoices with your bank details, GST breakdown, and payment tracking. Included in the Quote Engine add-on.
-                  </p>
-                  <QuoteEngineUpgradeButton size="sm" label="Unlock for $97/mo" />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{job.invoiceNumber}</p>
-                  <p className="text-xl font-bold text-white">{centsToAud(invoicedCents)}</p>
-                </div>
-                <span className="text-xs px-2 py-1 rounded-full" style={{ background: invoiceStyle.bg, color: invoiceStyle.text }}>
-                  {invoiceStyle.label}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-                <span>Invoiced {formatDate(job.invoicedAt)}</span>
-                {job.paidAt && <><span>·</span><span>Paid {formatDate(job.paidAt)}</span></>}
-              </div>
-              {/* View PDF button always shown when invoice exists */}
-              {(job as any).invoicePdfUrl && (
-                <Button
-                  size="sm"
-                  onClick={() => window.open((job as any).invoicePdfUrl, "_blank")}
-                  style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}
-                >
-                  <FileText className="w-3.5 h-3.5 mr-1.5" /> View PDF
-                </Button>
-              )}
-              {job.invoiceStatus !== "paid" && (
-                <div className="flex gap-2 pt-1 flex-wrap">
-                  <Button
-                    size="sm"
-                    onClick={() => { setSendInvoiceEmail(job.customerEmail ?? ""); setShowSendInvoice(true); }}
-                    style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}
-                  >
-                    <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => { setPaidAmount(String((invoicedCents / 100).toFixed(2))); setShowMarkPaid(true); }}
-                    style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}
-                  >
-                    <Banknote className="w-3.5 h-3.5 mr-1.5" /> Mark as Paid
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => updateJob.mutate({ id: jobId, invoiceStatus: "sent" })}>
-                    Mark Sent
-                  </Button>
-                </div>
-              )}
-              {/* Send Invoice inline panel */}
-              {showSendInvoice && (
-                <div className="mt-2 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send invoice to:</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      value={sendInvoiceEmail}
-                      onChange={e => setSendInvoiceEmail(e.target.value)}
-                      placeholder="customer@email.com"
-                      className="flex-1 text-xs px-3 py-1.5 rounded-md"
-                      style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        if (!sendInvoiceEmail) { toast.error("Enter a customer email"); return; }
-                        generateInvoice.mutate(
-                          { jobId, sendEmail: true, customerEmail: sendInvoiceEmail },
-                          {
-                            onSuccess: (res) => {
-                              setShowSendInvoice(false);
-                              toast.success(res.sent ? "Invoice sent to client" : "Invoice generated (email not sent)");
-                            }
-                          }
+            {/* Photos */}
+            <PhotoSection
+              jobId={jobId}
+              beforePhotos={beforePhotos}
+              afterPhotos={afterPhotos}
+              staffPhotos={staffPhotos}
+              onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
+            />
+
+            {/* Staff Activity */}
+            {(() => {
+              const scheduleEntries = (data as any).scheduleEntries ?? [];
+              const timeEntries = (data as any).timeEntries ?? [];
+              if (scheduleEntries.length === 0 && timeEntries.length === 0) return null;
+              const REASON_LABELS: Record<string, string> = { sick: "Sick", unavailable: "Unavailable", personal: "Personal", other: "Other" };
+              return (
+                <SectionCard title="Staff Activity">
+                  {scheduleEntries.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Scheduled Staff</p>
+                      {scheduleEntries.map((entry: any) => (
+                        <div key={entry.id} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                          <div className="flex items-center gap-2">
+                            {entry.staffDeclinedAt ? (
+                              <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>✗</span>
+                            ) : entry.staffConfirmedAt ? (
+                              <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>✓</span>
+                            ) : (
+                              <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs" style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)" }}>?</span>
+                            )}
+                            <div>
+                              <p className="text-sm text-white">{entry.staffName ?? `Staff #${entry.staffId}`}</p>
+                              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                {new Date(entry.startTime).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true })}
+                                {entry.staffDeclinedAt && entry.declineReason && (
+                                  <span className="ml-2 text-red-400/70">— {REASON_LABELS[entry.declineReason] ?? entry.declineReason}</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            entry.status === "completed" ? "bg-green-500/15 text-green-400" :
+                            entry.status === "confirmed" ? "bg-amber-500/15 text-amber-400" :
+                            entry.status === "in_progress" ? "bg-blue-500/15 text-blue-400" :
+                            entry.staffDeclinedAt ? "bg-red-500/15 text-red-400" :
+                            "bg-white/8 text-white/40"
+                          }`}>
+                            {entry.staffDeclinedAt ? "Declined" : entry.status.replace("_", " ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {timeEntries.length > 0 && (
+                    <div className="space-y-2 mt-3">
+                      <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Check-in / Check-out Log</p>
+                      {timeEntries.map((te: any) => {
+                        const durationMins = te.checkOutAt
+                          ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
+                          : null;
+                        const checkInMapUrl = te.checkInLat && te.checkInLng ? `https://www.google.com/maps?q=${te.checkInLat},${te.checkInLng}` : null;
+                        const checkOutMapUrl = te.checkOutLat && te.checkOutLng ? `https://www.google.com/maps?q=${te.checkOutLat},${te.checkOutLng}` : null;
+                        return (
+                          <div key={te.id} className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <p className="text-sm font-medium text-white">{te.staffName ?? `Staff #${te.staffId}`}</p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked in</p>
+                                <p style={{ color: "rgba(255,255,255,0.7)" }}>
+                                  {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                                  {checkInMapUrl && (
+                                    <a href={checkInMapUrl} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                      <MapPin className="w-2.5 h-2.5" /> Map
+                                    </a>
+                                  )}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked out</p>
+                                {te.checkOutAt ? (
+                                  <p style={{ color: "rgba(255,255,255,0.7)" }}>
+                                    {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                                    {checkOutMapUrl && (
+                                      <a href={checkOutMapUrl} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                        <MapPin className="w-2.5 h-2.5" /> Map
+                                      </a>
+                                    )}
+                                  </p>
+                                ) : (
+                                  <p style={{ color: "rgba(74,222,128,0.7)" }}>On site</p>
+                                )}
+                              </div>
+                            </div>
+                            {durationMins !== null && (
+                              <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                Duration: {Math.floor(durationMins / 60)}h {durationMins % 60}m
+                              </p>
+                            )}
+                          </div>
                         );
-                      }}
-                      disabled={generateInvoice.isPending}
-                      style={{ background: "#22c55e", color: "white" }}
-                    >
-                      {generateInvoice.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      })}
+                    </div>
+                  )}
+                </SectionCard>
+              );
+            })()}
+
+            {/* Completion Report */}
+            <SectionCard title="Completion Report" action={<FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
+              {(job as any).completionReportUrl ? (
+                <div className="space-y-3">
+                  <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report generated and ready to send to your customer.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" onClick={() => window.open((job as any).completionReportUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                      <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowSendInvoice(false)} style={{ color: "rgba(255,255,255,0.4)" }}>
-                      <X className="w-3.5 h-3.5" />
+                    {(job as any).completionReportToken && <CopyReportLinkButton token={(job as any).completionReportToken} />}
+                    <Button size="sm" onClick={() => { setSendReportEmail(job.customerEmail ?? ""); setShowSendReport(true); }} style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
+                      <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
+                    </Button>
+                    <Button size="sm" onClick={() => generateCompletionReport.mutate({ jobId })} disabled={generateCompletionReport.isPending} style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                      {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
+                      Regenerate
                     </Button>
                   </div>
+                  {showSendReport && (
+                    <div className="mt-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send completion report to:</p>
+                      <div className="flex gap-2">
+                        <input type="email" value={sendReportEmail} onChange={e => setSendReportEmail(e.target.value)} placeholder="customer@email.com" className="flex-1 text-xs px-3 py-1.5 rounded-md" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }} />
+                        <Button size="sm" onClick={() => {
+                          if (!sendReportEmail) { toast.error("Enter a customer email"); return; }
+                          generateCompletionReport.mutate({ jobId, sendEmail: true, customerEmail: sendReportEmail }, {
+                            onSuccess: (res) => { setShowSendReport(false); toast.success(res.sent ? "Report sent to client" : "Report generated (email not sent)"); }
+                          });
+                        }} disabled={generateCompletionReport.isPending} style={{ background: "#22c55e", color: "white" }}>
+                          {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowSendReport(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-2">
+                  {hasQuoteEngine ? (
+                    <>
+                      <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>Generate a client-facing report showing what was done, variations, and before/after photos.</p>
+                      <Button onClick={() => generateCompletionReport.mutate({ jobId })} disabled={generateCompletionReport.isPending} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                        {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                        Generate Completion Report
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="w-full rounded-xl p-4 text-center space-y-3" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}>
+                      <div className="text-2xl">📋</div>
+                      <p className="text-sm font-semibold text-white">Completion Reports</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Send professional completion reports with before/after photos directly to your customers. Included in the Quote Engine add-on.</p>
+                      <QuoteEngineUpgradeButton size="sm" label="Unlock for $97/mo" />
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        </SectionCard>
+            </SectionCard>
+          </TabsContent>
+        </Tabs>
 
-        {/* ── Mark Complete Modal ── */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ── MODALS (always rendered, outside tabs) ── */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+
+        {/* Mark Complete Modal */}
         {showCompleteModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
             <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#0A1628", border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -1471,64 +1115,35 @@ export default function PortalJobDetail() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>What was done (completion notes)</label>
-                  <textarea
-                    value={completionNotes}
-                    onChange={e => setCompletionNotes(e.target.value)}
-                    rows={3}
-                    placeholder="Describe what was completed..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none resize-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  />
+                  <textarea value={completionNotes} onChange={e => setCompletionNotes(e.target.value)} rows={3} placeholder="Describe what was completed..."
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none resize-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                 </div>
                 <div>
                   <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Variations from quote (optional)</label>
-                  <textarea
-                    value={variationNotes}
-                    onChange={e => setVariationNotes(e.target.value)}
-                    rows={2}
-                    placeholder="Any changes from the original quote..."
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none resize-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  />
+                  <textarea value={variationNotes} onChange={e => setVariationNotes(e.target.value)} rows={2} placeholder="Any changes from the original quote..."
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none resize-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Actual hours</label>
-                    <input
-                      type="number"
-                      value={actualHours}
-                      onChange={e => setActualHours(e.target.value)}
-                      placeholder="e.g. 3.5"
-                      className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                      style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                    />
+                    <input type="number" value={actualHours} onChange={e => setActualHours(e.target.value)} placeholder="e.g. 3.5"
+                      className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                   </div>
                   <div>
                     <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Final value ($)</label>
-                    <input
-                      type="number"
-                      value={actualValue}
-                      onChange={e => setActualValue(e.target.value)}
-                      placeholder="e.g. 850"
-                      className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                      style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                    />
+                    <input type="number" value={actualValue} onChange={e => setActualValue(e.target.value)} placeholder="e.g. 850"
+                      className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                   </div>
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
-                <Button
-                  onClick={() => markComplete.mutate({
-                    id: jobId,
-                    completionNotes: completionNotes || undefined,
-                    variationNotes: variationNotes || undefined,
-                    actualHours: actualHours || undefined,
-                    actualValue: actualValue ? parseFloat(actualValue) : undefined,
-                  })}
-                  disabled={markComplete.isPending}
-                  className="flex-1"
-                  style={{ background: "#4ade80", color: "#0F1F3D" }}
-                >
+                <Button onClick={() => markComplete.mutate({
+                  id: jobId,
+                  completionNotes: completionNotes || undefined,
+                  variationNotes: variationNotes || undefined,
+                  actualHours: actualHours || undefined,
+                  actualValue: actualValue ? parseFloat(actualValue) : undefined,
+                })} disabled={markComplete.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
                   {markComplete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                   Complete Job
                 </Button>
@@ -1538,7 +1153,7 @@ export default function PortalJobDetail() {
           </div>
         )}
 
-        {/* ── Mark Paid Modal ── */}
+        {/* Mark Paid Modal */}
         {showMarkPaid && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
             <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "#0A1628", border: "1px solid rgba(255,255,255,0.1)" }}>
@@ -1549,22 +1164,13 @@ export default function PortalJobDetail() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Amount received ($)</label>
-                  <input
-                    type="number"
-                    value={paidAmount}
-                    onChange={e => setPaidAmount(e.target.value)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  />
+                  <input type="number" value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                 </div>
                 <div>
                   <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Payment method</label>
-                  <select
-                    value={paidMethod}
-                    onChange={e => setPaidMethod(e.target.value as typeof paidMethod)}
-                    className="w-full text-sm px-3 py-2 rounded-lg outline-none"
-                    style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
-                  >
+                  <select value={paidMethod} onChange={e => setPaidMethod(e.target.value as typeof paidMethod)}
+                    className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}>
                     <option value="cash">Cash</option>
                     <option value="bank_transfer">Bank Transfer</option>
                     <option value="stripe">Card (Stripe)</option>
@@ -1573,16 +1179,11 @@ export default function PortalJobDetail() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button
-                  onClick={() => {
-                    const cents = Math.round(parseFloat(paidAmount) * 100);
-                    if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
-                    markPaid.mutate({ jobId, paymentMethod: paidMethod, amountCents: cents });
-                  }}
-                  disabled={markPaid.isPending}
-                  className="flex-1"
-                  style={{ background: "#4ade80", color: "#0F1F3D" }}
-                >
+                <Button onClick={() => {
+                  const cents = Math.round(parseFloat(paidAmount) * 100);
+                  if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
+                  markPaid.mutate({ jobId, paymentMethod: paidMethod, amountCents: cents });
+                }} disabled={markPaid.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
                   {markPaid.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />}
                   Confirm Payment
                 </Button>
