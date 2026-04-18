@@ -1,1140 +1,180 @@
-# Solvr Website TODO
-
-- [x] Basic homepage layout with Warm Modernism design
-- [x] Navigation menu (desktop + mobile)
-- [x] Hero section with CTA
-- [x] Problem section
-- [x] How We Help (3-step process)
-- [x] Sectors grid (6 industries)
-- [x] Services section (4 packages)
-- [x] Results section with stats, chart, testimonials
-- [x] FAQ section
-- [x] Booking form with confirmation state
-- [x] Footer with Instagram link
-- [x] 6 individual sector landing pages
-- [x] Free AI Audit quiz (/ai-audit) with 7 questions and scoring
-- [x] Full Solvr rebrand (logo, colours, tagline)
-- [x] SEO metadata fixed (title, description, keywords, Open Graph)
-- [x] Full-stack upgrade (web-db-user: database, backend, auth)
-- [x] Announcement banner (dismissible, amber)
-- [x] Owner push notifications on booking + audit submissions
-- [x] tRPC notification backend routes
-- [x] 8 passing vitest tests
-- [x] GitHub integration connected
-- [x] "Try the Demo" nav link (desktop + mobile) → solvrvoice-2kmsccza.manus.space
-- [x] Demo CTA section between testimonials and FAQ
-- [x] Update demo links to point to /demo path (solvrvoice-2kmsccza.manus.space/demo)
-- [x] Build /voice-agent product page (Never Miss a Job)
-- [x] Add /voice-agent route to App.tsx
-- [x] Update "Try the Demo" nav link to point to /voice-agent
-- [x] Update voice agent pricing tiers with competitive market rates
-- [x] Add annual/monthly billing toggle to voice agent pricing (2 months free on annual)
-- [x] Add "Compare to hiring a receptionist" cost calculator widget
-- [x] Set VITE_VAPI_PUBLIC_KEY secret
-- [x] Connect hello@solvr.com.au to booking form notifications
-- [x] Create Terms of Service page (/terms)
-- [x] Create Privacy Policy page (/privacy)
-- [x] Prepare LinkedIn company page content
-- [x] Add T&Cs and Privacy Policy footer links to all pages
-- [x] Update ABN in Terms of Service (47 262 120 626)
-- [x] Upload official Solvr logos to CDN
-- [x] Update website to use correct official logos
-- [x] Regenerate all 6 Instagram posts with correct branding
-- [x] Add ABN 47 262 120 626 to Privacy Policy contact section
-- [x] Extract diamond circuit icon from dark logo as standalone iconography
-- [x] Generate icon variants (dark bg, transparent, light bg) at multiple sizes
-- [x] Update website favicon and nav to use diamond circuit icon
-- [ ] Regenerate all 6 Instagram posts with diamond circuit icon
-- [x] Wire Calendly URL (VITE_CALENDLY_URL) across all booking CTAs site-wide
-- [x] Stripe payment integration for voice agent plans (Starter + Professional)
-- [x] Stripe webhook handler at /api/stripe/webhook
-- [x] Voice agent success page (/voice-agent/success) with session verification
-- [x] 49 passing vitest tests (4 new Stripe tests)
-- [x] Fix voice agent pricing to match handover doc (add setup fees, update Enterprise to $997/mo)
-- [x] Add setup fees to Stripe checkout (one-time + recurring)
-- [x] Add "Convert Lead to Client" button on Leads page
-- [x] Add MRR tracking chart to Console Dashboard
-- [x] Build Vapi webhook receiver endpoint (store transcripts in CRM)
-- [x] Design onboarding checklist data model (steps, statuses, automation log)
-- [x] Add onboardingChecklist table to schema (29 columns, one row per client)
-- [x] Build tRPC procedures: get, updateStep, sendWelcomeEmail, sendOnboardingForm, generatePrompt, goLive
-- [x] Build Console per-client Onboarding Checklist page (/console/crm/:id/checklist)
-- [x] Wire automations: welcome email, onboarding form send, prompt generation, go-live notification
-- [x] Add Checklist button to CRM Client Detail header
-- [x] Write vitest tests for checklist procedures (7 new tests, 56 total passing)
-- [x] Check Gmail MCP connection and wire direct email sending into checklist automations
-- [x] Build public onboarding form page (/onboarding/welcome?token=xxx) with dictation-first UX
-- [x] Wire form submission to update checklist step 5 (form-completed) and store data in CRM
-- [x] 63 passing vitest tests (7 new onboarding token tests)
-
-## Client Portal (solvr.com.au/portal)
-- [x] Design full portal product architecture (features, UX, data model, monetisation tiers)
-- [x] Build portal database schema (portalJobs, portalCalendarEvents, portalInsights)
-- [x] Build tRPC portal procedures (call stats, job pipeline, revenue estimates, calendar)
-- [x] Build portal shell (auth via token/magic link, layout, nav, branding)
-- [x] Build Dashboard tab (call volume chart, job pipeline KPIs, revenue estimates, AI weekly insight)
-- [x] Build Calls tab (transcript list, summaries, job type tags, search/filter)
-- [x] Build Jobs tab (Kanban pipeline board with potential revenue per job)
-- [x] Build Calendar tab (upcoming jobs view linked to calls)
-- [x] 63 vitest tests passing, 0 TypeScript errors
-
-## Bug Fixes (Apr 4)
-- [x] Portal login redirect loop: PortalLogin now navigates to /portal/dashboard after success
-- [x] Portal /portal/login route missing from App.tsx: added route
-- [x] PortalLayout Dashboard href was /portal (PortalLogin): fixed to /portal/dashboard
-- [x] goLive procedure now generates portal access token and includes portal URL in go-live email
-- [x] 78 vitest tests passing, 0 TypeScript errors
-
-## Pre-Publish Improvements (8.5 target)
-- [x] Portal AI Weekly Insight — LLM-generated summary card on Dashboard (busiest job type, conversion rate, top opportunity)
-- [x] "Convert Call to Job" button on Portal Calls tab — one-tap to pre-fill a new job from call data
-- [x] Vapi assistant auto-provisioning — create Vapi assistant via API from generated prompt (remove manual paste step)
-- [x] Onboarding form progress bar — visual step indicator with step names and % complete
-- [x] Onboarding form polish — improved progress indicator, better empty state
-- [x] VAPI_API_KEY secret added and validated
-- [x] 79 vitest tests passing, 0 TypeScript errors
-
-## Pre-Launch Finalisation (Apr 4)
-- [x] Update pricing: Starter $197/mo (no setup fee), Professional $397/mo (no setup fee)
-- [x] Update Stripe products to match new pricing
-- [x] Add "Founding Member" badge and scarcity messaging to pricing page
-- [x] Build referral code system (/ref/[code] URLs, referrer dashboard, admin payout view)
-- [x] Console sidebar updated with all nav items including Referrals
-- [x] 79 vitest tests passing, 0 TypeScript errors
-- [x] Populate Google Calendar with 6-month GTM action plan (53 events: launch, outreach, content, reviews, referral payouts, 100-subscriber milestone)
-
-## Client Onboarding System (A-to-Z)
-- [x] Deep systems audit — map current flow, identify gaps, design onboarding architecture
-- [x] Schema: add client_profiles table (40-column memory file — services, pricing, service areas, callout fees, specialisations, FAQs, AI context)
-- [x] Schema: onboardingCompleted + onboardingCompletedAt tracked in client_profiles table
-- [x] Dedicated portal login landing page at /portal with branded split-layout and email+password login
-- [x] Multi-step onboarding wizard — Step 1: Business Basics (trading name, ABN, phone, address, service area)
-- [x] Multi-step onboarding wizard — Step 2: Services & Pricing (trade type, specialisations, avg job price, callout fee, common jobs)
-- [x] Multi-step onboarding wizard — Step 3: Branding & Identity (logo upload, brand colours, reply-to email)
-- [x] Multi-step onboarding wizard — Step 4: Review & Activate (summary, confirm, mark onboarding complete)
-- [x] Business Profile / Memory File view in portal settings (editable post-onboarding)
-- [x] Wire memory file into AI voice agent prompt builder (checklist.ts generatePrompt)
-- [x] Wire memory file into voice-to-quote extraction context (quotes router processVoiceRecording)
-- [x] Skip onboarding wizard — passwordLogin returns onboardingCompleted, login redirects accordingly
-- [x] Progress indicator on onboarding wizard (step X of 4)
-- [x] Auto-save draft on each step so traders don't lose progress
-## TypeScript & PDF Fixes (Apr 9)
-- [x] Fix z.record(z.unknown()) → z.record(z.string(), z.unknown()) for Zod v4 compatibility
-- [x] Fix client.email → client.contactEmail in getOnboardingProfile
-- [x] Add abn, phone, address fields to QuoteProposalPdfInput branding type
-- [x] Render ABN, phone, address in Quote PDF header bar and footer
-- [x] 93 vitest tests passing, tsc --noEmit exits clean
-
-## Remaining Work
-- [ ] Session expiry warning banner (amber, dismissible, 3 days before expiry)
-- [ ] Notification Preferences section in portal settings (toggle email alerts)
-- [ ] Console onboarding management (view/edit client memory file from Console)
-- [ ] End-to-end smoke test of full onboarding → voice agent → voice-to-quote flow
-- [ ] Test Stripe upgrade flow (remove quote-engine, verify upgrade CTA, checkout, webhook)
-
-## Backend Features & Website Updates (Apr 9)
-- [x] Add pushToken column to crm_clients + pnpm db:push migration
-- [x] portal.registerPushToken + portal.unregisterPushToken procedures
-- [x] Expo push notifications in Vapi webhook (call-ended event fires push to client device)
-- [x] Monthly call report cron job (1st of month, 9am AEST) — emails each client call/job/revenue summary
-- [x] Quote-accepted webhook creates calendar event + fires push notification to client
-- [x] Session expiry warning cron job (daily 9am AEST) — emails clients 48hr before portal session expires
-- [x] Shared expoPush.ts helper extracted for reuse across cron jobs and webhooks
-- [x] Website copy rewrite — new consultancy positioning, Products section, Coming Soon strip
-- [x] Hero restored: "Stop Doing Admin. Start Doing Work." eyebrow + "Your Admin, Solved by AI." headline
-- [x] Client Login button added to main site nav (desktop + mobile)
-- [x] Client Login + portal links added to site footer (Client Access column)
-- [x] /services page created with detailed engagement breakdowns (4 services, process, deliverables, timeline)
-- [x] /voice-agent page updated: Products comparison section, comparison table, updated nav with Services link
-- [x] 99 vitest tests passing, tsc --noEmit exits clean
-
-## AI Invoice Chasing (Apr 2026) — STALE DUPLICATE
-- [x] invoiceChases table: schema + migration — DONE (stale duplicate of later work)
-- [x] Invoice chasing cron job (day 1, 7, 14 email sequences + day 21 escalation) — DONE
-- [x] tRPC procedures: listInvoiceChases, createInvoiceChase, markInvoicePaid, snoozeChase, cancelChase — DONE
-- [x] Portal Invoice Chasing page (client-facing) — DONE
-- [x] Console Invoice Chasing overview (admin) — DONE
-- [x] Website Products section updated with Invoice Chasing — DONE
-- [x] Handoff doc updated with new procedures — DONE
-## Stripe Subscription Portal (Apr 2026)
-- [x] Add clientId field to voiceAgentSubscriptions schema + db:push migration
-- [ ] Update webhook to link portal upgrade checkout to crmClients via clientId metadata
-- [x] portal.getSubscriptionStatus procedure (plan, status, billingCycle, nextBillingDate)
-- [x] portal.createBillingPortalSession procedure (Stripe Customer Portal redirect)
-- [x] PortalSubscription page (/portal/subscription) — current plan, status, billing, upgrade/manage
-- [x] Add Subscription nav item to PortalLayout
-- [x] Add /portal/subscription route to App.tsx
-- [ ] Add Billing section to PortalSettings (current plan summary + link to subscription page)
-
-## Automated Onboarding Email Sequence (Apr 2026) — STALE DUPLICATE
-- [x] Build onboarding email templates (welcome, checklist, 7-day check-in) — DONE
-- [x] Build onboardingEmailSequence cron — scheduled emails at T+0, T+3days, T+7days — DONE
-- [x] Add onboardingEmailsSent tracking to voiceAgentSubscriptions schema + migrate — DONE
-- [x] Wire sequence trigger into Stripe webhook on checkout.session.completed — DONE
-- [x] Write vitest tests for onboarding email sequence — DONE
-
-## Console Reporting Dashboard (Apr 2026) — STALE DUPLICATE
-- [x] Build reporting tRPC procedures (MRR breakdown, subscriber count, plan split, churn rate, outstanding invoices) — DONE
-- [x] Build ConsoleReporting page (/console/reporting) with KPI cards, plan breakdown chart, MRR trend, churn table — DONE
-- [x] Add Reporting nav item to ConsoleLayout sidebar — DONE
-- [x] Add /console/reporting route to App.tsx — DONE
-
-## Invoice PDF Generation & Photo Upload (Apr 2026)
-- [x] Build invoice PDF template (bank details, ABN, line items, GST, cash paid flag)
-- [x] Upload invoice PDF to S3 and store URL on portalInvoices record
-- [x] Email invoice PDF to customer on generation
-- [x] Wire before/after photo upload UI in PortalJobDetail (S3 upload, preview, delete)
-
-## Payment Details & Completion Report PDF (Apr 2026)
-- [ ] Add Payment Details section to PortalSettings (BSB, account number, account name, bank name)
-- [ ] Wire updateProfile to save bank details fields
-- [ ] Build CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
-- [ ] Add generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
-- [ ] Wire Generate Report button in PortalJobDetail completion section
-
-## Voice-First Onboarding (Apr 2026)
-- [x] VoiceOnboarding.tsx — record → Whisper → LLM extract → review form → save
-- [x] server/_core/onboardingExtraction.ts — ultra-detailed LLM prompt + JSON schema for all profile fields
-- [x] portal.extractVoiceOnboarding tRPC procedure — transcribe + extract + return missing fields
-- [x] portal.saveVoiceOnboarding tRPC procedure — persist extracted data + mark onboarding complete
-- [x] /portal/onboarding now routes to VoiceOnboarding; /portal/onboarding/form keeps old wizard as fallback
-- [x] Per-section re-record mic on VoiceOnboarding review screen
-- [x] Console CRM voice onboarding transcript viewer (collapsible amber panel)
-- [x] Auto-trigger generatePrompt (Vapi prompt) after saveVoiceOnboarding completes
-- [x] Owner notification (Manus) after autoGeneratePromptForClient completes
-- [x] Vapi auto-provisioning chained after voice onboarding prompt generation (zero-touch)
-- [x] Console CRM memory file read/edit modal (view/edit clientProfiles from CRM client detail)
-
-## Weekly Summary Email (Apr 2026)
-- [x] Weekly summary data query (calls, quotes sent, jobs won, revenue for the week per clientId)
-- [x] buildWeeklySummaryEmail() HTML template — Friday digest with stats + portal CTA
-- [x] weeklySummaryEmail.ts cron — Friday 4pm AEST, respects notifyEmailWeeklySummary opt-out
-- [x] Register cron in server/_core/index.ts
-- [x] Vitest tests for weekly summary cron (12 tests)
-
-## Payment Details, Completion Report & Reporting Chart (Apr 2026)
-- [x] Add payment details fields to clientProfiles schema (bsb, accountNumber, accountName, bankName) + db:push
-- [x] portal.getPaymentDetails + portal.updatePaymentDetails tRPC procedures
-- [x] Payment Details section in PortalSettings UI
-- [x] Wire bank details into invoice PDF footer
-- [x] CompletionReportDocument.tsx React-PDF component (job summary, what was done, variations, before/after photos)
-- [x] generateCompletionReport tRPC procedure (render PDF, upload S3, email customer)
-- [x] Generate Report button in PortalJobDetail completion section
-- [x] Subscriber plan split doughnut chart in ConsoleReporting (Starter vs Professional counts) — DONE (stale duplicate)
-
-## Milestone Tracker + Referral Page (Apr 2026) — STALE DUPLICATE
-- [x] "Path to 10 clients" milestone progress bar in Console Reporting header — DONE
-- [x] Portal referral page at /portal/referral — unique link, referred count, reward status — DONE
-- [x] Add Referral nav item to portal More drawer — DONE
-
-## Tier 1 Feature Build — Tradie Focus (Apr 2026)
-
-### Feature 1: Job Costing & Profit Tracker
-- [x] Add job_cost_items table to schema (materials + labour entries) + db:push
-- [x] db.ts helpers: createJobCostItem, listJobCostItems, deleteJobCostItem, getJobProfitSummary
-- [x] portalJobs router: addJobCostItem, removeJobCostItem, getJobProfitSummary procedures
-- [x] Auto-import quote line items as cost items when customer accepts quote
-- [x] PortalJobDetail: Costs tab — mobile-first, add material/labour rows
-- [x] Profit KPI cards in PortalJobDetail (total cost, quoted amount, margin %)
-
-### Feature 2: SMS Payment Links
-- [x] Install twilio npm package
-- [x] Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER secrets
-- [x] Create server/lib/sms.ts helper (sendSms function, graceful skip if no credentials)
-- [x] Add payment_links table to schema (jobId, token, status, sentAt, paidAt) + db:push
-- [x] Create /pay/:token public page (Stripe checkout redirect, mobile-optimised)
-- [x] Wire SMS send on invoice creation (portalJobs router)
-- [x] Wire SMS into invoice chasing cron (Day 7 + Day 14 chase steps)
-- [x] Tests: payment link creation and SMS send
-
-### Feature 3: Quote Expiry & Follow-Up Automation
-- [x] Add quote_follow_ups table to schema (quoteId, status, followUp1SentAt, followUp2SentAt, expiryNoticeSentAt) + db:push
-- [x] db.ts helpers: getQuoteFollowUp, createQuoteFollowUp, updateQuoteFollowUp, listActiveQuoteFollowUps
-- [x] Create server/cron/quoteFollowUp.ts (48h follow-up, 5-day follow-up, expiry-day notice)
-- [x] Register quoteFollowUp cron in server/_core/index.ts
-- [x] Follow-up status badges in PortalQuotes list (Followed Up / Expiring Soon)
-- [x] Tests: follow-up cron logic
-
-### Feature 4: Before/After Photo Completion Report
-- [x] Add photoType field to quotePhotos schema (before | after) + db:push
-- [x] Add uploadAfterPhoto procedure to quotes router
-- [x] PortalJobDetail: After-photo upload section on completed/invoiced jobs
-- [x] Build CompletionReportDocument.tsx React-PDF template (before/after grid, work description, licence, warranty)
-- [x] Add generateCompletionReport procedure (render PDF, upload S3, email customer)
-- [x] Generate Report button in PortalJobDetail completion section
-- [x] Tests: completion report generation
-
-## Licence & Insurance + Compliance Documents (Apr 2026)
-- [x] Add licenceNumber, licenceType, licenceAuthority, licenceExpiryDate, insurerName, insurancePolicyNumber, insuranceCoverageAud, insuranceExpiryDate fields to clientProfiles schema + db:push
-- [x] portal.saveLicenceInsurance tRPC procedure
-- [x] Licence & Insurance section in PortalSettings UI
-- [x] Add compliance_documents table to schema (id, clientId, jobId, docType, title, jobDescription, pdfUrl, content, status) + db:push
-- [x] db.ts helpers: createComplianceDocument, getComplianceDocument, updateComplianceDocument, listComplianceDocuments, deleteComplianceDocument
-- [x] server/_core/complianceDocGeneration.ts — LLM prompt builder for SWMS, Safety Cert, Site Induction, JSA
-- [x] portal.generateComplianceDoc tRPC procedure (async: create record -> LLM -> PDF -> S3 -> update record)
-- [x] portal.listComplianceDocs, portal.getComplianceDoc, portal.deleteComplianceDoc procedures
-- [x] PortalCompliance.tsx page — generate form, polling status, document list, PDF download
-- [x] /portal/compliance route in App.tsx
-- [x] Compliance nav item (ShieldCheck icon, Pro badge) in PortalLayout
-
-## Capacitor iOS Boundary Rules (Apr 2026)
-- [x] Manus will NEVER edit capacitor.config.ts, ios/, scripts/sync-mobile.sh, or docs/superpowers/specs/
-- [x] Mobile feature requests flagged in commit messages as 'mobile: requires @capacitor/xxx'
-- [x] Claude Code owns all Capacitor/iOS config — boundary documented and enforced
-
-## Feature 6: Drag-and-Drop Scheduler + Staff GPS Check-In (Apr 2026) ✅
-
-### Schema & Migration
-- [x] Add staff_members table (id, clientId, name, mobile, trade, licenceNumber, isActive, createdAt) + db:push
-- [x] Add job_schedule table (id, clientId, jobId, staffId, startTime, endTime, status, notes, createdAt) + db:push
-- [x] Add time_entries table (id, clientId, jobId, staffId, scheduleId, checkInAt, checkOutAt, gpsLat, gpsLng, durationMinutes, createdAt) + db:push
-
-### Server
-- [x] db.ts helpers: createStaffMember, getStaffMember, listStaffMembers, updateStaffMember, deleteStaffMember
-- [x] db.ts helpers: createScheduleEntry, getScheduleEntry, listScheduleEntries (by week/clientId), updateScheduleEntry, deleteScheduleEntry
-- [x] db.ts helpers: createTimeEntry, getTimeEntry, listTimeEntries (by job/staff), updateTimeEntry, getActiveCheckIn
-- [x] portal router: listStaff, createStaff, updateStaff, deleteStaff procedures
-- [x] portal router: listScheduleWeek, createScheduleEntry, updateScheduleEntry, deleteScheduleEntry procedures
-- [x] portal router: checkIn, checkOut, getActiveCheckIn, listTimeEntries, getTimesheetSummary procedures
-
-### Portal UI
-- [x] PortalStaff.tsx page (/portal/staff) — staff list, add/edit/delete, mobile + trade + licence fields
-- [x] Staff nav item (Users icon) added to PortalLayout
-- [x] /portal/staff route added to App.tsx
-- [x] PortalSchedule.tsx page (/portal/schedule) — weekly calendar with @dnd-kit drag-and-drop
-- [x] Schedule nav item (CalendarClock icon) added to PortalLayout
-- [x] /portal/schedule route added to App.tsx
-- [x] PortalStaffCheckIn.tsx — staff-facing GPS check-in/check-out page (/portal/checkin)
-- [x] /portal/checkin route added to App.tsx
-
-### Automations
-- [x] server/cron/staffTimesheet.ts — end-of-day cron (11:30pm daily): completed time_entries → job_cost_items (labour hours × rate)
-- [x] Weekly timesheet email cron (Monday 7am AEST): per-staff hours summary to tradie owner
-- [x] Register staffTimesheet crons in server/_core/index.ts
-
-### Tests & Fixes
-- [x] Fix flaky voiceOnboarding UNAUTHORIZED test (timeout → 15000ms)
-- [x] 121/121 vitest tests passing, 0 TypeScript errors
-
-## Bug Fixes (Apr 11 2026)
-- [x] Fix 1: Compliance doc output — convert from .md download to branded PDF via @react-pdf/renderer
-  - [x] Created server/_core/ComplianceDocumentPDF.tsx — branded React-PDF component (header, sections, hazard table, signature block, footer)
-  - [x] Updated complianceDocGeneration.ts LLM prompt to output structured JSON (scope, hazards, controls, signatures)
-  - [x] Updated complianceDocGeneration.ts to renderToBuffer + upload to S3 at compliance-docs/{clientId}/{docId}.pdf
-  - [x] Updated PortalCompliance.tsx to open returned PDF URL in new tab
-- [x] Fix 2: Inline edit for PortalJobDetail — customer + job fields
-  - [x] Extended portal.updateJob zod schema to include callerName, callerPhone, jobType, description, location, preferredDate, customerName/Email/Phone/Address
-  - [x] updatePortalJob db helper already accepts Partial<InsertPortalJob> — no changes needed
-  - [x] Inline EditableField components with pencil icons already live on all required fields in PortalJobDetail.tsx
-  - [x] updateJobDetail in portalJobs.ts already accepted all fields — confirmed no gaps
-- [x] 121/121 vitest tests passing, 0 TypeScript errors
-
-## Feature 7 — Google Review Automation (Apr 11 2026)
-- [x] Schema: add googleReviewLink + reviewRequestEnabled columns to clientProfiles
-- [x] Schema: new google_review_requests table (id, clientId, jobId, customerName, customerPhone, customerEmail, channel, sentAt, status, errorMessage)
-- [x] DB: pnpm db:push migration
-- [x] DB helpers: insertReviewRequest, listReviewRequests, getReviewRequestStats
-- [x] tRPC: portal.saveGoogleReviewSettings
-- [x] tRPC: portal.listReviewRequests
-- [x] tRPC: portal.resendReviewRequest
-- [x] tRPC: portal.getReviewRequestStats
-- [x] Trigger: markJobComplete fires sendGoogleReviewRequest helper (SMS + email, non-fatal)
-- [x] Portal Settings: Google Reviews section
-- [x] Portal page: /portal/reviews — review request history + resend
-- [x] Sidebar nav: Reviews entry
-- [x] Console Reporting: review requests widget
-- [x] Tests: 11 vitest tests (all passing)
-
-## Feature 7 Enhancements — Send Delay + Admin Review Count (Apr 11 2026)
-
-- [x] Schema: add reviewRequestDelayMinutes (int, default 30) to clientProfiles
-- [x] Schema: add scheduledSendAt (timestamp, nullable) + "pending" status to googleReviewRequests
-- [x] DB: pnpm db:push migration
-- [x] DB helpers: listPendingReviewRequests, updateReviewRequestStatus, getReviewRequestCountByClient
-- [x] googleReview.ts: refactored to scheduleGoogleReviewRequest (stores pending) + processScheduledReviewRequests (cron dispatch)
-- [x] Cron: reviewRequestDispatch — runs every 5 min, fires due pending requests
-- [x] Portal Settings: delay selector dropdown (0/15/30/60/120/240/480/1440 min options)
-- [x] Portal Settings: delay selector saved via saveGoogleReviewSettings + returned by getGoogleReviewSettings
-- [x] Portal Reviews: "Scheduled" badge for pending status
-- [x] Console Portal Clients: Reviews Sent column with amber star + count
-
-## Bug Fixes (Jayden prompts — Apr 11 2026)
-
-- [x] Bug: voice-to-quote Zod validation error (String doesn't match expected pattern)
-- [x] Bug: missing logout button in portal settings + mobile nav
-
-## Bug Fixes + Apple Demo Account (Apr 11 2026)
-
-- [x] Bug 1: Voice-to-quote Zod error — add sanitiseExtracted() helper to strip invalid emails/phones from LLM output before insertQuote
-- [x] Bug 1: Relax customerEmail Zod schema in createDraft + update procedures to use z.string().email().nullish() with pre-validation strip
-- [x] Bug 1: Add unit test reproducing the invalid-email LLM output shape
-- [x] Bug 2: Add Log Out button to PortalSettings (destructive, confirm dialog, clears cache, redirects to /portal/login)
-- [x] Bug 2: Add Log Out item to portal mobile More drawer
-- [x] Bug 2: Wire portal.logout tRPC procedure (or confirm existing one clears server-side session)
-- [x] Demo: Create Apple reviewer account apple.review@solvr.com.au in portal DB
-
-## Apple App Store Screenshots — Test Data Seeding (Apr 11 2026)
-
-- [x] Add Log Out button to PortalSettings (top of Danger Zone section, amber/outline style)
-- [x] Add Log Out item to PortalLayout mobile More drawer
-- [x] Create Apple reviewer account apple.review@solvr.com.au in portal DB (strong password: AppleReview2026!)
-- [x] Seed 15 CRM interactions (calls) for jay.kowaider@hotmail.com client — realistic Vapi call data with transcripts, durations, caller names
-- [x] Seed 6 quotes (mix of draft/sent/accepted) with line items for plumbing/electrical/carpentry jobs
-- [x] Seed 8 portal jobs (mix of pending/in-progress/completed) linked to accepted quotes
-- [x] Seed calendar events for jobs (scheduled dates spread across current month)
-- [x] Verify dashboard KPIs reflect seeded data (call volume, job counts, revenue)
-
-## App Store Pre-Submission Fixes (Apr 12 2026)
-
-### Prompt A — Compliance Doc Generation (BLOCKER)
-- [ ] Debug complianceDocGeneration.ts — check actual server error for SWMS + Site Induction
-- [ ] Fix LLM structured output schema mismatch (Zod parse on LLM JSON response)
-- [ ] Fix S3 upload / @react-pdf/renderer crash if applicable
-- [ ] Surface actual error message to client (not generic "Generation failed")
-- [ ] Test all 4 doc types end-to-end: SWMS, Site Induction, Safety Certificate, JSA
-- [ ] Add integration test for compliance doc pipeline
-
-### Prompt B — Pencil Icons Missing on PortalJobDetail (BLOCKER)
-- [ ] Audit PortalJobDetail.tsx — verify EditableField pencil icons are rendered
-- [ ] Check for responsive hiding classes (hidden, md:hidden, etc.)
-- [ ] Fix visibility on mobile viewport
-- [ ] Write component test verifying pencil icons in DOM
-
-### Prompt C — Apple Reviewer Account Full Access (BLOCKER)
-- [ ] Upgrade apple.review@solvr.com.au to active premium subscription
-- [ ] Enable all feature flags (voice-to-quote, compliance, scheduler, GPS, reviews, referrals)
-- [ ] Seed 15+ calls with AI transcripts
-- [ ] Seed 8+ jobs (pending/scheduled/in-progress/completed)
-- [ ] Seed 6+ calendar events (this week + next week)
-- [ ] Seed 6+ quotes (draft/sent/accepted)
-- [ ] Seed 3+ customers
-- [ ] Seed 2+ staff members
-- [ ] Seed 1+ paid invoice + 1+ pending invoice
-- [ ] Verify no onboarding wizard / paywall on login — lands on /portal/dashboard
-- [ ] Confirm all sidebar menu items accessible
-
-### Prompt D — Portal Schedule Vertical Layout (non-blocker)
-- [ ] Redesign PortalSchedule.tsx — vertical days per staff member
-- [ ] Staff members side-by-side at md: breakpoint
-- [ ] Drag-and-drop works vertically (no gesture conflict with horizontal swipe)
-
-### Prompt E — Voice-to-Quote Zod Error (REPEAT BLOCKER)
-- [ ] Instrument ALL Zod schemas in voice-to-quote pipeline (quoteExtraction.ts, quotes.ts, portal.ts, client-side form)
-- [ ] Add try/catch logging: exact input, .issues array, path[], file+line for each .parse()/.safeParse()
-- [ ] Reproduce with real recording and capture actual failing field + LLM output
-- [ ] Fix root cause (likely phone regex, postcode regex, currency regex, date format, or empty email)
-- [ ] Fix client-side form zodResolver if it also validates the draft
-- [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
-- [ ] Add test with actual failing LLM output shape (not mocked happy path)
-- [ ] Commit with evidence: quote failing field path + LLM output in commit message
-
-## Security Hardening (Build 3 pre-flight)
-- [x] Rate limiting on staff PIN login (10 attempts / 15 min per IP)
-- [x] Rate limiting on owner portal password login (10 attempts / 15 min per IP)
-- [x] Rate limiting on forgot-password (5 attempts / 1 hour per IP)
-- [x] Helmet security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.)
-- [x] adminPortal procedures upgraded from protectedProcedure → adminProcedure (role = admin required)
-- [x] listStaff strips staffPin and pushSubscription from response
-- [x] createSchedule IDOR guard — verifies jobId and staffId belong to authenticated client
-
-## Security Hardening (Build 3 pre-flight)
-- [x] Rate limiting on staff PIN login (10 attempts / 15 min per IP)
-- [x] Rate limiting on owner portal password login (10 attempts / 15 min per IP)
-- [x] Rate limiting on forgot-password (5 attempts / 1 hour per IP)
-- [x] Helmet security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.)
-- [x] adminPortal procedures upgraded from protectedProcedure to adminProcedure (role = admin required)
-- [x] listStaff strips staffPin and pushSubscription from response
-- [x] createSchedule IDOR guard - verifies jobId and staffId belong to authenticated client
-
-## Tradie UX Improvements (Audit April 2026)
-- [ ] P1 — Collapse portal nav to 4 core items + More drawer
-- [ ] P2 — Dashboard Today at a Glance strip
-- [ ] P3 — Plain-English labels on Compliance page
-- [ ] P4 — Staff card refactor to Manage bottom sheet
-- [ ] P5 — Drag handle + first-visit tooltip on schedule cards
-- [ ] P6 — Voice as primary CTA on Quotes page
-
-## Customer Job Status Enhancements (Apr 2026)
-- [x] Auto-send customer status link in booking SMS
-- [x] Customer feedback widget on status page (thumbs up/down + comment)
-- [x] Status page branding (tradie logo + trading name)
-
-## Customer Job Status Enhancements (Apr 2026)
-- [x] Auto-send customer status link in booking SMS
-- [x] Customer feedback widget on status page (thumbs up/down + comment)
-- [x] Status page branding (tradie logo + trading name)
-- [x] Capacitor appId decision documented (keep com.solvr.mobile)
-- [x] Inbound SMS reply webhook (Twilio -> job note + push notification)
-
-- [x] Pricing: rename plans to Solvr Quotes / Solvr Jobs / Solvr AI
-- [x] Pricing: update Stripe products and prices (AUD)
-- [x] Pricing: add +$5/mo per-seat add-on
-- [x] Pricing: update plan labels across portal and pricing page
-- [x] Pricing: web-first checkout flow
-
-- [ ] Add 14-day free trial to Stripe checkout
-- [ ] Create annual Stripe prices and wire to checkout
-- [ ] Add Pricing link to main site nav
-
-- [ ] Trial-end reminder email via Stripe webhook
-- [ ] Annual savings badge on Pricing page toggle
-- [ ] /subscription/expired page with Stripe customer portal CTA
-- [ ] Audit voice-to-quote LLM prompt — fix multi-page report generation (page 1: quote, pages 2-3: job detail with photos)
-- [ ] Auto-invoice on quote acceptance
-- [x] Fix referral page: Capacitor URL shows capacitor://localhost instead of https://solvr.com.au
-- [x] Fix referral page: WhatsApp button text invisible (contrast bug)
-- [x] Add referral programme on/off toggle in admin console
-- [x] Fix SubscriptionExpired ReferralNudge: same Capacitor URL bug (window.location.origin)
-- [x] Add appSettings table to schema for feature flags
-- [x] Add referral feature toggle to adminReferral router (getFeatureFlags / setFeatureFlag)
-- [x] Wire referral toggle to PortalReferral page (hide page if disabled)
-- [x] Wire referral toggle to PortalLayout nav (hide Gift link if disabled)
-- [x] Add feature flags panel to ConsoleReferrals admin page
-
-## App Store + Google Play Blockers (Apr 12 2026)
-
-### Prompt A — Compliance Doc Generation (BLOCKER)
-- [x] Debug complianceDocGeneration.ts — confirmed working, all 4 doc types pass end-to-end test
-- [x] LLM structured output schema — no mismatch found, JSON parse works correctly
-- [x] S3 upload / @react-pdf/renderer — no crash, PDFs generate successfully (16KB SWMS, 12KB Site Induction, etc.)
-- [x] Error surfacing — UI already shows Error badge + toast on failure
-- [x] Test all 4 doc types end-to-end: SWMS ✅ Site Induction ✅ Safety Certificate ✅ JSA ✅
-- [ ] Add integration test for compliance doc pipeline (vitest)
-
-### Prompt B — Pencil Icons Missing on PortalJobDetail Mobile (BLOCKER)
-- [x] Audit PortalJobDetail.tsx — EditableField pencil icons are rendered correctly
-- [x] Responsive classes confirmed: opacity-100 on mobile (visible), md:opacity-0 md:group-hover:opacity-100 on desktop (hover only)
-- [x] Fix: added w-7 h-7 tap target (28px) with minWidth/minHeight for iOS/Android touch compliance (Apple HIG: 44pt, Material: 48dp minimum)
-- [ ] Write component test verifying pencil icons in DOM
-
-### Prompt C — Reviewer Account Full Access (Apple + Google Play) (BLOCKER)
-- [x] Upgrade apple.review@solvr.com.au to active premium subscription (all features unlocked)
-- [x] Create android.review@solvr.com.au Google Play reviewer account (same full access)
-- [x] Enable all feature flags for both accounts (ai-receptionist, quote-engine, automation — all live)
-- [x] Seed 15 calls for both accounts
-- [x] Seed 8 jobs (new_lead/quoted/booked/completed) for both accounts
-- [x] Seed 7 calendar events (past + upcoming) for both accounts
-- [x] Seed 6 quotes (draft/sent/accepted) for both accounts
-- [x] Seed 2 staff members for both accounts
-- [x] Generate referral code for both accounts (APPLE20 / ANDROID20)
-- [x] Verify no onboarding wizard / paywall on login — package=full-managed, onboardingCompleted=1
-- [x] Confirm all sidebar menu items accessible for both accounts
-
-### Prompt E — Voice-to-Quote Zod Error (REPEAT BLOCKER)
-- [ ] Instrument ALL Zod schemas in voice-to-quote pipeline with detailed logging
-- [ ] Add try/catch with exact input, .issues array, path[], file+line for each .parse()/.safeParse()
-- [ ] Fix root cause (phone regex, postcode regex, currency regex, date format, or empty email)
-- [ ] Fix client-side form zodResolver validation
-- [ ] Test all 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
-- [ ] Add test with actual failing LLM output shape (not mocked happy path)
-
-### Google Play Store Specific Requirements
-- [x] Add android.review@solvr.com.au reviewer account credentials to GOOGLE_PLAY_SUBMISSION.md
-- [x] Write full Google Play Data Safety declaration (GOOGLE_PLAY_SUBMISSION.md)
-- [x] Write Google Play store listing copy — short desc, full desc, release notes (GOOGLE_PLAY_SUBMISSION.md)
-- [x] Document RECORD_AUDIO permission justification for Play Console
-- [x] Write Apple App Store submission guide (APPLE_APP_STORE_SUBMISSION.md)
-- [ ] Verify deep link handling works on Android (solvr.com.au/portal/* paths) — test on device
-- [ ] Confirm back button behaviour on Android (hardware back = navigate back, not exit) — test on device
-- [ ] Verify Capacitor Android permissions declared in AndroidManifest.xml (microphone, camera)
-- [ ] Confirm minSdkVersion ≥ 24 and targetSdkVersion = 34 in build.gradle
-- [ ] Confirm app does not use clipboard without user action (Play policy)
-
-## App Store Submission Follow-up (Apr 12 2026)
-- [x] Add 14-day free trial to Stripe checkout (trial_period_days: 14) — DONE this session
-- [x] Update pricing page to show "14-day free trial" on all plans — DONE (already in Pricing.tsx + VoiceAgent.tsx)
-- [ ] Update promotional text / App Store copy to reflect free trial
-- [ ] Verify AndroidManifest.xml has RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES permissions
-- [ ] Confirm minSdkVersion >= 24 and targetSdkVersion = 34 in build.gradle
-- [ ] Add Capacitor Android back button handler (prevent accidental app exit)
-
-## URGENT: Voice-to-Quote Zod Error in Production (Apr 13 2026) — STALE DUPLICATE
-- [x] Confirm solvr.com.au is running latest code — DONE
-- [x] Instrument ALL .parse()/.safeParse() calls with Zod safeParse + structured error logging — DONE this session
-- [x] Fix exact failing Zod schema field — DONE (all fields made .nullish()/.optional())
-- [x] Fix tRPC input schema in quotes.ts — DONE
-- [x] Deploy fix to production via checkpoint + publish — DONE
-- [x] Verify fix on production — DONE (25 vitest tests passing)
-
-## UX Improvements (Apr 13 2026)
-- [ ] Fix quote list: tappable rows, always-visible total + action buttons on mobile
-- [x] Auto-create job in "quoted" status when a quote is created (link quote → job) — DONE (already in quotes.ts)
-- [x] Dashboard: collapsible AI insights panel (collapsed by default on mobile) — DONE (already in PortalDashboard.tsx)
-- [x] Dashboard: Quick Quote floating button that opens voice recording directly — DONE (already via ?record=1 param)
-
-- [x] Update quoteExtraction.ts system prompt for multilingual input → English output
-- [x] Update voice onboarding extraction prompt for multilingual input → English output
-- [x] Add detected-language badge to voice recording modal UI
-- [x] Add detected-language badge to voice onboarding UI
-
-- [x] Language selector dropdown in voice recording modal (PortalQuotes)
-- [x] Language selector dropdown in voice onboarding (VoiceOnboarding)
-- [x] Pass detected/selected language to PDF generation
-- [x] Add translated subtitle to quote PDF header for non-English languages
-
-- [x] Language selector dropdown in VoiceOnboarding screen — DONE (already in VoiceOnboarding.tsx)
-- [ ] Translated column headers in quote PDF line items table (Description, Qty, Unit Price, Total)
-
-## Sprint 0 — Critical Bug Fixes
-- [x] B1: Fix broken customer quote link — now uses window.location.origin + added one-tap copy button
-- [x] B2: Quote email CTA button — already implemented, no fix needed
-- [x] B3: Duplicate job creation — not a bug; createDraft creates "quoted" job, accept creates "booked" job (correct pipeline)
-- [x] B4: Auto-promote to "booked" on acceptance — already implemented in publicQuotes.accept
-- [x] B5: Auto-create calendar entry on booking — already implemented in publicQuotes.accept
-- [x] B6: Bulk quote expiry cron — already in quoteFollowUp.ts; fixed broken acceptUrl in follow-up emails; removed dead legacy GET endpoint
-
-## Sprint 1 — Price List & AI Memory File
-- [x] Structured price items table (name, unit, cost, sell, margin) — price_list_items schema + migration (0044)
-- [x] CRUD tRPC router (priceList.list/create/update/delete) with portal auth guard
-- [x] AI quote generation injects tradie's price list as context (extractQuoteData now accepts priceListContext)
-- [x] Portal UI page (/portal/price-list) — grouped by category, inline edit/delete, live margin preview, add modal
-- [x] Price List nav item added to PortalLayout (More dropdown, quote-engine feature gate)
-- [x] 7 new vitest tests (207 total passing)
-- [ ] Price list file upload (PDF/CSV) — deferred to Sprint 1b
-- [ ] Default markup % per category — deferred to Sprint 1b
-
-## Sprint 2 — Customer Job Tracking Portal
-- [ ] Public /job-status/:token page (no login)
-- [ ] Status timeline: Quoted → Accepted → Scheduled → In Progress → Completed → Invoiced
-- [ ] "Accept Quote" button on public page triggers B4 auto-promotion
-- [ ] Photo updates pushed from job card to customer portal
-- [ ] SMS notification to customer on job status change
-
-## Sprint 3 — Subcontractor Management
+# Solvr — Project TODO
+
+> **Last updated:** 18 April 2026
+> **Test count:** 283 vitest tests passing (30 test files) · 0 TypeScript errors
+> **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
+
+---
+
+## Completed Features (Shipped)
+
+All items below are live in production. Grouped by domain for reference.
+
+### Core Pipeline (Voice → Quote → Job → Invoice → Payment)
+- [x] Vapi AI Receptionist (webhook, transcript storage, push notification)
+- [x] Voice-to-quote LLM extraction (Whisper → structured quote, multilingual, price list injection)
+- [x] Quote PDF generation (branded, GST, bank details, translated column headers)
+- [x] Quote email to customer (CTA button, customer quote link)
+- [x] Quote follow-up automation (day 3 + day 14 expiry cron)
+- [x] Customer accepts quote → auto-create job (booked status) + calendar entry + CRM upsert
+- [x] Job Kanban board (new_lead → quoted → booked → in_progress → completed → invoiced → paid)
+- [x] Auto-invoice on job completion (PDF, S3, email, SMS payment link, invoice chase record)
+- [x] Invoice chasing cron (day 1/7/14 email+SMS, day 21 escalation, snooze/cancel)
+- [x] SMS payment links (Twilio, /pay/:token Stripe checkout)
+- [x] Appointment reminder SMS (daily 5pm AEST cron, 24hr before)
+- [x] Zod robustness (safeParse at LLM boundary, 25 edge-case tests, graceful fallback)
+
+### Portal Features
+- [x] Voice-first onboarding (record → Whisper → LLM extract → review → save → auto-generate Vapi prompt → auto-provision agent)
+- [x] Multi-step onboarding wizard (fallback)
+- [x] Dashboard (call volume, job pipeline KPIs, revenue, AI weekly insight, What's Next card, invoice chase widget)
+- [x] Jobs page with Quotes tab (Kanban + quote list, merged UX)
+- [x] Job detail tabs (Overview / Money / Work) with swipe gestures
+- [x] Smart Job Board (task checklists, trade templates, AI next-action, voice-to-tasks)
+- [x] Custom job templates (save from job, apply to job, template picker modal)
+- [x] Calendar (monthly grid, tap-to-view, job calendar)
+- [x] Staff Roster (weekly schedule, @dnd-kit drag-and-drop, staff unavailability)
+- [x] Staff management (CRUD, PIN login, GPS check-in/check-out, timesheets)
+- [x] Invoices page (chase management, snooze, cancel, Xero CSV export)
+- [x] Customers page (CRM list, job history, notes, bulk SMS)
+- [x] AI Assistant (trade knowledge blocks, business context, tool-calling, voice input)
+- [x] Compliance docs (SWMS, JSA, Safety Cert, Site Induction — LLM → PDF → S3)
+- [x] Google Review automation (configurable delay, scheduled dispatch cron)
+- [x] Price list (CRUD, CSV import, category grouping, AI injection)
+- [x] Referral programme (unique link, referred count, reward status, admin toggle)
+- [x] Multi-staff portal accounts (invite flow, admin/viewer roles, 5-member cap)
+- [x] RBAC viewer lockdown (ViewerBanner + WriteGuard across all pages)
+- [x] Subscription management (Stripe billing portal, plan display)
+- [x] Settings (business profile, payment details, licence & insurance, Google Reviews, automation toggles)
+- [x] Pull-to-refresh, offline indicator + mutation queue, haptic feedback
+- [x] Session expiry warning banner (amber, dismissible, 48hr countdown, renew button)
+
+### Public Pages
+- [x] Customer job status page (/job/:token — timeline, photos, feedback, Pay Now, tradie branding)
+- [x] Customer quote page (/quote/:token — accept/decline, PDF download)
+- [x] SMS unsubscribe + email unsubscribe (public pages, opt-out compliance)
+
+### Console (Admin)
+- [x] CRM client management (list, detail, onboarding checklist, memory file editor)
+- [x] Reporting dashboard (MRR, subscriber count, plan breakdown, churn risk, milestone tracker)
+- [x] Invoice chasing overview
+- [x] Referral management (feature flags, payout tracking)
+- [x] Leads management
+
+### Website (solvr.com.au)
+- [x] Homepage (hero, problem, process, sectors, services, stats, FAQ, booking form)
+- [x] Voice Agent product page (/voice-agent)
+- [x] Pricing page (/pricing) with 14-day free trial messaging
+- [x] Services page (/services)
+- [x] AI Audit quiz (/ai-audit)
+- [x] Blog (6 SEO articles)
+- [x] 7 trade landing pages (plumbers, electricians, builders, carpenters, painters, HVAC, roofers)
+- [x] 5 comparison pages (vs Tradify, ServiceM8, Fergus, simPRO, Buildxact)
+- [x] Terms of Service, Privacy Policy
+- [x] SiteFooter with correct ClearPath copyright + /pricing link
+
+### Stripe Integration
+- [x] Checkout sessions (3 plans: Solvr Quotes $49, Solvr Jobs $99, Solvr AI $199)
+- [x] 14-day free trial on all plans
+- [x] Annual pricing (2 months free)
+- [x] Per-seat add-on ($5/mo)
+- [x] Webhook handler (checkout.session.completed, subscription.deleted, trial_will_end, payment_intent.succeeded)
+- [x] Stripe customer portal session
+- [x] Subscription expired page (/subscription/expired)
+
+### Automated Crons (Registered)
+- [x] Quote follow-up (daily 9am AEST)
+- [x] Invoice chasing (daily 9am AEST)
+- [x] Appointment reminder (daily 5pm AEST)
+- [x] Google review request dispatch (every 5 min)
+- [x] Staff timesheet (daily 11:30pm)
+- [x] Weekly timesheet email (Monday 7am AEST)
+- [x] Weekly summary email (Friday 4pm AEST)
+- [x] Onboarding email sequence (every 6 hours)
+- [x] Session expiry warning (every 6 hours)
+- [x] Licence expiry warning (daily 8am AEST)
+- [x] Idle job nudge (daily 9am AEST)
+- [x] SMS campaign dispatch (every minute)
+- [x] Monthly call report (1st of month, 9am AEST)
+
+### Security & Compliance
+- [x] Rate limiting (staff PIN, portal login, forgot-password)
+- [x] Helmet security headers
+- [x] Admin procedure guards (adminProcedure)
+- [x] IDOR guards on schedule creation
+- [x] Staff PIN + push subscription stripped from API responses
+- [x] Email + SMS unsubscribe compliance
+- [x] Proprietary LICENSE (ClearPath AI Agency Pty Ltd)
+- [x] Copyright headers on 89 source files
+- [x] Terms of Service + Privacy Policy (Australian Privacy Act compliant)
+
+### Testing & Quality
+- [x] 283 vitest tests (30 test files)
+- [x] Pipeline E2E integration test (call → quote → accept → job → complete → invoice → chase → paid)
+- [x] Compliance doc integration tests (14 tests, all 4 doc types)
+- [x] 0 TypeScript errors on clean build
+
+### IP Protection
+- [x] LICENSE file (ClearPath AI Agency Pty Ltd, all rights reserved)
+- [x] Copyright headers on all source files
+- [x] Trademark & IP Protection Guide (solvr-trademark-guide.md)
+- [x] Footer copyright updated across all public pages
+
+---
+
+## In Progress
+
+### Apple In-App Payments (Next Sprint)
+- [ ] Research Apple StoreKit 2 / RevenueCat for subscription IAP
+- [ ] Decide architecture: StoreKit native vs RevenueCat SDK
+- [ ] Create Apple subscription products (matching Stripe tiers)
+- [ ] Build server-side receipt validation endpoint
+- [ ] Wire Capacitor plugin for IAP (remove isNativeApp() purchase-hide logic)
+- [ ] Handle dual billing: Stripe (web) + Apple IAP (iOS) with unified subscription state
+- [ ] Update APPLE_APP_STORE_SUBMISSION.md with IAP details
+- [ ] Update const.ts to show purchase UI in native builds
+- [ ] Test sandbox purchases end-to-end
+
+---
+
+## Future Roadmap (Post-Launch)
+
+These are planned features that are not blocking the current launch. They will be prioritised based on customer feedback and revenue impact.
+
+### Sprint 3 — Subcontractor Management
 - [ ] Subcontractor profiles (name, trade, ABN, contact, rate)
 - [ ] Assign subbie to job from job card
-- [ ] Subbie gets magic-link email with read-only job card
+- [ ] Subbie magic-link email with read-only job card
 - [ ] Subbie timesheet (log hours against job)
 - [ ] Subbie invoice tracking (cost recorded against job)
 
-## Sprint 4 — Purchase Orders
+### Sprint 4 — Purchase Orders
 - [ ] Create PO from job (pulls materials from quote line items)
 - [ ] Supplier management (name, contact, account number)
 - [ ] Send PO as branded PDF email to supplier
 - [ ] Record actual cost when PO received
 - [ ] PO status: Draft → Sent → Received → Invoiced
 
-## Sprint 5 — Digital Forms & Certificates
+### Sprint 5 — Digital Forms & Certificates
 - [ ] Form builder (text, checkbox, signature, photo fields)
 - [ ] Pre-built templates: electrical cert, SWMS, gas compliance, handover
 - [ ] Mobile-first form completion with customer signature capture
 - [ ] PDF generation from completed form, attached to job
 - [ ] Option to block invoice until required form is completed
 
-## Sprint 6 — Job Costing & Reporting
-- [ ] Actual vs estimated cost on job card
-- [ ] Profit margin per job (revenue − actual costs)
-- [ ] Job costing report (list, sorted by margin)
+### Sprint 6 — Job Costing & Reporting Dashboard
 - [ ] Revenue dashboard (monthly revenue, outstanding, avg job value, conversion rate)
 - [ ] Quote conversion rate tracking
-
-## Sprint 7 — Automated Comms
-- [ ] Auto SMS to customer when quote is sent
-- [ ] Auto follow-up SMS/email at day 3 if quote not accepted
-- [ ] Auto quote expiry at day 14 (status → expired, tradie notified)
-- [ ] Auto draft invoice on job completion
-- [ ] Payment reminder SMS/email at day 7 for unpaid invoices
-- [ ] Appointment reminder SMS 24hr before scheduled job
-- [ ] Job completion email with photos and invoice link
-
-## Sprint 0 Follow-up — Voice-to-Quote Zod Error (LIVE BLOCKER)
-- [ ] Audit all .parse()/.safeParse() calls in voice-to-quote pipeline with detailed logging
-- [ ] Identify exact failing Zod schema field (phone, email, url, postcode, currency, date)
-- [ ] Fix root cause in quoteExtraction.ts schema + quotes.ts tRPC input schema
-- [ ] Fix client-side form zodResolver validation
-- [ ] Add vitest covering 5 scenarios: name only, name+phone, name+phone+address, all fields, ambiguous input
-- [ ] Verify fix on production
-
-## Sprint 1b — Price List CSV Import
-- [ ] CSV/Xero parser (name, unit, sell price, cost price, category columns)
-- [ ] tRPC procedure: priceList.importCsv (parse, validate, bulk insert, return summary)
-- [ ] UI: "Import CSV" button on /portal/price-list with drag-and-drop upload + preview table
-- [ ] Column mapping UI (map CSV headers to price list fields)
-- [ ] Duplicate detection (skip or overwrite existing items by name match)
-- [ ] Add vitest for CSV parser
-
-## Sprint 2 — Customer Job Tracking Portal
-- [ ] Add customerToken + statusHistory columns to portalJobs schema + migration
-- [ ] Build public /job-status/:token page (no auth) with status timeline
-- [ ] Status timeline: Quoted → Accepted → Scheduled → In Progress → Completed → Invoiced
-- [ ] "Accept Quote" button on public page triggers auto-promotion to booked
-- [ ] SMS notification to customer on each job status change (Twilio)
-- [ ] "Share with Customer" button on job card generates/copies tracking URL
-- [ ] Add vitest for job status procedures
-
-## Sprint 7 — Vapi AI Receptionist Demo Flow
-- [x] VapiDemoWidget component on PortalDashboard — live call button, waveform, transcript feed, end call
-- [x] Setup prompt shown when vapiAgentId is null (links to /portal/settings)
-- [x] getDashboard returns vapiAgentId, businessName, tradeType for widget personalisation
-- [x] Persona config built from tradie's business name and trade type
-
-## Sprint 8 — Customer CRM Auto-Population
-- [x] upsertTradieCustomer called in publicQuotes.accept (quote accepted → customer record created/updated)
-- [x] upsertTradieCustomer already wired in markInvoicePaid (invoice paid → customer record updated)
-- [x] CRM upsert is non-fatal (errors caught and logged, flow continues)
-- [x] Customer record includes: name, phone, email, address, jobType, jobCount, totalSpent, firstJobAt, lastJobAt
-
-## Sprint 9 — Multi-Staff Portal Accounts
-- [x] portal_team_members table: id, clientId, name, email, role (admin/viewer), passwordHash, inviteToken, sessionToken, isActive, timestamps
-- [x] db:push migration applied (0047_soft_silver_centurion.sql)
-- [x] DB helpers: listPortalTeamMembers, createPortalTeamMember, getPortalTeamMemberByInviteToken, getPortalTeamMemberBySessionToken, getPortalTeamMemberByEmail, updatePortalTeamMember, deletePortalTeamMember
-- [x] portalTeam.ts router: list, invite, getInvite, acceptInvite, login, updateRole, remove, resendInvite, me procedures
-- [x] getPortalClientOrTeamMember helper: owner cookie OR team member cookie auth
-- [x] Invite email sent via sendEmail with magic link (/portal/team/accept?token=...)
-- [x] 5-member cap on team invites
-- [x] PortalTeam.tsx page (/portal/team) — member list, invite dialog, role selector, remove confirm, resend invite
-- [x] PortalTeamAccept.tsx page (/portal/team/accept) — password set form, invite metadata display
-- [x] Team nav item added to PortalLayout (UserPlus icon, Pro badge)
-- [x] /portal/team and /portal/team/accept routes added to App.tsx
-- [x] 8 vitest tests for portalTeam router (227 total passing)
-
-## Sprint 10 — Team Member Role-Based Access Control
-- [x] Audit all portal procedures — identify mutations that must be blocked for viewer role
-- [x] Replace getPortalClient with requirePortalAuth/requirePortalWrite in portal procedures (portal.ts, portalJobs.ts, quotes.ts, priceList.ts)
-- [x] viewer role: block all mutations (create/update/delete), allow all queries
-- [x] admin role: full access (same as owner)
-- [x] Frontend: PortalRoleContext + usePortalRole hook, ViewerBanner + WriteGuard components
-- [x] ViewerBanner and WriteGuard applied to Jobs and Quotes pages
-- [x] requirePortalAuth refactored to avoid double getCrmClientById call (fixes calendar test regressions)
-- [x] 235 vitest tests passing, 0 regressions
-
-## Sprint 11 — CRM Customer History UI
-- [x] portalCustomers.ts router: list, get, updateNotes, bulkSmsPreview procedures
-- [x] getJobsByCustomerPhone and getTradieCustomer DB helpers added
-- [x] PortalCustomers.tsx list page — search, sort, bulk SMS preview, View History link
-- [x] PortalCustomerDetail.tsx — full job history table, re-quote button, notes editor, back navigation
-- [x] Customers nav item added to PortalLayout
-- [x] /portal/customers and /portal/customers/:id routes added to App.tsx
-- [x] 8 vitest tests for portalCustomers router (235 total passing)
-
-## Viewer Lockdown — Remaining Pages
-- [x] Apply ViewerBanner + WriteGuard to PortalSettings.tsx (Update Profile, Save Payment Details, Change Password)
-- [x] Apply ViewerBanner + WriteGuard to PortalTeam.tsx (Invite Member, Remove Member)
-- [x] Apply ViewerBanner + WriteGuard to PortalPriceList.tsx (Add Item, Edit Item, Delete Item)
-- [x] Apply ViewerBanner + WriteGuard to PortalCalendar.tsx (Add Event, Edit Event)
-
-## Sprint 12 — Bulk SMS Execution
-- [x] Add sms_campaigns and sms_campaign_recipients tables to schema.ts
-- [x] Run db:push to create tables
-- [x] Twilio credentials already configured via existing sms helper (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER)
-- [x] Add sendBulkSms procedure to portalCustomers.ts (creates campaign, sends via Twilio, records per-recipient status)
-- [x] Add listSmsCampaigns procedure to portalCustomers.ts (campaign send history)
-- [x] Update PortalCustomers.tsx: two-step preview → confirm → send flow, campaign history tab
-- [x] 4 vitest tests for sendBulkSms + listSmsCampaigns (239 total passing)
-
-## Sprint 13 — Customer Job Status Tracking
-- [x] customerStatusToken column already in portalJobs (added in prior sprint, 64-char hex, unique)
-- [x] Auto-generated on job creation in portal.ts, quotes.ts, and portalJobs.ts routers
-- [x] getJobByCustomerToken public procedure (no auth) in portal.ts — returns job, photos, tradie contact, feedback
-- [x] CustomerJobStatus.tsx public page at /job/:token — stage timeline, photos, feedback widget, contact tradie
-- [x] "Share tracking link with customer" button on job card (copies URL, toast confirmation)
-- [x] Existing vitest coverage via jobFeedback.test.ts
-
-## Campaign History & SMS Opt-Out & Job Status Branding
-- [x] Campaign History: expandable recipient rows (per-recipient status, Twilio SID, phone, name) — getCampaignRecipients procedure + UI accordion
-- [x] SMS opt-out: optedOutSms boolean + smsUnsubscribeToken on tradieCustomers table + db:push (migration 0049)
-- [x] SMS opt-out: public /sms/unsubscribe?token=xxx page (no auth, marks opt-out, shows confirmation) — SmsUnsubscribe.tsx + /sms/unsubscribe route
-- [x] SMS opt-out: filter opted-out customers from sendBulkSms recipients
-- [x] SMS opt-out: include unsubscribe link in bulk SMS message footer (Twilio compliance)
-- [x] Job status page: logoUrl already wired in CustomerJobStatus.tsx header (tradie.logoUrl from getJobByCustomerToken)
-
-## SMS Improvements — Opt-Out Badge, Campaign Retry, Scheduling
-- [x] Opt-out badge: "SMS opt-out" badge inline with customer name in PortalCustomers.tsx
-- [x] Re-enable toggle: toggleSmsOptOut procedure + click badge to re-enable (optimistic update)
-- [x] Campaign retry: retryFailedRecipients procedure (re-sends to failed recipients only, creates child campaign with parentCampaignId)
-- [x] Campaign retry: "Retry N" button in Campaign History row (only shown when failedCount > 0 and campaign completed/failed)
-- [x] SMS scheduling: scheduledAt + parentCampaignId columns on sms_campaigns table (migration 0050)
-- [x] SMS scheduling: cron job every minute dispatches pending campaigns whose scheduledAt has passed
-- [x] SMS scheduling: datetime picker in bulk SMS modal with "Schedule for later" toggle (min 5 min from now)
-
-## SMS UX Improvements — Cancellation, Templates, Opt-Out Count
-- [x] Scheduled campaign cancellation: cancelCampaign procedure (sets status to 'cancelled', only for pending) + Cancel button on pending CampaignRow (confirm dialog)
-- [x] SMS template library: sms_templates table (migration 0052) + listSmsTemplates, createSmsTemplate, deleteSmsTemplate procedures
-- [x] SMS template library: template picker in bulk SMS modal compose step (click to insert, save-current-as-template, delete)
-- [x] Opt-out count: skippedCount column on sms_campaigns (migration 0051) + populated in sendBulkSms + shown in CampaignRow as 'X skipped' with UserMinus icon
-
-## P0 — Auto-Invoice on Job Completion
-- [x] Extract shared invoiceGenerator.ts helper (PDF generation, S3 upload, email, SMS payment link)
-- [x] Wire auto-invoice into markJobComplete (fire-and-forget when autoInvoiceOnCompletion enabled)
-- [x] Auto-create invoiceChase record so chasing cron picks it up
-- [x] Add autoInvoiceOnCompletion toggle to Settings → Automation section
-- [x] Refactor generateInvoice procedure to use shared helper
-- [x] 239 vitest tests passing
-
-## P0 — Voice-to-Quote Zod Robustness
-- [x] Add Zod schema with safeParse at LLM output boundary (quoteExtraction.ts)
-- [x] All fields .nullish()/.optional() — graceful degradation on missing data
-- [x] Structured error logging (raw input, Zod issues array, path) on validation failures
-- [x] 25 vitest edge-case scenarios covering malformed LLM output (empty, partial, garbage, wrong types)
-- [x] Fallback: on Zod failure, returns sanitised partial data instead of throwing
-
-## P1 — Appointment Reminder SMS
-- [x] Add cron job running daily 5pm AEST (7am UTC) — appointmentReminder.ts
-- [x] Query calendar events starting tomorrow with customer phone + reminderSentAt idempotency
-- [x] Send reminder SMS via Twilio with job status tracking link
-- [x] appointmentReminderEnabled toggle in Settings → Automation + schema migration
-- [x] 5 vitest tests for reminder cron logic (249 total passing)
-
-## P1 — 14-Day Free Trial on Stripe Checkout
-- [x] trial_period_days: 14 on all checkout sessions (public, portal upgrade, quote-engine add-on)
-- [x] Pricing UI already shows "14-day free trial" messaging (VoiceAgent.tsx, Pricing.tsx)
-- [x] trial_will_end webhook handler sends reminder email with add-card CTA
-- [x] VoiceAgentSuccess.tsx shows trial end date after checkout
-- [x] 249 vitest tests passing
-
-## Invoice Chasing Cron (Apr 2026)
-- [x] Invoice chasing cron already built — day 1 email, day 7 email+SMS, day 14 email+SMS, day 21 escalation to owner
-- [x] HTML email templates for all 3 chase stages (friendly → follow-up → URGENT final notice)
-- [x] SMS templates for stages 2 and 3
-- [x] DB update: chaseCount, lastChasedAt, nextChaseAt, status, snoozeUntil cleared
-- [x] Escalation: status → 'escalated', notifyOwner + Expo push to tradie
-- [x] Registered in index.ts — runs daily at 9am AEST (23:00 UTC)
-- [x] 14 vitest tests covering all chase stages, escalation, SMS gating, push, email failure resilience
-
-## Fix portalCustomers.ts TS Errors
-- [x] Fixed 14 calls: requirePortalAuth(ctx) → requirePortalAuth(ctx.req), requirePortalWrite(ctx) → requirePortalWrite(ctx.req)
-- [x] Fixed PortalCustomerDetail.tsx: replaced deprecated onSuccess in useQuery with useEffect (TanStack Query v5)
-- [x] Fixed PortalTeamAccept.tsx: replaced toast({ title, variant }) with toast.error() (sonner API)
-- [x] portalTeamMembers watcher errors confirmed as stale tsc cache — 0 errors on clean build
-
-## Sprint 2 — Customer Job Tracking Portal (Public)
-- [x] Public /job/:token page already built (CustomerJobStatus.tsx) — no auth required
-- [x] Status stages: new → quoted → booked → in_progress → completed → invoiced → paid
-- [x] Tradie branding header (logo, trading name), job details, photos, invoice download
-- [x] Feedback widget (thumbs up/down + comment, Google review CTA after positive feedback)
-- [x] Mobile-first responsive design
-- [x] Backend: getJobByCustomerToken + submitJobFeedback public procedures
-- [x] customerStatusToken generated on job creation (32-byte hex)
-- [x] SMS tracking link included in booking/completion notifications
-- [x] 263 vitest tests passing (28 test files)
-
-## Pay Now Button on Customer Job Status Page (Apr 2026)
-- [x] Added "Pay Now" CTA on /job/:token when paymentLinkToken exists — links to /pay/:token
-- [x] Backend: getJobByCustomerToken now returns paymentLinkToken from pending payment links
-- [x] Shows "Payment received — thank you!" when completed + no pending payment link + invoicedAmount set
-- [x] Fixed 2 TS errors (stage enum didn't include "paid" — replaced with compound condition)
-
-## Invoice Chasing Dashboard Widget (Apr 2026)
-- [x] Added chase summary widget to portal dashboard — active count, total outstanding $, escalated count
-- [x] Backend: invoiceChasing.summary procedure already existed — wired to dashboard UI
-- [x] Widget links to /portal/invoices for full chase management
-
-## Email Unsubscribe Compliance (Apr 2026)
-- [x] Added unsubscribe footer to all 3 chase email templates (friendly, follow-up, final notice)
-- [x] Built public /email/unsubscribe?token=... page (EmailUnsubscribe.tsx) + emailUnsubscribe mutation
-- [x] Added ensureEmailUnsubscribeToken helper (mirrors SMS pattern — 32-byte hex)
-- [x] Added optedOutEmail + emailUnsubscribeToken columns to tradieCustomers table
-- [x] Chase cron now skips opted-out customers before sending
-- [x] 17 invoice chasing tests (including 3 new: opt-out, unsubscribe URL, no-customer fallback)
-
-## Customer Photo Gallery on Job Status Page (Apr 2026)
-- [x] Photos grouped by before/during/after on /job/:token page with PhotoGallery component
-- [x] Backend: getJobByCustomerToken now returns photoType for each photo
-- [x] Lightbox overlay with prev/next navigation and keyboard support
-- [x] Mobile-friendly grid layout with stage headers
-- [x] 266 vitest tests passing (28 test files), 0 TS errors on clean build
-
-## Sprint Audit Review Session (Apr 18 2026)
-
-### Stale todo.md cleanup
-- [x] Marked 7 duplicate/stale sections as done (AI Invoice Chasing, Onboarding Email Sequence, Console Reporting, Milestone Tracker, App Store Submission, Voice-to-Quote Zod, UX Improvements)
-- [x] Confirmed job completion SMS to customer already built (updateJobStatus + markJobComplete)
-- [x] Confirmed annual Stripe pricing already built (stripeProducts.ts + stripe.ts)
-- [x] Confirmed auto-create job in quoted status already built (quotes.ts)
-- [x] Confirmed collapsible AI insights panel already built (PortalDashboard.tsx)
-- [x] Confirmed Quick Quote floating button already built (?record=1 param)
-- [x] Confirmed language selector in VoiceOnboarding already built
-
-### publicQuotes.accept refactor
-- [x] Replaced 130-line inline auto-invoice block with shared generateInvoiceForJob() + createAutoInvoiceChase() calls
-- [x] Consistent behaviour with markJobComplete auto-invoice path
-
-### Compliance doc integration tests
-- [x] Added _renderFn dependency injection parameter to generateComplianceDocument (avoids CJS mock issues)
-- [x] 14 vitest tests: all 4 doc types, prompt construction, JSON parsing, fallback behaviour, missing profile fields
-- [x] Tests run in 732ms (no hanging on real @react-pdf/renderer)
-
-### Final test count
-- [x] 280 vitest tests passing across 29 test files
-- [x] 0 TS errors on clean build
-
-### Still outstanding (from audit)
-- [x] Translated column headers in quote PDF line items table (Description, Qty, Unit Price, Total)
-- [x] App Store copy update to reflect 14-day free trial
-- [x] AndroidManifest.xml RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES permissions check
-- [x] Capacitor Android back button handler
-
-## Remaining Audit Items (Apr 18 2026)
-- [x] Translated PDF column headers in quote/invoice PDF line items table — QuoteProposalDocument.tsx now imports from shared pdfTranslations.ts; inline duplicate labels removed
-- [x] invoiceGenerator.ts now passes detectedLanguage from job record into pdfInput
-- [x] App Store copy update — PRICING section in both Apple + Google Play docs now says "14-day free trial — no credit card required"; release notes updated
-- [x] AndroidManifest.xml: RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES, POST_NOTIFICATIONS all documented in ANDROID_MIGRATION_SPEC.md (android/ dir not yet created — deferred per capacitor.config.ts)
-- [x] minSdkVersion = 24, targetSdkVersion = 34 documented in ANDROID_MIGRATION_SPEC.md
-- [x] Capacitor Android back button handler: code + package install instructions in ANDROID_MIGRATION_SPEC.md Section 4
-- [x] 280 vitest tests passing, 0 TS errors
-
-## Schema Gap Fix (Apr 18 2026)
-- [x] Identified 83 TS errors from stale tsc watch — root causes: (1) rtlStyle/rtlBoldStyle returning `object` instead of `Style`, (2) missing `portalJobs` import in publicQuotes.ts
-- [x] Added `@react-pdf/types` as devDependency — provides the `Style` type used by @react-pdf/renderer internally
-- [x] Fixed `pdfTranslations.ts` rtlStyle + rtlBoldStyle return types to `Style` (from `@react-pdf/types`)
-- [x] Fixed `publicQuotes.ts` — added `portalJobs` to schema import
-- [x] tsc --noEmit exits 0, 280 tests passing
-
-## Deep-Dive Audit Fixes (Apr 18 2026)
-
-- [x] **Bug: Quote accept/decline did not stop follow-up sequence** — `publicQuotes.ts` now immediately sets `quoteFollowUps.status = 'stopped'` on both accept and decline, eliminating the race condition with the daily cron
-- [x] **Bug: `markInvoicePaid` did not stop the invoice chase** — `portalJobs.ts` now finds the active `invoiceChases` row by `jobId + clientId` and sets it to `paid` when the tradie manually marks an invoice paid
-- [x] **Bug: Manual `generateInvoice` did not create an invoice chase** — `portalJobs.ts` now calls `createAutoInvoiceChase` after a manual invoice is sent to the customer (skipped for cash-paid invoices)
-- [x] **Bug: `customer.subscription.deleted` did not downgrade client package** — `stripe.ts` now calls `syncClientPackage` with `solvr_quotes` (setup-only) on cancellation and revokes all active portal sessions
-- [x] **Bug: Payment link paid did not stop the invoice chase** — `stripe.ts` `checkout.session.completed` handler now stops the `invoiceChases` row when a payment link is paid
-- [x] **QoL: Session expiry warning cron was too coarse (daily)** — changed from `0 23 * * *` to `0 0,6,12,18 * * *` (every 6 hours) so the 48h window is accurate to within 6 hours
-- [x] tsc --noEmit: 0 errors; 280/280 tests passing
-
-## Sprint 2 — Smart Job Board + Trade AI Assistant (Apr 18 2026)
-
-### Smart Job Board
-- [ ] Add `jobTasks` table to schema
-- [ ] Add `nextActionSuggestion` + `tasksGeneratedAt` columns to `portalJobs`
-- [ ] Run `pnpm db:push` for schema changes
-- [ ] Write `generateJobTaskTemplate` server function with pre-built trade templates
-- [ ] Write `portal.generateNextAction` procedure (cached LLM call)
-- [ ] Write `portal.jobTasks` CRUD procedures (list, create, update, reorder, delete)
-- [ ] Extend PortalJobs.tsx — task checklist inside job card (collapsible)
-- [ ] Add revenue-at-a-glance to Kanban column headers
-- [ ] Add next-action chip to job card, wire to actions
-- [ ] Add voice-to-task note modal (transcribe → extract tasks → add to job)
-- [ ] Wire AI template generation on job stage change to `booked`
-- [ ] Write vitest tests for template engine and next-action procedure
-
-### Trade AI Assistant
-- [ ] Add `portalChatMessages` table to schema
-- [ ] Run `pnpm db:push` for chat schema
-- [ ] Write trade knowledge blocks for 8 trades (plumber, electrician, builder, carpenter, tiler, HVAC, gasfitter, roofer)
-- [ ] Write `buildTradeAssistantContext(clientId)` function
-- [ ] Write `portal.chat` tRPC procedure (streaming, history, context injection)
-- [ ] Write tool-calling layer (generateDoc, lookupJob, draftEmail)
-- [ ] Create `PortalAssistant.tsx` page wired to AIChatBox
-- [ ] Add "AI Assistant" tab to portal navigation
-- [ ] Wire voice-to-document flow (transcribe → intent → confirm → generate)
-- [ ] Write vitest tests for context builder and tool handler
-
-## Product Audit Sprint — All 28 Items (Apr 18 2026)
-
-### Tier 1 — Blockers
-- [x] #1 Jobs page crash (hooks order violation in PortalJobs.tsx) — useMemo moved before early return
-- [x] #2 Login button misalignment — fixed button index
-- [x] #3 Customer database empty — 5 tradie_customers seeded from existing job data
-- [x] #4 Invoices page empty — 3 invoice_chases seeded (2 active, 1 paid)
-- [x] #5 AI Memory File stuck loading — confirmed transient (4s load), not broken
-- [x] #6 Schedule Mon–Fri empty — 10 shifts seeded across 2 staff members
-
-### Tier 2 — Quality of Life
-- [x] #7 Quote → Job navigation — getJobByQuoteId helper + linkedJobId in quotes.get + View Job button on quote detail
-- [x] #8 Job → Invoice button — already existed (full invoice section with generate/send/mark paid)
-- [x] #9 Quote PDF preview — already existed (generate PDF + open link)
-- [x] #10 Call → Quote shortcut — added "Convert to Quote" button on calls page
-- [x] #11 Call → Job shortcut — already existed
-- [x] #12 Empty state CTAs — all pages already have them
-- [x] #13 Mark as Paid on invoices — already existed (MarkPaidDialog)
-- [x] #14 Schedule → Job navigation — added View Job button in schedule entry detail dialog
-- [x] #15 Push notification for new calls — already fully built (Vapi webhook → Expo + Web Push)
-- [x] #16 Quick voice quote on mobile — already existed (New Quote modal + ?record=1 deep link)
-
-### Tier 3 — Automations
-- [x] #17 Quote follow-up SMS — already built (quoteFollowUp.ts cron)
-- [x] #18 Review request from job completion — already wired (markJobComplete → scheduleGoogleReviewRequest)
-- [x] #19 Licence expiry warning — NEW cron (licenceExpiryWarning.ts, daily 8am AEST, push notification)
-- [x] #20 Weekly revenue push — UPDATED (added sendPushToClient to existing weeklySummaryEmail.ts)
-- [x] #21 Idle job nudge — NEW cron (idleJobNudge.ts, daily 9am AEST, push for leads 5+ days old)
-- [x] #22 Stripe → package sync — already built (checkout.session.completed handler)
-
-### Tier 4 — Differentiators
-- [x] #23 Voice onboarding — already built (onboardingExtraction.ts, auto-generates Vapi prompt)
-- [x] #24 Multi-language voice-to-quote — already built (Whisper languageOverride parameter)
-- [x] #25 Before/after photos — already built (jobPhotos table, photoUpload router, full CRUD)
-- [x] #26 Customer portal link — already built (customerStatusToken, /job/:token public page)
-- [x] #27 Xero CSV export — NEW (exportXeroCsv procedure + Export to Xero button on invoices page)
-- [x] #28 AI job completion report — already built (generateCompletionReport, PDF, email, public view)
-
-### Final verification
-- [x] tsc --noEmit: 0 errors
-- [x] 280/280 vitest tests passing (29 test files)
-
-## Apple Reviewer Walkthrough (Apr 18 2026)
-- [x] Log in as apple.review@solvr.com.au on production domain (password reset applied)
-- [x] Verify Dashboard renders with seeded data
-- [x] Verify Jobs page (Kanban board, 8 jobs — GGGG deleted)
-- [x] Verify Quotes page
-- [x] Verify Schedule page (Mon-Fri shifts)
-- [x] Verify Invoices page (3 invoice chases)
-- [x] Verify Customers page (5 customers)
-- [x] Verify AI Assistant page
-- [x] Verify Calls page
-- [x] Verify Settings page
-
-## Sprint 1b — Price List CSV Import (Apr 18 2026)
-- [x] CSV parser (already built in priceList.ts)
-- [x] tRPC procedure: priceList.importCsv (already built)
-- [x] UI: Import CSV button on /portal/price-list (already built)
-- [x] Column mapping UI (already built)
-- [x] Duplicate detection (already built)
-- [x] Add vitest for CSV parser (already covered)
-
-## Comparison Landing Pages (Apr 18 2026)
-- [x] /vs/tradify comparison page (already built)
-- [x] /vs/servicem8 comparison page (already built)
-- [x] /vs/fergus comparison page (already built + /vs/simpro + /vs/buildxact)
-- [x] SEO meta tags for each page (already built)
-- [x] Link from main site footer/navigation (already built)
-
-## UX Rebuild Sprint — Tradie-First Navigation (Apr 18 2026)
-
-### Phase 1: Navigation Consolidation
-- [x] Consolidate into 5 primary tabs + More drawer (already done in prior sprint)
-- [x] Primary: Dashboard, Jobs, Calendar, Invoices, AI Assistant
-- [x] More drawer: Calls, Quotes, Customers, Compliance, Staff Roster, Staff, Reviews, Price List, Team, AI Insights
-- [x] Mobile bottom nav matches primary tabs + More button
-- [x] Desktop: More dropdown, mobile: swipe-down drawer with drag handle
-
-### Phase 2: What's Next Dashboard Card
-- [x] Build "What's Next" action card component for dashboard
-- [x] Query: quotes pending send, jobs needing invoicing, calls needing follow-up
-- [x] Display as prioritised action list with one-tap navigation
-
-### Phase 3: Job Detail Tabs
-- [x] Refactor PortalJobDetail.tsx from long scroll to tabbed layout
-- [x] Tabs: Overview | Money | Work (3-tab mobile-first layout)
-- [x] Progressive disclosure — show most important info first
-
-### Phase 3b: Mobile-First Polish
-- [x] Increase touch targets to 44px minimum on job detail tabs
-- [x] Stack client/job detail cards vertically on mobile (single column layout)
-- [x] Ensure tab bar is sticky and thumb-reachable (backdrop blur, z-30)
-- [x] Test all modals on 375px viewport (code audit: all shadcn Dialogs have max-w-[calc(100%-2rem)], all custom modals have p-4 wrapper)
-
-### Phase 4: Calendar Rename
-- [x] Primary tab already named "Calendar" → /portal/calendar (job calendar)
-- [x] Renamed PortalSchedule page title from "Schedule" to "Staff Roster"
-- [x] Calendar is already simplified for solo tradies (monthly grid, tap-to-view)
-- [x] Staff Roster accessible via More drawer for multi-staff accounts
-
-### Final Verification (Sprint 2)
-- [x] tsc --noEmit: 0 errors
-- [x] 280/280 vitest tests passing (29 test files)
-- [x] 375px viewport QA: all modals, grids, and touch targets verified mobile-safe
-
-## UX Sprint 3 — Workflow Consolidation & Native Feel (Apr 18 2026)
-
-### Merge Quotes into Jobs Page
-- [x] Add Quotes tab to PortalJobs page (Jobs | Quotes toggle)
-- [x] Extracted QuoteListContent component from PortalQuotes
-- [x] Lazy-loaded QuoteListContent inside Jobs page with Suspense
-- [x] Keep New Quote modal and voice-to-quote flow accessible from Jobs page
-- [x] Removed Quotes from More drawer in PortalLayout
-- [x] Redirect /portal/quotes to /portal/jobs?tab=quotes (PortalQuotes now a redirect)
-- [x] Updated all back-nav links: PortalQuoteDetail, PortalQuoteSettings, PortalDashboard, JobCard
-- [x] Keep PortalQuoteDetail as standalone page (deep link from quote rows)
-
-### Swipe Gestures on Job Detail Tabs
-- [x] Created useSwipe hook (client/src/hooks/useSwipe.ts)
-- [x] Converted Tabs to controlled mode (value + onValueChange)
-- [x] Swipe left/right switches between Overview · Money · Work
-- [x] Respects touch scroll vs swipe threshold (>50px horizontal, angle < 45°)
-
-### Haptic Feedback on Key Actions
-- [x] Created haptics utility (client/src/lib/haptics.ts) — 4 patterns: light, medium, success, warning
-- [x] hapticLight on job stage changes and field saves
-- [x] hapticSuccess on quote create, job add, mark complete, generate invoice, mark paid
-- [x] hapticMedium on progress payment recorded
-- [x] hapticWarning on payment removed, quote deleted
-- [x] Graceful try/catch fallback for browsers without vibration API
-
-### Final Verification (Sprint 3)
-- [x] tsc --noEmit: 0 errors
-- [x] 280/280 vitest tests passing (29 test files)
-
-## UX Sprint 4 — Native Feel: Pull-to-Refresh & Offline Support (Apr 18 2026)
-
-### Pull-to-Refresh
-- [x] Created usePullToRefresh hook (client/src/hooks/usePullToRefresh.ts) — touch gesture detection, 70px threshold
-- [x] Created PullToRefreshIndicator component (client/src/components/portal/PullToRefreshIndicator.tsx)
-- [x] Wired into PortalDashboard (refetch getDashboard + invoiceChasing + activationChecklist + referralStats)
-- [x] Wired into PortalJobs (refetch listJobs + quotes.list)
-- [x] Visual feedback: amber spinner + "Pull to refresh" / "Release to refresh" / "Refreshing..." states
-
-### Offline Indicator + Mutation Queue
-- [x] Created useOnlineStatus hook (client/src/hooks/useOnlineStatus.ts)
-- [x] Created OfflineBanner component (client/src/components/portal/OfflineBanner.tsx) — sticky, auto-shows/hides
-- [x] Created offlineQueue utility (client/src/lib/offlineQueue.ts) — localStorage-backed, prune stale
-- [x] Created useOfflineMutation hook (client/src/hooks/useOfflineMutation.ts) — wraps mutations with offline fallback
-- [x] Wired queue to key mutations: job field saves, mark complete, mark paid
-- [x] Show queued count in offline banner ("You're offline · 3 actions queued")
-- [x] Auto-replay queued mutations on reconnect with toast feedback + invalidate all portal queries
-- [x] Placed OfflineBanner in PortalLayout (visible on all portal pages)
-
-### Final Verification (Sprint 4)
-- [x] tsc --noEmit: 0 errors
-- [x] 280/280 vitest tests passing (29 test files)
-
-## UX Sprint 5 — Smart Job Board + Trade AI Assistant + E2E Test (Apr 18 2026)
-
-### Smart Job Board
-- [x] `jobTasks` table already in schema (id, jobId, clientId, title, notes, status, sortOrder, createdAt)
-- [x] `nextActionSuggestion` + `tasksGeneratedAt` columns already on `portalJobs`
-- [x] Schema already pushed
-- [x] `tradeTaskTemplates.ts` with 8 trade templates (plumber, electrician, builder, carpenter, tiler, HVAC, painter, landscaper)
-- [x] `jobTasks.getNextAction` procedure (LLM-based, 1-hour cache)
-- [x] Full `portalJobTasks` router: list, create, update, reorder, delete, generateFromTemplate, voiceToTasks, addVoiceTasks
-- [x] Auto-generate from trade template via "AI Tasks" button
-- [x] `JobTasksSection` component in Work tab (toggle complete, add, reorder, progress bar)
-- [x] Next-action amber chip on job detail
-- [x] Voice-to-tasks: record → transcribe → extract → confirm modal → add
-
-### Trade AI Assistant
-- [x] `portalChatMessages` table already in schema
-- [x] Schema already pushed
-- [x] 9 trade knowledge blocks (plumber, electrician, builder, bathroom_reno, carpenter, tiler, HVAC, gasfitter, roofer) with AU standards
-- [x] Business context injection (profile, active jobs, recent calls)
-- [x] `portalAssistant.chat` procedure with conversation history + streaming
-- [x] Tool-calling: GENERATE_DOC (SWMS, safety certs, JSA, site inductions) + CREATE_TASK
-- [x] PortalAssistant.tsx fully wired with voice input, suggested prompts, doc generation buttons
-- [x] Compliance document generation with PDF upload to S3
-
-### Pipeline E2E Integration Test
-- [x] Created `server/pipeline.e2e.test.ts` (vitest integration test, not Playwright — more reliable for CI/CD)
-- [x] Full pipeline test: call → quote → send → accept → job → stage progression → tasks → complete → invoice → chase → paid
-- [x] Reference integrity test: quote.callId → call.id, job.quoteId → quote.id, chase.jobId → job.id
-- [x] Incomplete tasks validation test (soft warning, not hard block)
-- [x] All 3 tests passing
-
-### IP Protection (Sprint 6)
-- [x] Created proprietary LICENSE file (all rights reserved, ClearPath AI Agency Pty Ltd)
-- [x] Added copyright headers to 89 source files (server routers, client pages, components, hooks, lib, schema)
-- [x] Verified Terms of Service page exists and is comprehensive (/terms)
-- [x] Verified Privacy Policy page exists and is Australian Privacy Act compliant (/privacy)
-- [x] Verified /terms and /privacy routes registered in App.tsx
-- [x] Updated footer copyright on all public pages to "© ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr."
-- [x] Created SOLVR Trademark & IP Protection Guide (solvr-trademark-guide.md) — covers ASIC registration, TM filing, Nice Classification, domain protection, brand usage guidelines
-- [x] Added copyright header to Privacy.tsx
-- [x] Restructured IP guide: ClearPath AI Agency Pty Ltd as dedicated IP holding company (subsidiary of Elevate Kids Holdings)
-- [x] Bulk-replaced all 89 source file references from Elevate Kids Holdings → ClearPath AI Agency
-- [x] Updated LICENSE file to reference ClearPath AI Agency Pty Ltd
-- [x] Updated Terms.tsx entity name to "ClearPath AI Agency Pty Ltd, trading as Solvr"
-
-### Custom Job Templates
-- [x] Added `jobTemplates` table to schema (id, clientId, name, tradeType, tasks JSON, isDefault, createdAt, updatedAt)
-- [x] Ran `pnpm db:push` — table created
-- [x] Full `portalJobTemplates` router: list, create, get, update, delete, saveFromJob, applyToJob
-- [x] "Save" button in JobTasksSection header (saves current tasks as reusable template)
-- [x] "Template" button in JobTasksSection header (opens template picker modal)
-- [x] TemplatePickerModal component: browse saved templates, preview tasks, one-tap apply, inline create
-- [x] applyToJob creates tasks from template with proper sort order
-
-### Final Verification (Sprint 5)
-- [x] tsc --noEmit: 0 errors (3 stale portalTeamMembers warnings — confirmed false positive)
-- [x] 283/283 vitest tests passing (30 test files)
-
-### Final Verification (Sprint 6)
-- [x] tsc --noEmit: 0 errors (3 stale portalTeamMembers warnings — confirmed false positive from watcher cache)
-- [x] 283/283 vitest tests passing (30 test files)
-- [x] Checkpoint saved
+- [ ] Job costing report (list, sorted by margin)
+
+### Polish & QoL (Low Priority)
+- [ ] Regenerate 6 Instagram posts with diamond circuit icon
+- [ ] Notification preferences toggle in portal settings
+- [ ] Default markup % per category on price list
+- [ ] Quote list: tappable rows, always-visible total + action buttons on mobile
+
+### Device Testing (Requires Physical Devices)
+- [ ] Verify deep link handling on Android (solvr.com.au/portal/* paths)
+- [ ] Confirm Android back button behaviour (navigate back, not exit)
+- [ ] Verify Capacitor Android permissions in AndroidManifest.xml
+- [ ] Confirm app does not use clipboard without user action (Play policy)

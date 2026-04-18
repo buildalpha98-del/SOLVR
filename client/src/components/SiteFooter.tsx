@@ -15,7 +15,7 @@ export default function SiteFooter() {
       links: [
         { label: "Voice Agent", href: "/voice-agent" },
         { label: "Free AI Audit", href: "/ai-audit" },
-        { label: "Pricing", href: "/#pricing" },
+        { label: "Pricing", href: "/pricing" },
         { label: "Book a Demo", href: "/#contact" },
       ],
     },
@@ -123,7 +123,7 @@ export default function SiteFooter() {
         {/* Divider */}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 24, display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", margin: 0 }}>
-            © {year} Solvr. ABN registered. All rights reserved.
+            © {year} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.
           </p>
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.25)", margin: 0 }}>
             hello@solvr.com.au · solvr.com.au
