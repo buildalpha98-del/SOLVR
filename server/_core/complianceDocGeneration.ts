@@ -304,7 +304,11 @@ Be specific and practical. Reference relevant Australian Standards. Use Australi
 
 export async function generateComplianceDocument(
   input: ComplianceDocInput,
+  // Optional override for the PDF render function — used in tests to avoid
+  // loading the real @react-pdf/renderer (which hangs in Node test environments)
+  _renderFn?: (element: React.ReactElement) => Promise<Buffer | Uint8Array>,
 ): Promise<ComplianceDocOutput> {
+  const renderFn = _renderFn ?? renderToBuffer;
   let prompt: string;
   switch (input.docType) {
     case "swms":
@@ -372,7 +376,7 @@ export async function generateComplianceDocument(
     },
   };
 
-  const pdfBuffer = await renderToBuffer(
+  const pdfBuffer = await renderFn(
     React.createElement(ComplianceDocumentPDF, { input: pdfInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>,
   );
 
