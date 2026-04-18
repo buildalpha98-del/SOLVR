@@ -529,7 +529,7 @@ export default function Services() {
             className="font-body text-xs"
             style={{ color: "rgba(255,255,255,0.4)" }}
           >
-            © {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.
+            © {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.
           </p>
           <div className="flex gap-6">
             <Link href="/terms">

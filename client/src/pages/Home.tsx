@@ -939,7 +939,7 @@ export default function Home() {
             <Link href="/portal/login"><span className="hover:text-white transition-colors cursor-pointer">Client Login</span></Link>
           </div>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-            © {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.
+            © {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.
           </p>
         </div>
       </footer>

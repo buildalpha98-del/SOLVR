@@ -668,7 +668,7 @@ export default function AiAudit() {
         <div className="container flex flex-col md:flex-row items-center justify-between gap-3">
           <img src={LOGO} alt="Solvr" className="h-7 object-contain" style={{ maxWidth: "130px" }} />
           <div className="flex flex-col items-center gap-2">
-            <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>© {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.</p>
+            <p className="font-body text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>© {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.</p>
             <div className="flex gap-4 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>
               <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>

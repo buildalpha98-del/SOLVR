@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2025-2026 Elevate Kids Holdings Pty Ltd. All rights reserved.
- * SOLVR is a trademark of Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626).
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
  * Unauthorised copying or distribution is strictly prohibited.
  *
  * Privacy Policy — Solvr
@@ -34,7 +34,7 @@ export default function Privacy() {
           <section>
             <h2 className="text-xl font-bold text-[#0F1F3D] mb-3">1. Our Commitment to Privacy</h2>
             <p>
-              Solvr ("we", "us", "our") is operated by Elevate Kids Holdings Pty Ltd (ABN {abn}). We are committed to protecting your personal information in accordance with the <em>Privacy Act 1988</em> (Cth) and the Australian Privacy Principles (APPs). This Privacy Policy explains how we collect, use, store, and disclose your personal information when you use our website at <strong>{website}</strong>, our mobile application, or engage our AI receptionist and quoting services.
+              Solvr ("we", "us", "our") is operated by ClearPath AI Agency Pty Ltd (ABN {abn}). We are committed to protecting your personal information in accordance with the <em>Privacy Act 1988</em> (Cth) and the Australian Privacy Principles (APPs). This Privacy Policy explains how we collect, use, store, and disclose your personal information when you use our website at <strong>{website}</strong>, our mobile application, or engage our AI receptionist and quoting services.
             </p>
           </section>
 

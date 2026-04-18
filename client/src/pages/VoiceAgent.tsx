@@ -1551,7 +1551,7 @@ export default function VoiceAgent() {
               className="font-body text-xs"
               style={{ color: "rgba(255,255,255,0.35)" }}
             >
-              © {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.
+              © {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.
             </p>
             <div className="flex gap-5 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>

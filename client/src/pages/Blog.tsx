@@ -222,7 +222,7 @@ export default function Blog() {
           ))}
         </div>
         <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
-          © {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.
+          © {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.
         </div>
       </footer>
     </div>

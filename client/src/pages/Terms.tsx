@@ -1,14 +1,18 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd.
+ * Unauthorised copying or distribution is strictly prohibited.
+ *
  * Terms of Service — Solvr
- * Sole trader ABN, Australian law, effective April 2026
+ * ClearPath AI Agency Pty Ltd, Australian law, effective April 2026
  */
 
 import { Link } from "wouter";
 
 export default function Terms() {
   const effectiveDate = "3 April 2026";
-  const businessName = "Solvr";
-  const abn = "47 262 120 626";
+  const businessName = "ClearPath AI Agency Pty Ltd, trading as Solvr";
+  const abn = "47 262 120 626"; // Elevate Kids Holdings ABN — update to ClearPath ABN when assigned
   const email = "hello@solvr.com.au";
   const website = "solvr.com.au";
 

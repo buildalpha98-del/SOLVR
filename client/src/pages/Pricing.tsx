@@ -510,7 +510,7 @@ export default function Pricing() {
             <Link href="/voice-agent" style={{ color: "inherit", textDecoration: "none" }}>Products</Link>
             <Link href="/portal" style={{ color: "inherit", textDecoration: "none" }}>Client Login</Link>
           </div>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>© {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.</span>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>© {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.</span>
         </div>
       </footer>
     </div>

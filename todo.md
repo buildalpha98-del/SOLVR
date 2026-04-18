@@ -1108,14 +1108,18 @@
 - [x] All 3 tests passing
 
 ### IP Protection (Sprint 6)
-- [x] Created proprietary LICENSE file (all rights reserved, Elevate Kids Holdings Pty Ltd)
-- [x] Added copyright headers to 80+ source files (server routers, client pages, components, hooks, lib, schema)
+- [x] Created proprietary LICENSE file (all rights reserved, ClearPath AI Agency Pty Ltd)
+- [x] Added copyright headers to 89 source files (server routers, client pages, components, hooks, lib, schema)
 - [x] Verified Terms of Service page exists and is comprehensive (/terms)
 - [x] Verified Privacy Policy page exists and is Australian Privacy Act compliant (/privacy)
 - [x] Verified /terms and /privacy routes registered in App.tsx
-- [x] Updated footer copyright on all public pages to "© Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr."
-- [x] Created SOLVR Trademark & IP Protection Guide (solvr-trademark-guide.md) — covers TM registration, Nice Classification, domain protection, brand usage guidelines
+- [x] Updated footer copyright on all public pages to "© ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr."
+- [x] Created SOLVR Trademark & IP Protection Guide (solvr-trademark-guide.md) — covers ASIC registration, TM filing, Nice Classification, domain protection, brand usage guidelines
 - [x] Added copyright header to Privacy.tsx
+- [x] Restructured IP guide: ClearPath AI Agency Pty Ltd as dedicated IP holding company (subsidiary of Elevate Kids Holdings)
+- [x] Bulk-replaced all 89 source file references from Elevate Kids Holdings → ClearPath AI Agency
+- [x] Updated LICENSE file to reference ClearPath AI Agency Pty Ltd
+- [x] Updated Terms.tsx entity name to "ClearPath AI Agency Pty Ltd, trading as Solvr"
 
 ### Custom Job Templates
 - [x] Added `jobTemplates` table to schema (id, clientId, name, tradeType, tasks JSON, isDefault, createdAt, updatedAt)
