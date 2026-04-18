@@ -3,26 +3,46 @@
  *
  * We test runInvoiceChasingCron by mocking DB, email, SMS, push, and notifyOwner.
  * Covers: chase stages 1/2/3, escalation at 21+ days, SMS gating, push notifications,
- * email failure resilience, and skipping when chaseCount > 3.
+ * email failure resilience, skipping when chaseCount > 3, email opt-out, and unsubscribe URL.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-const mockSelect = vi.fn();
-const mockFrom = vi.fn();
-const mockWhere = vi.fn();
+const mockChaseWhere = vi.fn(); // for the main invoice_chases query
+const mockCustomerWhere = vi.fn(); // for the tradieCustomers lookup
 const mockUpdate = vi.fn();
 const mockSet = vi.fn();
 const mockSetWhere = vi.fn();
+let selectCallCount = 0;
 
+// Build a mock DB that uses call-count to route:
+// 1st select() per cron run = chase query (leftJoin chain)
+// 2nd+ select() per cron run = customer lookup (simple where chain)
 const mockDb = {
-  select: mockSelect,
+  select: vi.fn().mockImplementation(() => ({
+    from: vi.fn().mockImplementation(() => {
+      selectCallCount++;
+      if (selectCallCount === 1) {
+        // First call: invoiceChases join chain
+        return {
+          leftJoin: vi.fn().mockReturnValue({
+            leftJoin: vi.fn().mockReturnValue({
+              where: mockChaseWhere,
+            }),
+          }),
+        };
+      }
+      // Subsequent calls: tradieCustomers simple where chain
+      return { where: mockCustomerWhere };
+    }),
+  })),
   update: mockUpdate,
 };
 
 vi.mock("../server/db", () => ({
   getDb: vi.fn(() => Promise.resolve(mockDb)),
+  ensureEmailUnsubscribeToken: vi.fn(() => Promise.resolve("mock-unsub-token-abc123")),
 }));
 
 // Mock sendEmail
@@ -63,7 +83,7 @@ vi.mock("drizzle-orm", () => ({
   lte: vi.fn((...args: unknown[]) => ({ type: "lte", args })),
 }));
 
-// Mock schema tables
+// Mock schema tables — tradieCustomers needs a recognisable reference for the from() router
 vi.mock("../../drizzle/schema", () => ({
   invoiceChases: {
     id: "id",
@@ -93,6 +113,7 @@ vi.mock("../../drizzle/schema", () => ({
     email: "email",
     tradingName: "tradingName",
   },
+  tradieCustomers: "tradieCustomers_table", // sentinel value for from() routing
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -140,9 +161,7 @@ function makeChaseRow(overrides: Record<string, unknown> = {}) {
 describe("invoiceChasing cron", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default chain: select → from → leftJoin → leftJoin → where
-    mockSelect.mockReturnValue({ from: mockFrom });
-    mockFrom.mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ where: mockWhere }) }) });
+    selectCallCount = 0;
     mockUpdate.mockReturnValue({ set: mockSet });
     mockSet.mockReturnValue({ where: mockSetWhere });
     mockSetWhere.mockResolvedValue(undefined);
@@ -150,10 +169,12 @@ describe("invoiceChasing cron", () => {
     mockSendSms.mockResolvedValue({ success: true, sid: "SM123" });
     mockNotifyOwner.mockResolvedValue(true);
     mockSendExpoPush.mockResolvedValue(undefined);
+    // Default: customer not opted out
+    mockCustomerWhere.mockResolvedValue([{ optedOutEmail: false, id: 42 }]);
   });
 
   it("returns early when no due chases found", async () => {
-    mockWhere.mockResolvedValueOnce([]);
+    mockChaseWhere.mockResolvedValueOnce([]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -165,7 +186,7 @@ describe("invoiceChasing cron", () => {
 
   it("sends email only on chase #1 (day 1)", async () => {
     const row = makeChaseRow({ chaseCount: 0, dueDate: daysAgo(1) });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -191,7 +212,7 @@ describe("invoiceChasing cron", () => {
 
   it("sends email + SMS on chase #2 (day 7)", async () => {
     const row = makeChaseRow({ chaseCount: 1, dueDate: daysAgo(7) });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -216,7 +237,7 @@ describe("invoiceChasing cron", () => {
 
   it("sends email + SMS on chase #3 (day 14) — final notice", async () => {
     const row = makeChaseRow({ chaseCount: 2, dueDate: daysAgo(14) });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -240,7 +261,7 @@ describe("invoiceChasing cron", () => {
 
   it("escalates at 21+ days with chaseCount >= 3 — notifies owner, no email/SMS", async () => {
     const row = makeChaseRow({ chaseCount: 3, dueDate: daysAgo(22) });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -270,7 +291,7 @@ describe("invoiceChasing cron", () => {
       dueDate: daysAgo(25),
       client: { pushToken: "ExponentPushToken[abc123]" },
     });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -289,7 +310,7 @@ describe("invoiceChasing cron", () => {
       dueDate: daysAgo(1),
       client: { pushToken: "ExponentPushToken[xyz789]" },
     });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -308,7 +329,7 @@ describe("invoiceChasing cron", () => {
     });
     // Override the chase's customerPhone
     row.chase.customerPhone = null;
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -322,7 +343,7 @@ describe("invoiceChasing cron", () => {
   it("continues to SMS even when email fails", async () => {
     mockSendEmail.mockResolvedValueOnce({ success: false, error: "SMTP timeout" });
     const row = makeChaseRow({ chaseCount: 1, dueDate: daysAgo(7) });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -338,7 +359,7 @@ describe("invoiceChasing cron", () => {
   it("skips rows where client.id is null (orphaned chase)", async () => {
     const row = makeChaseRow();
     row.client.id = null as unknown as number;
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -350,7 +371,7 @@ describe("invoiceChasing cron", () => {
   it("skips when chaseCount already exceeds 3 (sequence complete)", async () => {
     // chaseCount = 4, daysSinceDue < 21 → nextChaseCount would be 5, should skip
     const row = makeChaseRow({ chaseCount: 4, dueDate: daysAgo(15) });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -363,7 +384,7 @@ describe("invoiceChasing cron", () => {
   it("calculates correct nextChaseAt intervals (6 days after chase #1, 7 days after #2/#3)", async () => {
     // Chase #1 (chaseCount 0 → 1): next should be +6 days
     const row1 = makeChaseRow({ chaseCount: 0, dueDate: daysAgo(1) });
-    mockWhere.mockResolvedValueOnce([row1]);
+    mockChaseWhere.mockResolvedValueOnce([row1]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -380,7 +401,7 @@ describe("invoiceChasing cron", () => {
       dueDate: daysAgo(1),
       profile: { tradingName: "Super Plumbers Pty Ltd", replyToEmail: "info@superplumbers.com.au" },
     });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
@@ -396,12 +417,57 @@ describe("invoiceChasing cron", () => {
       dueDate: daysAgo(1),
       profile: { tradingName: null, replyToEmail: null },
     });
-    mockWhere.mockResolvedValueOnce([row]);
+    mockChaseWhere.mockResolvedValueOnce([row]);
 
     const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
     await runInvoiceChasingCron();
 
     const emailCall = mockSendEmail.mock.calls[0][0];
     expect(emailCall.fromName).toBe("Acme Plumbing");
+  });
+
+  it("skips chase email when customer has opted out of emails", async () => {
+    const row = makeChaseRow({ chaseCount: 0, dueDate: daysAgo(1) });
+    mockChaseWhere.mockResolvedValueOnce([row]);
+    // Customer opted out
+    mockCustomerWhere.mockResolvedValueOnce([{ optedOutEmail: true, id: 42 }]);
+
+    const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
+    await runInvoiceChasingCron();
+
+    // No email or SMS sent
+    expect(mockSendEmail).not.toHaveBeenCalled();
+    expect(mockSendSms).not.toHaveBeenCalled();
+    // DB not updated (chase skipped entirely)
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  it("includes unsubscribe URL in chase emails when customer found", async () => {
+    const row = makeChaseRow({ chaseCount: 0, dueDate: daysAgo(1) });
+    mockChaseWhere.mockResolvedValueOnce([row]);
+    mockCustomerWhere.mockResolvedValueOnce([{ optedOutEmail: false, id: 42 }]);
+
+    const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
+    await runInvoiceChasingCron();
+
+    expect(mockSendEmail).toHaveBeenCalledTimes(1);
+    const emailHtml = mockSendEmail.mock.calls[0][0].html;
+    expect(emailHtml).toContain("Unsubscribe");
+    expect(emailHtml).toContain("/email/unsubscribe?token=mock-unsub-token-abc123");
+  });
+
+  it("still sends chase email without unsubscribe link when customer not found in DB", async () => {
+    const row = makeChaseRow({ chaseCount: 0, dueDate: daysAgo(1) });
+    mockChaseWhere.mockResolvedValueOnce([row]);
+    // No matching customer record
+    mockCustomerWhere.mockResolvedValueOnce([]);
+
+    const { runInvoiceChasingCron } = await import("./cron/invoiceChasing");
+    await runInvoiceChasingCron();
+
+    // Email still sent (just without unsubscribe link)
+    expect(mockSendEmail).toHaveBeenCalledTimes(1);
+    const emailHtml = mockSendEmail.mock.calls[0][0].html;
+    expect(emailHtml).not.toContain("Unsubscribe");
   });
 });

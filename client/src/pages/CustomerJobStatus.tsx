@@ -22,6 +22,9 @@ import {
   ThumbsDown,
   Star,
   ExternalLink,
+  CreditCard,
+  Camera,
+  X,
 } from "lucide-react";
 
 // ── Stage display config ──────────────────────────────────────────────────────
@@ -218,6 +221,145 @@ function FeedbackWidget({
   );
 }
 
+// ── Photo Gallery with before/during/after grouping + lightbox ───────────────
+const PHOTO_STAGE_ORDER = ["before", "during", "after", "other"] as const;
+const PHOTO_STAGE_LABELS: Record<string, { label: string; icon: React.ReactNode; colour: string }> = {
+  before: { label: "Before", icon: <Camera className="w-3.5 h-3.5" />, colour: "text-blue-600 bg-blue-50 border-blue-200" },
+  during: { label: "During", icon: <Wrench className="w-3.5 h-3.5" />, colour: "text-orange-600 bg-orange-50 border-orange-200" },
+  after:  { label: "After",  icon: <CheckCircle2 className="w-3.5 h-3.5" />, colour: "text-green-600 bg-green-50 border-green-200" },
+  other:  { label: "Photos", icon: <ImageIcon className="w-3.5 h-3.5" />, colour: "text-gray-600 bg-gray-50 border-gray-200" },
+};
+
+function PhotoGallery({ photos }: { photos: Array<{ id: string; url: string; caption: string | null; photoType: string }> }) {
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  // Group photos by stage
+  const grouped = PHOTO_STAGE_ORDER.reduce<Record<string, typeof photos>>((acc, stage) => {
+    const stagePhotos = photos.filter(p => p.photoType === stage);
+    if (stagePhotos.length > 0) acc[stage] = stagePhotos;
+    return acc;
+  }, {});
+
+  // Flat list for lightbox navigation
+  const allPhotos = PHOTO_STAGE_ORDER.flatMap(s => grouped[s] ?? []);
+
+  // If only one stage, skip the grouping headers
+  const stages = Object.keys(grouped);
+  const singleStage = stages.length === 1;
+
+  return (
+    <>
+      <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Camera className="w-4 h-4 text-gray-400" />
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            Job Photos ({photos.length})
+          </p>
+        </div>
+
+        {singleStage ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {allPhotos.map((photo, idx) => (
+              <button
+                key={photo.id}
+                onClick={() => setLightboxIdx(idx)}
+                className="block rounded-lg overflow-hidden aspect-square bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <img
+                  src={photo.url}
+                  alt={photo.caption ?? "Job photo"}
+                  className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {PHOTO_STAGE_ORDER.map(stage => {
+              const stagePhotos = grouped[stage];
+              if (!stagePhotos) return null;
+              const config = PHOTO_STAGE_LABELS[stage];
+              return (
+                <div key={stage}>
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border mb-2 ${config.colour}`}>
+                    {config.icon}
+                    {config.label}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {stagePhotos.map(photo => {
+                      const flatIdx = allPhotos.findIndex(p => p.id === photo.id);
+                      return (
+                        <button
+                          key={photo.id}
+                          onClick={() => setLightboxIdx(flatIdx)}
+                          className="block rounded-lg overflow-hidden aspect-square bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.caption ?? `${config.label} photo`}
+                            className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox overlay */}
+      {lightboxIdx !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightboxIdx(null)}
+        >
+          <button
+            onClick={() => setLightboxIdx(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Prev / Next arrows */}
+          {lightboxIdx > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl font-bold transition-colors z-10"
+            >
+              ‹
+            </button>
+          )}
+          {lightboxIdx < allPhotos.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl font-bold transition-colors z-10"
+            >
+              ›
+            </button>
+          )}
+
+          <div className="max-w-4xl max-h-[85vh] px-4" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={allPhotos[lightboxIdx].url}
+              alt={allPhotos[lightboxIdx].caption ?? "Job photo"}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+            {allPhotos[lightboxIdx].caption && (
+              <p className="text-white/70 text-sm text-center mt-3">{allPhotos[lightboxIdx].caption}</p>
+            )}
+            <p className="text-white/40 text-xs text-center mt-1">
+              {lightboxIdx + 1} / {allPhotos.length}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function CustomerJobStatus() {
   const params = useParams<{ token: string }>();
@@ -393,7 +535,7 @@ export default function CustomerJobStatus() {
           )}
         </div>
 
-        {/* Invoice */}
+        {/* Invoice + Pay Now */}
         {(job.invoicedAmount || job.invoicePdfUrl) && (
           <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Invoice</p>
@@ -406,18 +548,36 @@ export default function CustomerJobStatus() {
                   </p>
                 </div>
               )}
-              {job.invoicePdfUrl && (
-                <a
-                  href={job.invoicePdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-amber-400 hover:bg-amber-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  View Invoice
-                </a>
-              )}
+              <div className="flex items-center gap-2">
+                {job.invoicePdfUrl && (
+                  <a
+                    href={job.invoicePdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Invoice
+                  </a>
+                )}
+              </div>
             </div>
+            {/* Pay Now CTA — only when there's a pending payment link */}
+            {job.paymentLinkToken && (
+              <a
+                href={`/pay/${job.paymentLinkToken}`}
+                className="flex items-center justify-center gap-2 w-full mt-4 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-3.5 rounded-xl transition-colors"
+              >
+                <CreditCard className="w-5 h-5" />
+                Pay Now — ${job.invoicedAmount ? (job.invoicedAmount / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 }) : ""}
+              </a>
+            )}
+            {job.stage === "completed" && !job.paymentLinkToken && job.invoicedAmount && (
+              <div className="flex items-center gap-2 mt-4 bg-green-50 text-green-700 text-sm font-semibold px-4 py-3 rounded-xl">
+                <CheckCircle2 className="w-5 h-5" />
+                Payment received — thank you!
+              </div>
+            )}
           </div>
         )}
 
@@ -437,33 +597,9 @@ export default function CustomerJobStatus() {
           </div>
         )}
 
-        {/* Photos */}
+        {/* Photos — grouped by stage (before / during / after) */}
         {job.photos.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
-            <div className="flex items-center gap-2 mb-3">
-              <ImageIcon className="w-4 h-4 text-gray-400" />
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Job Photos ({job.photos.length})
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {job.photos.map((photo) => (
-                <a
-                  key={photo.id}
-                  href={photo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-lg overflow-hidden aspect-square bg-gray-100"
-                >
-                  <img
-                    src={photo.url}
-                    alt={photo.caption ?? "Job photo"}
-                    className="w-full h-full object-cover hover:opacity-90 transition-opacity"
-                  />
-                </a>
-              ))}
-            </div>
-          </div>
+          <PhotoGallery photos={job.photos} />
         )}
 
         {/* ── Feedback widget (only shown when job is completed/invoiced/paid) ── */}

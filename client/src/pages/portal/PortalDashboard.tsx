@@ -459,6 +459,12 @@ export default function PortalDashboard() {
     onSuccess: () => utils.portal.getActivationChecklist.invalidate(),
   });
 
+  // Invoice chasing summary (for dashboard widget)
+  const { data: chaseStats } = trpc.invoiceChasing.summary.useQuery(undefined, {
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
   // Referral programme
   const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, { staleTime: Infinity });
   const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
@@ -827,6 +833,59 @@ export default function PortalDashboard() {
                       ${data.avgJobValue.toLocaleString()}
                     </div>
                     <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Avg job value</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Invoice Chasing Widget */}
+            {features.includes("jobs") && chaseStats && (chaseStats.activeCount > 0 || chaseStats.escalatedCount > 0 || chaseStats.paidCount30d > 0) && (
+              <div
+                className="rounded-xl p-5"
+                style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" style={{ color: "#F5A623" }} />
+                    <h2 className="text-sm font-semibold text-white">Invoice Chasing</h2>
+                  </div>
+                  <Link href="/portal/invoices">
+                    <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
+                      View all <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </Link>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold" style={{ color: "#F5A623" }}>
+                      {chaseStats.activeCount}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Active chases</div>
+                    {Number(chaseStats.totalOutstanding) > 0 && (
+                      <div className="text-[10px] mt-0.5" style={{ color: "rgba(245,166,35,0.6)" }}>
+                        ${Number(chaseStats.totalOutstanding).toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} outstanding
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${chaseStats.escalatedCount > 0 ? "text-red-400" : "text-white"}`}>
+                      {chaseStats.escalatedCount}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Escalated</div>
+                    {chaseStats.escalatedCount > 0 && (
+                      <div className="text-[10px] mt-0.5 text-red-400/60">Needs attention</div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-400">
+                      {chaseStats.paidCount30d}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Paid (30d)</div>
+                    {Number(chaseStats.totalCollected30d) > 0 && (
+                      <div className="text-[10px] mt-0.5 text-green-400/60">
+                        ${Number(chaseStats.totalCollected30d).toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} collected
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

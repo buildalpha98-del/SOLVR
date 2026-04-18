@@ -27,6 +27,8 @@ import {
   ensureSmsUnsubscribeToken,
   getTradieCustomerByUnsubscribeToken,
   optOutCustomerSms,
+  getTradieCustomerByEmailUnsubscribeToken,
+  optOutCustomerEmail,
   getFailedCampaignRecipients,
   getSmsCampaignById,
   listSmsTemplates as dbListSmsTemplates,
@@ -249,6 +251,24 @@ export const portalCustomersRouter = router({
         return { success: true, name: customer.name, alreadyOptedOut: true };
       }
       await optOutCustomerSms(customer.id);
+      return { success: true, name: customer.name, alreadyOptedOut: false };
+    }),
+
+  /**
+   * Email unsubscribe — public, no auth.
+   * Accessed via /email/unsubscribe?token=<hex>
+   */
+  emailUnsubscribe: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const customer = await getTradieCustomerByEmailUnsubscribeToken(input.token);
+      if (!customer) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Invalid or expired unsubscribe link" });
+      }
+      if (customer.optedOutEmail) {
+        return { success: true, name: customer.name, alreadyOptedOut: true };
+      }
+      await optOutCustomerEmail(customer.id);
       return { success: true, name: customer.name, alreadyOptedOut: false };
     }),
 

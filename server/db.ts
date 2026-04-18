@@ -1953,7 +1953,25 @@ export async function ensureSmsUnsubscribeToken(customerId: number): Promise<str
 }
 
 /**
- * Look up a customer by their unsubscribe token.
+ * Ensure a tradie customer has an email unsubscribe token. Creates one if missing.
+ */
+export async function ensureEmailUnsubscribeToken(customerId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ token: tradieCustomers.emailUnsubscribeToken })
+    .from(tradieCustomers)
+    .where(eq(tradieCustomers.id, customerId));
+  if (rows[0]?.token) return rows[0].token;
+  const { randomBytes } = await import("crypto");
+  const token = randomBytes(32).toString("hex");
+  await db.update(tradieCustomers)
+    .set({ emailUnsubscribeToken: token })
+    .where(eq(tradieCustomers.id, customerId));
+  return token;
+}
+
+/**
+ * Look up a customer by their SMS unsubscribe token.
  */
 export async function getTradieCustomerByUnsubscribeToken(
   token: string,
@@ -1973,6 +1991,30 @@ export async function optOutCustomerSms(customerId: number): Promise<void> {
   if (!db) throw new Error("Database not available");
   await db.update(tradieCustomers)
     .set({ optedOutSms: true })
+    .where(eq(tradieCustomers.id, customerId));
+}
+
+/**
+ * Look up a tradie customer by their email unsubscribe token.
+ */
+export async function getTradieCustomerByEmailUnsubscribeToken(
+  token: string,
+): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(tradieCustomers)
+    .where(eq(tradieCustomers.emailUnsubscribeToken, token));
+  return rows[0] ?? null;
+}
+
+/**
+ * Mark a tradie customer as opted out of chase/marketing emails.
+ */
+export async function optOutCustomerEmail(customerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tradieCustomers)
+    .set({ optedOutEmail: true })
     .where(eq(tradieCustomers.id, customerId));
 }
 

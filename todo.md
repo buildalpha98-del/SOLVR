@@ -807,3 +807,29 @@
 - [x] customerStatusToken generated on job creation (32-byte hex)
 - [x] SMS tracking link included in booking/completion notifications
 - [x] 263 vitest tests passing (28 test files)
+
+## Pay Now Button on Customer Job Status Page (Apr 2026)
+- [x] Added "Pay Now" CTA on /job/:token when paymentLinkToken exists — links to /pay/:token
+- [x] Backend: getJobByCustomerToken now returns paymentLinkToken from pending payment links
+- [x] Shows "Payment received — thank you!" when completed + no pending payment link + invoicedAmount set
+- [x] Fixed 2 TS errors (stage enum didn't include "paid" — replaced with compound condition)
+
+## Invoice Chasing Dashboard Widget (Apr 2026)
+- [x] Added chase summary widget to portal dashboard — active count, total outstanding $, escalated count
+- [x] Backend: invoiceChasing.summary procedure already existed — wired to dashboard UI
+- [x] Widget links to /portal/invoices for full chase management
+
+## Email Unsubscribe Compliance (Apr 2026)
+- [x] Added unsubscribe footer to all 3 chase email templates (friendly, follow-up, final notice)
+- [x] Built public /email/unsubscribe?token=... page (EmailUnsubscribe.tsx) + emailUnsubscribe mutation
+- [x] Added ensureEmailUnsubscribeToken helper (mirrors SMS pattern — 32-byte hex)
+- [x] Added optedOutEmail + emailUnsubscribeToken columns to tradieCustomers table
+- [x] Chase cron now skips opted-out customers before sending
+- [x] 17 invoice chasing tests (including 3 new: opt-out, unsubscribe URL, no-customer fallback)
+
+## Customer Photo Gallery on Job Status Page (Apr 2026)
+- [x] Photos grouped by before/during/after on /job/:token page with PhotoGallery component
+- [x] Backend: getJobByCustomerToken now returns photoType for each photo
+- [x] Lightbox overlay with prev/next navigation and keyboard support
+- [x] Mobile-friendly grid layout with stage headers
+- [x] 266 vitest tests passing (28 test files), 0 TS errors on clean build

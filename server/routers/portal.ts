@@ -59,7 +59,7 @@ import {
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import Stripe from "stripe";
-import { getPaymentLinkByToken, updatePaymentLink } from "../db";
+import { getPaymentLinkByToken, getPaymentLinkByJobId, updatePaymentLink } from "../db";
 import {
   createComplianceDocument,
   getComplianceDocument,
@@ -2421,6 +2421,9 @@ export const portalRouter = router({
       // Fetch tradie profile for contact details
       const profile = await getClientProfile(job.clientId);
 
+      // Fetch pending payment link (if any) so customer can pay from status page
+      const pendingPaymentLink = await getPaymentLinkByJobId(job.id);
+
       return {
         id: job.id,
         jobType: job.jobType,
@@ -2434,7 +2437,7 @@ export const portalRouter = router({
         invoicedAmount: job.invoicedAmount,
         invoicePdfUrl: job.invoicePdfUrl,
         completionReportUrl: job.completionReportUrl,
-        photos: photos.map(p => ({ id: p.id, url: p.imageUrl, caption: p.caption, takenAt: p.createdAt })),
+        photos: photos.map(p => ({ id: p.id, url: p.imageUrl, caption: p.caption, photoType: p.photoType, takenAt: p.createdAt })),
         tradie: {
           tradingName: profile?.tradingName ?? null,
           phone: profile?.phone ?? null,
@@ -2443,6 +2446,8 @@ export const portalRouter = router({
         },
         // Include existing feedback if any
         feedback: await getJobFeedback(job.id).then(f => f ? { positive: f.positive, comment: f.comment } : null),
+        // Payment link token for "Pay Now" button (only when pending)
+        paymentLinkToken: pendingPaymentLink?.token ?? null,
       };
     }),
 

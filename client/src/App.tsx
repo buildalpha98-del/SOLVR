@@ -109,6 +109,7 @@ import PublicCompletionReport from "./pages/PublicCompletionReport";
 import PaymentLink from "./pages/PaymentLink";
 import CustomerJobStatus from "./pages/CustomerJobStatus";
 import SmsUnsubscribe from "./pages/SmsUnsubscribe";
+import EmailUnsubscribe from "./pages/EmailUnsubscribe";
 
 function Router() {
   return (
@@ -236,8 +237,11 @@ function Router() {
       {/* SMS payment link public page */}
       <Route path="/pay/:token" component={PaymentLink} />
 
-      {/* ── SMS opt-out (public, no auth) ─────────────────────────────────── */}
+      {/* ── SMS opt-out (public, no auth) ───────────────────────────────── */}
       <Route path="/sms/unsubscribe" component={SmsUnsubscribe} />
+
+      {/* ── Email opt-out (public, no auth) ─────────────────────────────── */}
+      <Route path="/email/unsubscribe" component={EmailUnsubscribe} />
 
       {/* ── Fallback ──────────────────────────────────────────────────────── */}
       <Route path="/404" component={NotFound} />

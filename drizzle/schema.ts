@@ -1188,6 +1188,10 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   optedOutSms: boolean("optedOutSms").default(false).notNull(),
   /** Unique token used in the public /sms/unsubscribe?token=xxx URL */
   smsUnsubscribeToken: varchar("smsUnsubscribeToken", { length: 64 }),
+  /** Whether this customer has opted out of chase/marketing emails */
+  optedOutEmail: boolean("optedOutEmail").default(false).notNull(),
+  /** Unique token used in the public /email/unsubscribe?token=xxx URL */
+  emailUnsubscribeToken: varchar("emailUnsubscribeToken", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
