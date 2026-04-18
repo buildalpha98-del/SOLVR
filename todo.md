@@ -959,3 +959,30 @@
 ### Final verification
 - [x] tsc --noEmit: 0 errors
 - [x] 280/280 vitest tests passing (29 test files)
+
+## Apple Reviewer Walkthrough (Apr 18 2026)
+- [x] Log in as apple.review@solvr.com.au on production domain (password reset applied)
+- [x] Verify Dashboard renders with seeded data
+- [x] Verify Jobs page (Kanban board, 8 jobs — GGGG deleted)
+- [x] Verify Quotes page
+- [x] Verify Schedule page (Mon-Fri shifts)
+- [x] Verify Invoices page (3 invoice chases)
+- [x] Verify Customers page (5 customers)
+- [x] Verify AI Assistant page
+- [x] Verify Calls page
+- [x] Verify Settings page
+
+## Sprint 1b — Price List CSV Import (Apr 18 2026)
+- [x] CSV parser (already built in priceList.ts)
+- [x] tRPC procedure: priceList.importCsv (already built)
+- [x] UI: Import CSV button on /portal/price-list (already built)
+- [x] Column mapping UI (already built)
+- [x] Duplicate detection (already built)
+- [x] Add vitest for CSV parser (already covered)
+
+## Comparison Landing Pages (Apr 18 2026)
+- [x] /vs/tradify comparison page (already built)
+- [x] /vs/servicem8 comparison page (already built)
+- [x] /vs/fergus comparison page (already built + /vs/simpro + /vs/buildxact)
+- [x] SEO meta tags for each page (already built)
+- [x] Link from main site footer/navigation (already built)
