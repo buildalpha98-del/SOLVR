@@ -55,7 +55,7 @@ WHO IS SOLVR FOR?
 Solvr is built for Australian trade businesses: plumbers, electricians, builders, carpenters, HVAC technicians, and other field service operators.
 
 PRICING
-Solvr is a subscription service. Plans start from $99/month. A free trial is available. See solvr.com.au/pricing for details.
+Solvr is a subscription service. Plans start from $99/month. All new accounts include a 14-day free trial — no credit card required to start. See solvr.com.au/pricing for details.
 
 PRIVACY
 Solvr is operated by Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626). We comply with the Australian Privacy Act 1988. See solvr.com.au/privacy for our full Privacy Policy.
@@ -234,6 +234,8 @@ Complete the age rating questionnaire with these answers:
 ### Version 1.0.0
 ```
 🚀 Solvr is here — the AI receptionist and quote engine built for Australian tradies.
+
+🎁 14-day free trial — no credit card required.
 
 • AI Receptionist: Never miss a call again
 • Voice-to-Quote: Professional quotes from a voice note

@@ -859,7 +859,16 @@
 - [x] 0 TS errors on clean build
 
 ### Still outstanding (from audit)
-- [ ] Translated column headers in quote PDF line items table (Description, Qty, Unit Price, Total)
-- [ ] App Store copy update to reflect 14-day free trial
-- [ ] AndroidManifest.xml RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES permissions check
-- [ ] Capacitor Android back button handler
+- [x] Translated column headers in quote PDF line items table (Description, Qty, Unit Price, Total)
+- [x] App Store copy update to reflect 14-day free trial
+- [x] AndroidManifest.xml RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES permissions check
+- [x] Capacitor Android back button handler
+
+## Remaining Audit Items (Apr 18 2026)
+- [x] Translated PDF column headers in quote/invoice PDF line items table — QuoteProposalDocument.tsx now imports from shared pdfTranslations.ts; inline duplicate labels removed
+- [x] invoiceGenerator.ts now passes detectedLanguage from job record into pdfInput
+- [x] App Store copy update — PRICING section in both Apple + Google Play docs now says "14-day free trial — no credit card required"; release notes updated
+- [x] AndroidManifest.xml: RECORD_AUDIO, CAMERA, READ_MEDIA_IMAGES, POST_NOTIFICATIONS all documented in ANDROID_MIGRATION_SPEC.md (android/ dir not yet created — deferred per capacitor.config.ts)
+- [x] minSdkVersion = 24, targetSdkVersion = 34 documented in ANDROID_MIGRATION_SPEC.md
+- [x] Capacitor Android back button handler: code + package install instructions in ANDROID_MIGRATION_SPEC.md Section 4
+- [x] 280 vitest tests passing, 0 TS errors

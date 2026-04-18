@@ -115,6 +115,7 @@ export async function generateInvoiceForJob(
 
   // Build PDF input
   const pdfInput = {
+    detectedLanguage: (job as any).detectedLanguage ?? null,
     invoice: {
       invoiceNumber,
       jobTitle: job.jobType ?? job.description ?? "Job",
