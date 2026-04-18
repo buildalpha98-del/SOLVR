@@ -3,7 +3,7 @@
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
  * Unauthorised copying or distribution is strictly prohibited.
  */
-import { desc, eq, and, or, lte, gte, sql } from "drizzle-orm";
+import { desc, eq, and, or, lte, gte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertClientOnboarding, InsertSavedPrompt, InsertStrategyCallLead, InsertUser,
@@ -2244,4 +2244,155 @@ export async function deleteChatConversation(clientId: number, conversationId: s
         eq(portalChatMessages.conversationId, conversationId),
       ),
     );
+}
+
+
+// ─── Apple IAP / RevenueCat Subscription Helpers ─────────────────────────────
+import {
+  voiceAgentSubscriptions,
+  type VoiceAgentSubscription,
+} from "../drizzle/schema";
+
+/**
+ * Create a new subscription record originating from Apple IAP (via RevenueCat).
+ */
+export async function createAppleSubscription(data: {
+  email: string;
+  plan: "starter" | "professional";
+  billingCycle: "monthly" | "annual";
+  subscriptionSource: "apple";
+  revenueCatId: string;
+  appleOriginalTransactionId?: string;
+  clientId?: number;
+  status: "active" | "trialing";
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(voiceAgentSubscriptions).values({
+    email: data.email,
+    plan: data.plan,
+    billingCycle: data.billingCycle,
+    subscriptionSource: data.subscriptionSource,
+    revenueCatId: data.revenueCatId,
+    appleOriginalTransactionId: data.appleOriginalTransactionId ?? null,
+    clientId: data.clientId ?? null,
+    status: data.status,
+  });
+  return Number((result as unknown as { insertId: bigint }).insertId);
+}
+
+/**
+ * Look up a subscription by its RevenueCat app_user_id.
+ */
+export async function getSubscriptionByRevenueCatId(
+  revenueCatId: string,
+): Promise<VoiceAgentSubscription | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(voiceAgentSubscriptions)
+    .where(eq(voiceAgentSubscriptions.revenueCatId, revenueCatId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Look up a subscription by its Apple original_transaction_id.
+ */
+export async function getSubscriptionByAppleTransactionId(
+  transactionId: string,
+): Promise<VoiceAgentSubscription | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(voiceAgentSubscriptions)
+    .where(eq(voiceAgentSubscriptions.appleOriginalTransactionId, transactionId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Update a subscription record by its primary key.
+ */
+export async function updateSubscriptionById(
+  id: number,
+  data: Partial<{
+    status: "trialing" | "active" | "cancelled" | "past_due" | "incomplete";
+    plan: "starter" | "professional";
+    billingCycle: "monthly" | "annual";
+    revenueCatId: string;
+    appleOriginalTransactionId: string;
+    clientId: number;
+    email: string;
+  }>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(voiceAgentSubscriptions)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(voiceAgentSubscriptions.id, id));
+}
+
+/**
+ * Sync the crmClients.package field based on an Apple IAP plan.
+ * Mirrors the logic in stripe.ts syncClientPackage but for Apple sources.
+ * Pass null for plan to downgrade (cancellation).
+ */
+export async function syncClientPackageFromApple(
+  clientId: number,
+  plan: string | null,
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    // Import crmClients inline to avoid circular dependency issues
+    const { crmClients } = await import("../drizzle/schema");
+
+    let pkg: "setup-only" | "setup-monthly" | "full-managed";
+    if (!plan) {
+      pkg = "setup-only"; // Cancelled → downgrade to lowest
+    } else if (plan === "solvr_quotes") {
+      pkg = "setup-only";
+    } else if (plan === "solvr_jobs") {
+      pkg = "setup-monthly";
+    } else {
+      pkg = "full-managed"; // solvr_ai → full-managed
+    }
+
+    await db
+      .update(crmClients)
+      .set({ package: pkg, updatedAt: new Date() })
+      .where(eq(crmClients.id, clientId));
+
+    console.log(`[RevenueCat] Synced client ${clientId} package → ${pkg} (plan: ${plan ?? "cancelled"}, source: apple-webhook)`);
+  } catch (err) {
+    console.error(`[RevenueCat] Failed to sync package for client ${clientId}:`, err);
+  }
+}
+
+/**
+ * Get the active subscription for a client, regardless of source (Stripe or Apple).
+ * Returns the most recently updated active/trialing subscription.
+ */
+export async function getActiveSubscriptionForClient(
+  clientId: number,
+): Promise<VoiceAgentSubscription | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(voiceAgentSubscriptions)
+    .where(
+      and(
+        eq(voiceAgentSubscriptions.clientId, clientId),
+        inArray(voiceAgentSubscriptions.status, ["active", "trialing"]),
+      ),
+    )
+    .orderBy(desc(voiceAgentSubscriptions.updatedAt))
+    .limit(1);
+  return rows[0] ?? null;
 }

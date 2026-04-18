@@ -124,16 +124,25 @@ All items below are live in production. Grouped by domain for reference.
 
 ## In Progress
 
-### Apple In-App Payments (Next Sprint)
-- [ ] Research Apple StoreKit 2 / RevenueCat for subscription IAP
-- [ ] Decide architecture: StoreKit native vs RevenueCat SDK
-- [ ] Create Apple subscription products (matching Stripe tiers)
-- [ ] Build server-side receipt validation endpoint
-- [ ] Wire Capacitor plugin for IAP (remove isNativeApp() purchase-hide logic)
-- [ ] Handle dual billing: Stripe (web) + Apple IAP (iOS) with unified subscription state
-- [ ] Update APPLE_APP_STORE_SUBMISSION.md with IAP details
-- [ ] Update const.ts to show purchase UI in native builds
+### Sprint 8 — Apple In-App Payments (Server-Side)
+- [x] Add subscriptionSource enum (stripe/apple/manual) to voiceAgentSubscriptions schema
+- [x] Add revenueCatId and appleOriginalTransactionId fields to schema
+- [x] Push DB migration (0058_cloudy_cloak.sql)
+- [x] Create RevenueCat API helper (server/lib/revenuecat.ts)
+- [x] Create RevenueCat webhook endpoint (/api/revenuecat/webhook)
+- [x] Handle INITIAL_PURCHASE, RENEWAL, CANCELLATION, BILLING_ISSUE events
+- [x] Update unified subscription check to support both Stripe and Apple sources
+- [ ] Add REVENUECAT_WEBHOOK_SECRET env variable
+- [x] Write vitest tests for RevenueCat webhook handler (19 tests passing)
+- [x] Write vitest tests for unified subscription check
+- [x] Save checkpoint
+
+### Sprint 8b — Apple In-App Payments (Capacitor/iOS — Claude Code)
+- [ ] Create Apple subscription products in App Store Connect (matching Stripe tiers)
+- [ ] Install RevenueCat Capacitor SDK
+- [ ] Wire native purchase flow (replace isNativeApp() purchase-hide logic)
 - [ ] Test sandbox purchases end-to-end
+- [ ] Update APPLE_APP_STORE_SUBMISSION.md with IAP details
 
 ---
 

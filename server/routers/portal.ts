@@ -1206,34 +1206,62 @@ export const portalRouter = router({
       .limit(1);
     const sub = rows[0] ?? null;
     if (!sub) return null;
-    // Fetch live billing dates from Stripe if available
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    // Determine subscription source for billing info fetch
+    const source = sub.subscriptionSource ?? "stripe";
     let nextBillingDate: string | null = null;
     let trialEndDate: string | null = null;
-    if (stripeKey && sub.stripeSubscriptionId) {
-      try {
-        const Stripe = (await import("stripe")).default;
-        const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
-        const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const subAny = stripeSub as any;
-        if (subAny.current_period_end) {
-          nextBillingDate = new Date(subAny.current_period_end * 1000).toISOString();
+
+    if (source === "stripe") {
+      // Fetch live billing dates from Stripe if available
+      const stripeKey = process.env.STRIPE_SECRET_KEY;
+      if (stripeKey && sub.stripeSubscriptionId) {
+        try {
+          const Stripe = (await import("stripe")).default;
+          const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+          const stripeSub = await stripe.subscriptions.retrieve(sub.stripeSubscriptionId);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const subAny = stripeSub as any;
+          if (subAny.current_period_end) {
+            nextBillingDate = new Date(subAny.current_period_end * 1000).toISOString();
+          }
+          if (subAny.trial_end) {
+            trialEndDate = new Date(subAny.trial_end * 1000).toISOString();
+          }
+        } catch {
+          // Non-fatal — return local data without live billing date
         }
-        if (subAny.trial_end) {
-          trialEndDate = new Date(subAny.trial_end * 1000).toISOString();
+      }
+    } else if (source === "apple" && sub.revenueCatId) {
+      // For Apple subscriptions, fetch expiry from RevenueCat
+      try {
+        const { getSubscriber, getActiveApplePlan } = await import("../lib/revenuecat");
+        const subscriber = await getSubscriber(sub.revenueCatId);
+        if (subscriber) {
+          // Find the active subscription with the latest expiry
+          const subs = Object.values(subscriber.subscriptions);
+          for (const rcSub of subs) {
+            if (rcSub.expires_date) {
+              const expiry = new Date(rcSub.expires_date).toISOString();
+              if (!nextBillingDate || expiry > nextBillingDate) {
+                nextBillingDate = expiry;
+              }
+            }
+          }
         }
       } catch {
-        // Non-fatal — return local data without live billing date
+        // Non-fatal — return local data without RevenueCat billing date
       }
     }
+
     return {
       id: sub.id,
       plan: sub.plan,
       billingCycle: sub.billingCycle,
       status: sub.status,
+      subscriptionSource: source,
       stripeCustomerId: sub.stripeCustomerId,
       stripeSubscriptionId: sub.stripeSubscriptionId,
+      revenueCatId: sub.revenueCatId,
       nextBillingDate,
       trialEndDate,
       createdAt: sub.createdAt,

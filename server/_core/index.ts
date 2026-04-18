@@ -11,6 +11,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe";
+import { handleRevenueCatWebhook } from "../revenuecatWebhook";
 import { handleVapiWebhook } from "../vapiWebhook";
 import { audioUploadRouter } from "../audioUpload";
 import { photoUploadRouter } from "../photoUpload";
@@ -133,6 +134,9 @@ async function startServer() {
 
   // Stripe webhook MUST use raw body — register BEFORE json middleware
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
+
+  // RevenueCat webhook for Apple IAP events — uses JSON body + Bearer auth
+  app.post("/api/revenuecat/webhook", express.json(), handleRevenueCatWebhook);
 
   // Vapi webhook — receives call events (transcripts, summaries)
   // Must include json middleware inline since it's registered before the global parser

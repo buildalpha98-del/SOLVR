@@ -397,8 +397,9 @@ export type InsertTask = typeof tasks.$inferInsert;
 //  VOICE AGENT SUBSCRIPTIONS 
 
 /**
- * Voice Agent subscriptions — tracks Stripe checkout sessions and subscription IDs.
- * We store only minimal Stripe identifiers; all billing details live in Stripe.
+ * Voice Agent subscriptions — tracks both Stripe and Apple IAP subscriptions.
+ * Stripe identifiers live alongside Apple/RevenueCat identifiers.
+ * The subscriptionSource field determines which billing system is authoritative.
  */
 export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   id: int("id").autoincrement().primaryKey(),
@@ -410,12 +411,31 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
   /** Billing cycle */
   billingCycle: mysqlEnum("billingCycle", ["monthly", "annual"]).default("monthly").notNull(),
+  /**
+   * Subscription source — which billing system owns this subscription.
+   * "stripe" = web checkout via Stripe, "apple" = iOS in-app purchase via RevenueCat,
+   * "manual" = admin-provisioned (comped, grandfathered, etc.)
+   * Defaults to "stripe" for backward compatibility with existing rows.
+   */
+  subscriptionSource: mysqlEnum("subscriptionSource", ["stripe", "apple", "manual"]).default("stripe").notNull(),
   /** Stripe Customer ID */
   stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
   /** Stripe Subscription ID (set after subscription created via webhook) */
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
   /** Stripe Checkout Session ID */
   stripeSessionId: varchar("stripeSessionId", { length: 128 }),
+  /**
+   * RevenueCat App User ID — the unique identifier in RevenueCat.
+   * Typically set to the crmClients.id or a prefixed string like "rc_123".
+   * Only populated for Apple IAP subscriptions.
+   */
+  revenueCatId: varchar("revenueCatId", { length: 128 }),
+  /**
+   * Apple original_transaction_id — the immutable identifier for the Apple
+   * subscription purchase. Used to deduplicate and reconcile Apple receipts.
+   * Only populated for Apple IAP subscriptions.
+   */
+  appleOriginalTransactionId: varchar("appleOriginalTransactionId", { length: 128 }),
   /** FK to crmClients.id — set when a portal client upgrades via the portal upgrade checkout */
   clientId: int("clientId"),
   /** Onboarding email sequence tracking */
