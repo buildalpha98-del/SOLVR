@@ -7,6 +7,7 @@
  * Designed for iPhone — no horizontal scrolling required.
  */
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -373,6 +374,7 @@ function DayCard({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PortalSchedule() {
+  const [, navTo] = useLocation();
   const utils = trpc.useUtils();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const weekStartStr = weekStart.toISOString().split("T")[0];
@@ -805,6 +807,12 @@ export default function PortalSchedule() {
                 className="border"
               >
                 {deleteScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><X className="w-4 h-4 mr-1" /> Remove Shift</>}
+              </Button>
+              <Button
+                onClick={() => { setSelectedEntry(null); navTo(`/portal/jobs/${selectedEntry.jobId}`); }}
+                style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)" }}
+              >
+                View Job
               </Button>
               <Button
                 onClick={() => setSelectedEntry(null)}

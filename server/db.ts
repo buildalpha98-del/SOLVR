@@ -540,6 +540,13 @@ export async function getPortalJob(id: number): Promise<PortalJob | null> {
   return result.length > 0 ? result[0] : null;
 }
 
+export async function getJobByQuoteId(quoteId: string): Promise<PortalJob | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalJobs).where(eq(portalJobs.sourceQuoteId, quoteId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
 export async function createPortalJob(data: InsertPortalJob): Promise<{ insertId: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

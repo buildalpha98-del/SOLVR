@@ -398,6 +398,24 @@ export default function PortalJobs() {
     onError: () => toast.error("Failed to add job"),
   });
 
+  const jobs = (rawJobs ?? []) as Job[];
+
+  const filteredJobs = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return jobs.filter(j => {
+      const matchesStage = stageFilter === "all" || j.stage === stageFilter;
+      if (!matchesStage) return false;
+      if (!q) return true;
+      return (
+        j.jobType.toLowerCase().includes(q) ||
+        (j.description ?? "").toLowerCase().includes(q) ||
+        (j.callerName ?? "").toLowerCase().includes(q) ||
+        (j.callerPhone ?? "").toLowerCase().includes(q) ||
+        (j.location ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [jobs, search, stageFilter]);
+
   if (!features.includes("jobs")) {
     const jobFeatures = [
       { icon: "📋", title: "Job Pipeline Board", desc: "Kanban view — drag leads from New → Quoted → Booked → Completed" },
@@ -467,8 +485,6 @@ export default function PortalJobs() {
     );
   }
 
-  const jobs = (rawJobs ?? []) as Job[];
-
   const handleMove = (id: number, stage: JobStage) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     updateJobMutation.mutate({ id, stage: stage as any });
@@ -477,23 +493,6 @@ export default function PortalJobs() {
   const handleSetValue = (id: number, actualValue: number) => {
     updateJobMutation.mutate({ id, actualValue });
   };
-
-  // Search + filter
-  const filteredJobs = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return jobs.filter(j => {
-      const matchesStage = stageFilter === "all" || j.stage === stageFilter;
-      if (!matchesStage) return false;
-      if (!q) return true;
-      return (
-        j.jobType.toLowerCase().includes(q) ||
-        (j.description ?? "").toLowerCase().includes(q) ||
-        (j.callerName ?? "").toLowerCase().includes(q) ||
-        (j.callerPhone ?? "").toLowerCase().includes(q) ||
-        (j.location ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [jobs, search, stageFilter]);
 
   const byStage = (stage: JobStage) => filteredJobs.filter(j => j.stage === stage);
 

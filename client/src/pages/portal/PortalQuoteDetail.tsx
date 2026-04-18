@@ -127,7 +127,7 @@ export default function PortalQuoteDetail() {
     );
   }
 
-  const { quote, lineItems: savedLineItems, photos, extractionWarnings } = data;
+  const { quote, lineItems: savedLineItems, photos, extractionWarnings, linkedJobId } = data;
   const isDraft = quote.status === "draft";
   const reportContent = quote.reportContent as Record<string, unknown> | null;
 
@@ -638,6 +638,24 @@ export default function PortalQuoteDetail() {
               )}
             </div>
           </div>
+
+          {/* View linked job */}
+          {linkedJobId && (
+            <div
+              className="rounded-xl border p-5"
+              style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
+            >
+              <h3 className="font-semibold text-white mb-3 text-sm">Linked Job</h3>
+              <Button
+                variant="outline"
+                className="w-full border-amber-400/30 text-amber-400 hover:bg-amber-400/10"
+                onClick={() => navigate(`/portal/jobs/${linkedJobId}`)}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                View Job #{linkedJobId}
+              </Button>
+            </div>
+          )}
 
           {/* Quote summary */}
           <div

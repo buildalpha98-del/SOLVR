@@ -22,6 +22,7 @@ import {
   voiceAgentSubscriptions,
 } from "../../drizzle/schema";
 import { sendEmail } from "../_core/email";
+import { sendPushToClient } from "../pushNotifications";
 import { and, eq, gte, inArray, isNotNull, or } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -324,8 +325,16 @@ export async function runWeeklySummaryEmail(): Promise<void> {
         html,
       });
 
+      // Also send a push notification with the headline stats
+      const pushBody = `${stats.callsReceived} calls, ${stats.quotesSent} quotes, ${stats.jobsWon} jobs won, $${stats.revenueWon.toLocaleString()} revenue.`;
+      await sendPushToClient(sub.clientId, {
+        title: `Weekly summary`,
+        body: pushBody,
+        url: "/portal/dashboard",
+      });
+
       sent++;
-      console.log(`[WeeklySummary] Sent to ${recipientEmail} (clientId=${sub.clientId})`);
+      console.log(`[WeeklySummary] Sent email + push to ${recipientEmail} (clientId=${sub.clientId})`);
     } catch (err) {
       console.error(`[WeeklySummary] Error for clientId=${sub.clientId}:`, err);
     }

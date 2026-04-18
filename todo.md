@@ -917,3 +917,45 @@
 - [ ] Add "AI Assistant" tab to portal navigation
 - [ ] Wire voice-to-document flow (transcribe → intent → confirm → generate)
 - [ ] Write vitest tests for context builder and tool handler
+
+## Product Audit Sprint — All 28 Items (Apr 18 2026)
+
+### Tier 1 — Blockers
+- [x] #1 Jobs page crash (hooks order violation in PortalJobs.tsx) — useMemo moved before early return
+- [x] #2 Login button misalignment — fixed button index
+- [x] #3 Customer database empty — 5 tradie_customers seeded from existing job data
+- [x] #4 Invoices page empty — 3 invoice_chases seeded (2 active, 1 paid)
+- [x] #5 AI Memory File stuck loading — confirmed transient (4s load), not broken
+- [x] #6 Schedule Mon–Fri empty — 10 shifts seeded across 2 staff members
+
+### Tier 2 — Quality of Life
+- [x] #7 Quote → Job navigation — getJobByQuoteId helper + linkedJobId in quotes.get + View Job button on quote detail
+- [x] #8 Job → Invoice button — already existed (full invoice section with generate/send/mark paid)
+- [x] #9 Quote PDF preview — already existed (generate PDF + open link)
+- [x] #10 Call → Quote shortcut — added "Convert to Quote" button on calls page
+- [x] #11 Call → Job shortcut — already existed
+- [x] #12 Empty state CTAs — all pages already have them
+- [x] #13 Mark as Paid on invoices — already existed (MarkPaidDialog)
+- [x] #14 Schedule → Job navigation — added View Job button in schedule entry detail dialog
+- [x] #15 Push notification for new calls — already fully built (Vapi webhook → Expo + Web Push)
+- [x] #16 Quick voice quote on mobile — already existed (New Quote modal + ?record=1 deep link)
+
+### Tier 3 — Automations
+- [x] #17 Quote follow-up SMS — already built (quoteFollowUp.ts cron)
+- [x] #18 Review request from job completion — already wired (markJobComplete → scheduleGoogleReviewRequest)
+- [x] #19 Licence expiry warning — NEW cron (licenceExpiryWarning.ts, daily 8am AEST, push notification)
+- [x] #20 Weekly revenue push — UPDATED (added sendPushToClient to existing weeklySummaryEmail.ts)
+- [x] #21 Idle job nudge — NEW cron (idleJobNudge.ts, daily 9am AEST, push for leads 5+ days old)
+- [x] #22 Stripe → package sync — already built (checkout.session.completed handler)
+
+### Tier 4 — Differentiators
+- [x] #23 Voice onboarding — already built (onboardingExtraction.ts, auto-generates Vapi prompt)
+- [x] #24 Multi-language voice-to-quote — already built (Whisper languageOverride parameter)
+- [x] #25 Before/after photos — already built (jobPhotos table, photoUpload router, full CRUD)
+- [x] #26 Customer portal link — already built (customerStatusToken, /job/:token public page)
+- [x] #27 Xero CSV export — NEW (exportXeroCsv procedure + Export to Xero button on invoices page)
+- [x] #28 AI job completion report — already built (generateCompletionReport, PDF, email, public view)
+
+### Final verification
+- [x] tsc --noEmit: 0 errors
+- [x] 280/280 vitest tests passing (29 test files)

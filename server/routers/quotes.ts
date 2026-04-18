@@ -36,6 +36,7 @@ import {
   getCrmClientById,
   createPortalJob,
   updatePortalJob,
+  getJobByQuoteId,
   updateCrmClient,
   getClientProfile,
   buildMemoryContext,
@@ -157,7 +158,9 @@ export const quotesRouter = router({
       const extractedJson = recording?.extractedJson as { extractionWarnings?: string[] } | null;
       const extractionWarnings: string[] = extractedJson?.extractionWarnings ?? [];
 
-      return { quote, lineItems, photos, extractionWarnings };
+      // Look up the linked job (created when the quote was made)
+      const linkedJob = await getJobByQuoteId(input.id);
+      return { quote, lineItems, photos, extractionWarnings, linkedJobId: linkedJob?.id ?? null };
     }),
 
   /**
