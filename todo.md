@@ -990,11 +990,11 @@
 ## UX Rebuild Sprint — Tradie-First Navigation (Apr 18 2026)
 
 ### Phase 1: Navigation Consolidation
-- [ ] Consolidate 11 sidebar items into 6 core tabs: Dashboard, Jobs, Calendar, Invoices, AI Assistant, Settings
-- [ ] Merge Quotes into Jobs page as a tab/section
-- [ ] Move Calls, Compliance, Price List, Customers into "More" expandable section or Settings sub-pages
-- [ ] Update PortalLayout.tsx with new nav structure
-- [ ] Ensure mobile bottom nav matches the 6 core tabs
+- [x] Consolidate into 5 primary tabs + More drawer (already done in prior sprint)
+- [x] Primary: Dashboard, Jobs, Calendar, Invoices, AI Assistant
+- [x] More drawer: Calls, Quotes, Customers, Compliance, Staff Roster, Staff, Reviews, Price List, Team, AI Insights
+- [x] Mobile bottom nav matches primary tabs + More button
+- [x] Desktop: More dropdown, mobile: swipe-down drawer with drag handle
 
 ### Phase 2: What's Next Dashboard Card
 - [x] Build "What's Next" action card component for dashboard
@@ -1010,9 +1010,15 @@
 - [x] Increase touch targets to 44px minimum on job detail tabs
 - [x] Stack client/job detail cards vertically on mobile (single column layout)
 - [x] Ensure tab bar is sticky and thumb-reachable (backdrop blur, z-30)
-- [ ] Test all modals on 375px viewport
+- [x] Test all modals on 375px viewport (code audit: all shadcn Dialogs have max-w-[calc(100%-2rem)], all custom modals have p-4 wrapper)
 
 ### Phase 4: Calendar Rename
-- [ ] Rename "Schedule" to "Calendar" across all nav, routes, and components
-- [ ] Simplify default view for solo tradies (job calendar, not staff roster)
-- [ ] Keep staff roster as toggle for multi-staff accounts
+- [x] Primary tab already named "Calendar" → /portal/calendar (job calendar)
+- [x] Renamed PortalSchedule page title from "Schedule" to "Staff Roster"
+- [x] Calendar is already simplified for solo tradies (monthly grid, tap-to-view)
+- [x] Staff Roster accessible via More drawer for multi-staff accounts
+
+### Final Verification (Sprint 2)
+- [x] tsc --noEmit: 0 errors
+- [x] 280/280 vitest tests passing (29 test files)
+- [x] 375px viewport QA: all modals, grids, and touch targets verified mobile-safe

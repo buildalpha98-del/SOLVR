@@ -544,7 +544,7 @@ export default function PortalSchedule() {
           <div>
             <h1 className="text-lg font-bold text-white flex items-center gap-2">
               <CalendarClock className="w-5 h-5" style={{ color: "#F5A623" }} />
-              Schedule
+              Staff Roster
             </h1>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
               {formatDate(weekStart)} – {formatDate(addDays(weekStart, 6))}
