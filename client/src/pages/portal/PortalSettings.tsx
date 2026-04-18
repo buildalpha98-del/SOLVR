@@ -19,7 +19,7 @@ import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
 import { toast } from "sonner";
 import { usePortalRole } from "@/hooks/usePortalRole";
-import ViewerBanner from "@/components/portal/ViewerBanner";
+import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
 // ─── Shared input style ──────────────────────────────────────────────────────
 const inputStyle = {

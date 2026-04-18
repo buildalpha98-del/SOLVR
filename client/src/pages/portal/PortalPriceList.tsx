@@ -23,7 +23,7 @@ import {
   Upload, FileText, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { usePortalRole } from "@/hooks/usePortalRole";
-import ViewerBanner from "@/components/portal/ViewerBanner";
+import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

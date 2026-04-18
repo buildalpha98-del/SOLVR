@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2 } from "lucide-react"
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 import { usePortalRole } from "@/hooks/usePortalRole";
-import ViewerBanner from "@/components/portal/ViewerBanner";
+import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [

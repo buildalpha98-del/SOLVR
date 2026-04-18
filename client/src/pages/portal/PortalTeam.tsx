@@ -43,7 +43,7 @@ import {
   Users,
 } from "lucide-react";
 import { usePortalRole } from "@/hooks/usePortalRole";
-import ViewerBanner from "@/components/portal/ViewerBanner";
+import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
 type TeamMember = {
   id: number;
