@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb, insertCrmInteraction, getCrmClientById } from "./db";
-import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals } from "../drizzle/schema";
+import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals, portalSessions, invoiceChases } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, SOLVR_PLANS, PRODUCT_ID_TO_PLAN, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
@@ -489,6 +489,24 @@ export async function handleStripeWebhook(req: Request, res: Response) {
                 stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : undefined,
               });
               console.log(`[Webhook] Payment link ${token} marked as paid via session ${session.id}`);
+              // Stop the invoice chase — customer has paid via payment link
+              try {
+                const db2 = await getDb();
+                if (db2) {
+                  await db2
+                    .update(invoiceChases)
+                    .set({ status: "paid", paidAt: new Date(), updatedAt: new Date() })
+                    .where(
+                      and(
+                        eq(invoiceChases.jobId, link.jobId),
+                        eq(invoiceChases.clientId, link.clientId),
+                      )
+                    );
+                  console.log(`[Webhook] Invoice chase stopped for job ${link.jobId} (payment link paid)`);
+                }
+              } catch (chaseErr) {
+                console.error(`[Webhook] Failed to stop invoice chase for job ${link.jobId}:`, chaseErr);
+              }
             }
           } catch (err) {
             console.error(`[Webhook] Failed to mark payment link ${token} as paid:`, err);
@@ -620,10 +638,32 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const sub = event.data.object as Stripe.Subscription;
         const db = await getDb();
         if (db) {
+          // Mark subscription as cancelled
           await db
             .update(voiceAgentSubscriptions)
             .set({ status: "cancelled", updatedAt: new Date() })
             .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id));
+          // Downgrade client package to base tier and revoke portal sessions
+          const subRow = await db
+            .select({ clientId: voiceAgentSubscriptions.clientId })
+            .from(voiceAgentSubscriptions)
+            .where(eq(voiceAgentSubscriptions.stripeSubscriptionId, sub.id))
+            .then(rows => rows[0] ?? null);
+          if (subRow?.clientId) {
+            const prevClientRow = await getCrmClientById(subRow.clientId);
+            // Downgrade to base plan (solvr_quotes → setup-only) on cancellation
+            await syncClientPackage(subRow.clientId, "solvr_quotes", "stripe-webhook", prevClientRow?.package ?? undefined);
+            // Revoke all active portal sessions so the client is immediately logged out
+            try {
+              await db
+                .update(portalSessions)
+                .set({ isRevoked: true })
+                .where(eq(portalSessions.clientId, subRow.clientId));
+              console.log(`[Webhook] Revoked portal sessions for cancelled subscriber clientId=${subRow.clientId}`);
+            } catch (revokeErr) {
+              console.error("[Webhook] Failed to revoke portal sessions:", revokeErr);
+            }
+          }
         }
         break;
       }

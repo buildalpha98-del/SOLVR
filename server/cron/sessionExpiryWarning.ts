@@ -1,13 +1,14 @@
 /**
  * Session Expiry Warning Cron Job
  *
- * Runs every day at 9:00 AM AEST (11:00 PM UTC).
+ * Runs every 6 hours (0:00, 6:00, 12:00, 18:00 UTC) so the 48h warning window
+ * is accurate to within 6 hours regardless of when a session was created.
  * Finds portal clients whose sessionExpiresAt is within the next 48 hours
  * and sends them a warning email with a direct login link.
  *
  * Guard: expiryWarningSentAt is written back after each successful send.
- * The query excludes sessions where a warning was already sent in the current
- * 48-hour window, preventing duplicate emails on repeated cron runs.
+ * The query excludes sessions where a warning was already sent in the last 24h,
+ * preventing duplicate emails on repeated cron runs.
  *
  * This prevents clients getting locked out mid-workflow.
  */
@@ -133,15 +134,15 @@ async function runSessionExpiryWarning(): Promise<void> {
 
 /**
  * Register the session expiry warning cron job.
- * Runs daily at 11:00 PM UTC = 9:00 AM AEST.
+ * Runs every 6 hours (0:00, 6:00, 12:00, 18:00 UTC) for accurate 48h window coverage.
  */
 export function registerSessionExpiryWarningCron(): void {
-  cron.schedule("0 23 * * *", () => {
+  cron.schedule("0 0,6,12,18 * * *", () => {
     runSessionExpiryWarning().catch((err) =>
       console.error("[Session Expiry] Unhandled error:", err),
     );
   });
-  console.log("[Cron] Session expiry warning scheduled (daily 9am AEST)");
+  console.log("[Cron] Session expiry warning scheduled (every 6 hours)");
 }
 
 // Export for testing

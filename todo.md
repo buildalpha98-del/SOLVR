@@ -879,3 +879,13 @@
 - [x] Fixed `pdfTranslations.ts` rtlStyle + rtlBoldStyle return types to `Style` (from `@react-pdf/types`)
 - [x] Fixed `publicQuotes.ts` — added `portalJobs` to schema import
 - [x] tsc --noEmit exits 0, 280 tests passing
+
+## Deep-Dive Audit Fixes (Apr 18 2026)
+
+- [x] **Bug: Quote accept/decline did not stop follow-up sequence** — `publicQuotes.ts` now immediately sets `quoteFollowUps.status = 'stopped'` on both accept and decline, eliminating the race condition with the daily cron
+- [x] **Bug: `markInvoicePaid` did not stop the invoice chase** — `portalJobs.ts` now finds the active `invoiceChases` row by `jobId + clientId` and sets it to `paid` when the tradie manually marks an invoice paid
+- [x] **Bug: Manual `generateInvoice` did not create an invoice chase** — `portalJobs.ts` now calls `createAutoInvoiceChase` after a manual invoice is sent to the customer (skipped for cash-paid invoices)
+- [x] **Bug: `customer.subscription.deleted` did not downgrade client package** — `stripe.ts` now calls `syncClientPackage` with `solvr_quotes` (setup-only) on cancellation and revokes all active portal sessions
+- [x] **Bug: Payment link paid did not stop the invoice chase** — `stripe.ts` `checkout.session.completed` handler now stops the `invoiceChases` row when a payment link is paid
+- [x] **QoL: Session expiry warning cron was too coarse (daily)** — changed from `0 23 * * *` to `0 0,6,12,18 * * *` (every 6 hours) so the 48h window is accurate to within 6 hours
+- [x] tsc --noEmit: 0 errors; 280/280 tests passing

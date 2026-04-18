@@ -19,6 +19,9 @@ import { getClientProfile } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 import { hasFeature } from "../_core/featureGate";
 import { generateInvoiceForJob, createAutoInvoiceChase } from "../lib/invoiceGenerator";
+import { getDb } from "../db";
+import { invoiceChases } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 import {
   getPortalJob,
   updatePortalJob,
@@ -375,6 +378,18 @@ export const portalJobsProcedures = {
         origin,
       );
 
+      // Auto-create invoice chase for manually generated invoices sent to customer
+      // (auto-invoices on job completion already call createAutoInvoiceChase separately)
+      if (result.sent && !input.isCashPaid) {
+        try {
+          await createAutoInvoiceChase(client.id, input.jobId, result);
+          console.log(`[generateInvoice] Invoice chase created for job ${input.jobId}`);
+        } catch (e) {
+          // Non-fatal — invoice is still sent even if chase creation fails
+          console.error("[generateInvoice] Failed to create invoice chase:", e);
+        }
+      }
+
       return {
         success: true,
         invoiceNumber: result.invoiceNumber,
@@ -435,6 +450,24 @@ export const portalJobsProcedures = {
           lastJobAt: now,
           lastJobType: job.jobType,
         });
+      }
+      // Stop the invoice chase — customer has paid, no more chasing needed
+      try {
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(invoiceChases)
+            .set({ status: "paid", updatedAt: now })
+            .where(
+              and(
+                eq(invoiceChases.jobId, input.jobId),
+                eq(invoiceChases.clientId, client.id),
+              )
+            );
+          console.log(`[markInvoicePaid] Stopped invoice chase for job ${input.jobId}`);
+        }
+      } catch (e) {
+        console.error("[markInvoicePaid] Failed to stop invoice chase:", e);
       }
       return { success: true };
     }),

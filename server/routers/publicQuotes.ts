@@ -25,7 +25,7 @@ import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
 import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
-import { crmClients, portalJobs } from "../../drizzle/schema";
+import { crmClients, portalJobs, quoteFollowUps } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { generateInvoiceForJob, createAutoInvoiceChase } from "../lib/invoiceGenerator";
 
@@ -142,6 +142,18 @@ export const publicQuotesRouter = router({
         respondedAt: new Date(),
         customerNote: input.customerNote ?? null,
       });
+      // Stop any active follow-up sequence immediately — don't wait for the cron
+      try {
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(quoteFollowUps)
+            .set({ status: "stopped", updatedAt: new Date() })
+            .where(eq(quoteFollowUps.quoteId, quote.id));
+        }
+      } catch (e) {
+        console.error("[QuoteAccept] Failed to stop follow-up sequence:", e);
+      }
 
       // Create a portal job from the accepted quote
       const jobResult = await createPortalJob({
@@ -379,6 +391,18 @@ export const publicQuotesRouter = router({
         declineReason: input.reason ?? null,
         customerNote: input.customerNote ?? null,
       });
+      // Stop any active follow-up sequence immediately — don't wait for the cron
+      try {
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(quoteFollowUps)
+            .set({ status: "stopped", updatedAt: new Date() })
+            .where(eq(quoteFollowUps.quoteId, quote.id));
+        }
+      } catch (e) {
+        console.error("[QuoteDecline] Failed to stop follow-up sequence:", e);
+      }
 
       // Notify the tradie
       const client = await getCrmClientById(quote.clientId);
