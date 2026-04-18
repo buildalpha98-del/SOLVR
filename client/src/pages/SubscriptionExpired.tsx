@@ -1,15 +1,26 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * /subscription/expired
  * Shown when a tradie's trial ends without a payment method.
- * Provides a one-click "Add card and continue" CTA via Stripe Billing Portal.
+ * Provides a one-click "Reactivate" CTA via RevenueCat paywall.
  */
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Gift, Copy } from "lucide-react";
+import { Gift, Copy, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isNativeApp } from "@/const";
+import {
+  configureRevenueCat,
+  isRevenueCatConfigured,
+  presentPaywall,
+  type PurchaseOutcome,
+} from "@/lib/revenuecat";
 
 // Hardcoded — window.location.origin returns "capacitor://localhost" on iOS Capacitor.
 const SOLVR_ORIGIN = "https://solvr.com.au";
@@ -29,7 +40,6 @@ function ReferralNudge() {
     retry: 1,
   });
   if (!referralCode?.referralCode) return null;
-  // FIXED: Use hardcoded origin, not window.location.origin (Capacitor returns "capacitor://localhost")
   const referralLink = `${SOLVR_ORIGIN}/portal/login?ref=${referralCode.referralCode}`;
   return (
     <div
@@ -65,8 +75,8 @@ export default function SubscriptionExpired() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const createPortal = trpc.stripe.createBillingPortal.useMutation();
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const paywallRef = useRef<HTMLDivElement>(null);
 
   // Apple Guideline 3.1.1 — no purchase/billing UI inside native app
   if (isNativeApp()) {
@@ -87,35 +97,86 @@ export default function SubscriptionExpired() {
     );
   }
 
-  async function handleAddCard() {
-    if (!user?.email) {
-      setError("Could not determine your account email. Please log in and try again.");
-      return;
+  const handleReactivate = useCallback(async () => {
+    // Ensure RC is configured
+    if (!isRevenueCatConfigured() && user?.id) {
+      configureRevenueCat(`rc_${user.id}`);
+    } else if (!isRevenueCatConfigured()) {
+      const anonId = `rc_web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      configureRevenueCat(anonId);
     }
+
+    setPaywallOpen(true);
     setLoading(true);
     setError(null);
+
+    // Wait for DOM to render the paywall container
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    if (!paywallRef.current) {
+      setLoading(false);
+      setError("Could not open checkout. Please try again.");
+      return;
+    }
+
     try {
-      const result = await createPortal.mutateAsync({
-        email: user.email,
-        returnUrl: `${window.location.origin}/portal`,
-      });
-      if (result.url) {
-        window.location.href = result.url;
-      } else {
-        setError("We couldn't find your subscription. Please contact support.");
+      const result: PurchaseOutcome = await presentPaywall(paywallRef.current);
+      if (result.success) {
+        toast.success("Account reactivated!", {
+          description: "Welcome back to Solvr. Redirecting to your portal…",
+        });
+        setTimeout(() => {
+          window.location.href = "/portal";
+        }, 2000);
+      } else if (result.cancelled) {
+        setPaywallOpen(false);
+      } else if (result.error) {
+        setError(result.error);
+        setPaywallOpen(false);
       }
-    } catch (err) {
+    } catch {
       setError("Something went wrong. Please try again or contact support.");
+      setPaywallOpen(false);
     } finally {
       setLoading(false);
     }
-  }
+  }, [user?.id]);
 
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 py-16"
       style={{ background: "#FAFAF8" }}
     >
+      {/* RevenueCat Paywall Modal */}
+      {paywallOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+        >
+          <div
+            className="relative w-full max-w-2xl mx-4 rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <button
+              onClick={() => setPaywallOpen(false)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-white/10 transition-colors"
+              style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="p-6">
+              {loading && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+                  <span className="ml-3 text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>Loading checkout…</span>
+                </div>
+              )}
+              <div ref={paywallRef} className="min-h-[400px] w-full" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Logo */}
       <div className="mb-10">
         <img src={LOGO} alt="Solvr" style={{ height: 36, objectFit: "contain" }} />
@@ -139,7 +200,7 @@ export default function SubscriptionExpired() {
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Your free trial has ended</h1>
           <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 15 }}>
-            Add a payment method to reactivate your account instantly.
+            Choose a plan to reactivate your account instantly.
           </p>
         </div>
 
@@ -175,7 +236,7 @@ export default function SubscriptionExpired() {
 
           {/* CTA */}
           <button
-            onClick={handleAddCard}
+            onClick={handleReactivate}
             disabled={loading}
             className="w-full font-bold text-base py-4 rounded-xl transition-all"
             style={{
@@ -186,11 +247,11 @@ export default function SubscriptionExpired() {
               fontSize: 16,
             }}
           >
-            {loading ? "Redirecting to Stripe…" : "Add Payment Method & Continue →"}
+            {loading ? "Opening checkout…" : "Choose a Plan & Reactivate →"}
           </button>
 
           <p className="text-center mt-4" style={{ color: "#A0AEC0", fontSize: 13 }}>
-            No lock-in. Cancel any time. Secure checkout via Stripe.
+            No lock-in. Cancel any time. Secure checkout powered by RevenueCat.
           </p>
 
           {/* Referral nudge — show if they have a referral code */}

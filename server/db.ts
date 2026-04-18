@@ -2258,9 +2258,9 @@ import {
  */
 export async function createAppleSubscription(data: {
   email: string;
-  plan: "starter" | "professional";
+  plan: "starter" | "professional" | "solvr_quotes" | "solvr_jobs" | "solvr_ai";
   billingCycle: "monthly" | "annual";
-  subscriptionSource: "apple";
+  subscriptionSource: "apple" | "revenuecat_web";
   revenueCatId: string;
   appleOriginalTransactionId?: string;
   clientId?: number;
@@ -2320,7 +2320,7 @@ export async function updateSubscriptionById(
   id: number,
   data: Partial<{
     status: "trialing" | "active" | "cancelled" | "past_due" | "incomplete";
-    plan: "starter" | "professional";
+    plan: "starter" | "professional" | "solvr_quotes" | "solvr_jobs" | "solvr_ai";
     billingCycle: "monthly" | "annual";
     revenueCatId: string;
     appleOriginalTransactionId: string;

@@ -115,6 +115,9 @@ importers:
       '@react-pdf/renderer':
         specifier: ^4.4.0
         version: 4.4.0(react@19.2.1)
+      '@revenuecat/purchases-js':
+        specifier: ^1.34.0
+        version: 1.34.0
       '@stripe/stripe-js':
         specifier: ^9.0.1
         version: 9.0.1
@@ -1987,6 +1990,9 @@ packages:
 
   '@react-pdf/types@2.11.1':
     resolution: {integrity: sha512-i9xQgfaDU9QoeNnbp6rltXCWg1huEh195rpOuN8cE4BZ2FuLdQrsIcb2dhFF9aOxXf+XBA6LOSpIW051MDD/bw==}
+
+  '@revenuecat/purchases-js@1.34.0':
+    resolution: {integrity: sha512-p3hpHHvyllAckqnjpjaCoj+lVK0gNJwqR1F8EwZPw7eMKFummE0UItbGzBCfncJIPxGA1NJHrgZb1dLflEmjhg==}
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -6846,6 +6852,8 @@ snapshots:
       '@react-pdf/font': 4.0.8
       '@react-pdf/primitives': 4.3.0
       '@react-pdf/stylesheet': 6.2.1
+
+  '@revenuecat/purchases-js@1.34.0': {}
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 

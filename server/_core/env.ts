@@ -11,4 +11,6 @@ export const ENV = {
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? "",
   twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
+  revenueCatApiKey: process.env.VITE_REVENUECAT_API_KEY ?? "",
+  revenueCatWebhookSecret: process.env.REVENUECAT_WEBHOOK_SECRET ?? "",
 };

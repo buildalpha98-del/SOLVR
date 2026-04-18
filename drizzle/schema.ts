@@ -408,7 +408,7 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   /** Name provided at checkout */
   name: text("name"),
   /** Plan selected */
-  plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
+  plan: mysqlEnum("plan", ["starter", "professional", "solvr_quotes", "solvr_jobs", "solvr_ai"]).notNull(),
   /** Billing cycle */
   billingCycle: mysqlEnum("billingCycle", ["monthly", "annual"]).default("monthly").notNull(),
   /**
@@ -417,7 +417,7 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
    * "manual" = admin-provisioned (comped, grandfathered, etc.)
    * Defaults to "stripe" for backward compatibility with existing rows.
    */
-  subscriptionSource: mysqlEnum("subscriptionSource", ["stripe", "apple", "manual"]).default("stripe").notNull(),
+  subscriptionSource: mysqlEnum("subscriptionSource", ["stripe", "apple", "revenuecat_web", "manual"]).default("stripe").notNull(),
   /** Stripe Customer ID */
   stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
   /** Stripe Subscription ID (set after subscription created via webhook) */
@@ -710,7 +710,7 @@ export const referralConversions = mysqlTable("referral_conversions", {
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   subscriberEmail: varchar("subscriberEmail", { length: 320 }).notNull(),
   subscriberName: varchar("subscriberName", { length: 255 }),
-  plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
+  plan: mysqlEnum("plan", ["starter", "professional", "solvr_quotes", "solvr_jobs", "solvr_ai"]).notNull(),
   monthlyAmountCents: int("monthlyAmountCents").notNull(),
   commissionAmountCents: int("commissionAmountCents").notNull(),
   status: mysqlEnum("status", ["active", "cancelled", "pending"]).default("active").notNull(),

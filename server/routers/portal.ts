@@ -122,12 +122,16 @@ import { getPortalClient, PORTAL_COOKIE, requirePortalAuth, requirePortalWrite }
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ─── Plan feature matrix ──────────────────────────────────────────────────────
-type SolvrPlan = "setup-only" | "setup-monthly" | "full-managed";
+type SolvrPlan = "setup-only" | "setup-monthly" | "full-managed" | "solvr_quotes" | "solvr_jobs" | "solvr_ai";
 
 const PLAN_FEATURES: Record<SolvrPlan, string[]> = {
   "setup-only":    ["dashboard", "calls"],
   "setup-monthly": ["dashboard", "calls", "jobs"],
   "full-managed":  ["dashboard", "calls", "jobs", "calendar", "ai-insights"],
+  // New RevenueCat-managed plans
+  "solvr_quotes":  ["dashboard", "calls"],
+  "solvr_jobs":    ["dashboard", "calls", "jobs", "calendar"],
+  "solvr_ai":      ["dashboard", "calls", "jobs", "calendar", "ai-insights"],
 };
 
 function hasFeature(plan: SolvrPlan, feature: string): boolean {
@@ -784,7 +788,7 @@ export const portalRouter = router({
   createUpgradeCheckout: publicProcedure
     .input(
       z.object({
-        plan: z.enum(["starter", "professional"]),
+        plan: z.enum(["starter", "professional", "solvr_quotes", "solvr_jobs", "solvr_ai"]),
         billingCycle: z.enum(["monthly", "annual"]),
         origin: z.string().url(),
       })

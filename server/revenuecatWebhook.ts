@@ -120,14 +120,9 @@ export async function handleRevenueCatWebhook(req: Request, res: Response) {
         }
       }
 
-      // Map RevenueCat plan to our DB plan enum
-      const dbPlan = product.plan === "solvr_quotes" ? "starter"
-        : product.plan === "solvr_jobs" ? "starter"
-        : "professional"; // solvr_ai → professional
-
       const subId = await createAppleSubscription({
         email: "", // Will be populated when client links their account
-        plan: dbPlan,
+        plan: product.plan,
         billingCycle: product.billingCycle,
         subscriptionSource: "apple",
         revenueCatId: appUserId,
@@ -170,11 +165,8 @@ export async function handleRevenueCatWebhook(req: Request, res: Response) {
 
       // If PRODUCT_CHANGE, update the plan
       if (eventType === "PRODUCT_CHANGE" && product) {
-        const dbPlan = product.plan === "solvr_quotes" ? "starter"
-          : product.plan === "solvr_jobs" ? "starter"
-          : "professional";
         await updateSubscriptionById(sub.id, {
-          plan: dbPlan,
+          plan: product.plan,
           billingCycle: product.billingCycle,
         });
         if (sub.clientId) {

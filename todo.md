@@ -137,8 +137,26 @@ All items below are live in production. Grouped by domain for reference.
 - [x] Write vitest tests for unified subscription check
 - [x] Save checkpoint
 
+### Sprint 8c — RevenueCat Web Billing (Replace Stripe Checkout)
+- [x] Install @revenuecat/purchases-js
+- [x] Add VITE_REVENUECAT_API_KEY env variable (test_fORkIqQnrexYiYNyklXwRRHpmlP)
+- [x] Create RevenueCat client service (client/src/lib/revenuecat.ts)
+- [x] Create useRevenueCat React hook (entitlements, customer info, purchase)
+- [x] Create Paywall component using presentPaywall()
+- [x] Update Pricing page to use RevenueCat purchase flow
+- [x] Update portal subscription check (PortalSubscription.tsx, UpgradeButton, SubscriptionExpired)
+- [x] Update server webhook to handle RC Web Billing events (new plan keys direct)
+- [x] Map 6 products: Quotes Monthly/Yearly, Jobs Monthly/Yearly, AI Monthly/Yearly
+- [x] Map 3 entitlements: solvr_quotes, solvr_jobs, solvr_ai
+- [x] Add revenuecat_web to subscriptionSource enum
+- [x] Add solvr_quotes/solvr_jobs/solvr_ai to plan enum + PLAN_FEATURES matrix
+- [x] Push DB migrations (0059, 0060)
+- [x] 0 TypeScript errors on clean build
+- [x] Write vitest tests for RC integration (302 tests passing, 31 files)
+- [x] Save checkpoint
+
 ### Sprint 8b — Apple In-App Payments (Capacitor/iOS — Claude Code)
-- [ ] Create Apple subscription products in App Store Connect (matching Stripe tiers)
+- [ ] Create Apple subscription products in App Store Connect (matching RC products)
 - [ ] Install RevenueCat Capacitor SDK
 - [ ] Wire native purchase flow (replace isNativeApp() purchase-hide logic)
 - [ ] Test sandbox purchases end-to-end

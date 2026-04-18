@@ -414,6 +414,20 @@
       "when": 1776518351613,
       "tag": "0058_cloudy_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1776549247727,
+      "tag": "0059_tense_lady_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1776549487764,
+      "tag": "0060_yellow_shadowcat",
+      "breakpoints": true
     }
   ]
 }

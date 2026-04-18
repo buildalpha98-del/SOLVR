@@ -1,0 +1,1 @@
+ALTER TABLE `voice_agent_subscriptions` MODIFY COLUMN `subscriptionSource` enum('stripe','apple','revenuecat_web','manual') NOT NULL DEFAULT 'stripe';
