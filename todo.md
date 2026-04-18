@@ -889,3 +889,31 @@
 - [x] **Bug: Payment link paid did not stop the invoice chase** — `stripe.ts` `checkout.session.completed` handler now stops the `invoiceChases` row when a payment link is paid
 - [x] **QoL: Session expiry warning cron was too coarse (daily)** — changed from `0 23 * * *` to `0 0,6,12,18 * * *` (every 6 hours) so the 48h window is accurate to within 6 hours
 - [x] tsc --noEmit: 0 errors; 280/280 tests passing
+
+## Sprint 2 — Smart Job Board + Trade AI Assistant (Apr 18 2026)
+
+### Smart Job Board
+- [ ] Add `jobTasks` table to schema
+- [ ] Add `nextActionSuggestion` + `tasksGeneratedAt` columns to `portalJobs`
+- [ ] Run `pnpm db:push` for schema changes
+- [ ] Write `generateJobTaskTemplate` server function with pre-built trade templates
+- [ ] Write `portal.generateNextAction` procedure (cached LLM call)
+- [ ] Write `portal.jobTasks` CRUD procedures (list, create, update, reorder, delete)
+- [ ] Extend PortalJobs.tsx — task checklist inside job card (collapsible)
+- [ ] Add revenue-at-a-glance to Kanban column headers
+- [ ] Add next-action chip to job card, wire to actions
+- [ ] Add voice-to-task note modal (transcribe → extract tasks → add to job)
+- [ ] Wire AI template generation on job stage change to `booked`
+- [ ] Write vitest tests for template engine and next-action procedure
+
+### Trade AI Assistant
+- [ ] Add `portalChatMessages` table to schema
+- [ ] Run `pnpm db:push` for chat schema
+- [ ] Write trade knowledge blocks for 8 trades (plumber, electrician, builder, carpenter, tiler, HVAC, gasfitter, roofer)
+- [ ] Write `buildTradeAssistantContext(clientId)` function
+- [ ] Write `portal.chat` tRPC procedure (streaming, history, context injection)
+- [ ] Write tool-calling layer (generateDoc, lookupJob, draftEmail)
+- [ ] Create `PortalAssistant.tsx` page wired to AIChatBox
+- [ ] Add "AI Assistant" tab to portal navigation
+- [ ] Wire voice-to-document flow (transcribe → intent → confirm → generate)
+- [ ] Write vitest tests for context builder and tool handler

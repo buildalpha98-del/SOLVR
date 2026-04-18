@@ -617,6 +617,11 @@ export const portalJobs = mysqlTable("portal_jobs", {
   recurrenceFrequency: mysqlEnum("recurrenceFrequency", ["weekly", "fortnightly", "monthly"]),
   /** FK to the original job in a recurring series (null if this IS the original) */
   parentJobId: int("parentJobId"),
+  //  Smart Job Board (Sprint 2) 
+  /** AI-generated next-action suggestion for this job card (cached, regenerated on job update) */
+  nextActionSuggestion: text("nextActionSuggestion"),
+  /** When the AI task template was last generated for this job */
+  tasksGeneratedAt: timestamp("tasksGeneratedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1653,3 +1658,69 @@ export const smsTemplates = mysqlTable("sms_templates", {
 });
 export type SmsTemplate = typeof smsTemplates.$inferSelect;
 export type InsertSmsTemplate = typeof smsTemplates.$inferInsert;
+
+// ─── Job Tasks (Sprint 2 — Smart Job Board) ──────────────────────────────────
+/**
+ * Task-level checklist items for a job.
+ * Can be AI-generated from a trade template or manually added by the tradie.
+ * Each task can optionally require a compliance document (SWMS, JSA, etc.)
+ * before it can be marked complete.
+ */
+export const jobTasks = mysqlTable("job_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Task description, e.g. "Waterproofing inspection" */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** Task status */
+  status: mysqlEnum("task_status", ["pending", "in_progress", "done", "skipped"])
+    .default("pending")
+    .notNull(),
+  /** Optional due date */
+  dueDate: varchar("dueDate", { length: 10 }),
+  /** FK to staffMembers.id — optional assigned staff member */
+  assignedStaffId: int("assignedStaffId"),
+  /** Display order (0-indexed, lower = higher on list) */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  /** Optional notes / instructions for this task */
+  notes: text("notes"),
+  /** Whether this task was AI-generated from a trade template */
+  aiGenerated: boolean("aiGenerated").default(false).notNull(),
+  /**
+   * If set, this task requires a compliance document before it can be marked done.
+   * Values: "swms" | "safety_cert" | "jsa" | "site_induction"
+   */
+  requiresDoc: varchar("requiresDoc", { length: 32 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobTask = typeof jobTasks.$inferSelect;
+export type InsertJobTask = typeof jobTasks.$inferInsert;
+
+// ─── Portal Chat Messages (Sprint 2 — Trade AI Assistant) ────────────────────
+/**
+ * Persistent conversation history for the Trade AI Assistant.
+ * One row per message (user or assistant).
+ * Conversations are grouped by conversationId (UUID).
+ */
+export const portalChatMessages = mysqlTable("portal_chat_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** UUID grouping messages into a single conversation */
+  conversationId: varchar("conversationId", { length: 36 }).notNull(),
+  /** "user" | "assistant" | "tool" */
+  role: mysqlEnum("chat_role", ["user", "assistant", "tool"]).notNull(),
+  /** Message content (plain text or markdown) */
+  content: text("content").notNull(),
+  /**
+   * If the assistant triggered a tool call, this records which tool and the result.
+   * Stored as JSON: { tool: string, input: object, output: object }
+   */
+  toolCallData: json("toolCallData").$type<{ tool: string; input: Record<string, unknown>; output: Record<string, unknown> }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PortalChatMessage = typeof portalChatMessages.$inferSelect;
+export type InsertPortalChatMessage = typeof portalChatMessages.$inferInsert;

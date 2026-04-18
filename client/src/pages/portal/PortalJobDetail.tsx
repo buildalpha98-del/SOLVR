@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
+import { JobTasksSection } from "@/components/portal/JobTasksSection";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STAGE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -1032,6 +1033,16 @@ export default function PortalJobDetail() {
           invoicedCents={invoicedCents}
           grossProfitCents={(data as any).grossProfitCents ?? 0}
           grossMarginPct={(data as any).grossMarginPct ?? null}
+          onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
+        />
+
+        {/* ── Job Tasks ── */}
+        <JobTasksSection
+          jobId={jobId}
+          jobType={(job as any).jobType ?? ""}
+          jobDescription={(job as any).description ?? null}
+          jobStage={(job as any).stage ?? "new_lead"}
+          nextActionSuggestion={(job as any).nextActionSuggestion ?? null}
           onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
         />
 

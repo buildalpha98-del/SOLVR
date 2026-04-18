@@ -2080,3 +2080,156 @@ export async function deleteSmsTemplate(id: number, clientId: number): Promise<v
     .where(and(eq(smsTemplates.id, id), eq(smsTemplates.clientId, clientId)));
 }
 
+
+// ─── Job Tasks (Sprint 2 — Smart Job Board) ──────────────────────────────────
+import {
+  jobTasks,
+  type JobTask,
+  type InsertJobTask,
+} from "../drizzle/schema";
+
+export async function listJobTasks(jobId: number, clientId: number): Promise<JobTask[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobTasks)
+    .where(and(eq(jobTasks.jobId, jobId), eq(jobTasks.clientId, clientId)))
+    .orderBy(jobTasks.sortOrder);
+}
+
+export async function getJobTask(id: number, clientId: number): Promise<JobTask | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(jobTasks)
+    .where(and(eq(jobTasks.id, id), eq(jobTasks.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createJobTask(data: Omit<InsertJobTask, "id" | "createdAt" | "updatedAt">): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(jobTasks).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function bulkCreateJobTasks(
+  tasks: Omit<InsertJobTask, "id" | "createdAt" | "updatedAt">[],
+): Promise<void> {
+  if (tasks.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(jobTasks).values(tasks);
+}
+
+export async function updateJobTask(
+  id: number,
+  clientId: number,
+  data: Partial<Pick<JobTask, "title" | "status" | "notes" | "dueDate" | "assignedStaffId" | "sortOrder" | "requiresDoc">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(jobTasks)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(jobTasks.id, id), eq(jobTasks.clientId, clientId)));
+}
+
+export async function deleteJobTask(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobTasks)
+    .where(and(eq(jobTasks.id, id), eq(jobTasks.clientId, clientId)));
+}
+
+export async function deleteAllJobTasks(jobId: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobTasks)
+    .where(and(eq(jobTasks.jobId, jobId), eq(jobTasks.clientId, clientId)));
+}
+
+export async function countJobTasks(jobId: number, clientId: number): Promise<{ total: number; done: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ status: jobTasks.status }).from(jobTasks)
+    .where(and(eq(jobTasks.jobId, jobId), eq(jobTasks.clientId, clientId)));
+  return {
+    total: rows.length,
+    done: rows.filter((r) => r.status === "done").length,
+  };
+}
+
+// ─── Portal Chat Messages (Sprint 2 — Trade AI Assistant) ────────────────────
+import {
+  portalChatMessages,
+  type PortalChatMessage,
+  type InsertPortalChatMessage,
+} from "../drizzle/schema";
+
+export async function listChatMessages(
+  clientId: number,
+  conversationId: string,
+  limit = 50,
+): Promise<PortalChatMessage[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(portalChatMessages)
+    .where(
+      and(
+        eq(portalChatMessages.clientId, clientId),
+        eq(portalChatMessages.conversationId, conversationId),
+      ),
+    )
+    .orderBy(portalChatMessages.createdAt)
+    .limit(limit);
+}
+
+export async function listRecentConversations(clientId: number, limit = 10): Promise<{ conversationId: string; lastMessageAt: Date; preview: string }[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get the most recent message per conversation
+  const rows = await db.select({
+    conversationId: portalChatMessages.conversationId,
+    lastMessageAt: portalChatMessages.createdAt,
+    preview: portalChatMessages.content,
+  })
+    .from(portalChatMessages)
+    .where(eq(portalChatMessages.clientId, clientId))
+    .orderBy(desc(portalChatMessages.createdAt))
+    .limit(limit * 5); // over-fetch to deduplicate
+  // Deduplicate by conversationId, keep most recent
+  const seen = new Set<string>();
+  const result: { conversationId: string; lastMessageAt: Date; preview: string }[] = [];
+  for (const row of rows) {
+    if (!seen.has(row.conversationId)) {
+      seen.add(row.conversationId);
+      result.push({
+        conversationId: row.conversationId,
+        lastMessageAt: row.lastMessageAt,
+        preview: row.preview.slice(0, 120),
+      });
+    }
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+export async function saveChatMessage(
+  data: Omit<InsertPortalChatMessage, "id" | "createdAt">,
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(portalChatMessages).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteChatConversation(clientId: number, conversationId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(portalChatMessages)
+    .where(
+      and(
+        eq(portalChatMessages.clientId, clientId),
+        eq(portalChatMessages.conversationId, conversationId),
+      ),
+    );
+}

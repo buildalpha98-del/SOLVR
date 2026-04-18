@@ -14,7 +14,7 @@ import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import { PortalRoleContext } from "@/contexts/PortalRoleContext";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import {
-  LayoutDashboard, Phone, Briefcase, Calendar, Sparkles,
+  LayoutDashboard, Phone, Briefcase, Calendar, Sparkles, Bot,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
   CalendarClock, UserCog, Star, ChevronDown, Tag, UserPlus
 } from "lucide-react";
@@ -46,6 +46,7 @@ const ALL_TABS: NavTab[] = [
   { key: "reviews", label: "Reviews", href: "/portal/reviews", icon: <Star className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "price-list", label: "Price List", href: "/portal/price-list", icon: <Tag className="w-4 h-4" />, feature: "quote-engine", badge: "Pro" },
   { key: "team", label: "Team", href: "/portal/team", icon: <UserPlus className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
+  { key: "assistant", label: "AI Assistant", href: "/portal/assistant", icon: <Bot className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
 ];
 
 // Core tabs shown on desktop nav bar and mobile bottom bar.
