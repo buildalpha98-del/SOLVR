@@ -1052,3 +1052,26 @@
 ### Final Verification (Sprint 3)
 - [x] tsc --noEmit: 0 errors
 - [x] 280/280 vitest tests passing (29 test files)
+
+## UX Sprint 4 — Native Feel: Pull-to-Refresh & Offline Support (Apr 18 2026)
+
+### Pull-to-Refresh
+- [x] Created usePullToRefresh hook (client/src/hooks/usePullToRefresh.ts) — touch gesture detection, 70px threshold
+- [x] Created PullToRefreshIndicator component (client/src/components/portal/PullToRefreshIndicator.tsx)
+- [x] Wired into PortalDashboard (refetch getDashboard + invoiceChasing + activationChecklist + referralStats)
+- [x] Wired into PortalJobs (refetch listJobs + quotes.list)
+- [x] Visual feedback: amber spinner + "Pull to refresh" / "Release to refresh" / "Refreshing..." states
+
+### Offline Indicator + Mutation Queue
+- [x] Created useOnlineStatus hook (client/src/hooks/useOnlineStatus.ts)
+- [x] Created OfflineBanner component (client/src/components/portal/OfflineBanner.tsx) — sticky, auto-shows/hides
+- [x] Created offlineQueue utility (client/src/lib/offlineQueue.ts) — localStorage-backed, prune stale
+- [x] Created useOfflineMutation hook (client/src/hooks/useOfflineMutation.ts) — wraps mutations with offline fallback
+- [x] Wired queue to key mutations: job field saves, mark complete, mark paid
+- [x] Show queued count in offline banner ("You're offline · 3 actions queued")
+- [x] Auto-replay queued mutations on reconnect with toast feedback + invalidate all portal queries
+- [x] Placed OfflineBanner in PortalLayout (visible on all portal pages)
+
+### Final Verification (Sprint 4)
+- [x] tsc --noEmit: 0 errors
+- [x] 280/280 vitest tests passing (29 test files)

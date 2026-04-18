@@ -23,6 +23,7 @@ import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgrade
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
 import { useSwipe } from "@/hooks/useSwipe";
 import { hapticLight, hapticMedium, hapticSuccess, hapticWarning } from "@/lib/haptics";
+import { useOfflineMutation } from "@/hooks/useOfflineMutation";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STAGE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -580,8 +581,11 @@ export default function PortalJobDetail() {
   const afterPhotos = photos.filter(p => p.photoType === "after");
   const staffPhotos = photos.filter(p => p.photoType === "during" || p.photoType === "other");
 
+  const offlineAware = useOfflineMutation();
+
   function save(field: string, value: string | number | null) {
-    updateJob.mutate({ id: jobId, [field]: value } as Parameters<typeof updateJob.mutate>[0]);
+    const input = { id: jobId, [field]: value };
+    offlineAware("portal.updateJob", input, () => updateJob.mutate(input as Parameters<typeof updateJob.mutate>[0]));
   }
 
   return (
@@ -1158,13 +1162,16 @@ export default function PortalJobDetail() {
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
-                <Button onClick={() => markComplete.mutate({
-                  id: jobId,
-                  completionNotes: completionNotes || undefined,
-                  variationNotes: variationNotes || undefined,
-                  actualHours: actualHours || undefined,
-                  actualValue: actualValue ? parseFloat(actualValue) : undefined,
-                })} disabled={markComplete.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
+                <Button onClick={() => {
+                  const input = {
+                    id: jobId,
+                    completionNotes: completionNotes || undefined,
+                    variationNotes: variationNotes || undefined,
+                    actualHours: actualHours || undefined,
+                    actualValue: actualValue ? parseFloat(actualValue) : undefined,
+                  };
+                  offlineAware("portal.markJobComplete", input, () => markComplete.mutate(input));
+                }} disabled={markComplete.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
                   {markComplete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                   Complete Job
                 </Button>
@@ -1203,7 +1210,8 @@ export default function PortalJobDetail() {
                 <Button onClick={() => {
                   const cents = Math.round(parseFloat(paidAmount) * 100);
                   if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
-                  markPaid.mutate({ jobId, paymentMethod: paidMethod, amountCents: cents });
+                  const input = { jobId, paymentMethod: paidMethod, amountCents: cents };
+                  offlineAware("portal.markJobPaid", input, () => markPaid.mutate(input));
                 }} disabled={markPaid.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
                   {markPaid.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />}
                   Confirm Payment

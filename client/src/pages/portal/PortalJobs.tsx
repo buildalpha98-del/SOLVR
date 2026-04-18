@@ -3,7 +3,7 @@
  * Available on setup-monthly + full-managed plans.
  * Features: Board/List toggle, search/filter, tap-to-open job detail.
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
@@ -18,6 +18,8 @@ import { toast } from "sonner";
 import { lazy, Suspense } from "react";
 import { FileText } from "lucide-react";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 
 const QuoteListContent = lazy(() => import("./QuoteListContent"));
 
@@ -530,6 +532,17 @@ export default function PortalJobs() {
     .filter(j => j.stage === "completed")
     .reduce((sum, j) => sum + (j.actualValue ?? j.estimatedValue ?? 0), 0);
 
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.listJobs.invalidate(),
+      utils.quotes.list.invalidate(),
+    ]);
+  }, [utils]);
+
+  const { containerRef: jobsContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="jobs">
       {showAdd && (
@@ -538,7 +551,8 @@ export default function PortalJobs() {
           onAdd={data => createJobMutation.mutate(data)}
         />
       )}
-      <div className="space-y-4">
+      <div ref={jobsContainerRef} className="space-y-4" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
         <ViewerBanner />
 
         {/* ── Jobs / Quotes toggle ── */}

@@ -21,7 +21,7 @@ import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -32,6 +32,8 @@ import { toast } from "sonner";
 import { useVapi, type PersonaConfig } from "@/hooks/useVapi";
 import { Waveform } from "@/components/Waveform";
 import { TranscriptFeed } from "@/components/TranscriptFeed";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 
 // ─── Quick Job Button ────────────────────────────────────────────────────────
 function QuickJobButton() {
@@ -493,9 +495,23 @@ export default function PortalDashboard() {
     }
   };
 
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.getDashboard.invalidate(),
+      utils.invoiceChasing.summary.invalidate(),
+      utils.portal.getActivationChecklist.invalidate(),
+      utils.portal.getReferralStats.invalidate(),
+    ]);
+  }, [utils]);
+
+  const { containerRef, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="dashboard">
-      <div className="space-y-6">
+      <div ref={containerRef} className="space-y-6" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
         {/* Free-tier upgrade banner */}
         {isFreeTier && !upgradeBannerDismissed && (
           <div
