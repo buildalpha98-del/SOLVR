@@ -781,6 +781,7 @@ export const portalRouter = router({
         cancel_url: `${input.origin}/portal/dashboard`,
         customer_email: client.contactEmail ?? undefined,
         subscription_data: {
+          trial_period_days: 14,
           metadata: {
             plan: input.plan,
             billingCycle: input.billingCycle,
@@ -844,6 +845,7 @@ export const portalRouter = router({
         cancel_url: `${input.origin}/portal/quotes`,
         customer_email: client.contactEmail ?? undefined,
         subscription_data: {
+          trial_period_days: 14,
           metadata: {
             product: "quote-engine",
             clientId: String(client.id),
@@ -1471,6 +1473,9 @@ export const portalRouter = router({
       notifyEmailJobUpdate: profile?.notifyEmailJobUpdate ?? false,
       notifyPushJobUpdate: profile?.notifyPushJobUpdate ?? true,
       notifyEmailWeeklySummary: profile?.notifyEmailWeeklySummary ?? true,
+      // Automation settings
+      autoInvoiceOnCompletion: profile?.autoInvoiceOnCompletion ?? true,
+      appointmentReminderEnabled: profile?.appointmentReminderEnabled ?? true,
     };
   }),
 
@@ -1489,6 +1494,9 @@ export const portalRouter = router({
         notifyEmailJobUpdate: z.boolean().optional(),
         notifyPushJobUpdate: z.boolean().optional(),
         notifyEmailWeeklySummary: z.boolean().optional(),
+        // Automation settings
+        autoInvoiceOnCompletion: z.boolean().optional(),
+        appointmentReminderEnabled: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1501,6 +1509,8 @@ export const portalRouter = router({
         "notifyEmailQuoteAccepted", "notifyPushQuoteAccepted",
         "notifyEmailJobUpdate", "notifyPushJobUpdate",
         "notifyEmailWeeklySummary",
+        "autoInvoiceOnCompletion",
+        "appointmentReminderEnabled",
       ] as const;
       for (const key of fields) {
         const val = input[key];

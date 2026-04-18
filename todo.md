@@ -752,3 +752,32 @@
 - [x] SMS template library: sms_templates table (migration 0052) + listSmsTemplates, createSmsTemplate, deleteSmsTemplate procedures
 - [x] SMS template library: template picker in bulk SMS modal compose step (click to insert, save-current-as-template, delete)
 - [x] Opt-out count: skippedCount column on sms_campaigns (migration 0051) + populated in sendBulkSms + shown in CampaignRow as 'X skipped' with UserMinus icon
+
+## P0 — Auto-Invoice on Job Completion
+- [x] Extract shared invoiceGenerator.ts helper (PDF generation, S3 upload, email, SMS payment link)
+- [x] Wire auto-invoice into markJobComplete (fire-and-forget when autoInvoiceOnCompletion enabled)
+- [x] Auto-create invoiceChase record so chasing cron picks it up
+- [x] Add autoInvoiceOnCompletion toggle to Settings → Automation section
+- [x] Refactor generateInvoice procedure to use shared helper
+- [x] 239 vitest tests passing
+
+## P0 — Voice-to-Quote Zod Robustness
+- [x] Add Zod schema with safeParse at LLM output boundary (quoteExtraction.ts)
+- [x] All fields .nullish()/.optional() — graceful degradation on missing data
+- [x] Structured error logging (raw input, Zod issues array, path) on validation failures
+- [x] 25 vitest edge-case scenarios covering malformed LLM output (empty, partial, garbage, wrong types)
+- [x] Fallback: on Zod failure, returns sanitised partial data instead of throwing
+
+## P1 — Appointment Reminder SMS
+- [x] Add cron job running daily 5pm AEST (7am UTC) — appointmentReminder.ts
+- [x] Query calendar events starting tomorrow with customer phone + reminderSentAt idempotency
+- [x] Send reminder SMS via Twilio with job status tracking link
+- [x] appointmentReminderEnabled toggle in Settings → Automation + schema migration
+- [x] 5 vitest tests for reminder cron logic (249 total passing)
+
+## P1 — 14-Day Free Trial on Stripe Checkout
+- [x] trial_period_days: 14 on all checkout sessions (public, portal upgrade, quote-engine add-on)
+- [x] Pricing UI already shows "14-day free trial" messaging (VoiceAgent.tsx, Pricing.tsx)
+- [x] trial_will_end webhook handler sends reminder email with add-card CTA
+- [x] VoiceAgentSuccess.tsx shows trial end date after checkout
+- [x] 249 vitest tests passing

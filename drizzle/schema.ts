@@ -644,6 +644,8 @@ export const portalCalendarEvents = mysqlTable("portal_calendar_events", {
   isAllDay: boolean("isAllDay").default(false).notNull(),
   /** Color for calendar display */
   color: varchar("color", { length: 32 }).default("amber").notNull(),
+  /** When the 24-hour appointment reminder SMS was sent (null = not yet sent) */
+  reminderSentAt: timestamp("reminderSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1043,6 +1045,14 @@ export const clientProfiles = mysqlTable("client_profiles", {
   reviewRequestEnabled: boolean("reviewRequestEnabled").default(true).notNull(),
   /** Delay in minutes before the review request is sent after job completion (default 30) */
   reviewRequestDelayMinutes: int("reviewRequestDelayMinutes").default(30).notNull(),
+
+  // ── Auto-Invoice Settings ──────────────────────────────────────────────────
+  /** Automatically generate and send invoice when a job is marked complete */
+  autoInvoiceOnCompletion: boolean("autoInvoiceOnCompletion").default(true).notNull(),
+
+  // ── Appointment Reminder Settings ──────────────────────────────────────────
+  /** Send SMS reminder 24 hours before scheduled appointments */
+  appointmentReminderEnabled: boolean("appointmentReminderEnabled").default(true).notNull(),
 
   /** Timestamp when the tradie dismissed the activation checklist (null = not yet dismissed) */
   activationChecklistDismissedAt: timestamp("activationChecklistDismissedAt"),

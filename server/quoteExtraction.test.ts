@@ -150,3 +150,108 @@ describe("sanitiseExtracted — other fields", () => {
     expect(result.extractionWarnings).toEqual(warnings);
   });
 });
+
+// ─── Zod safeParse partial recovery edge cases ──────────────────────────────
+// These test that sanitiseExtracted handles the kinds of malformed data
+// that the Zod safeParse fallback path would produce.
+
+describe("sanitiseExtracted — LLM edge cases (Zod fallback scenarios)", () => {
+  it("handles lineItems with null quantity (LLM sometimes returns null)", () => {
+    const result = sanitiseExtracted({
+      jobTitle: "Test Job",
+      jobDescription: null,
+      customerName: null,
+      customerPhone: null,
+      customerEmail: null,
+      customerAddress: null,
+      lineItems: [
+        { description: "Item", quantity: null as unknown as number, unit: "each", unitPrice: 100 },
+      ],
+      paymentTerms: null,
+      validityDays: null,
+      notes: null,
+      extractionWarnings: [],
+    });
+    expect(result.lineItems[0].quantity).toBe(1);
+  });
+
+  it("handles lineItems with string unitPrice (LLM sometimes returns string numbers)", () => {
+    const result = sanitiseExtracted({
+      jobTitle: "Test Job",
+      jobDescription: null,
+      customerName: null,
+      customerPhone: null,
+      customerEmail: null,
+      customerAddress: null,
+      lineItems: [
+        { description: "Item", quantity: 1, unit: "each", unitPrice: "150" as unknown as number },
+      ],
+      paymentTerms: null,
+      validityDays: null,
+      notes: null,
+      extractionWarnings: [],
+    });
+    expect(result.lineItems[0].unitPrice).toBeNull();
+  });
+
+  it("handles completely empty extraction", () => {
+    const result = sanitiseExtracted({
+      jobTitle: "",
+      jobDescription: null,
+      customerName: null,
+      customerPhone: null,
+      customerEmail: null,
+      customerAddress: null,
+      lineItems: [],
+      paymentTerms: null,
+      validityDays: null,
+      notes: null,
+      extractionWarnings: [],
+    });
+    expect(result.jobTitle).toBe("");
+    expect(result.lineItems).toHaveLength(0);
+  });
+
+  it("handles negative validityDays", () => {
+    const result = sanitiseExtracted({
+      jobTitle: "Test",
+      jobDescription: null,
+      customerName: null,
+      customerPhone: null,
+      customerEmail: null,
+      customerAddress: null,
+      lineItems: [],
+      paymentTerms: null,
+      validityDays: -7,
+      notes: null,
+      extractionWarnings: [],
+    });
+    expect(result.validityDays).toBeNull();
+  });
+
+  it("handles all placeholder strings across all nullable fields", () => {
+    const placeholders = ["not provided", "N/A", "na", "none", "unknown", "null", "not mentioned", "not stated", "not given", "not available", "not specified"];
+    for (const placeholder of placeholders) {
+      const result = sanitiseExtracted({
+        jobTitle: "Test",
+        jobDescription: placeholder,
+        customerName: placeholder,
+        customerPhone: placeholder,
+        customerEmail: placeholder,
+        customerAddress: placeholder,
+        lineItems: [],
+        paymentTerms: placeholder,
+        validityDays: 30,
+        notes: placeholder,
+        extractionWarnings: [],
+      });
+      expect(result.customerName).toBeNull();
+      expect(result.customerEmail).toBeNull();
+      expect(result.customerPhone).toBeNull();
+      expect(result.customerAddress).toBeNull();
+      expect(result.jobDescription).toBeNull();
+      expect(result.paymentTerms).toBeNull();
+      expect(result.notes).toBeNull();
+    }
+  });
+});

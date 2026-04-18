@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
-  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut,
+  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -580,6 +580,9 @@ export default function PortalSettings() {
         {/* ─── Google Reviews ───────────────────────────────────────────────────── */}
         <GoogleReviewSection />
 
+        {/* ─── Automation ──────────────────────────────────────────────────────── */}
+        <AutomationSection />
+
         {/* ─── Notifications ────────────────────────────────────────────────────── */}
         <NotificationsSection />
 
@@ -1004,6 +1007,123 @@ function NotificationsSection() {
           ))}
           <p className="text-xs pt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
             Push notifications require the Solvr app to be installed and notifications to be enabled in your device settings.
+          </p>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ─── Automation Section ──────────────────────────────────────────────────────
+function AutomationSection() {
+  const { canWrite } = usePortalRole();
+  const { data: prefs, isLoading } = trpc.portal.getNotificationPrefs.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const updatePrefs = trpc.portal.updateNotificationPrefs.useMutation({
+    onSuccess: () => toast.success("Automation settings saved."),
+    onError: () => toast.error("Failed to save automation settings."),
+  });
+  const utils = trpc.useUtils();
+
+  function toggleAutoInvoice() {
+    if (!prefs) return;
+    updatePrefs.mutate(
+      { autoInvoiceOnCompletion: !prefs.autoInvoiceOnCompletion },
+      { onSuccess: () => utils.portal.getNotificationPrefs.invalidate() },
+    );
+  }
+
+  function toggleAppointmentReminder() {
+    if (!prefs) return;
+    updatePrefs.mutate(
+      { appointmentReminderEnabled: !prefs.appointmentReminderEnabled },
+      { onSuccess: () => utils.portal.getNotificationPrefs.invalidate() },
+    );
+  }
+
+  return (
+    <SectionCard
+      icon={Zap}
+      title="Automation"
+      subtitle="Configure what happens automatically when you complete jobs."
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Auto-Invoice Toggle */}
+          <div
+            className="flex items-center justify-between py-3 px-4 rounded-lg"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <div className="flex-1 mr-4">
+              <div className="text-sm font-medium text-white">Auto-invoice on job completion</div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Automatically generate and send an invoice when you mark a job as complete. The invoice will be emailed to the customer and an SMS payment link will be sent.
+              </div>
+            </div>
+            <button
+              onClick={toggleAutoInvoice}
+              disabled={updatePrefs.isPending || !canWrite}
+              className="w-11 h-6 rounded-full transition-colors relative flex-shrink-0"
+              style={{
+                background: prefs?.autoInvoiceOnCompletion
+                  ? "rgba(245,166,35,0.8)"
+                  : "rgba(255,255,255,0.12)",
+                opacity: canWrite ? 1 : 0.5,
+                cursor: canWrite ? "pointer" : "not-allowed",
+              }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{
+                  transform: prefs?.autoInvoiceOnCompletion
+                    ? "translateX(22px)"
+                    : "translateX(2px)",
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Appointment Reminder Toggle */}
+          <div
+            className="flex items-center justify-between py-3 px-4 rounded-lg"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <div className="flex-1 mr-4">
+              <div className="text-sm font-medium text-white">Appointment reminder SMS</div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Send an SMS reminder to the customer 24 hours before their scheduled appointment. Includes a link to track their job status.
+              </div>
+            </div>
+            <button
+              onClick={toggleAppointmentReminder}
+              disabled={updatePrefs.isPending || !canWrite}
+              className="w-11 h-6 rounded-full transition-colors relative flex-shrink-0"
+              style={{
+                background: prefs?.appointmentReminderEnabled
+                  ? "rgba(245,166,35,0.8)"
+                  : "rgba(255,255,255,0.12)",
+                opacity: canWrite ? 1 : 0.5,
+                cursor: canWrite ? "pointer" : "not-allowed",
+              }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                style={{
+                  transform: prefs?.appointmentReminderEnabled
+                    ? "translateX(22px)"
+                    : "translateX(2px)",
+                }}
+              />
+            </button>
+          </div>
+
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+            These automations run in the background. Auto-invoice triggers when you mark a job complete. Appointment reminders are sent daily at 5pm for the next day's bookings.
           </p>
         </div>
       )}
