@@ -2,6 +2,7 @@
  * Shared PDF label translations for quote and invoice documents.
  * Supports 14 languages + English fallback.
  */
+import type { Style } from "@react-pdf/types";
 
 export type PdfLabels = {
   /** "Prepared For" / "Bill To" */
@@ -628,15 +629,15 @@ export function isRTL(lang?: string | null): boolean {
   return lang === "ar";
 }
 
-/** Returns style overrides for RTL pages. */
-export function rtlStyle(lang?: string | null): object {
-  if (!isRTL(lang)) return {};
-  return { fontFamily: "NotoSansArabic", direction: "rtl" as const, textAlign: "right" as const };
+/** Returns style overrides for RTL pages. Returns an empty Style for LTR languages. */
+export function rtlStyle(lang?: string | null): Style {
+  if (!isRTL(lang)) return {} as Style;
+  return { fontFamily: "NotoSansArabic", direction: "rtl", textAlign: "right" } as Style;
 }
 
-export function rtlBoldStyle(lang?: string | null): object {
-  if (!isRTL(lang)) return {};
-  return { fontFamily: "NotoSansArabic", fontWeight: "bold" as const, direction: "rtl" as const, textAlign: "right" as const };
+export function rtlBoldStyle(lang?: string | null): Style {
+  if (!isRTL(lang)) return {} as Style;
+  return { fontFamily: "NotoSansArabic", fontWeight: "bold", direction: "rtl", textAlign: "right" } as Style;
 }
 
 /** Map of ISO-639-1 language codes to their native-language translation of "QUOTE" */

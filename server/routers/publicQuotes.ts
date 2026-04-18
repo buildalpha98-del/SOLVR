@@ -25,7 +25,7 @@ import { sendEmail } from "../_core/email";
 import { sendExpoPush } from "../expoPush";
 import { sendPushToClient } from "../pushNotifications";
 import { getDb } from "../db";
-import { crmClients } from "../../drizzle/schema";
+import { crmClients, portalJobs } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { generateInvoiceForJob, createAutoInvoiceChase } from "../lib/invoiceGenerator";
 

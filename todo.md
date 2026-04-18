@@ -872,3 +872,10 @@
 - [x] minSdkVersion = 24, targetSdkVersion = 34 documented in ANDROID_MIGRATION_SPEC.md
 - [x] Capacitor Android back button handler: code + package install instructions in ANDROID_MIGRATION_SPEC.md Section 4
 - [x] 280 vitest tests passing, 0 TS errors
+
+## Schema Gap Fix (Apr 18 2026)
+- [x] Identified 83 TS errors from stale tsc watch — root causes: (1) rtlStyle/rtlBoldStyle returning `object` instead of `Style`, (2) missing `portalJobs` import in publicQuotes.ts
+- [x] Added `@react-pdf/types` as devDependency — provides the `Style` type used by @react-pdf/renderer internally
+- [x] Fixed `pdfTranslations.ts` rtlStyle + rtlBoldStyle return types to `Style` (from `@react-pdf/types`)
+- [x] Fixed `publicQuotes.ts` — added `portalJobs` to schema import
+- [x] tsc --noEmit exits 0, 280 tests passing
