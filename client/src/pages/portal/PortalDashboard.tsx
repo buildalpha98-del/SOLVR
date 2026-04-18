@@ -686,7 +686,7 @@ export default function PortalDashboard() {
               <>
                 <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
                 <button
-                  onClick={() => navigate("/portal/quotes?record=1")}
+                  onClick={() => navigate("/portal/jobs?tab=quotes&record=1")}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
                   style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.35)" }}
                 >
@@ -748,7 +748,7 @@ export default function PortalDashboard() {
                 actions.push({
                   label: `${(data as any).draftQuotesCount} draft quote${(data as any).draftQuotesCount > 1 ? "s" : ""} to send`,
                   count: (data as any).draftQuotesCount,
-                  href: "/portal/quotes",
+                  href: "/portal/jobs?tab=quotes",
                   color: "#3b82f6",
                   icon: <FileText className="w-4 h-4" />,
                 });

@@ -1022,3 +1022,33 @@
 - [x] tsc --noEmit: 0 errors
 - [x] 280/280 vitest tests passing (29 test files)
 - [x] 375px viewport QA: all modals, grids, and touch targets verified mobile-safe
+
+## UX Sprint 3 — Workflow Consolidation & Native Feel (Apr 18 2026)
+
+### Merge Quotes into Jobs Page
+- [x] Add Quotes tab to PortalJobs page (Jobs | Quotes toggle)
+- [x] Extracted QuoteListContent component from PortalQuotes
+- [x] Lazy-loaded QuoteListContent inside Jobs page with Suspense
+- [x] Keep New Quote modal and voice-to-quote flow accessible from Jobs page
+- [x] Removed Quotes from More drawer in PortalLayout
+- [x] Redirect /portal/quotes to /portal/jobs?tab=quotes (PortalQuotes now a redirect)
+- [x] Updated all back-nav links: PortalQuoteDetail, PortalQuoteSettings, PortalDashboard, JobCard
+- [x] Keep PortalQuoteDetail as standalone page (deep link from quote rows)
+
+### Swipe Gestures on Job Detail Tabs
+- [x] Created useSwipe hook (client/src/hooks/useSwipe.ts)
+- [x] Converted Tabs to controlled mode (value + onValueChange)
+- [x] Swipe left/right switches between Overview · Money · Work
+- [x] Respects touch scroll vs swipe threshold (>50px horizontal, angle < 45°)
+
+### Haptic Feedback on Key Actions
+- [x] Created haptics utility (client/src/lib/haptics.ts) — 4 patterns: light, medium, success, warning
+- [x] hapticLight on job stage changes and field saves
+- [x] hapticSuccess on quote create, job add, mark complete, generate invoice, mark paid
+- [x] hapticMedium on progress payment recorded
+- [x] hapticWarning on payment removed, quote deleted
+- [x] Graceful try/catch fallback for browsers without vibration API
+
+### Final Verification (Sprint 3)
+- [x] tsc --noEmit: 0 errors
+- [x] 280/280 vitest tests passing (29 test files)

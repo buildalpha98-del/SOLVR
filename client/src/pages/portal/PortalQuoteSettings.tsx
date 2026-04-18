@@ -76,7 +76,7 @@ export default function PortalQuoteSettings() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/portal/quotes")}
+          onClick={() => navigate("/portal/jobs?tab=quotes")}
           className="text-white/50 hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-1.5" />

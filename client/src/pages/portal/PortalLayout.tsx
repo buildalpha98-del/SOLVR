@@ -46,7 +46,7 @@ const ALL_TABS: NavTab[] = [
   { key: "assistant", label: "AI Assistant", href: "/portal/assistant", icon: <Bot className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   // ── Overflow items (More drawer) ──
   { key: "calls", label: "Calls", href: "/portal/calls", icon: <Phone className="w-4 h-4" />, feature: "calls" },
-  { key: "quotes", label: "Quotes", href: "/portal/quotes", icon: <FileText className="w-4 h-4" />, feature: "quote-engine", badge: "Pro" },
+  // Quotes merged into Jobs tab — no longer in More drawer
   { key: "customers", label: "Customers", href: "/portal/customers", icon: <Users className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "compliance", label: "Compliance", href: "/portal/compliance", icon: <ShieldCheck className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "schedule", label: "Staff Roster", href: "/portal/schedule", icon: <CalendarClock className="w-4 h-4" />, feature: "jobs", badge: "Pro" },

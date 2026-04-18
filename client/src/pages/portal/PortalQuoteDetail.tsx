@@ -119,7 +119,7 @@ export default function PortalQuoteDetail() {
       <PortalLayout activeTab="quotes">
         <div className="text-center py-20">
           <p className="text-white/50">Quote not found.</p>
-          <Button variant="ghost" className="mt-4 text-amber-400" onClick={() => navigate("/portal/quotes")}>
+          <Button variant="ghost" className="mt-4 text-amber-400" onClick={() => navigate("/portal/jobs?tab=quotes")}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Quotes
           </Button>
         </div>
@@ -227,7 +227,7 @@ export default function PortalQuoteDetail() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/portal/quotes")}
+          onClick={() => navigate("/portal/jobs?tab=quotes")}
           className="text-white/50 hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-1.5" />

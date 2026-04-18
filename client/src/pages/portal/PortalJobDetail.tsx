@@ -3,7 +3,7 @@
  * Three tabs: Overview · Money · Work
  * Designed for tradies — minimal taps to find anything.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
+import { useSwipe } from "@/hooks/useSwipe";
+import { hapticLight, hapticMedium, hapticSuccess, hapticWarning } from "@/lib/haptics";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STAGE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -451,17 +453,17 @@ export default function PortalJobDetail() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const updateJob = trpc.portal.updateJobDetail.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success("Saved"); },
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticLight(); toast.success("Saved"); },
     onError: (e) => toast.error(e.message),
   });
 
   const addPayment = trpc.portal.addProgressPayment.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowAddPayment(false); toast.success("Payment recorded"); },
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowAddPayment(false); hapticMedium(); toast.success("Payment recorded"); },
     onError: (e) => toast.error(e.message),
   });
 
   const removePayment = trpc.portal.removeProgressPayment.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success("Payment removed"); },
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticWarning(); toast.success("Payment removed"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -480,7 +482,7 @@ export default function PortalJobDetail() {
   });
 
   const markComplete = trpc.portal.markJobComplete.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowCompleteModal(false); toast.success("Job marked complete"); },
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowCompleteModal(false); hapticSuccess(); toast.success("Job marked complete"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -494,12 +496,12 @@ export default function PortalJobDetail() {
   });
 
   const generateInvoice = trpc.portal.generateInvoice.useMutation({
-    onSuccess: (res) => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success(`Invoice ${res.invoiceNumber} created`); },
+    onSuccess: (res) => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticSuccess(); toast.success(`Invoice ${res.invoiceNumber} created`); },
     onError: (e) => toast.error(e.message),
   });
 
   const markPaid = trpc.portal.markInvoicePaid.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowMarkPaid(false); toast.success("Invoice marked as paid"); },
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowMarkPaid(false); hapticSuccess(); toast.success("Invoice marked as paid"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -525,6 +527,23 @@ export default function PortalJobDetail() {
 
   const [showSendInvoice, setShowSendInvoice] = useState(false);
   const [sendInvoiceEmail, setSendInvoiceEmail] = useState("");
+
+  // ── Tab state + swipe gestures ──────────────────────────────────────────────
+  type TabKey = "overview" | "money" | "work";
+  const TAB_ORDER: TabKey[] = ["overview", "money", "work"];
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: () => {
+      const idx = TAB_ORDER.indexOf(activeTab);
+      if (idx < TAB_ORDER.length - 1) setActiveTab(TAB_ORDER[idx + 1]);
+    },
+    onSwipeRight: () => {
+      const idx = TAB_ORDER.indexOf(activeTab);
+      if (idx > 0) setActiveTab(TAB_ORDER[idx - 1]);
+    },
+    threshold: 50,
+  });
 
   if (isLoading) {
     return (
@@ -603,7 +622,8 @@ export default function PortalJobDetail() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* ── TABBED LAYOUT ── */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <Tabs defaultValue="overview" className="w-full">
+        <div {...swipeHandlers}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "overview" | "money" | "work")} className="w-full">
           {/* Sticky tab bar — thumb-reachable on mobile */}
           <TabsList
             className="w-full grid grid-cols-3 h-12 rounded-xl p-1 sticky top-0 z-30"
@@ -1099,6 +1119,7 @@ export default function PortalJobDetail() {
             </SectionCard>
           </TabsContent>
         </Tabs>
+        </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* ── MODALS (always rendered, outside tabs) ── */}
