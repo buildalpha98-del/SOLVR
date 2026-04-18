@@ -1107,8 +1107,15 @@
 - [x] Incomplete tasks validation test (soft warning, not hard block)
 - [x] All 3 tests passing
 
-### IP Protection
-- [ ] Finalise trademark, copyright, code protection, and licensing strategy
+### IP Protection (Sprint 6)
+- [x] Created proprietary LICENSE file (all rights reserved, Elevate Kids Holdings Pty Ltd)
+- [x] Added copyright headers to 80+ source files (server routers, client pages, components, hooks, lib, schema)
+- [x] Verified Terms of Service page exists and is comprehensive (/terms)
+- [x] Verified Privacy Policy page exists and is Australian Privacy Act compliant (/privacy)
+- [x] Verified /terms and /privacy routes registered in App.tsx
+- [x] Updated footer copyright on all public pages to "© Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr."
+- [x] Created SOLVR Trademark & IP Protection Guide (solvr-trademark-guide.md) — covers TM registration, Nice Classification, domain protection, brand usage guidelines
+- [x] Added copyright header to Privacy.tsx
 
 ### Custom Job Templates
 - [x] Added `jobTemplates` table to schema (id, clientId, name, tradeType, tasks JSON, isDefault, createdAt, updatedAt)
@@ -1122,3 +1129,8 @@
 ### Final Verification (Sprint 5)
 - [x] tsc --noEmit: 0 errors (3 stale portalTeamMembers warnings — confirmed false positive)
 - [x] 283/283 vitest tests passing (30 test files)
+
+### Final Verification (Sprint 6)
+- [x] tsc --noEmit: 0 errors (3 stale portalTeamMembers warnings — confirmed false positive from watcher cache)
+- [x] 283/283 vitest tests passing (30 test files)
+- [x] Checkpoint saved

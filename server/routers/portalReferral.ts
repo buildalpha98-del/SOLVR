@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 Elevate Kids Holdings Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal referral programme procedures.
  * Tradies get a unique referral code. When a referred tradie pays for the first time,
  * the referrer gets 20% off their next Stripe invoice.

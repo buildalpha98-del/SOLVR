@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 Elevate Kids Holdings Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Calls — transcript list with summaries, job type tags, and search.
  * Available on all plans. Includes "Convert to Job" one-tap action.
  */

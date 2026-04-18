@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 Elevate Kids Holdings Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Forgot Password — sends a password reset email.
  */
 import { useState } from "react";

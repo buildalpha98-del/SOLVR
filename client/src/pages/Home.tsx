@@ -939,8 +939,7 @@ export default function Home() {
             <Link href="/portal/login"><span className="hover:text-white transition-colors cursor-pointer">Client Login</span></Link>
           </div>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-            © {new Date().getFullYear()} Solvr. Built by{" "}
-            <a href="https://clearpathaiagency.com.au" className="hover:text-white/40 transition-colors">Clear Path AI Agency</a>.
+            © {new Date().getFullYear()} Elevate Kids Holdings Pty Ltd. All rights reserved. Trading as Solvr.
           </p>
         </div>
       </footer>
