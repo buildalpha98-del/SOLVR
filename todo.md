@@ -746,3 +746,9 @@
 - [x] SMS scheduling: scheduledAt + parentCampaignId columns on sms_campaigns table (migration 0050)
 - [x] SMS scheduling: cron job every minute dispatches pending campaigns whose scheduledAt has passed
 - [x] SMS scheduling: datetime picker in bulk SMS modal with "Schedule for later" toggle (min 5 min from now)
+
+## SMS UX Improvements — Cancellation, Templates, Opt-Out Count
+- [x] Scheduled campaign cancellation: cancelCampaign procedure (sets status to 'cancelled', only for pending) + Cancel button on pending CampaignRow (confirm dialog)
+- [x] SMS template library: sms_templates table (migration 0052) + listSmsTemplates, createSmsTemplate, deleteSmsTemplate procedures
+- [x] SMS template library: template picker in bulk SMS modal compose step (click to insert, save-current-as-template, delete)
+- [x] Opt-out count: skippedCount column on sms_campaigns (migration 0051) + populated in sendBulkSms + shown in CampaignRow as 'X skipped' with UserMinus icon

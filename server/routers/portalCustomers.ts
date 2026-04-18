@@ -29,6 +29,9 @@ import {
   optOutCustomerSms,
   getFailedCampaignRecipients,
   getSmsCampaignById,
+  listSmsTemplates as dbListSmsTemplates,
+  createSmsTemplate as dbCreateSmsTemplate,
+  deleteSmsTemplate as dbDeleteSmsTemplate,
 } from "../db";
 import { sendSms } from "../lib/sms";
 
@@ -150,11 +153,16 @@ export const portalCustomersRouter = router({
           year: "numeric",
         })}`;
 
+      // Count how many were skipped due to opt-out
+      const allSelected = allCustomers.filter((c) => input.customerIds.includes(c.id) && !!c.phone);
+      const skippedCount = allSelected.length - targets.length;
+
       const campaignId = await createSmsCampaign({
         clientId,
         name: campaignName,
         message: input.message,
         totalCount: targets.length,
+        skippedCount,
         status: "sending",
       });
 
@@ -354,6 +362,61 @@ export const portalCustomersRouter = router({
    * Creates the campaign + recipient rows in "pending" status with scheduledAt set.
    * The server-side cron picks it up when scheduledAt <= NOW().
    */
+  /**
+   * Cancel a pending (scheduled) campaign before it fires.
+   * Only pending campaigns can be cancelled — sending/completed/failed campaigns cannot.
+   */
+  cancelCampaign: publicProcedure
+    .input(z.object({ campaignId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalWrite(ctx);
+      const campaign = await getSmsCampaignById(input.campaignId);
+      if (!campaign || campaign.clientId !== clientId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+      }
+      if (campaign.status !== "pending") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot cancel a campaign with status "${campaign.status}". Only pending campaigns can be cancelled.`,
+        });
+      }
+      await updateSmsCampaignStatus(input.campaignId, "cancelled", { sentCount: 0, failedCount: 0 });
+      return { success: true, campaignId: input.campaignId };
+    }),
+
+  /**
+   * List saved SMS templates for the authenticated tradie.
+   */
+  listSmsTemplates: publicProcedure.query(async ({ ctx }) => {
+    const { clientId } = await requirePortalAuth(ctx);
+    return dbListSmsTemplates(clientId);
+  }),
+
+  /**
+   * Create a new SMS template.
+   */
+  createSmsTemplate: publicProcedure
+    .input(z.object({
+      name: z.string().min(1).max(100),
+      body: z.string().min(1).max(320),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalWrite(ctx);
+      const id = await dbCreateSmsTemplate({ clientId, name: input.name, body: input.body });
+      return { id, name: input.name, body: input.body };
+    }),
+
+  /**
+   * Delete an SMS template.
+   */
+  deleteSmsTemplate: publicProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalWrite(ctx);
+      await dbDeleteSmsTemplate(input.id, clientId);
+      return { success: true };
+    }),
+
   scheduleBulkSms: publicProcedure
     .input(z.object({
       customerIds: z.array(z.number().int().positive()).min(1).max(200),
@@ -370,11 +433,16 @@ export const portalCustomersRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "No eligible recipients (all opted out or missing phone)" });
       }
       const scheduledDate = new Date(input.scheduledAt);
+      // Count how many were skipped due to opt-out
+      const allSelected = allCustomers.filter((c) => input.customerIds.includes(c.id) && !!c.phone);
+      const skippedCount = allSelected.length - targets.length;
+
       const campaignId = await createSmsCampaign({
         clientId,
         name: `Scheduled blast — ${scheduledDate.toLocaleDateString("en-AU")}`,
         message: input.message,
         totalCount: targets.length,
+        skippedCount,
         status: "pending",
         scheduledAt: scheduledDate,
       });

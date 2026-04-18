@@ -1592,9 +1592,11 @@ export const smsCampaigns = mysqlTable("sms_campaigns", {
   /** Number that failed */
   failedCount: int("failedCount").default(0).notNull(),
   /** Campaign status */
-  status: mysqlEnum("sms_campaign_status", ["pending", "sending", "completed", "failed"])
+  status: mysqlEnum("sms_campaign_status", ["pending", "sending", "completed", "failed", "cancelled"])
     .default("pending")
     .notNull(),
+  /** Number of customers skipped because they opted out of SMS */
+  skippedCount: int("skippedCount").default(0).notNull(),
   /** If this is a retry campaign, links back to the original campaign */
   parentCampaignId: int("parentCampaignId"),
   /** If set, the campaign will be dispatched at this time by the scheduler cron */
@@ -1624,3 +1626,16 @@ export const smsCampaignRecipients = mysqlTable("sms_campaign_recipients", {
 });
 export type SmsCampaignRecipient = typeof smsCampaignRecipients.$inferSelect;
 export type InsertSmsCampaignRecipient = typeof smsCampaignRecipients.$inferInsert;
+
+// SMS Templates — saved message templates for bulk SMS campaigns
+export const smsTemplates = mysqlTable("sms_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  /** Short label shown in the template picker, e.g. "Quote follow-up" */
+  name: varchar("name", { length: 100 }).notNull(),
+  /** The message body — may include placeholders like {name} */
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SmsTemplate = typeof smsTemplates.$inferSelect;
+export type InsertSmsTemplate = typeof smsTemplates.$inferInsert;

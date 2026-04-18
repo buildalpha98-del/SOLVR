@@ -1862,14 +1862,17 @@ export async function updateTradieCustomerNotes(
     .where(and(eq(tradieCustomers.id, id), eq(tradieCustomers.clientId, clientId)));
 }
 
-// ─── SMS Campaigns (Sprint 12) ────────────────────────────────────────────────
+// ─── SMS Campaigns & Templates ───────────────────────────────────────────────
 import {
   smsCampaigns,
   smsCampaignRecipients,
+  smsTemplates,
   type SmsCampaign,
   type InsertSmsCampaign,
   type SmsCampaignRecipient,
   type InsertSmsCampaignRecipient,
+  type SmsTemplate,
+  type InsertSmsTemplate,
 } from "../drizzle/schema";
 
 export async function createSmsCampaign(data: InsertSmsCampaign): Promise<number> {
@@ -2008,3 +2011,30 @@ export async function getDueScheduledCampaigns(): Promise<SmsCampaign[]> {
       sql`${smsCampaigns.scheduledAt} IS NOT NULL AND ${smsCampaigns.scheduledAt} <= NOW()`,
     ));
 }
+
+// ─── SMS Templates ────────────────────────────────────────────────────────────
+
+export async function listSmsTemplates(clientId: number): Promise<SmsTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(smsTemplates)
+    .where(eq(smsTemplates.clientId, clientId))
+    .orderBy(smsTemplates.createdAt);
+}
+
+export async function createSmsTemplate(
+  data: Omit<InsertSmsTemplate, "id" | "createdAt">,
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(smsTemplates).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteSmsTemplate(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(smsTemplates)
+    .where(and(eq(smsTemplates.id, id), eq(smsTemplates.clientId, clientId)));
+}
+

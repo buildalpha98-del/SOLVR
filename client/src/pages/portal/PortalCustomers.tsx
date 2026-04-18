@@ -3,7 +3,7 @@
  *
  * Tabs:
  *  - Customers: search, multi-select, bulk SMS (immediate or scheduled), navigation to detail
- *  - Campaign History: past SMS blasts with expandable per-recipient delivery rows + Retry Failed
+ *  - Campaign History: past SMS blasts with expandable per-recipient delivery rows + Retry Failed + Cancel
  */
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -22,7 +22,7 @@ import {
   Users, Search, MessageSquare, ChevronRight, Phone,
   MapPin, Loader2, CheckSquare, Square, Download, DollarSign, Briefcase,
   History, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, BellOff,
-  RefreshCw, CalendarClock,
+  RefreshCw, CalendarClock, BookOpen, Plus, Trash2, X, UserMinus,
 } from "lucide-react";
 
 function fmtDate(val: Date | string | null | undefined) {
@@ -78,13 +78,10 @@ function CampaignRecipientsRow({ campaignId }: { campaignId: number }) {
             key={r.id}
             className="px-4 py-2.5 grid grid-cols-[1fr_auto_auto_1fr] gap-x-4 items-center text-sm"
           >
-            {/* Name + phone */}
             <div>
               <p className="text-white/80 font-medium text-xs">{r.name}</p>
               <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>{r.phone}</p>
             </div>
-
-            {/* Status badge */}
             <div>
               {r.status === "sent" && (
                 <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#4ade80" }}>
@@ -102,13 +99,9 @@ function CampaignRecipientsRow({ campaignId }: { campaignId: number }) {
                 </span>
               )}
             </div>
-
-            {/* Sent at */}
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
               {r.sentAt ? fmtDateTime(r.sentAt) : "—"}
             </p>
-
-            {/* Twilio SID or error */}
             <div className="min-w-0">
               {r.twilioSid && (
                 <p className="text-[11px] font-mono truncate" style={{ color: "rgba(245,166,35,0.7)" }}
@@ -133,8 +126,8 @@ function CampaignRecipientsRow({ campaignId }: { campaignId: number }) {
   );
 }
 
-/** Single campaign row with expand/collapse and Retry Failed button */
-function CampaignRow({ campaign, onRetried }: {
+/** Single campaign row with expand/collapse, Retry Failed button, and Cancel button */
+function CampaignRow({ campaign, onRetried, onCancelled }: {
   campaign: {
     id: number;
     name: string;
@@ -142,12 +135,14 @@ function CampaignRow({ campaign, onRetried }: {
     totalCount: number;
     sentCount: number;
     failedCount: number;
+    skippedCount?: number | null;
     status: string;
     scheduledAt: Date | string | null;
     createdAt: Date | string;
     completedAt: Date | string | null;
   };
   onRetried: () => void;
+  onCancelled: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -159,11 +154,19 @@ function CampaignRow({ campaign, onRetried }: {
     onError: (err) => toast.error(err.message),
   });
 
+  const cancelMutation = trpc.portalCustomers.cancelCampaign.useMutation({
+    onSuccess: () => {
+      toast.success("Campaign cancelled — no messages will be sent.");
+      onCancelled();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const statusColor =
     campaign.status === "completed" ? "#4ade80"
     : campaign.status === "failed" ? "#f87171"
-    : campaign.status === "pending" ? "#F5A623"
-    : "#F5A623";
+    : campaign.status === "cancelled" ? "rgba(255,255,255,0.3)"
+    : "#F5A623"; // pending / sending
 
   return (
     <div
@@ -195,6 +198,17 @@ function CampaignRow({ campaign, onRetried }: {
           {campaign.failedCount > 0 && (
             <span style={{ color: "#f87171" }}>{campaign.failedCount} failed</span>
           )}
+          {/* Skipped count — opt-out customers excluded from this blast */}
+          {(campaign.skippedCount ?? 0) > 0 && (
+            <span
+              className="flex items-center gap-0.5"
+              title={`${campaign.skippedCount} customer${campaign.skippedCount !== 1 ? "s" : ""} skipped (SMS opt-out)`}
+              style={{ color: "rgba(255,255,255,0.3)" }}
+            >
+              <UserMinus className="w-3 h-3" />
+              {campaign.skippedCount} skipped
+            </span>
+          )}
           <span style={{ color: "rgba(255,255,255,0.3)" }}>{fmtDate(campaign.createdAt)}</span>
           <Badge
             className="text-[10px] px-1.5 py-0 h-4 capitalize"
@@ -202,6 +216,27 @@ function CampaignRow({ campaign, onRetried }: {
           >
             {campaign.status}
           </Badge>
+
+          {/* Cancel button — only for pending (scheduled) campaigns */}
+          {campaign.status === "pending" && (
+            <button
+              title="Cancel this scheduled campaign"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("Cancel this scheduled campaign? This cannot be undone.")) {
+                  cancelMutation.mutate({ campaignId: campaign.id });
+                }
+              }}
+              disabled={cancelMutation.isPending}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-opacity hover:opacity-70"
+              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.12)" }}
+            >
+              {cancelMutation.isPending
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <X className="w-3 h-3" />}
+              Cancel
+            </button>
+          )}
 
           {/* Retry Failed button — only when there are failed recipients */}
           {campaign.failedCount > 0 && (campaign.status === "completed" || campaign.status === "failed") && (
@@ -245,6 +280,10 @@ export default function PortalCustomers() {
   // Scheduling state
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
+  // Template library state
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [newTplName, setNewTplName] = useState("");
+  const [newTplBody, setNewTplBody] = useState("");
 
   const { data: customers = [], isLoading } = trpc.portalCustomers.list.useQuery(undefined, {
     retry: false,
@@ -255,6 +294,12 @@ export default function PortalCustomers() {
     trpc.portalCustomers.listSmsCampaigns.useQuery(undefined, {
       enabled: activeTab === "history",
       staleTime: 30_000,
+    });
+
+  const { data: templates = [], refetch: refetchTemplates } =
+    trpc.portalCustomers.listSmsTemplates.useQuery(undefined, {
+      enabled: showBulkSms,
+      staleTime: 60_000,
     });
 
   const bulkSmsPreviewMutation = trpc.portalCustomers.bulkSmsPreview.useMutation({
@@ -291,6 +336,24 @@ export default function PortalCustomers() {
       setSelected(new Set());
       setScheduleMode(false);
       setScheduledAt("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const createTemplateMutation = trpc.portalCustomers.createSmsTemplate.useMutation({
+    onSuccess: () => {
+      toast.success("Template saved");
+      setNewTplName("");
+      setNewTplBody("");
+      refetchTemplates();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteTemplateMutation = trpc.portalCustomers.deleteSmsTemplate.useMutation({
+    onSuccess: () => {
+      toast.success("Template deleted");
+      refetchTemplates();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -337,6 +400,7 @@ export default function PortalCustomers() {
     setSmsSent(false);
     setScheduleMode(false);
     setScheduledAt("");
+    setShowTemplates(false);
     setShowBulkSms(true);
   }
 
@@ -533,7 +597,7 @@ export default function PortalCustomers() {
                           {c.jobCount} jobs
                         </Badge>
                       )}
-                      {/* SMS opt-out badge — inline with name */}
+                      {/* SMS opt-out badge — inline with name, click to re-enable */}
                       {c.optedOutSms && (
                         <button
                           title="SMS opted out — click to re-enable"
@@ -604,7 +668,12 @@ export default function PortalCustomers() {
                 {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""} — click any row to expand recipient delivery details.
               </p>
               {campaigns.map((c) => (
-                <CampaignRow key={c.id} campaign={c} onRetried={refetchCampaigns} />
+                <CampaignRow
+                  key={c.id}
+                  campaign={c}
+                  onRetried={refetchCampaigns}
+                  onCancelled={refetchCampaigns}
+                />
               ))}
             </div>
           )}
@@ -720,6 +789,87 @@ export default function PortalCustomers() {
           ) : (
             /* ── Step 1: Compose message ── */
             <>
+              {/* Template library toggle */}
+              <div className="mb-2">
+                <button
+                  onClick={() => setShowTemplates((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-70"
+                  style={{ color: showTemplates ? "#F5A623" : "rgba(255,255,255,0.4)" }}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  {showTemplates ? "Hide templates" : "Use a saved template"}
+                </button>
+
+                {showTemplates && (
+                  <div
+                    className="mt-2 rounded-lg overflow-hidden"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                  >
+                    {/* Existing templates */}
+                    {templates.length === 0 ? (
+                      <p className="px-3 py-2 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        No templates saved yet. Add one below.
+                      </p>
+                    ) : (
+                      <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                        {templates.map((tpl) => (
+                          <div key={tpl.id} className="flex items-center gap-2 px-3 py-2">
+                            <button
+                              className="flex-1 text-left"
+                              onClick={() => {
+                                setSmsMessage(tpl.body);
+                                setShowTemplates(false);
+                                toast.success(`Template "${tpl.name}" loaded`);
+                              }}
+                            >
+                              <p className="text-xs font-semibold text-white">{tpl.name}</p>
+                              <p className="text-[11px] mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                {tpl.body.length > 60 ? tpl.body.slice(0, 60) + "…" : tpl.body}
+                              </p>
+                            </button>
+                            <button
+                              onClick={() => deleteTemplateMutation.mutate({ id: tpl.id })}
+                              disabled={deleteTemplateMutation.isPending}
+                              className="flex-shrink-0 transition-opacity hover:opacity-70"
+                              title="Delete template"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.6)" }} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add new template */}
+                    <div className="px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        Save current message as template
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newTplName}
+                          onChange={(e) => setNewTplName(e.target.value)}
+                          placeholder="Template name…"
+                          className="h-7 text-xs bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-xs flex-shrink-0"
+                          style={{ background: "#F5A623", color: "#0F1F3D" }}
+                          disabled={!newTplName.trim() || !smsMessage.trim() || createTemplateMutation.isPending}
+                          onClick={() => {
+                            if (!newTplName.trim() || !smsMessage.trim()) return;
+                            createTemplateMutation.mutate({ name: newTplName.trim(), body: smsMessage.trim() });
+                          }}
+                        >
+                          {createTemplateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Textarea
                 value={smsMessage}
                 onChange={(e) => setSmsMessage(e.target.value)}
