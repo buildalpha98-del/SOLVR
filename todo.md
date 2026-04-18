@@ -1075,3 +1075,50 @@
 ### Final Verification (Sprint 4)
 - [x] tsc --noEmit: 0 errors
 - [x] 280/280 vitest tests passing (29 test files)
+
+## UX Sprint 5 — Smart Job Board + Trade AI Assistant + E2E Test (Apr 18 2026)
+
+### Smart Job Board
+- [x] `jobTasks` table already in schema (id, jobId, clientId, title, notes, status, sortOrder, createdAt)
+- [x] `nextActionSuggestion` + `tasksGeneratedAt` columns already on `portalJobs`
+- [x] Schema already pushed
+- [x] `tradeTaskTemplates.ts` with 8 trade templates (plumber, electrician, builder, carpenter, tiler, HVAC, painter, landscaper)
+- [x] `jobTasks.getNextAction` procedure (LLM-based, 1-hour cache)
+- [x] Full `portalJobTasks` router: list, create, update, reorder, delete, generateFromTemplate, voiceToTasks, addVoiceTasks
+- [x] Auto-generate from trade template via "AI Tasks" button
+- [x] `JobTasksSection` component in Work tab (toggle complete, add, reorder, progress bar)
+- [x] Next-action amber chip on job detail
+- [x] Voice-to-tasks: record → transcribe → extract → confirm modal → add
+
+### Trade AI Assistant
+- [x] `portalChatMessages` table already in schema
+- [x] Schema already pushed
+- [x] 9 trade knowledge blocks (plumber, electrician, builder, bathroom_reno, carpenter, tiler, HVAC, gasfitter, roofer) with AU standards
+- [x] Business context injection (profile, active jobs, recent calls)
+- [x] `portalAssistant.chat` procedure with conversation history + streaming
+- [x] Tool-calling: GENERATE_DOC (SWMS, safety certs, JSA, site inductions) + CREATE_TASK
+- [x] PortalAssistant.tsx fully wired with voice input, suggested prompts, doc generation buttons
+- [x] Compliance document generation with PDF upload to S3
+
+### Pipeline E2E Integration Test
+- [x] Created `server/pipeline.e2e.test.ts` (vitest integration test, not Playwright — more reliable for CI/CD)
+- [x] Full pipeline test: call → quote → send → accept → job → stage progression → tasks → complete → invoice → chase → paid
+- [x] Reference integrity test: quote.callId → call.id, job.quoteId → quote.id, chase.jobId → job.id
+- [x] Incomplete tasks validation test (soft warning, not hard block)
+- [x] All 3 tests passing
+
+### IP Protection
+- [ ] Finalise trademark, copyright, code protection, and licensing strategy
+
+### Custom Job Templates
+- [x] Added `jobTemplates` table to schema (id, clientId, name, tradeType, tasks JSON, isDefault, createdAt, updatedAt)
+- [x] Ran `pnpm db:push` — table created
+- [x] Full `portalJobTemplates` router: list, create, get, update, delete, saveFromJob, applyToJob
+- [x] "Save" button in JobTasksSection header (saves current tasks as reusable template)
+- [x] "Template" button in JobTasksSection header (opens template picker modal)
+- [x] TemplatePickerModal component: browse saved templates, preview tasks, one-tap apply, inline create
+- [x] applyToJob creates tasks from template with proper sort order
+
+### Final Verification (Sprint 5)
+- [x] tsc --noEmit: 0 errors (3 stale portalTeamMembers warnings — confirmed false positive)
+- [x] 283/283 vitest tests passing (30 test files)

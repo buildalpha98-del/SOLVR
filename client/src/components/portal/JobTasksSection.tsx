@@ -14,9 +14,11 @@ import { toast } from "sonner";
 import {
   Sparkles, Plus, Trash2, Mic, MicOff, Loader2,
   CheckCircle2, Circle, ChevronDown, ChevronUp,
-  Lightbulb, RotateCcw,
+  Lightbulb, RotateCcw, FileText, Save,
 } from "lucide-react";
 import { WriteGuard } from "@/components/portal/ViewerBanner";
+import { TemplatePickerModal } from "@/components/portal/TemplatePickerModal";
+import { hapticSuccess } from "@/lib/haptics";
 
 /** Matches the shape returned by jobTasks.list — based on the jobTasks DB table */
 interface Task {
@@ -210,6 +212,7 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
   const [collapsed, setCollapsed] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingVoiceTasks, setPendingVoiceTasks] = useState<{ title: string; notes: string | null }[] | null>(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -264,6 +267,20 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const saveFromJobMutation = trpc.jobTemplates.saveFromJob.useMutation({
+    onSuccess: (res) => {
+      hapticSuccess();
+      toast.success(`Saved as template "${res.name}" (${res.taskCount} tasks)`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleSaveAsTemplate = () => {
+    const name = prompt("Template name (e.g. Full Bathroom Reno):");
+    if (!name?.trim()) return;
+    saveFromJobMutation.mutate({ jobId, name: name.trim() });
+  };
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const total = tasks.length;
@@ -382,6 +399,34 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
                 AI Tasks
               </button>
             </WriteGuard>
+
+            {/* Apply saved template */}
+            <WriteGuard>
+              <button
+                onClick={() => setShowTemplatePicker(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
+                title="Apply a saved template"
+              >
+                <FileText className="w-3 h-3" />
+                Template
+              </button>
+            </WriteGuard>
+
+            {/* Save current tasks as template */}
+            {tasks && tasks.length > 0 && (
+              <WriteGuard>
+                <button
+                  onClick={handleSaveAsTemplate}
+                  disabled={saveFromJobMutation.isPending}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{ color: "rgba(255,255,255,0.4)" }}
+                  title="Save tasks as reusable template"
+                >
+                  {saveFromJobMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                </button>
+              </WriteGuard>
+            )}
 
             {/* Add task */}
             <WriteGuard>
@@ -504,6 +549,15 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
           </div>
         )}
       </div>
+
+      {/* Template Picker Modal */}
+      {showTemplatePicker && (
+        <TemplatePickerModal
+          jobId={jobId}
+          onClose={() => setShowTemplatePicker(false)}
+          onApplied={() => utils.jobTasks.list.invalidate({ jobId })}
+        />
+      )}
     </>
   );
 }

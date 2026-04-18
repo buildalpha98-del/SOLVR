@@ -1699,6 +1699,31 @@ export const jobTasks = mysqlTable("job_tasks", {
 export type JobTask = typeof jobTasks.$inferSelect;
 export type InsertJobTask = typeof jobTasks.$inferInsert;
 
+// ─── Custom Job Templates (Sprint 5) ──────────────────────────────────────────
+/**
+ * Reusable task templates that tradies can create, save from completed jobs,
+ * and apply to new jobs. Each template contains an ordered list of task titles.
+ */
+export const jobTemplates = mysqlTable("job_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — the business that owns this template */
+  clientId: int("clientId").notNull(),
+  /** Human-readable template name, e.g. "Full Bathroom Reno" */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Optional trade type for filtering, e.g. "plumber", "builder" */
+  tradeType: varchar("tradeType", { length: 100 }),
+  /** Ordered JSON array of task objects: [{title, notes?}] */
+  tasks: json("tasks").notNull().$type<Array<{ title: string; notes?: string }>>(),
+  /** Optional description of when to use this template */
+  description: text("description"),
+  /** Number of times this template has been applied */
+  useCount: int("useCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobTemplate = typeof jobTemplates.$inferSelect;
+export type InsertJobTemplate = typeof jobTemplates.$inferInsert;
+
 // ─── Portal Chat Messages (Sprint 2 — Trade AI Assistant) ────────────────────
 /**
  * Persistent conversation history for the Trade AI Assistant.
