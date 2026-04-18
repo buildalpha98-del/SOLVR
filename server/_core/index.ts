@@ -23,6 +23,7 @@ import { scheduleQuoteFollowUpCron } from "../cron/quoteFollowUp";
 import { scheduleStaffTimesheetCrons } from "../cron/staffTimesheet";
 import { scheduleReviewRequestDispatchCron } from "../cron/reviewRequestDispatch";
 import { scheduleLateCheckinAlertCron } from "../cron/lateCheckinAlert";
+import { scheduleSmsCampaignsCron } from "../cron/scheduledSmsCampaigns";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -180,6 +181,7 @@ async function startServer() {
   scheduleStaffTimesheetCrons();
   scheduleReviewRequestDispatchCron();
   scheduleLateCheckinAlertCron();
+  scheduleSmsCampaignsCron();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

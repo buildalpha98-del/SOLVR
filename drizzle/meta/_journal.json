@@ -351,6 +351,13 @@
       "when": 1776469331447,
       "tag": "0049_rainy_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1776470063876,
+      "tag": "0050_melted_white_queen",
+      "breakpoints": true
     }
   ]
 }

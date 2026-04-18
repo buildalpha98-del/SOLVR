@@ -2,8 +2,8 @@
  * PortalCustomers — CRM Customer List
  *
  * Tabs:
- *  - Customers: search, multi-select, bulk SMS, navigation to detail
- *  - Campaign History: past SMS blasts with expandable per-recipient delivery rows
+ *  - Customers: search, multi-select, bulk SMS (immediate or scheduled), navigation to detail
+ *  - Campaign History: past SMS blasts with expandable per-recipient delivery rows + Retry Failed
  */
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -21,7 +21,8 @@ import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import {
   Users, Search, MessageSquare, ChevronRight, Phone,
   MapPin, Loader2, CheckSquare, Square, Download, DollarSign, Briefcase,
-  History, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock,
+  History, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, BellOff,
+  RefreshCw, CalendarClock,
 } from "lucide-react";
 
 function fmtDate(val: Date | string | null | undefined) {
@@ -132,8 +133,8 @@ function CampaignRecipientsRow({ campaignId }: { campaignId: number }) {
   );
 }
 
-/** Single campaign row with expand/collapse */
-function CampaignRow({ campaign }: {
+/** Single campaign row with expand/collapse and Retry Failed button */
+function CampaignRow({ campaign, onRetried }: {
   campaign: {
     id: number;
     name: string;
@@ -142,15 +143,26 @@ function CampaignRow({ campaign }: {
     sentCount: number;
     failedCount: number;
     status: string;
+    scheduledAt: Date | string | null;
     createdAt: Date | string;
     completedAt: Date | string | null;
   };
+  onRetried: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  const retryMutation = trpc.portalCustomers.retryFailedRecipients.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      onRetried();
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const statusColor =
     campaign.status === "completed" ? "#4ade80"
     : campaign.status === "failed" ? "#f87171"
+    : campaign.status === "pending" ? "#F5A623"
     : "#F5A623";
 
   return (
@@ -170,9 +182,15 @@ function CampaignRow({ campaign }: {
           <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
             {campaign.message.length > 80 ? campaign.message.slice(0, 80) + "…" : campaign.message}
           </p>
+          {campaign.scheduledAt && campaign.status === "pending" && (
+            <p className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: "#F5A623" }}>
+              <CalendarClock className="w-3 h-3" />
+              Scheduled for {fmtDateTime(campaign.scheduledAt)}
+            </p>
+          )}
         </div>
 
-        <div className="flex-shrink-0 flex items-center gap-3 text-xs">
+        <div className="flex-shrink-0 flex items-center gap-2 text-xs">
           <span style={{ color: "#4ade80" }}>{campaign.sentCount} sent</span>
           {campaign.failedCount > 0 && (
             <span style={{ color: "#f87171" }}>{campaign.failedCount} failed</span>
@@ -184,6 +202,26 @@ function CampaignRow({ campaign }: {
           >
             {campaign.status}
           </Badge>
+
+          {/* Retry Failed button — only when there are failed recipients */}
+          {campaign.failedCount > 0 && (campaign.status === "completed" || campaign.status === "failed") && (
+            <button
+              title={`Retry ${campaign.failedCount} failed recipient${campaign.failedCount !== 1 ? "s" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                retryMutation.mutate({ campaignId: campaign.id });
+              }}
+              disabled={retryMutation.isPending}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-opacity hover:opacity-70"
+              style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)" }}
+            >
+              {retryMutation.isPending
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : <RefreshCw className="w-3 h-3" />}
+              Retry {campaign.failedCount}
+            </button>
+          )}
+
           {expanded
             ? <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
             : <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}
@@ -204,6 +242,9 @@ export default function PortalCustomers() {
   const [showBulkSms, setShowBulkSms] = useState(false);
   const [smsMessage, setSmsMessage] = useState("");
   const [smsSent, setSmsSent] = useState(false);
+  // Scheduling state
+  const [scheduleMode, setScheduleMode] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
 
   const { data: customers = [], isLoading } = trpc.portalCustomers.list.useQuery(undefined, {
     retry: false,
@@ -220,6 +261,15 @@ export default function PortalCustomers() {
     onSuccess: () => setSmsSent(true),
     onError: (err) => toast.error(err.message),
   });
+  const utils = trpc.useUtils();
+  const toggleOptOutMutation = trpc.portalCustomers.toggleSmsOptOut.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.optedOutSms ? "Customer opted out of SMS" : "Customer re-enabled for SMS");
+      utils.portalCustomers.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const sendBulkSmsMutation = trpc.portalCustomers.sendBulkSms.useMutation({
     onSuccess: (data) => {
       toast.success(
@@ -229,11 +279,22 @@ export default function PortalCustomers() {
       );
       setShowBulkSms(false);
       setSelected(new Set());
-      // Refresh campaign history if it's visible
       refetchCampaigns();
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const scheduleBulkSmsMutation = trpc.portalCustomers.scheduleBulkSms.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setShowBulkSms(false);
+      setSelected(new Set());
+      setScheduleMode(false);
+      setScheduledAt("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   // alias for the preview step
   const bulkSmsMutation = bulkSmsPreviewMutation;
 
@@ -271,9 +332,11 @@ export default function PortalCustomers() {
   }
 
   function openBulkSms() {
-    if (selected.size === 0) { toast.error("Select at least one customer first"); return; }
+    if (selected.size === 0) { toast.error("Select at least one customer"); return; }
     setSmsMessage("");
     setSmsSent(false);
+    setScheduleMode(false);
+    setScheduledAt("");
     setShowBulkSms(true);
   }
 
@@ -470,6 +533,22 @@ export default function PortalCustomers() {
                           {c.jobCount} jobs
                         </Badge>
                       )}
+                      {/* SMS opt-out badge — inline with name */}
+                      {c.optedOutSms && (
+                        <button
+                          title="SMS opted out — click to re-enable"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleOptOutMutation.mutate({ customerId: c.id, optedOut: false });
+                          }}
+                          disabled={toggleOptOutMutation.isPending}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-opacity hover:opacity-70"
+                          style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)" }}
+                        >
+                          <BellOff className="w-3 h-3" />
+                          SMS opt-out
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                       {c.phone && (
@@ -525,7 +604,7 @@ export default function PortalCustomers() {
                 {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""} — click any row to expand recipient delivery details.
               </p>
               {campaigns.map((c) => (
-                <CampaignRow key={c.id} campaign={c} />
+                <CampaignRow key={c.id} campaign={c} onRetried={refetchCampaigns} />
               ))}
             </div>
           )}
@@ -540,10 +619,11 @@ export default function PortalCustomers() {
               Bulk SMS — {selected.size} customer{selected.size !== 1 ? "s" : ""}
             </DialogTitle>
             <DialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
-              Compose your message, preview recipients, then send via Twilio.
+              Compose your message, preview recipients, then send or schedule via Twilio.
             </DialogDescription>
           </DialogHeader>
 
+          {/* ── Step 2: Preview + confirm send ── */}
           {smsSent && bulkSmsMutation.data ? (
             <div className="space-y-3">
               <div
@@ -563,6 +643,29 @@ export default function PortalCustomers() {
                   </div>
                 ))}
               </div>
+
+              {/* Schedule toggle */}
+              <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                <button
+                  onClick={() => setScheduleMode((v) => !v)}
+                  className="flex items-center gap-2 text-xs font-medium mb-2 transition-opacity hover:opacity-70"
+                  style={{ color: scheduleMode ? "#F5A623" : "rgba(255,255,255,0.4)" }}
+                >
+                  <CalendarClock className="w-3.5 h-3.5" />
+                  {scheduleMode ? "Scheduling for later" : "Send immediately — click to schedule instead"}
+                </button>
+                {scheduleMode && (
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+                    className="w-full rounded-md px-3 py-2 text-sm bg-white/5 border border-white/10 text-white"
+                    style={{ colorScheme: "dark" }}
+                  />
+                )}
+              </div>
+
               <div className="flex gap-2 pt-1">
                 <Button
                   variant="outline"
@@ -575,26 +678,47 @@ export default function PortalCustomers() {
                 >
                   Copy Numbers
                 </Button>
-                <Button
-                  className="flex-1 font-semibold"
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
-                  disabled={sendBulkSmsMutation.isPending}
-                  onClick={() =>
-                    sendBulkSmsMutation.mutate({
-                      customerIds: Array.from(selected),
-                      message: smsMessage.trim(),
-                    })
-                  }
-                >
-                  {sendBulkSmsMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "Send via Twilio"
-                  )}
-                </Button>
+                {scheduleMode ? (
+                  <Button
+                    className="flex-1 font-semibold"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                    disabled={scheduleBulkSmsMutation.isPending || !scheduledAt}
+                    onClick={() => {
+                      if (!scheduledAt) { toast.error("Pick a date and time"); return; }
+                      scheduleBulkSmsMutation.mutate({
+                        customerIds: Array.from(selected),
+                        message: smsMessage.trim(),
+                        scheduledAt: new Date(scheduledAt).toISOString(),
+                      });
+                    }}
+                  >
+                    {scheduleBulkSmsMutation.isPending
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <><CalendarClock className="w-4 h-4 mr-1.5" />Schedule</>}
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1 font-semibold"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                    disabled={sendBulkSmsMutation.isPending}
+                    onClick={() =>
+                      sendBulkSmsMutation.mutate({
+                        customerIds: Array.from(selected),
+                        message: smsMessage.trim(),
+                      })
+                    }
+                  >
+                    {sendBulkSmsMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Send via Twilio"
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
+            /* ── Step 1: Compose message ── */
             <>
               <Textarea
                 value={smsMessage}

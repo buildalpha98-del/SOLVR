@@ -1972,3 +1972,39 @@ export async function optOutCustomerSms(customerId: number): Promise<void> {
     .set({ optedOutSms: true })
     .where(eq(tradieCustomers.id, customerId));
 }
+
+/**
+ * Get only the failed recipients for a campaign (used by retryFailedRecipients).
+ */
+export async function getFailedCampaignRecipients(
+  campaignId: number,
+): Promise<SmsCampaignRecipient[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaignRecipients)
+    .where(and(eq(smsCampaignRecipients.campaignId, campaignId), eq(smsCampaignRecipients.status, "failed")));
+}
+
+/**
+ * Get a single SMS campaign by ID.
+ */
+export async function getSmsCampaignById(id: number): Promise<SmsCampaign | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(smsCampaigns).where(eq(smsCampaigns.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Get all pending scheduled campaigns whose scheduledAt is in the past.
+ * Used by the scheduler cron to dispatch due campaigns.
+ */
+export async function getDueScheduledCampaigns(): Promise<SmsCampaign[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaigns)
+    .where(and(
+      eq(smsCampaigns.status, "pending"),
+      sql`${smsCampaigns.scheduledAt} IS NOT NULL AND ${smsCampaigns.scheduledAt} <= NOW()`,
+    ));
+}

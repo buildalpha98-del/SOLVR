@@ -1595,6 +1595,10 @@ export const smsCampaigns = mysqlTable("sms_campaigns", {
   status: mysqlEnum("sms_campaign_status", ["pending", "sending", "completed", "failed"])
     .default("pending")
     .notNull(),
+  /** If this is a retry campaign, links back to the original campaign */
+  parentCampaignId: int("parentCampaignId"),
+  /** If set, the campaign will be dispatched at this time by the scheduler cron */
+  scheduledAt: timestamp("scheduledAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
 });

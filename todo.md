@@ -737,3 +737,12 @@
 - [x] SMS opt-out: filter opted-out customers from sendBulkSms recipients
 - [x] SMS opt-out: include unsubscribe link in bulk SMS message footer (Twilio compliance)
 - [x] Job status page: logoUrl already wired in CustomerJobStatus.tsx header (tradie.logoUrl from getJobByCustomerToken)
+
+## SMS Improvements — Opt-Out Badge, Campaign Retry, Scheduling
+- [x] Opt-out badge: "SMS opt-out" badge inline with customer name in PortalCustomers.tsx
+- [x] Re-enable toggle: toggleSmsOptOut procedure + click badge to re-enable (optimistic update)
+- [x] Campaign retry: retryFailedRecipients procedure (re-sends to failed recipients only, creates child campaign with parentCampaignId)
+- [x] Campaign retry: "Retry N" button in Campaign History row (only shown when failedCount > 0 and campaign completed/failed)
+- [x] SMS scheduling: scheduledAt + parentCampaignId columns on sms_campaigns table (migration 0050)
+- [x] SMS scheduling: cron job every minute dispatches pending campaigns whose scheduledAt has passed
+- [x] SMS scheduling: datetime picker in bulk SMS modal with "Schedule for later" toggle (min 5 min from now)
