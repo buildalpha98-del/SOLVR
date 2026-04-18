@@ -781,3 +781,29 @@
 - [x] trial_will_end webhook handler sends reminder email with add-card CTA
 - [x] VoiceAgentSuccess.tsx shows trial end date after checkout
 - [x] 249 vitest tests passing
+
+## Invoice Chasing Cron (Apr 2026)
+- [x] Invoice chasing cron already built — day 1 email, day 7 email+SMS, day 14 email+SMS, day 21 escalation to owner
+- [x] HTML email templates for all 3 chase stages (friendly → follow-up → URGENT final notice)
+- [x] SMS templates for stages 2 and 3
+- [x] DB update: chaseCount, lastChasedAt, nextChaseAt, status, snoozeUntil cleared
+- [x] Escalation: status → 'escalated', notifyOwner + Expo push to tradie
+- [x] Registered in index.ts — runs daily at 9am AEST (23:00 UTC)
+- [x] 14 vitest tests covering all chase stages, escalation, SMS gating, push, email failure resilience
+
+## Fix portalCustomers.ts TS Errors
+- [x] Fixed 14 calls: requirePortalAuth(ctx) → requirePortalAuth(ctx.req), requirePortalWrite(ctx) → requirePortalWrite(ctx.req)
+- [x] Fixed PortalCustomerDetail.tsx: replaced deprecated onSuccess in useQuery with useEffect (TanStack Query v5)
+- [x] Fixed PortalTeamAccept.tsx: replaced toast({ title, variant }) with toast.error() (sonner API)
+- [x] portalTeamMembers watcher errors confirmed as stale tsc cache — 0 errors on clean build
+
+## Sprint 2 — Customer Job Tracking Portal (Public)
+- [x] Public /job/:token page already built (CustomerJobStatus.tsx) — no auth required
+- [x] Status stages: new → quoted → booked → in_progress → completed → invoiced → paid
+- [x] Tradie branding header (logo, trading name), job details, photos, invoice download
+- [x] Feedback widget (thumbs up/down + comment, Google review CTA after positive feedback)
+- [x] Mobile-first responsive design
+- [x] Backend: getJobByCustomerToken + submitJobFeedback public procedures
+- [x] customerStatusToken generated on job creation (32-byte hex)
+- [x] SMS tracking link included in booking/completion notifications
+- [x] 263 vitest tests passing (28 test files)

@@ -7,7 +7,7 @@
  *  - Full job history (all jobs matched by phone number)
  *  - Re-quote button on each job (pre-fills a new quote from that job's details)
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
@@ -64,11 +64,15 @@ export default function PortalCustomerDetail() {
     {
       enabled: !!customerId,
       retry: false,
-      onSuccess: (d) => {
-        if (notes === null) setNotes(d.customer.notes ?? "");
-      },
     },
   );
+
+  // Sync notes from server on first load (TanStack Query v5 removed onSuccess)
+  useEffect(() => {
+    if (data && notes === null) {
+      setNotes(data.customer.notes ?? "");
+    }
+  }, [data, notes]);
 
   const utils = trpc.useUtils();
   const updateNotesMutation = trpc.portalCustomers.updateNotes.useMutation({

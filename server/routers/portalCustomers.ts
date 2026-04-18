@@ -40,7 +40,7 @@ export const portalCustomersRouter = router({
    * List all customers for the authenticated tradie, ordered by most recent job.
    */
   list: publicProcedure.query(async ({ ctx }) => {
-    const { clientId } = await requirePortalAuth(ctx);
+    const { clientId } = await requirePortalAuth(ctx.req);
     return listTradieCustomers(clientId);
   }),
 
@@ -50,7 +50,7 @@ export const portalCustomersRouter = router({
   get: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalAuth(ctx);
+      const { clientId } = await requirePortalAuth(ctx.req);
       const customer = await getTradieCustomer(input.id);
       if (!customer || customer.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
@@ -72,7 +72,7 @@ export const portalCustomersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const customer = await getTradieCustomer(input.id);
       if (!customer || customer.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
@@ -93,7 +93,7 @@ export const portalCustomersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const allCustomers = await listTradieCustomers(clientId);
       const targets = allCustomers.filter(
         (c) => input.customerIds.includes(c.id) && !!c.phone,
@@ -131,7 +131,7 @@ export const portalCustomersRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
 
       // Resolve recipients — skip opted-out customers
       const allCustomers = await listTradieCustomers(clientId);
@@ -228,7 +228,7 @@ export const portalCustomersRouter = router({
    * List SMS campaigns for the authenticated tradie (most recent first).
    */
   listSmsCampaigns: publicProcedure.query(async ({ ctx }) => {
-    const { clientId } = await requirePortalAuth(ctx);
+    const { clientId } = await requirePortalAuth(ctx.req);
     return dbListSmsCampaigns(clientId);
   }),
 
@@ -260,7 +260,7 @@ export const portalCustomersRouter = router({
   toggleSmsOptOut: publicProcedure
     .input(z.object({ customerId: z.number().int().positive(), optedOut: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const customer = await getTradieCustomer(input.customerId);
       if (!customer || customer.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
@@ -283,7 +283,7 @@ export const portalCustomersRouter = router({
   getCampaignRecipients: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalAuth(ctx);
+      const { clientId } = await requirePortalAuth(ctx.req);
       const campaigns = await dbListSmsCampaigns(clientId);
       const campaign = campaigns.find((c) => c.id === input.campaignId);
       if (!campaign) {
@@ -299,7 +299,7 @@ export const portalCustomersRouter = router({
   retryFailedRecipients: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const parent = await getSmsCampaignById(input.campaignId);
       if (!parent || parent.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
@@ -369,7 +369,7 @@ export const portalCustomersRouter = router({
   cancelCampaign: publicProcedure
     .input(z.object({ campaignId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const campaign = await getSmsCampaignById(input.campaignId);
       if (!campaign || campaign.clientId !== clientId) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
@@ -388,7 +388,7 @@ export const portalCustomersRouter = router({
    * List saved SMS templates for the authenticated tradie.
    */
   listSmsTemplates: publicProcedure.query(async ({ ctx }) => {
-    const { clientId } = await requirePortalAuth(ctx);
+    const { clientId } = await requirePortalAuth(ctx.req);
     return dbListSmsTemplates(clientId);
   }),
 
@@ -401,7 +401,7 @@ export const portalCustomersRouter = router({
       body: z.string().min(1).max(320),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const id = await dbCreateSmsTemplate({ clientId, name: input.name, body: input.body });
       return { id, name: input.name, body: input.body };
     }),
@@ -412,7 +412,7 @@ export const portalCustomersRouter = router({
   deleteSmsTemplate: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       await dbDeleteSmsTemplate(input.id, clientId);
       return { success: true };
     }),
@@ -424,7 +424,7 @@ export const portalCustomersRouter = router({
       scheduledAt: z.string().datetime(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { clientId } = await requirePortalWrite(ctx);
+      const { clientId } = await requirePortalWrite(ctx.req);
       const allCustomers = await listTradieCustomers(clientId);
       const targets = allCustomers.filter(
         (c) => input.customerIds.includes(c.id) && !c.optedOutSms && c.phone,

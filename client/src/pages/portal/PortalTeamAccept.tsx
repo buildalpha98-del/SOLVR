@@ -41,7 +41,7 @@ export default function PortalTeamAccept() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirm) {
-      toast({ title: "Passwords don't match", variant: "destructive" });
+      toast.error("Passwords don't match");
       return;
     }
     if (password.length < 8) {
