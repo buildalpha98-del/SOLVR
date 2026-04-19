@@ -11,6 +11,8 @@ import {
   updatePurchaseOrder, listPurchaseOrderItems, createPurchaseOrderItems,
   deletePurchaseOrderItems, createPoFromJobMaterials,
   getClientProfile, getCrmClientById, getPortalJob,
+  createJobCostItem,
+  setSupplierAccessToken, getPurchaseOrderWithItemsByToken, acknowledgePurchaseOrder,
 } from "../db";
 import { sendEmail } from "../_core/email";
 import { storagePut } from "../storage";
@@ -162,6 +164,28 @@ export const portalPurchaseOrdersRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { clientId } = await requirePortalWrite(ctx.req);
       await updatePurchaseOrder(input.id, clientId, { status: input.status } as any);
+
+      // When PO is marked "received", auto-create jobCostItem entries
+      if (input.status === "received") {
+        const po = await getPurchaseOrder(input.id, clientId);
+        if (po?.jobId) {
+          const items = await listPurchaseOrderItems(po.id);
+          const totalCents = items.reduce((sum, item) => sum + (item.lineTotalCents ?? 0), 0);
+          const supplier = await getSupplier(po.supplierId, clientId);
+          if (totalCents > 0) {
+            await createJobCostItem({
+              jobId: po.jobId,
+              clientId,
+              category: "materials",
+              description: `PO ${po.poNumber} — ${supplier?.name ?? "Supplier"}`,
+              amountCents: totalCents,
+              supplier: supplier?.name ?? null,
+              reference: po.poNumber,
+            });
+          }
+        }
+      }
+
       return { success: true };
     }),
 
@@ -319,11 +343,17 @@ export const portalPurchaseOrdersRouter = router({
         await updatePurchaseOrder(po.id, clientId, { pdfUrl } as any);
       }
 
+      // Generate supplier portal magic link
+      const token = await setSupplierAccessToken(po.id, clientId);
+      const origin = (ctx.req as any).headers?.origin ?? "https://solvr.com.au";
+      const portalLink = `${origin}/supplier-portal/${token}`;
+
       // Build email
       const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
 <h2 style="color:#0F1F3D">Purchase Order ${po.poNumber}</h2>
 <p>Hi ${supplier.contactName ?? supplier.name},</p>
 <p>Please find attached purchase order <strong>${po.poNumber}</strong> from <strong>${businessName}</strong>.</p>
+<p><a href="${portalLink}" style="display:inline-block;background:#F5A623;color:#0F1F3D;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;margin:12px 0">View & Acknowledge PO Online</a></p>
 ${po.requiredByDate ? `<p><strong>Required by:</strong> ${new Date(po.requiredByDate).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}</p>` : ""}
 ${po.deliveryAddress ? `<p><strong>Deliver to:</strong> ${po.deliveryAddress}</p>` : ""}
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
@@ -355,5 +385,58 @@ ${po.notes ? `<p style="color:#6B7280"><em>${po.notes}</em></p>` : ""}
       await updatePurchaseOrder(po.id, clientId, { status: "sent", sentAt: new Date() } as any);
 
       return { success: true, sentTo: supplier.email };
+    }),
+
+  // ─── Supplier Portal (Public, token-based) ─────────────────────────────
+  getBySupplierToken: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const result = await getPurchaseOrderWithItemsByToken(input.token);
+      if (!result) throw new Error("Purchase order not found or link expired");
+
+      // Fetch supplier and business info for display
+      const supplier = await getSupplier(result.supplierId, result.clientId);
+      const profile = await getClientProfile(result.clientId);
+      const client = await getCrmClientById(result.clientId);
+
+      return {
+        poNumber: result.poNumber,
+        status: result.status,
+        createdAt: result.createdAt,
+        requiredByDate: result.requiredByDate,
+        deliveryAddress: result.deliveryAddress,
+        notes: result.notes,
+        totalCents: result.totalCents,
+        pdfUrl: result.pdfUrl,
+        items: result.items.map(i => ({
+          description: i.description,
+          quantity: i.quantity,
+          unit: i.unit,
+          unitPriceCents: i.unitPriceCents,
+          lineTotalCents: i.lineTotalCents,
+        })),
+        supplier: supplier ? {
+          name: supplier.name,
+          contactName: supplier.contactName,
+        } : null,
+        business: {
+          name: profile?.tradingName ?? client?.businessName ?? "Business",
+          logoUrl: profile?.logoUrl ?? null,
+          phone: profile?.phone ?? null,
+          primaryColor: profile?.primaryColor ?? "#0F1F3D",
+        },
+      };
+    }),
+
+  acknowledgeByToken: publicProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const po = await getPurchaseOrderWithItemsByToken(input.token);
+      if (!po) throw new Error("Purchase order not found or link expired");
+      if (po.status === "acknowledged" || po.status === "received") {
+        return { success: true, alreadyAcknowledged: true };
+      }
+      await acknowledgePurchaseOrder(po.id);
+      return { success: true, alreadyAcknowledged: false };
     }),
 });

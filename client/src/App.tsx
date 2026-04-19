@@ -98,6 +98,7 @@ import PortalAssistant from "./pages/portal/PortalAssistant";
 import PortalReporting from "./pages/portal/PortalReporting";
 import PortalSubcontractors from "./pages/portal/PortalSubcontractors";
 import PortalPurchaseOrders from "./pages/portal/PortalPurchaseOrders";
+import PortalForms from "./pages/portal/PortalForms";
 
 // ── Staff Portal (PIN auth) ──────────────────────────────────────────────
 import StaffLogin from "./pages/staff/StaffLogin";
@@ -107,6 +108,9 @@ import StaffCheckin from "./pages/staff/StaffCheckin";
 
 // ── Public quote acceptance page ──────────────────────────────────────────────
 import PublicQuote from "./pages/PublicQuote";
+
+// ── Supplier Portal (public, token-based) ───────────────────────────────────
+import SupplierPortal from "./pages/SupplierPortal";
 
 // ── Public completion report page (no auth) ──────────────────────────────────
 import PublicCompletionReport from "./pages/PublicCompletionReport";
@@ -228,12 +232,16 @@ function Router() {
       <Route path="/portal/reporting" component={PortalReporting} />
       <Route path="/portal/subcontractors" component={PortalSubcontractors} />
       <Route path="/portal/purchase-orders" component={PortalPurchaseOrders} />
+      <Route path="/portal/forms" component={PortalForms} />
 
       {/* ── Staff Portal (PIN auth) ─────────────────────────────────────── */}
       <Route path="/staff" component={StaffLogin} />
       <Route path="/staff/today" component={StaffToday} />
       <Route path="/staff/roster" component={StaffRoster} />
       <Route path="/staff/checkin" component={StaffCheckin} />
+
+      {/* ── Supplier Portal (public, token-based PO view) ──────────── */}
+      <Route path="/supplier-portal/:token" component={SupplierPortal} />
 
       {/* ── Public quote acceptance page ──────────────────── */}
       <Route path="/quote/:token" component={PublicQuote} />

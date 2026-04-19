@@ -1924,6 +1924,8 @@ export const purchaseOrders = mysqlTable("purchase_orders", {
   notes: text("notes"),
   /** S3 URL of the generated PO PDF */
   pdfUrl: varchar("pdfUrl", { length: 512 }),
+  /** Magic-link token for supplier to view/acknowledge this PO (no auth required) */
+  supplierAccessToken: varchar("supplierAccessToken", { length: 64 }).unique(),
   /** When the PO was sent to the supplier */
   sentAt: timestamp("sentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1952,3 +1954,75 @@ export const purchaseOrderItems = mysqlTable("purchase_order_items", {
 });
 export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
 export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
+
+// ─── Sprint 5: Digital Forms & Certificates ──────────────────────────────────
+
+/**
+ * Form templates — reusable form definitions (e.g. Electrical Certificate, SWMS, Gas Compliance).
+ * Fields are stored as JSON for flexibility.
+ */
+export const formTemplates = mysqlTable("form_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — owner of this template (null = system template) */
+  clientId: int("clientId"),
+  /** Template name (e.g. "Electrical Certificate of Compliance") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Template category */
+  category: mysqlEnum("form_category", ["certificate", "safety", "inspection", "custom"]).default("custom").notNull(),
+  /** Short description */
+  description: text("description"),
+  /** JSON array of field definitions: { id, label, type, required, options?, placeholder? } */
+  fields: json("fields").$type<FormField[]>().notNull(),
+  /** Whether this is a system-provided template (non-editable) */
+  isSystem: boolean("isSystem").default(false).notNull(),
+  /** Whether the template is active */
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type FormTemplate = typeof formTemplates.$inferSelect;
+export type InsertFormTemplate = typeof formTemplates.$inferInsert;
+
+/** Field definition for form templates */
+export type FormField = {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "signature" | "photo" | "heading" | "divider";
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+  defaultValue?: string;
+  width?: "full" | "half";
+};
+
+/**
+ * Form submissions — completed forms linked to jobs.
+ * Values stored as JSON keyed by field ID.
+ */
+export const formSubmissions = mysqlTable("form_submissions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to form_templates.id */
+  templateId: int("templateId").notNull(),
+  /** FK to portalJobs.id — the job this form is attached to */
+  jobId: int("jobId"),
+  /** Form title (snapshot from template name, can be overridden) */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** JSON object of field values keyed by field ID */
+  values: json("formValues").$type<Record<string, unknown>>().notNull(),
+  /** JSON object of signature data URLs keyed by field ID */
+  signatures: json("signatures").$type<Record<string, string>>(),
+  /** S3 URL of the generated PDF */
+  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  /** Submission status */
+  status: mysqlEnum("form_status", ["draft", "completed", "archived"]).default("draft").notNull(),
+  /** Who submitted (name or email) */
+  submittedBy: varchar("submittedBy", { length: 255 }),
+  /** When it was completed */
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+export type InsertFormSubmission = typeof formSubmissions.$inferInsert;

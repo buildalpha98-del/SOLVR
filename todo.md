@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
-> **Last updated:** 18 April 2026
-> **Test count:** 338 vitest tests passing (34 test files) · 0 TypeScript errors
+> **Last updated:** 19 April 2026
+> **Test count:** 350 vitest tests passing (35 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -190,10 +190,10 @@ These are planned features that are not blocking the current launch. They will b
 - [x] PO status: Draft → Sent → Acknowledged → Received → Cancelled
 
 ### Sprint 5 — Digital Forms & Certificates
-- [ ] Form builder (text, checkbox, signature, photo fields)
-- [ ] Pre-built templates: electrical cert, SWMS, gas compliance, handover
-- [ ] Mobile-first form completion with customer signature capture
-- [ ] PDF generation from completed form, attached to job
+- [x] Form builder (text, checkbox, signature, photo fields + textarea, number, date, select, heading, divider)
+- [x] Pre-built templates: electrical cert, SWMS, gas compliance (system-seeded on first load)
+- [x] Mobile-first form completion with customer signature capture (HTML5 canvas)
+- [x] PDF generation from completed form, attached to job
 - [ ] Option to block invoice until required form is completed
 
 ### Sprint 6 — Job Costing & Reporting Dashboard
@@ -247,3 +247,27 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Embed mini revenue bar chart on PortalDashboard (6-month trailing)
 - [x] Show key KPIs (outstanding invoices, quote conversion rate)
 - [x] RevenueSnapshot component with responsive chart + metric cards
+
+### PO Received Workflow
+- [x] Auto-create jobCostItem when PO status changes to "received"
+- [x] Pull line items from PO and sum into cost entry with category "materials"
+
+### Supplier Portal
+- [x] Add magicToken field to suppliers table
+- [x] DB helper: getPurchaseOrderWithItemsByToken, acknowledgePurchaseOrder
+- [x] Public tRPC procedures: viewPo (by token), acknowledgePo
+- [x] SupplierPortal UI page (public, no auth required)
+- [x] Route wired (/supplier-portal/:token)
+- [x] Auto-generate magic token on supplier creation
+- [x] Magic link included in PO email to supplier
+
+### Sprint 5 — Digital Forms & Certificates
+- [x] Schema: form_templates, form_submissions tables (JSON fields for flexible form structure)
+- [x] Pre-built templates: Electrical Certificate, SWMS, Gas Compliance (system-seeded)
+- [x] DB helpers: 10 CRUD functions for templates and submissions + seedSystemFormTemplates
+- [x] portalForms tRPC router (10 procedures: templates CRUD, submissions CRUD, seed, PDF gen)
+- [x] Form builder UI (add/edit fields: text, textarea, number, date, select, checkbox, signature, photo, heading, divider)
+- [x] Form completion page (mobile-first, signature capture via HTML5 canvas, required field validation)
+- [x] PDF generation from completed form (server-side, S3 upload, pdfUrl stored on submission)
+- [x] Route + nav wired (/portal/forms, "Forms & Certs" in sidebar)
+- [x] 12 vitest tests (DB helpers, CRUD lifecycle, system template seeding, idempotency)

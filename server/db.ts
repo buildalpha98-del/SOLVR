@@ -2930,3 +2930,244 @@ export async function createPoFromJobMaterials(
 
   return { poId, itemCount: poItems.length };
 }
+
+// ─── Supplier Portal Helpers ──────────────────────────────────────────────────
+
+/** Look up a PO by its supplier access token (public, no auth) */
+export async function getPurchaseOrderBySupplierToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(purchaseOrders)
+    .where(eq(purchaseOrders.supplierAccessToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Generate and store a supplier access token on a PO */
+export async function setSupplierAccessToken(poId: number, clientId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { randomBytes } = await import("crypto");
+  const token = randomBytes(32).toString("hex");
+  await db.update(purchaseOrders)
+    .set({ supplierAccessToken: token })
+    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.clientId, clientId)));
+  return token;
+}
+
+/** Get PO with line items for supplier portal display */
+export async function getPurchaseOrderWithItemsByToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const po = await db.select().from(purchaseOrders)
+    .where(eq(purchaseOrders.supplierAccessToken, token))
+    .limit(1);
+  if (!po[0]) return null;
+  const items = await db.select().from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.poId, po[0].id));
+  return { ...po[0], items };
+}
+
+/** Mark PO as acknowledged by supplier */
+export async function acknowledgePurchaseOrder(poId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(purchaseOrders)
+    .set({ status: "acknowledged" })
+    .where(eq(purchaseOrders.id, poId));
+}
+
+
+// ─── Digital Forms & Certificates ─────────────────────────────────────────────
+import {
+  formTemplates, formSubmissions,
+  type InsertFormTemplate, type InsertFormSubmission, type FormField,
+} from "../drizzle/schema";
+
+/** List all form templates for a client (including system templates) */
+export async function listFormTemplates(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(formTemplates)
+    .where(or(eq(formTemplates.clientId, clientId), eq(formTemplates.isSystem, true)))
+    .orderBy(formTemplates.name);
+}
+
+/** Get a single form template */
+export async function getFormTemplate(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(formTemplates).where(eq(formTemplates.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create a form template */
+export async function createFormTemplate(data: InsertFormTemplate): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(formTemplates).values(data);
+  return Number(result[0].insertId);
+}
+
+/** Update a form template */
+export async function updateFormTemplate(id: number, clientId: number, data: Partial<InsertFormTemplate>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(formTemplates)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(formTemplates.id, id), eq(formTemplates.clientId, clientId)));
+}
+
+/** Delete a form template (only client-owned, not system) */
+export async function deleteFormTemplate(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(formTemplates)
+    .where(and(eq(formTemplates.id, id), eq(formTemplates.clientId, clientId), eq(formTemplates.isSystem, false)));
+}
+
+/** List form submissions for a client, optionally filtered by job */
+export async function listFormSubmissions(clientId: number, jobId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(formSubmissions.clientId, clientId)];
+  if (jobId) conditions.push(eq(formSubmissions.jobId, jobId));
+  return db.select().from(formSubmissions)
+    .where(and(...conditions))
+    .orderBy(desc(formSubmissions.createdAt));
+}
+
+/** Get a single form submission */
+export async function getFormSubmission(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(formSubmissions)
+    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create a form submission */
+export async function createFormSubmission(data: InsertFormSubmission): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(formSubmissions).values(data);
+  return Number(result[0].insertId);
+}
+
+/** Update a form submission */
+export async function updateFormSubmission(id: number, clientId: number, data: Partial<InsertFormSubmission>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(formSubmissions)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.clientId, clientId)));
+}
+
+/** Delete a form submission */
+export async function deleteFormSubmission(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(formSubmissions)
+    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.clientId, clientId)));
+}
+
+/** Seed system form templates if they don't exist */
+export async function seedSystemFormTemplates() {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db.select().from(formTemplates).where(eq(formTemplates.isSystem, true));
+  if (existing.length > 0) return;
+
+  const electricalFields: FormField[] = [
+    { id: "heading_details", label: "Work Details", type: "heading" },
+    { id: "licence_number", label: "Electrical Licence Number", type: "text", required: true, placeholder: "e.g. EC12345" },
+    { id: "work_date", label: "Date of Work", type: "date", required: true },
+    { id: "property_address", label: "Property Address", type: "textarea", required: true },
+    { id: "owner_name", label: "Property Owner / Occupier", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_work", label: "Work Performed", type: "heading" },
+    { id: "work_type", label: "Type of Work", type: "select", required: true, options: ["New Installation", "Alteration", "Addition", "Repair", "Maintenance", "Inspection"] },
+    { id: "work_description", label: "Description of Work", type: "textarea", required: true, placeholder: "Describe the electrical work performed..." },
+    { id: "circuits_affected", label: "Circuits Affected", type: "text", placeholder: "e.g. Lighting, Power, Hot Water" },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_testing", label: "Testing & Compliance", type: "heading" },
+    { id: "tested_to_standard", label: "Tested to AS/NZS 3000:2018", type: "checkbox" },
+    { id: "rcd_tested", label: "RCD(s) tested and operational", type: "checkbox" },
+    { id: "earth_tested", label: "Earth continuity tested", type: "checkbox" },
+    { id: "insulation_tested", label: "Insulation resistance tested", type: "checkbox" },
+    { id: "test_results", label: "Test Results / Notes", type: "textarea", placeholder: "Record test instrument readings..." },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_sign", label: "Declaration", type: "heading" },
+    { id: "declaration", label: "I certify that the electrical work described above has been carried out in accordance with AS/NZS 3000:2018 and is safe to be connected to the electricity supply.", type: "checkbox", required: true },
+    { id: "electrician_name", label: "Electrician Name", type: "text", required: true },
+    { id: "electrician_signature", label: "Electrician Signature", type: "signature", required: true },
+    { id: "sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const swmsFields: FormField[] = [
+    { id: "heading_project", label: "Project Information", type: "heading" },
+    { id: "project_name", label: "Project / Job Name", type: "text", required: true },
+    { id: "site_address", label: "Site Address", type: "textarea", required: true },
+    { id: "swms_date", label: "Date Prepared", type: "date", required: true },
+    { id: "prepared_by", label: "Prepared By", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_scope", label: "Scope of Work", type: "heading" },
+    { id: "work_activity", label: "High-Risk Work Activity", type: "select", required: true, options: ["Working at Heights", "Electrical Work", "Confined Spaces", "Demolition", "Excavation", "Hot Work", "Asbestos Removal", "Structural Alteration", "Other"] },
+    { id: "work_description", label: "Description of Work", type: "textarea", required: true },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_hazards", label: "Hazard Identification & Controls", type: "heading" },
+    { id: "hazards", label: "Identified Hazards", type: "textarea", required: true, placeholder: "List all identified hazards..." },
+    { id: "risk_rating", label: "Initial Risk Rating", type: "select", required: true, options: ["Low", "Medium", "High", "Extreme"] },
+    { id: "control_measures", label: "Control Measures", type: "textarea", required: true, placeholder: "Describe control measures to eliminate or minimise risks..." },
+    { id: "residual_risk", label: "Residual Risk Rating", type: "select", required: true, options: ["Low", "Medium", "High"] },
+    { id: "ppe_required", label: "PPE Required", type: "textarea", placeholder: "e.g. Hard hat, safety glasses, steel-cap boots, hi-vis vest..." },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_emergency", label: "Emergency Procedures", type: "heading" },
+    { id: "emergency_contact", label: "Emergency Contact", type: "text", required: true },
+    { id: "first_aid", label: "First Aid Kit Location", type: "text" },
+    { id: "nearest_hospital", label: "Nearest Hospital", type: "text" },
+    { id: "divider_4", label: "", type: "divider" },
+    { id: "heading_sign", label: "Sign-Off", type: "heading" },
+    { id: "worker_briefed", label: "All workers have been briefed on this SWMS", type: "checkbox", required: true },
+    { id: "supervisor_name", label: "Supervisor Name", type: "text", required: true },
+    { id: "supervisor_signature", label: "Supervisor Signature", type: "signature", required: true },
+    { id: "worker_name", label: "Worker Name", type: "text", required: true },
+    { id: "worker_signature", label: "Worker Signature", type: "signature", required: true },
+    { id: "sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const gasFields: FormField[] = [
+    { id: "heading_details", label: "Work Details", type: "heading" },
+    { id: "licence_number", label: "Gas Fitter Licence Number", type: "text", required: true, placeholder: "e.g. GF12345" },
+    { id: "work_date", label: "Date of Work", type: "date", required: true },
+    { id: "property_address", label: "Property Address", type: "textarea", required: true },
+    { id: "owner_name", label: "Property Owner / Occupier", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_work", label: "Work Performed", type: "heading" },
+    { id: "work_type", label: "Type of Gas Work", type: "select", required: true, options: ["New Installation", "Alteration", "Repair", "Disconnection", "Reconnection", "Servicing", "Inspection"] },
+    { id: "gas_type", label: "Gas Type", type: "select", required: true, options: ["Natural Gas", "LPG", "Both"] },
+    { id: "work_description", label: "Description of Work", type: "textarea", required: true },
+    { id: "appliances", label: "Appliances Installed / Serviced", type: "textarea", placeholder: "List appliances with make, model, and serial numbers..." },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_testing", label: "Testing & Compliance", type: "heading" },
+    { id: "pressure_test", label: "Pressure test completed (AS 5601)", type: "checkbox" },
+    { id: "leak_test", label: "Leak detection test completed", type: "checkbox" },
+    { id: "ventilation_check", label: "Ventilation requirements checked", type: "checkbox" },
+    { id: "flue_check", label: "Flue/exhaust system checked", type: "checkbox" },
+    { id: "test_pressure", label: "Test Pressure (kPa)", type: "number", placeholder: "e.g. 1.5" },
+    { id: "test_results", label: "Test Results / Notes", type: "textarea" },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_sign", label: "Declaration", type: "heading" },
+    { id: "declaration", label: "I certify that the gas fitting work described above complies with AS/NZS 5601 and all applicable regulations.", type: "checkbox", required: true },
+    { id: "gasfitter_name", label: "Gas Fitter Name", type: "text", required: true },
+    { id: "gasfitter_signature", label: "Gas Fitter Signature", type: "signature", required: true },
+    { id: "sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  await db.insert(formTemplates).values([
+    { name: "Electrical Certificate of Compliance", category: "certificate", description: "Certificate of compliance for electrical work as required by Australian regulations.", isSystem: true, isActive: true, fields: electricalFields },
+    { name: "Safe Work Method Statement (SWMS)", category: "safety", description: "SWMS for high-risk construction work as required under WHS regulations.", isSystem: true, isActive: true, fields: swmsFields },
+    { name: "Gas Compliance Certificate", category: "certificate", description: "Certificate of compliance for gas fitting work as required by Australian regulations.", isSystem: true, isActive: true, fields: gasFields },
+  ]);
+}
