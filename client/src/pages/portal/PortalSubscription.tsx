@@ -1,16 +1,21 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * PortalSubscription — client portal subscription & billing page.
  *
  * Shows:
  * - Current plan name, billing cycle, status badge
  * - Trial end date (if trialing) or next billing date
- * - "Manage Billing" button → Stripe Customer Portal
- * - "Upgrade" CTA if on Starter plan
+ * - "Manage Subscription" via RevenueCat
+ * - "Upgrade" CTA if on lower plan
  * - Contact support CTA if no subscription found
  */
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
-import { getSolvrOrigin } from "@/const";
+import { isNativeApp } from "@/const";
 import PortalLayout from "./PortalLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +23,13 @@ import { Loader2, CreditCard, Zap, CheckCircle, Clock, AlertTriangle, ExternalLi
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
+import { useAuth } from "@/_core/hooks/useAuth";
+import {
+  configureRevenueCat,
+  isRevenueCatConfigured,
+  presentPaywall,
+  type PurchaseOutcome,
+} from "@/lib/revenuecat";
 
 const PLAN_LABELS: Record<string, string> = {
   // New plans
@@ -31,15 +43,36 @@ const PLAN_LABELS: Record<string, string> = {
 
 const PLAN_PRICES: Record<string, { monthly: string; annual: string }> = {
   // New plans
-  solvr_quotes: { monthly: "$49/mo", annual: "$41/mo (billed annually)" },
-  solvr_jobs: { monthly: "$99/mo", annual: "$83/mo (billed annually)" },
-  solvr_ai: { monthly: "$197/mo", annual: "$164/mo (billed annually)" },
+  solvr_quotes: { monthly: "$49/mo", annual: "$39/mo (billed annually)" },
+  solvr_jobs: { monthly: "$99/mo", annual: "$79/mo (billed annually)" },
+  solvr_ai: { monthly: "$197/mo", annual: "$157/mo (billed annually)" },
   // Legacy plans
   starter: { monthly: "$197/mo", annual: "$164/mo (billed annually)" },
   professional: { monthly: "$397/mo", annual: "$331/mo (billed annually)" },
 };
 
 const PLAN_FEATURES: Record<string, string[]> = {
+  solvr_quotes: [
+    "Voice-to-quote (AI transcription)",
+    "Professional PDF quotes",
+    "Client portal access",
+    "SMS quote delivery",
+  ],
+  solvr_jobs: [
+    "Everything in Solvr Quotes",
+    "Job Pipeline Board",
+    "Crew scheduling & assignment",
+    "Completion reports (PDF + shareable link)",
+    "Invoice generation",
+    "Before & after photos",
+  ],
+  solvr_ai: [
+    "Everything in Solvr Jobs",
+    "AI Receptionist — 24/7 call answering",
+    "SMS confirmation on every call",
+    "Owner notification (SMS + email)",
+    "AI insights & call summaries",
+  ],
   starter: [
     "AI Receptionist — 1 phone number",
     "SMS confirmation on every call",
@@ -96,19 +129,19 @@ function fmtDate(iso: string | null | undefined) {
 
 // ─── Plan comparison data ────────────────────────────────────────────────────
 const COMPARISON_FEATURES = [
-  { label: "AI Receptionist (24/7 call answering)",       setupOnly: true,  starter: true,  managed: true  },
-  { label: "SMS confirmation on every call",              setupOnly: true,  starter: true,  managed: true  },
-  { label: "Owner notification (SMS + email)",            setupOnly: true,  starter: true,  managed: true  },
-  { label: "Client portal access",                       setupOnly: true,  starter: true,  managed: true  },
-  { label: "Job Pipeline Board",                         setupOnly: false, starter: true,  managed: true  },
-  { label: "Revenue & pipeline tracking",                setupOnly: false, starter: true,  managed: true  },
-  { label: "Completion reports (PDF + shareable link)",  setupOnly: false, starter: true,  managed: true  },
-  { label: "Invoice generation",                         setupOnly: false, starter: true,  managed: true  },
-  { label: "Before & after photos",                      setupOnly: false, starter: true,  managed: true  },
-  { label: "Monthly prompt tuning session",              setupOnly: false, starter: false, managed: true  },
-  { label: "Dedicated account manager",                  setupOnly: false, starter: false, managed: true  },
-  { label: "AI insights & call summaries",               setupOnly: false, starter: false, managed: true  },
-  { label: "Calendar & booking integration",             setupOnly: false, starter: false, managed: true  },
+  { label: "AI Receptionist (24/7 call answering)",       quotes: false, jobs: false, ai: true  },
+  { label: "SMS confirmation on every call",              quotes: false, jobs: false, ai: true  },
+  { label: "Owner notification (SMS + email)",            quotes: false, jobs: false, ai: true  },
+  { label: "Voice-to-quote (AI transcription)",           quotes: true,  jobs: true,  ai: true  },
+  { label: "Professional PDF quotes",                     quotes: true,  jobs: true,  ai: true  },
+  { label: "Client portal access",                        quotes: true,  jobs: true,  ai: true  },
+  { label: "Job Pipeline Board",                          quotes: false, jobs: true,  ai: true  },
+  { label: "Crew scheduling & assignment",                quotes: false, jobs: true,  ai: true  },
+  { label: "Revenue & pipeline tracking",                 quotes: false, jobs: true,  ai: true  },
+  { label: "Completion reports (PDF + shareable link)",    quotes: false, jobs: true,  ai: true  },
+  { label: "Invoice generation",                          quotes: false, jobs: true,  ai: true  },
+  { label: "Before & after photos",                       quotes: false, jobs: true,  ai: true  },
+  { label: "AI insights & call summaries",                quotes: false, jobs: false, ai: true  },
 ];
 
 function Tick({ yes }: { yes: boolean }) {
@@ -117,12 +150,12 @@ function Tick({ yes }: { yes: boolean }) {
     : <X className="w-4 h-4 mx-auto" style={{ color: "rgba(255,255,255,0.15)" }} />;
 }
 
-function PlanComparisonTable() {
+function PlanComparisonTable({ onUpgrade }: { onUpgrade: () => void }) {
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-lg font-semibold" style={{ color: "#F5F5F0" }}>Compare Plans</h2>
-        <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Upgrade to unlock the full job management suite.</p>
+        <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>Choose the plan that fits your business.</p>
       </div>
 
       {/* Table */}
@@ -152,28 +185,59 @@ function PlanComparisonTable() {
             }}
           >
             <div className="py-2.5 px-4" style={{ color: "rgba(255,255,255,0.65)" }}>{f.label}</div>
-            <div className="py-2.5 text-center"><Tick yes={f.setupOnly ?? false} /></div>
-            <div className="py-2.5 text-center" style={{ background: "rgba(245,166,35,0.04)" }}><Tick yes={f.starter} /></div>
-            <div className="py-2.5 text-center"><Tick yes={f.managed} /></div>
+            <div className="py-2.5 text-center"><Tick yes={f.quotes} /></div>
+            <div className="py-2.5 text-center" style={{ background: "rgba(245,166,35,0.04)" }}><Tick yes={f.jobs} /></div>
+            <div className="py-2.5 text-center"><Tick yes={f.ai} /></div>
           </div>
         ))}
       </div>
 
       {/* CTAs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div>
+            <p className="font-semibold" style={{ color: "#F5F5F0" }}>Solvr Quotes — $49/mo</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Voice-to-quote, PDF quotes, client portal.</p>
+          </div>
+          <Button
+            onClick={onUpgrade}
+            size="sm"
+            className="w-full gap-2"
+            style={{ background: "rgba(255,255,255,0.1)", color: "#F5F5F0", border: "1px solid rgba(255,255,255,0.15)" }}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Get Started
+          </Button>
+        </div>
         <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
           <div>
             <p className="font-semibold" style={{ color: "#F5A623" }}>Solvr Jobs — $99/mo</p>
-            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Full job management, scheduling, crew, and SMS replies.</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Full job management, scheduling, crew, and invoicing.</p>
           </div>
-          <UpgradeButton plan="starter" label="Upgrade to Solvr Jobs" size="sm" />
+          <Button
+            onClick={onUpgrade}
+            size="sm"
+            className="w-full gap-2"
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Get Started
+          </Button>
         </div>
         <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
           <div>
             <p className="font-semibold" style={{ color: "#F5F5F0" }}>Solvr AI — $197/mo</p>
-            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Everything in Solvr Jobs + AI Receptionist, 24/7 call answering.</p>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>Everything + AI Receptionist, 24/7 call answering.</p>
           </div>
-          <UpgradeButton plan="professional" label="Upgrade to Solvr AI" size="sm" variant="outline" />
+          <Button
+            onClick={onUpgrade}
+            size="sm"
+            variant="outline"
+            className="w-full gap-2 border-white/20 text-white/60 hover:bg-white/5"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Get Started
+          </Button>
         </div>
       </div>
     </div>
@@ -182,7 +246,10 @@ function PlanComparisonTable() {
 
 export default function PortalSubscription() {
   const [, navigate] = useLocation();
-  const [portalLoading, setPortalLoading] = useState(false);
+  const { user } = useAuth();
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallLoading, setPaywallLoading] = useState(false);
+  const paywallRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const isSetupOnly = me?.plan === "setup-only";
@@ -192,21 +259,46 @@ export default function PortalSubscription() {
     staleTime: 60 * 1000,
   });
 
-  const billingPortalMutation = trpc.portal.createBillingPortalSession.useMutation({
-    onSuccess: (data) => {
-      window.open(data.url, "_blank");
-      setPortalLoading(false);
-    },
-    onError: (err) => {
-      toast.error("Could not open billing portal", { description: err.message });
-      setPortalLoading(false);
-    },
-  });
+  const handleOpenPaywall = useCallback(async () => {
+    // Ensure RC is configured
+    if (!isRevenueCatConfigured() && user?.id) {
+      configureRevenueCat(`rc_${user.id}`);
+    }
 
-  function handleManageBilling() {
-    setPortalLoading(true);
-    billingPortalMutation.mutate({ origin: getSolvrOrigin() });
-  }
+    setPaywallOpen(true);
+    setPaywallLoading(true);
+
+    // Wait for DOM to render the paywall container
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    if (!paywallRef.current) {
+      setPaywallLoading(false);
+      toast.error("Could not open checkout. Please try again.");
+      return;
+    }
+
+    try {
+      const result: PurchaseOutcome = await presentPaywall(paywallRef.current);
+      if (result.success) {
+        toast.success("Subscription updated!", {
+          description: "Your plan has been updated. Refreshing…",
+        });
+        setTimeout(() => window.location.reload(), 2000);
+      } else if (result.cancelled) {
+        setPaywallOpen(false);
+      } else if (result.error) {
+        toast.error("Checkout failed", { description: result.error });
+        setPaywallOpen(false);
+      }
+    } catch {
+      toast.error("Something went wrong", {
+        description: "Please try again or contact hello@solvr.com.au",
+      });
+      setPaywallOpen(false);
+    } finally {
+      setPaywallLoading(false);
+    }
+  }, [user?.id]);
 
   if (isLoading) {
     return (
@@ -221,6 +313,36 @@ export default function PortalSubscription() {
   return (
     <PortalLayout activeTab="subscription">
       <div className="max-w-2xl mx-auto space-y-6">
+        {/* ── RevenueCat Paywall Modal ─────────────────────────────────── */}
+        {paywallOpen && (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+          >
+            <div
+              className="relative w-full max-w-2xl mx-4 rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+              style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <button
+                onClick={() => setPaywallOpen(false)}
+                className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-white/10 transition-colors"
+                style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="p-6">
+                {paywallLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+                    <span className="ml-3 text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>Loading checkout…</span>
+                  </div>
+                )}
+                <div ref={paywallRef} className="min-h-[400px] w-full" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "#F5F5F0" }}>
@@ -232,7 +354,7 @@ export default function PortalSubscription() {
         </div>
 
         {/* ── Plan comparison table for setup-only clients ──────────── */}
-        {isSetupOnly && <PlanComparisonTable />}
+        {isSetupOnly && <PlanComparisonTable onUpgrade={handleOpenPaywall} />}
 
         {sub ? (
           <>
@@ -314,39 +436,40 @@ export default function PortalSubscription() {
                 </ul>
               )}
 
-              {/* Manage billing CTA */}
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={handleManageBilling}
-                  disabled={portalLoading || !sub.stripeCustomerId}
-                  className="flex items-center gap-2"
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
-                >
-                  {portalLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="w-4 h-4" />
-                  )}
-                  Manage Billing
-                </Button>
-                {sub.plan === "starter" && (
+              {/* Manage billing CTA — hidden on native iOS (Apple Guideline 3.1.1) */}
+              {isNativeApp() ? (
+                <p className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  To manage your subscription, visit solvr.com.au on your browser.
+                </p>
+              ) : (
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  {/* Manage Subscription — opens RevenueCat paywall for plan changes */}
                   <Button
-                    variant="outline"
-                    className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                    onClick={() => navigate("/voice-agent#pricing")}
+                    onClick={handleOpenPaywall}
+                    className="flex items-center gap-2"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
                   >
-                    <Zap className="w-4 h-4" />
-                    Upgrade to Professional
+                    <ExternalLink className="w-4 h-4" />
+                    Manage Subscription
                   </Button>
-                )}
-              </div>
-              {!sub.stripeCustomerId && (
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  Billing portal will be available once your subscription is fully activated. Contact{" "}
-                  <a href="mailto:hello@solvr.com.au" className="underline" style={{ color: "#F5A623" }}>
-                    hello@solvr.com.au
-                  </a>{" "}
-                  if you need help.
+                  {/* Show upgrade CTA if on a lower tier */}
+                  {(sub.plan === "solvr_quotes" || sub.plan === "starter") && (
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                      onClick={handleOpenPaywall}
+                    >
+                      <Zap className="w-4 h-4" />
+                      Upgrade Plan
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Source indicator */}
+              {sub.subscriptionSource && (
+                <p className="text-xs pt-1" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  Billing via {sub.subscriptionSource === "apple" ? "Apple" : sub.subscriptionSource === "stripe" ? "Stripe" : "RevenueCat"}
                 </p>
               )}
             </div>
@@ -373,19 +496,27 @@ export default function PortalSubscription() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <Button
-                onClick={() => navigate("/voice-agent")}
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
-              >
-                View Plans & Pricing
-              </Button>
-              <Button
-                variant="outline"
-                className="border-white/20 text-white/60 hover:bg-white/5"
-                onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
-              >
-                Contact Support
-              </Button>
+              {isNativeApp() ? (
+                <p className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  Visit solvr.com.au on your browser to subscribe.
+                </p>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleOpenPaywall}
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  >
+                    View Plans & Subscribe
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white/60 hover:bg-white/5"
+                    onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
+                  >
+                    Contact Support
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}

@@ -115,6 +115,18 @@ Your task is to extract structured business profile data from a free-form voice 
 14. **Payment terms:** "Due on completion", "7 days", "14 days", "30 days", "COD" (cash on delivery), etc.
 15. **Do not fabricate services** based on industry type — only extract services the tradie explicitly mentions.
 
+## MULTILINGUAL SUPPORT
+
+The voice transcript may be in ANY language — Arabic, Mandarin, Cantonese, Hindi, Vietnamese, Greek, or any other language. This is intentional and expected.
+
+- Accept and understand the transcript regardless of the language it is written in.
+- ALL output fields (tradingName, aiContext, bookingInstructions, service names and descriptions, serviceArea, etc.) MUST be written in professional Australian English.
+- Translate naturally — do not transliterate. Use professional Australian trade terminology in the output.
+- If the tradie mixes languages (e.g. Arabic sentence with English trade terms like "ABN" or "GST"), handle gracefully — extract the meaning and output English.
+- Proper nouns (business names, suburb names, personal names) should be preserved as spoken — do not translate them.
+- Phone numbers and ABNs spoken in another language should be extracted as digits (e.g. Arabic numerals → standard digits).
+- If the transcript language is detected, note it in aiContext as: "Note: Onboarding transcript was in [Language]. All data extracted and translated to English."
+
 ## OUTPUT FORMAT
 
 Return a single JSON object matching the schema exactly. Use null for any field not mentioned. Use empty array [] for servicesOffered only if no services are mentioned at all.`;

@@ -1,9 +1,14 @@
-import { useState } from "react";
+/**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+import { useState, useRef, useCallback } from "react";
 import { Link } from "wouter";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { getSolvrOrigin } from "@/const";
-import { Check, X, Zap, Wrench, Bot } from "lucide-react";
+import { isNativeApp } from "@/const";
+import { Check, X, Zap, Wrench, Bot, Loader2 } from "lucide-react";
+import { configureRevenueCat, isRevenueCatConfigured, presentPaywall, type PurchaseOutcome } from "@/lib/revenuecat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CALENDLY_URL = import.meta.env.VITE_CALENDLY_URL ?? "https://calendly.com/solvr";
@@ -29,7 +34,6 @@ const PLANS = [
       "Customer feedback (thumbs up/down)",
       "Web app + iOS/Android app",
     ],
-    stripeKey: "solvr_quotes" as const,
   },
   {
     key: "solvr_jobs",
@@ -50,7 +54,6 @@ const PLANS = [
       "Customer reply push notifications",
       "Priority support",
     ],
-    stripeKey: "solvr_jobs" as const,
   },
   {
     key: "solvr_ai",
@@ -71,7 +74,6 @@ const PLANS = [
       "Lead qualification & job logging",
       "Founding member rate — locked for life",
     ],
-    stripeKey: "solvr_ai" as const,
   },
 ];
 
@@ -116,25 +118,74 @@ const COMPETITORS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Pricing() {
-  const [isAnnual, setIsAnnual] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const createSolvrCheckout = trpc.stripe.createSolvrCheckout.useMutation();
-  async function handleCheckout(plan: "solvr_quotes" | "solvr_jobs" | "solvr_ai") {
-    setCheckoutLoading(plan);
-    try {
-      const { url } = await createSolvrCheckout.mutateAsync({
-        plan,
-        billingCycle: isAnnual ? "annual" : "monthly",
-        origin: getSolvrOrigin(),
-      });;
-      toast.success("Redirecting to checkout…", { description: "Opening Stripe in a new tab." });
-      window.open(url, "_blank");
-    } catch {
-      toast.error("Checkout failed", { description: "Please try again or contact us." });
-    } finally {
-      setCheckoutLoading(null);
-    }
+  // Apple Guideline 3.1.1 — redirect to portal on native iOS/Android
+  if (isNativeApp()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#0A1628" }}>
+        <div className="text-center max-w-sm">
+          <div className="text-4xl mb-4">📱</div>
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
+            To start a subscription or manage your plan, visit solvr.com.au on your browser.
+          </p>
+          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
+            Go to Client Portal →
+          </Link>
+        </div>
+      </div>
+    );
   }
+
+  const [isAnnual, setIsAnnual] = useState(false);
+  const [paywallLoading, setPaywallLoading] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const paywallRef = useRef<HTMLDivElement>(null);
+
+  const handleSubscribe = useCallback(async () => {
+    // Ensure RC is configured with a temporary anonymous ID for public pricing page
+    // After purchase, the user will be identified via the webhook
+    if (!isRevenueCatConfigured()) {
+      const anonId = `rc_web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      configureRevenueCat(anonId);
+    }
+
+    setPaywallOpen(true);
+    setPaywallLoading(true);
+
+    // Wait for the DOM to render the paywall container
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    if (!paywallRef.current) {
+      setPaywallLoading(false);
+      toast.error("Could not open checkout. Please try again.");
+      return;
+    }
+
+    try {
+      const result: PurchaseOutcome = await presentPaywall(paywallRef.current);
+      if (result.success) {
+        toast.success("Subscription activated!", {
+          description: "Welcome to Solvr. Redirecting to your portal…",
+        });
+        setTimeout(() => {
+          window.location.href = "/portal";
+        }, 2000);
+      } else if (result.cancelled) {
+        setPaywallOpen(false);
+      } else if (result.error) {
+        toast.error("Purchase failed", { description: result.error });
+        setPaywallOpen(false);
+      }
+    } catch (err) {
+      console.error("[Pricing] paywall error:", err);
+      toast.error("Something went wrong", {
+        description: "Please try again or contact hello@solvr.com.au",
+      });
+      setPaywallOpen(false);
+    } finally {
+      setPaywallLoading(false);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ background: "#0A1628", fontFamily: "'DM Sans', sans-serif" }}>
@@ -159,6 +210,39 @@ export default function Pricing() {
           </a>
         </div>
       </nav>
+
+      {/* RevenueCat Paywall Modal */}
+      {paywallOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+        >
+          <div
+            className="relative w-full max-w-2xl mx-4 rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setPaywallOpen(false)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full hover:bg-white/10 transition-colors"
+              style={{ color: "rgba(255,255,255,0.6)", background: "none", border: "none", cursor: "pointer" }}
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Paywall container */}
+            <div className="p-6">
+              {paywallLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+                  <span className="ml-3 text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>Loading checkout…</span>
+                </div>
+              )}
+              <div ref={paywallRef} className="min-h-[400px] w-full" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <section style={{ padding: "5rem 0 3rem" }}>
@@ -231,7 +315,6 @@ export default function Pricing() {
               const Icon = plan.icon;
               const displayPrice = isAnnual ? plan.annualPrice : plan.price;
               const annualSaving = (plan.price - plan.annualPrice) * 12;
-              const isLoading = checkoutLoading === plan.stripeKey;
 
               return (
                 <div
@@ -304,20 +387,20 @@ export default function Pricing() {
                       ))}
                     </ul>
 
-                    {/* CTA */}
+                    {/* CTA — opens RevenueCat paywall */}
                     <button
-                      onClick={() => handleCheckout(plan.stripeKey)}
-                      disabled={isLoading}
+                      onClick={handleSubscribe}
+                      disabled={paywallLoading}
                       className="w-full py-3 rounded-xl font-bold text-sm transition-all"
                       style={{
                         background: plan.highlight ? "#F5A623" : "rgba(255,255,255,0.08)",
                         color: plan.highlight ? "#0F1F3D" : "#FAFAF8",
                         border: plan.highlight ? "none" : "1px solid rgba(255,255,255,0.12)",
-                        cursor: isLoading ? "not-allowed" : "pointer",
-                        opacity: isLoading ? 0.7 : 1,
+                        cursor: paywallLoading ? "not-allowed" : "pointer",
+                        opacity: paywallLoading ? 0.7 : 1,
                       }}
                     >
-                      {isLoading ? "Opening checkout…" : "Start 14-day free trial"}
+                      {paywallLoading ? "Opening checkout…" : "Start 14-day free trial"}
                     </button>
                     <p className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)" }}>
                       No credit card required to start
@@ -492,7 +575,7 @@ export default function Pricing() {
             <Link href="/voice-agent" style={{ color: "inherit", textDecoration: "none" }}>Products</Link>
             <Link href="/portal" style={{ color: "inherit", textDecoration: "none" }}>Client Login</Link>
           </div>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>© 2026 Solvr. Australian-built.</span>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>© {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.</span>
         </div>
       </footer>
     </div>

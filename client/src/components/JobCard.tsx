@@ -142,7 +142,8 @@ export function JobCard({ booking, businessName = "Jake's Plumbing", ownerName =
 
       {/* Create Quote CTA — passes booking data as URL params to pre-fill the quote form */}
       <Link
-        href={`/portal/quotes?${new URLSearchParams({
+        href={`/portal/jobs?${new URLSearchParams({
+          tab: "quotes",
           ...(booking.callerName ? { name: booking.callerName } : {}),
           ...(booking.phone ? { phone: booking.phone } : {}),
           ...(booking.address ? { address: booking.address } : {}),

@@ -77,6 +77,7 @@ vi.mock("./db", () => ({
     return Promise.resolve(null);
   }),
   createPortalJob: vi.fn().mockResolvedValue({ insertId: 2 }),
+  getRequiredFormsForJobType: vi.fn().mockResolvedValue([]),
   updatePortalJob: vi.fn().mockResolvedValue({}),
   deletePortalJob: vi.fn().mockResolvedValue({}),
   listPortalCalendarEvents: vi.fn().mockResolvedValue([{

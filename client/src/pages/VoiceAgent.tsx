@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { getSolvrOrigin } from "@/const";
+import { getSolvrOrigin, isNativeApp } from "@/const";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
@@ -269,6 +269,21 @@ const testimonials = [
 
 // ─── Pricing Section Component ──────────────────────────────────────────────────────────────────
 function PricingSection() {
+  // Apple Guideline 3.1.1 — no purchase UI inside native app
+  if (isNativeApp()) {
+    return (
+      <section id="pricing" style={{ background: "#0F1F3D", padding: "4rem 0" }}>
+        <div className="container mx-auto px-6 text-center max-w-sm">
+          <div className="text-4xl mb-4">📱</div>
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
+          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+            To start a subscription, visit solvr.com.au on your browser.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   const [isAnnual, setIsAnnual] = useState(false);
   const [missedCalls, setMissedCalls] = useState(3);
   const [avgJobValue, setAvgJobValue] = useState(800);
@@ -1536,7 +1551,7 @@ export default function VoiceAgent() {
               className="font-body text-xs"
               style={{ color: "rgba(255,255,255,0.35)" }}
             >
-              © {new Date().getFullYear()} Solvr. All rights reserved.
+              © {new Date().getFullYear()} ClearPath AI Agency Pty Ltd. All rights reserved. Trading as Solvr.
             </p>
             <div className="flex gap-5 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
               <a href="/terms" className="hover:text-white transition-colors">Terms of Service</a>

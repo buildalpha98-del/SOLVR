@@ -9,11 +9,11 @@
  *
  * Additional user seats: +$5/user/mo on any plan.
  *
- * Stripe Product IDs (live):
- *   Solvr Quotes:               prod_UJyD7Q0nN11svS  → price_1TLKGpB1r6rG0hI7vENFsjJO ($49/mo)  | price_1TLKtlB1r6rG0hI7avq9FSlX ($490/yr)
- *   Solvr Jobs:                 prod_UJyDofwez6Qyi7  → price_1TLKH9B1r6rG0hI7bopLw8GF ($99/mo)  | price_1TLKttB1r6rG0hI77Y8aKx4G ($990/yr)
- *   Solvr AI:                   prod_UJyD0LhtJ1c0oy  → price_1TLKHMB1r6rG0hI79G8CnCEU ($197/mo) | price_1TLKu2B1r6rG0hI7VRhvS1H8 ($1970/yr)
- *   Additional User Seat:       prod_UJyDEKYQWiBtjc  → price_1TLKHYB1r6rG0hI7YtWyxWiY ($5/mo)
+ * Stripe Product IDs (acct_1TKS1TIJ0SuqQaYD — hello@solvr.com.au, test mode):
+ *   Solvr Quotes:               prod_UKDZFjwyvdoHlA  → price_1TLZ8NIJ0SuqQaYDJCmDIAo0 ($49/mo)  | price_1TLZ8OIJ0SuqQaYDRRPenciX ($490/yr)
+ *   Solvr Jobs:                 prod_UKDZjEllPI6IUK  → price_1TLZ8QIJ0SuqQaYDvlcScmt1 ($99/mo)  | price_1TLZ8RIJ0SuqQaYD6BLAZ6uW ($990/yr)
+ *   Solvr AI:                   prod_UKDZrJyXpsBjYr  → price_1TLZ8TIJ0SuqQaYDfV2OUp1k ($197/mo) | price_1TLZ8UIJ0SuqQaYDLY5RfcfE ($1970/yr)
+ *   Quote Engine Add-On:        prod_UKDZSPXmi7POfK  → price_1TLZ8WIJ0SuqQaYDMjmauHtt ($29/mo)
  *
  * Legacy plans (kept for existing subscribers — do not remove):
  *   starter:      $197/mo  (maps to solvr_ai for display purposes)
@@ -51,9 +51,9 @@ export const SOLVR_PLANS: Record<PlanKey, PlanConfig> = {
     monthlyAmountCents: 4900, // $49 AUD
     annualAmountCents: 49000, // $490 AUD/yr (2 months free)
     currency: "aud",
-    stripeProductId: "prod_UJyD7Q0nN11svS",
-    stripePriceId: "price_1TLKGpB1r6rG0hI7vENFsjJO",
-    stripeAnnualPriceId: "price_1TLKtlB1r6rG0hI7avq9FSlX",
+    stripeProductId: "prod_UKDZFjwyvdoHlA",
+    stripePriceId: "price_1TLZ8NIJ0SuqQaYDJCmDIAo0",
+    stripeAnnualPriceId: "price_1TLZ8OIJ0SuqQaYDRRPenciX",
     features: [
       "Voice-to-quote in 90 seconds",
       "Unlimited quotes & invoices",
@@ -74,9 +74,9 @@ export const SOLVR_PLANS: Record<PlanKey, PlanConfig> = {
     monthlyAmountCents: 9900, // $99 AUD
     annualAmountCents: 99000, // $990 AUD/yr (2 months free)
     currency: "aud",
-    stripeProductId: "prod_UJyDofwez6Qyi7",
-    stripePriceId: "price_1TLKH9B1r6rG0hI7bopLw8GF",
-    stripeAnnualPriceId: "price_1TLKttB1r6rG0hI77Y8aKx4G",
+    stripeProductId: "prod_UKDZjEllPI6IUK",
+    stripePriceId: "price_1TLZ8QIJ0SuqQaYDvlcScmt1",
+    stripeAnnualPriceId: "price_1TLZ8RIJ0SuqQaYD6BLAZ6uW",
     features: [
       "Everything in Solvr Quotes",
       "Job cards & scheduling",
@@ -98,9 +98,9 @@ export const SOLVR_PLANS: Record<PlanKey, PlanConfig> = {
     monthlyAmountCents: 19700, // $197 AUD
     annualAmountCents: 197000, // $1970 AUD/yr (2 months free)
     currency: "aud",
-    stripeProductId: "prod_UJyD0LhtJ1c0oy",
-    stripePriceId: "price_1TLKHMB1r6rG0hI79G8CnCEU",
-    stripeAnnualPriceId: "price_1TLKu2B1r6rG0hI7VRhvS1H8",
+    stripeProductId: "prod_UKDZrJyXpsBjYr",
+    stripePriceId: "price_1TLZ8TIJ0SuqQaYDfV2OUp1k",
+    stripeAnnualPriceId: "price_1TLZ8UIJ0SuqQaYDLY5RfcfE",
     features: [
       "Everything in Solvr Jobs",
       "AI Receptionist (24/7 call answering)",
@@ -124,8 +124,21 @@ export const ADDITIONAL_SEAT = {
   description: "Add an extra staff member to any Solvr plan. +$5/user/month.",
   monthlyAmountCents: 500, // $5 AUD
   currency: "aud" as const,
-  stripeProductId: "prod_UJyDEKYQWiBtjc",
-  stripePriceId: "price_1TLKHYB1r6rG0hI7YtWyxWiY",
+  // Note: Additional seat product not yet created in test account — create via Stripe Dashboard if needed
+  stripeProductId: "",
+  stripePriceId: "",
+};
+
+/**
+ * Quote Engine standalone add-on (new subscribers).
+ */
+export const QUOTE_ENGINE_ADDON_NEW = {
+  name: "Solvr Quote Engine Add-On",
+  description: "Standalone AI voice-to-quote add-on for existing Solvr subscribers.",
+  monthlyAmountCents: 2900, // $29 AUD
+  currency: "aud" as const,
+  stripeProductId: "prod_UKDZSPXmi7POfK",
+  stripePriceId: "price_1TLZ8WIJ0SuqQaYDMjmauHtt",
 };
 
 /**

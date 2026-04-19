@@ -55,7 +55,7 @@ WHO IS SOLVR FOR?
 Solvr is built for Australian trade businesses: plumbers, electricians, builders, carpenters, HVAC technicians, and other field service operators.
 
 PRICING
-Solvr is a subscription service. Plans start from $99/month. A free trial is available. See solvr.com.au/pricing for details.
+Solvr is a subscription service. Plans start from $99/month. All new accounts include a 14-day free trial — no credit card required to start. See solvr.com.au/pricing for details.
 
 PRIVACY
 Solvr is operated by Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626). We comply with the Australian Privacy Act 1988. See solvr.com.au/privacy for our full Privacy Policy.
@@ -101,7 +101,7 @@ Fill this in on App Store Connect under **App Privacy**.
 | Product interaction | ✅ Yes | ✅ Yes | ❌ No | Analytics, service improvement |
 | Crash data | ✅ Yes | ❌ No | ❌ No | Debugging |
 | Performance data | ✅ Yes | ❌ No | ❌ No | App performance monitoring |
-| Payment info | ❌ No | — | — | Handled by Stripe (not stored) |
+| Payment info | ❌ No | — | — | Handled by Apple IAP via RevenueCat (not stored locally) |
 | Precise location | ❌ No | — | — | Not collected |
 | Contacts | ❌ No | — | — | Not collected |
 | Browsing history | ❌ No | — | — | Not collected |
@@ -142,11 +142,15 @@ show the output of the AI receptionist processing real inbound calls.
 The Voice-to-Quote feature requires microphone access. Please grant microphone 
 permission when prompted to test this feature.
 
-Subscription billing is handled via a web checkout (Stripe). The app does not 
-use Apple In-App Purchase for subscriptions, as this is a B2B service billed 
-directly to businesses. This is consistent with Apple's guidelines for apps that 
-primarily serve businesses (B2B apps are exempt from the IAP requirement for 
-subscription services when billing is handled outside the app).
+Subscriptions are handled via Apple In-App Purchase (auto-renewable subscriptions 
+managed through RevenueCat/StoreKit 2). The reviewer account has all features 
+unlocked without requiring an active subscription.
+
+To test the subscription flow, navigate to the Pricing page from the dashboard 
+sidebar. The app uses RevenueCat's Capacitor SDK for purchase handling.
+
+The app includes a "Restore Purchases" button and a link to Apple's subscription 
+management page, as required by App Store guidelines.
 ```
 
 ---
@@ -174,9 +178,45 @@ Complete the age rating questionnaire with these answers:
 
 ## 5. In-App Purchases
 
-**Does the app have in-app purchases?** ❌ No (billing is handled via Stripe web checkout, not Apple IAP)
+**Does the app have in-app purchases?** ✅ Yes — Auto-Renewable Subscriptions
 
-**Note for reviewer:** Solvr is a B2B SaaS product. Subscription billing is handled via Stripe on the web. The app itself does not process payments or offer in-app purchases. This is consistent with Apple's guidelines for business-to-business apps.
+**Subscription management:** RevenueCat (StoreKit 2 via Capacitor SDK)
+
+### Subscription Group: Solvr Subscriptions
+
+| Product ID | Display Name | Price (AUD) | Duration |
+|---|---|---|---|
+| solvr_quotes_monthly | Solvr Quotes — Monthly | $49.00 | 1 month |
+| solvr_quotes_yearly | Solvr Quotes — Yearly | $490.00 | 1 year |
+| solvr_jobs_monthly | Solvr Jobs — Monthly | $99.00 | 1 month |
+| solvr_jobs_yearly | Solvr Jobs — Yearly | $990.00 | 1 year |
+| solvr_ai_monthly | Solvr AI — Monthly | $199.00 | 1 month |
+| solvr_ai_yearly | Solvr AI — Yearly | $1,990.00 | 1 year |
+
+### Tier Hierarchy (higher tiers include all lower-tier features)
+
+1. **Quotes** — Quotes, price list, customer database
+2. **Jobs** — Everything in Quotes + job management, scheduling, invoicing, purchase orders
+3. **AI** — Everything in Jobs + AI receptionist, voice-to-quote, AI insights, compliance docs
+
+### Subscription Localisation (required for each product in ASC)
+
+| Field | Value |
+|---|---|
+| Display Name | e.g. "Solvr Quotes — Monthly" |
+| Description | e.g. "Create and send professional quotes. Includes customer database and price list." |
+
+### Free Trial
+
+All plans include a **14-day free trial** (configured in App Store Connect per product, not in RevenueCat).
+
+### Restore Purchases
+
+The app includes a "Restore Purchases" button on the subscription screen (required by Apple). This calls `Purchases.restorePurchases()` via the RevenueCat SDK.
+
+### Subscription Management Link
+
+The app includes a link to Apple's subscription management page (`https://apps.apple.com/account/subscriptions`) in the account/settings section (required by Apple).
 
 ---
 
@@ -222,6 +262,13 @@ Complete the age rating questionnaire with these answers:
 - [ ] NSCameraUsageDescription in Info.plist (if camera used)
 - [ ] NSPhotoLibraryUsageDescription in Info.plist (if photo library used)
 - [ ] Push notification entitlement configured
+- [ ] In-App Purchase products created in App Store Connect (6 auto-renewable subscriptions)
+- [ ] Subscription group "Solvr Subscriptions" created with all 6 products
+- [ ] Free trial period (14 days) configured per product in ASC
+- [ ] RevenueCat Apple app linked (replace Test Store app with real ASC app)
+- [ ] App Store Shared Secret set in RevenueCat > Project > Apps > Apple
+- [ ] "Restore Purchases" button visible on subscription screen
+- [ ] Link to Apple subscription management page in settings
 - [ ] App built with production certificate and provisioning profile
 - [ ] `CFBundleShortVersionString` = "1.0.0" in Info.plist
 - [ ] `CFBundleVersion` = "1" in Info.plist
@@ -234,6 +281,8 @@ Complete the age rating questionnaire with these answers:
 ### Version 1.0.0
 ```
 🚀 Solvr is here — the AI receptionist and quote engine built for Australian tradies.
+
+🎁 14-day free trial — no credit card required.
 
 • AI Receptionist: Never miss a call again
 • Voice-to-Quote: Professional quotes from a voice note
@@ -255,6 +304,6 @@ Built for plumbers, electricians, builders, and all Australian trades.
 | **4.0 Design** — poor UI | Responsive design, tested on iPhone 14 Pro and iPad |
 | **5.1.1 Data Collection** — no privacy policy | Privacy policy at solvr.com.au/privacy ✅ |
 | **5.1.2 Data Use** — audio recording without disclosure | NSMicrophoneUsageDescription set ✅ |
-| **3.1.1 In-App Purchase** — subscription without IAP | B2B exemption applies; billing via Stripe web checkout |
+| **3.1.1 In-App Purchase** — subscription without IAP | IAP implemented via RevenueCat/StoreKit 2 ✅ |
 | **2.3.3 Accurate Metadata** — misleading screenshots | Screenshots show real app UI with demo data |
 | **4.2.2 Minimum Functionality** — app is just a website | App has native push notifications, microphone, camera |

@@ -4,9 +4,10 @@
  * Shows job status, photos, invoice total, tradie contact details,
  * tradie branding (logo + trading name), and a customer feedback widget.
  */
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { ClipboardList, PenLine, Download, ChevronDown, ChevronUp } from "lucide-react";
 import {
   CheckCircle2,
   Clock,
@@ -22,6 +23,9 @@ import {
   ThumbsDown,
   Star,
   ExternalLink,
+  CreditCard,
+  Camera,
+  X,
 } from "lucide-react";
 
 // ── Stage display config ──────────────────────────────────────────────────────
@@ -218,7 +222,561 @@ function FeedbackWidget({
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Photo Gallery with before/during/after grouping + lightbox ───────────────
+const PHOTO_STAGE_ORDER = ["before", "during", "after", "other"] as const;
+const PHOTO_STAGE_LABELS: Record<string, { label: string; icon: React.ReactNode; colour: string }> = {
+  before: { label: "Before", icon: <Camera className="w-3.5 h-3.5" />, colour: "text-blue-600 bg-blue-50 border-blue-200" },
+  during: { label: "During", icon: <Wrench className="w-3.5 h-3.5" />, colour: "text-orange-600 bg-orange-50 border-orange-200" },
+  after:  { label: "After",  icon: <CheckCircle2 className="w-3.5 h-3.5" />, colour: "text-green-600 bg-green-50 border-green-200" },
+  other:  { label: "Photos", icon: <ImageIcon className="w-3.5 h-3.5" />, colour: "text-gray-600 bg-gray-50 border-gray-200" },
+};
+
+function PhotoGallery({ photos }: { photos: Array<{ id: string; url: string; caption: string | null; photoType: string }> }) {
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+
+  // Group photos by stage
+  const grouped = PHOTO_STAGE_ORDER.reduce<Record<string, typeof photos>>((acc, stage) => {
+    const stagePhotos = photos.filter(p => p.photoType === stage);
+    if (stagePhotos.length > 0) acc[stage] = stagePhotos;
+    return acc;
+  }, {});
+
+  // Flat list for lightbox navigation
+  const allPhotos = PHOTO_STAGE_ORDER.flatMap(s => grouped[s] ?? []);
+
+  // If only one stage, skip the grouping headers
+  const stages = Object.keys(grouped);
+  const singleStage = stages.length === 1;
+
+  return (
+    <>
+      <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Camera className="w-4 h-4 text-gray-400" />
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            Job Photos ({photos.length})
+          </p>
+        </div>
+
+        {singleStage ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {allPhotos.map((photo, idx) => (
+              <button
+                key={photo.id}
+                onClick={() => setLightboxIdx(idx)}
+                className="block rounded-lg overflow-hidden aspect-square bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <img
+                  src={photo.url}
+                  alt={photo.caption ?? "Job photo"}
+                  className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {PHOTO_STAGE_ORDER.map(stage => {
+              const stagePhotos = grouped[stage];
+              if (!stagePhotos) return null;
+              const config = PHOTO_STAGE_LABELS[stage];
+              return (
+                <div key={stage}>
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border mb-2 ${config.colour}`}>
+                    {config.icon}
+                    {config.label}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {stagePhotos.map(photo => {
+                      const flatIdx = allPhotos.findIndex(p => p.id === photo.id);
+                      return (
+                        <button
+                          key={photo.id}
+                          onClick={() => setLightboxIdx(flatIdx)}
+                          className="block rounded-lg overflow-hidden aspect-square bg-gray-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.caption ?? `${config.label} photo`}
+                            className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox overlay */}
+      {lightboxIdx !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setLightboxIdx(null)}
+        >
+          <button
+            onClick={() => setLightboxIdx(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Prev / Next arrows */}
+          {lightboxIdx > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl font-bold transition-colors z-10"
+            >
+              ‹
+            </button>
+          )}
+          {lightboxIdx < allPhotos.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-2xl font-bold transition-colors z-10"
+            >
+              ›
+            </button>
+          )}
+
+          <div className="max-w-4xl max-h-[85vh] px-4" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={allPhotos[lightboxIdx].url}
+              alt={allPhotos[lightboxIdx].caption ?? "Job photo"}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            />
+            {allPhotos[lightboxIdx].caption && (
+              <p className="text-white/70 text-sm text-center mt-3">{allPhotos[lightboxIdx].caption}</p>
+            )}
+            <p className="text-white/40 text-xs text-center mt-1">
+              {lightboxIdx + 1} / {allPhotos.length}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Customer Forms Section ──────────────────────────────────────────────────────────────
+function CustomerFormsSection({ token }: { token: string }) {
+  const { data: formsData, refetch } = trpc.portal.customerListJobForms.useQuery(
+    { token },
+    { enabled: !!token }
+  );
+
+  const [fillingTemplateId, setFillingTemplateId] = useState<number | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  if (!formsData) return null;
+  const { submissions, pendingTemplates } = formsData;
+  const completedSubmissions = submissions.filter(s => s.status === "completed");
+
+  // Don't render anything if no forms exist and none are required
+  if (pendingTemplates.length === 0 && completedSubmissions.length === 0) return null;
+
+  return (
+    <>
+      <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <ClipboardList className="w-4 h-4 text-gray-400" />
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+            Forms & Certificates
+          </p>
+        </div>
+
+        {/* Pending forms that need customer completion */}
+        {pendingTemplates.length > 0 && (
+          <div className="space-y-2 mb-3">
+            <p className="text-xs text-amber-600 font-medium">Action Required</p>
+            {pendingTemplates.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setFillingTemplateId(t.id)}
+                className="w-full flex items-center gap-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg px-4 py-3 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <PenLine className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">{t.name}</p>
+                  {t.description && <p className="text-xs text-gray-500 truncate">{t.description}</p>}
+                </div>
+                <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full flex-shrink-0">Fill &amp; Sign</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Completed forms */}
+        {completedSubmissions.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowCompleted(!showCompleted)}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 mb-2"
+            >
+              {showCompleted ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {completedSubmissions.length} completed form{completedSubmissions.length !== 1 ? "s" : ""}
+            </button>
+            {showCompleted && (
+              <div className="space-y-1.5">
+                {completedSubmissions.map(s => (
+                  <div key={s.id} className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{s.title}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {s.submittedBy && `By ${s.submittedBy} • `}
+                        {s.completedAt ? new Date(s.completedAt).toLocaleDateString("en-AU") : ""}
+                      </p>
+                    </div>
+                    {s.pdfUrl && (
+                      <a href={s.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-100 rounded-lg">
+                        <Download className="w-4 h-4 text-green-600" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Form filler dialog */}
+      {fillingTemplateId && (
+        <CustomerFormFiller
+          token={token}
+          templateId={fillingTemplateId}
+          onClose={() => { setFillingTemplateId(null); refetch(); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Customer Form Filler (modal overlay) ───────────────────────────────────────────
+interface FormField {
+  id: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+  defaultValue?: string;
+}
+
+function CustomerFormFiller({
+  token,
+  templateId,
+  onClose,
+}: {
+  token: string;
+  templateId: number;
+  onClose: () => void;
+}) {
+  const { data: template, isLoading } = trpc.portal.customerGetFormTemplate.useQuery(
+    { token, templateId },
+    { enabled: !!token && !!templateId }
+  );
+
+  const submitMutation = trpc.portal.customerSubmitForm.useMutation({
+    onSuccess: () => onClose(),
+  });
+
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [signatures, setSignatures] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const fields = (template?.fields as FormField[] | null) ?? [];
+
+  const handleSubmit = () => {
+    // Validate required fields
+    const missing = fields
+      .filter(f => f.required && !values[f.id] && f.type !== "heading" && f.type !== "divider")
+      .map(f => f.label);
+    const missingSignatures = fields
+      .filter(f => f.type === "signature" && f.required && !signatures[f.id])
+      .map(f => f.label);
+    const allMissing = [...missing, ...missingSignatures];
+    if (allMissing.length > 0) {
+      setErrors(allMissing);
+      return;
+    }
+    setErrors([]);
+    submitMutation.mutate({
+      token,
+      templateId,
+      title: template?.name ?? "Form Submission",
+      values,
+      signatures: Object.keys(signatures).length > 0 ? signatures : undefined,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div
+        className="bg-white w-full sm:max-w-lg sm:rounded-xl rounded-t-xl max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+          <div>
+            <p className="text-sm font-bold text-gray-900">{template?.name ?? "Loading..."}</p>
+            {template?.description && <p className="text-xs text-gray-500">{template.description}</p>}
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-amber-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="px-4 py-4 space-y-4">
+            {errors.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-xs font-medium text-red-700">Please complete: {errors.join(", ")}</p>
+              </div>
+            )}
+
+            {fields.map(field => (
+              <CustomerFieldRenderer
+                key={field.id}
+                field={field}
+                value={values[field.id]}
+                signature={signatures[field.id]}
+                onChange={(v) => setValues(prev => ({ ...prev, [field.id]: v }))}
+                onSignature={(sig) => setSignatures(prev => ({ ...prev, [field.id]: sig }))}
+              />
+            ))}
+
+            <button
+              onClick={handleSubmit}
+              disabled={submitMutation.isPending}
+              className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-white text-sm font-bold py-3 rounded-xl transition-colors"
+            >
+              {submitMutation.isPending ? "Submitting…" : "Submit & Sign"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Customer Field Renderer ────────────────────────────────────────────────────────────
+function CustomerFieldRenderer({
+  field,
+  value,
+  signature,
+  onChange,
+  onSignature,
+}: {
+  field: FormField;
+  value: unknown;
+  signature?: string;
+  onChange: (v: unknown) => void;
+  onSignature: (sig: string) => void;
+}) {
+  if (field.type === "heading") {
+    return <h3 className="text-sm font-bold text-gray-800 pt-2 border-t border-gray-100">{field.label}</h3>;
+  }
+  if (field.type === "divider") {
+    return <hr className="border-gray-200" />;
+  }
+
+  const inputClass = "w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder-gray-400";
+
+  return (
+    <div>
+      <label className="text-xs font-medium text-gray-600 mb-1 block">
+        {field.label}{field.required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+
+      {field.type === "text" && (
+        <input
+          type="text"
+          value={(value as string) ?? ""}
+          onChange={e => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          className={inputClass}
+        />
+      )}
+
+      {field.type === "textarea" && (
+        <textarea
+          value={(value as string) ?? ""}
+          onChange={e => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          rows={3}
+          className={inputClass + " resize-none"}
+        />
+      )}
+
+      {field.type === "number" && (
+        <input
+          type="number"
+          value={(value as string) ?? ""}
+          onChange={e => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          className={inputClass}
+        />
+      )}
+
+      {field.type === "date" && (
+        <input
+          type="date"
+          value={(value as string) ?? ""}
+          onChange={e => onChange(e.target.value)}
+          className={inputClass}
+        />
+      )}
+
+      {field.type === "select" && (
+        <select
+          value={(value as string) ?? ""}
+          onChange={e => onChange(e.target.value)}
+          className={inputClass}
+        >
+          <option value="">Select…</option>
+          {(field.options ?? []).map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      )}
+
+      {field.type === "checkbox" && (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!value}
+            onChange={e => onChange(e.target.checked)}
+            className="accent-amber-500 w-4 h-4"
+          />
+          <span className="text-sm text-gray-700">Yes</span>
+        </label>
+      )}
+
+      {field.type === "signature" && (
+        <CustomerSignaturePad
+          value={signature}
+          onChange={onSignature}
+        />
+      )}
+
+      {field.type === "photo" && (
+        <p className="text-xs text-gray-400 italic">Photo upload is available in the tradie portal.</p>
+      )}
+    </div>
+  );
+}
+
+// ── Customer Signature Pad ─────────────────────────────────────────────────────────────
+function CustomerSignaturePad({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (sig: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  useEffect(() => {
+    if (value && canvasRef.current) {
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvasRef.current?.getContext("2d");
+        if (ctx && canvasRef.current) {
+          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+          ctx.drawImage(img, 0, 0);
+          setHasDrawn(true);
+        }
+      };
+      img.src = value;
+    }
+  }, []);
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    if ("touches" in e) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setDrawing(true);
+    setHasDrawn(true);
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!drawing) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx) return;
+    const pos = getPos(e);
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  };
+
+  const endDraw = () => {
+    setDrawing(false);
+    if (canvasRef.current && hasDrawn) {
+      onChange(canvasRef.current.toDataURL("image/png"));
+    }
+  };
+
+  const clear = () => {
+    const ctx = canvasRef.current?.getContext("2d");
+    if (ctx && canvasRef.current) {
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+    setHasDrawn(false);
+    onChange("");
+  };
+
+  return (
+    <div>
+      <canvas
+        ref={canvasRef}
+        width={320}
+        height={120}
+        className="w-full border border-gray-200 rounded-lg bg-white cursor-crosshair touch-none"
+        onMouseDown={startDraw}
+        onMouseMove={draw}
+        onMouseUp={endDraw}
+        onMouseLeave={endDraw}
+        onTouchStart={startDraw}
+        onTouchMove={draw}
+        onTouchEnd={endDraw}
+      />
+      {hasDrawn && (
+        <button onClick={clear} className="text-xs text-gray-400 hover:text-gray-600 mt-1">
+          Clear signature
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────────────
 export default function CustomerJobStatus() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -393,7 +951,7 @@ export default function CustomerJobStatus() {
           )}
         </div>
 
-        {/* Invoice */}
+        {/* Invoice + Pay Now */}
         {(job.invoicedAmount || job.invoicePdfUrl) && (
           <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Invoice</p>
@@ -406,18 +964,36 @@ export default function CustomerJobStatus() {
                   </p>
                 </div>
               )}
-              {job.invoicePdfUrl && (
-                <a
-                  href={job.invoicePdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-amber-400 hover:bg-amber-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  View Invoice
-                </a>
-              )}
+              <div className="flex items-center gap-2">
+                {job.invoicePdfUrl && (
+                  <a
+                    href={job.invoicePdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    View Invoice
+                  </a>
+                )}
+              </div>
             </div>
+            {/* Pay Now CTA — only when there's a pending payment link */}
+            {job.paymentLinkToken && (
+              <a
+                href={`/pay/${job.paymentLinkToken}`}
+                className="flex items-center justify-center gap-2 w-full mt-4 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-3.5 rounded-xl transition-colors"
+              >
+                <CreditCard className="w-5 h-5" />
+                Pay Now — ${job.invoicedAmount ? (job.invoicedAmount / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 }) : ""}
+              </a>
+            )}
+            {job.stage === "completed" && !job.paymentLinkToken && job.invoicedAmount && (
+              <div className="flex items-center gap-2 mt-4 bg-green-50 text-green-700 text-sm font-semibold px-4 py-3 rounded-xl">
+                <CheckCircle2 className="w-5 h-5" />
+                Payment received — thank you!
+              </div>
+            )}
           </div>
         )}
 
@@ -437,33 +1013,12 @@ export default function CustomerJobStatus() {
           </div>
         )}
 
-        {/* Photos */}
+        {/* Forms & Certificates — customer can fill required forms */}
+        {token && <CustomerFormsSection token={token} />}
+
+        {/* Photos — grouped by stage (before / during / after) */}
         {job.photos.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 px-4 py-4">
-            <div className="flex items-center gap-2 mb-3">
-              <ImageIcon className="w-4 h-4 text-gray-400" />
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Job Photos ({job.photos.length})
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {job.photos.map((photo) => (
-                <a
-                  key={photo.id}
-                  href={photo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-lg overflow-hidden aspect-square bg-gray-100"
-                >
-                  <img
-                    src={photo.url}
-                    alt={photo.caption ?? "Job photo"}
-                    className="w-full h-full object-cover hover:opacity-90 transition-opacity"
-                  />
-                </a>
-              ))}
-            </div>
-          </div>
+          <PhotoGallery photos={job.photos} />
         )}
 
         {/* ── Feedback widget (only shown when job is completed/invoiced/paid) ── */}

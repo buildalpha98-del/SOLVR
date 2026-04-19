@@ -302,6 +302,181 @@
       "when": 1775990717086,
       "tag": "0042_medical_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1776150270162,
+      "tag": "0043_overjoyed_hellion",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1776426857375,
+      "tag": "0044_parallel_rockslide",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1776429239867,
+      "tag": "0045_medical_infant_terrible",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1776460385639,
+      "tag": "0046_past_whizzer",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1776462289058,
+      "tag": "0047_soft_silver_centurion",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1776467963906,
+      "tag": "0048_tranquil_redwing",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1776469331447,
+      "tag": "0049_rainy_invaders",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1776470063876,
+      "tag": "0050_melted_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "5",
+      "when": 1776470850884,
+      "tag": "0051_odd_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "5",
+      "when": 1776470888767,
+      "tag": "0052_elite_triton",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1776473147707,
+      "tag": "0053_same_cerebro",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "5",
+      "when": 1776473784891,
+      "tag": "0054_colorful_komodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1776475751572,
+      "tag": "0055_futuristic_sentinels",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "5",
+      "when": 1776496644653,
+      "tag": "0056_concerned_squadron_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1776510881099,
+      "tag": "0057_curious_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1776518351613,
+      "tag": "0058_cloudy_cloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1776549247727,
+      "tag": "0059_tense_lady_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1776549487764,
+      "tag": "0060_yellow_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1776561620626,
+      "tag": "0061_quiet_mongu",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "5",
+      "when": 1776564170769,
+      "tag": "0062_robust_overlord",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "5",
+      "when": 1776565579845,
+      "tag": "0063_sharp_micromax",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "5",
+      "when": 1776566044126,
+      "tag": "0064_elite_human_robot",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "5",
+      "when": 1776567493962,
+      "tag": "0065_blushing_centennial",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "5",
+      "when": 1776570366131,
+      "tag": "0066_rainy_skrulls",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1776571949638,
+      "tag": "0067_cloudy_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

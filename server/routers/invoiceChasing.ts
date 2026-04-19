@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Invoice Chasing Router
  *
  * Uses the same portal session cookie pattern as portal.ts —
@@ -294,7 +299,93 @@ export const portalInvoiceChasingRouter = router({
       avgDaysToPay: null as number | null,
     };
   }),
+
+  /**
+   * Export invoices as Xero-compatible CSV.
+   * Returns a CSV string that can be imported directly into Xero > Business > Invoices > Import.
+   * Format: ContactName, EmailAddress, InvoiceNumber, InvoiceDate, DueDate, Description, Quantity, UnitAmount, AccountCode, TaxType, Total
+   */
+  exportXeroCsv: publicProcedure
+    .input(z.object({
+      status: z.enum(["active", "paid", "snoozed", "cancelled", "escalated", "all"]).default("all"),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const client = await resolvePortalClient(ctx.req);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const conditions = [eq(invoiceChases.clientId, client.id)];
+      const statusFilter = input?.status ?? "all";
+      if (statusFilter !== "all") {
+        conditions.push(eq(invoiceChases.status, statusFilter));
+      }
+
+      const chases = await db
+        .select()
+        .from(invoiceChases)
+        .where(and(...conditions))
+        .orderBy(desc(invoiceChases.issuedAt));
+
+      if (chases.length === 0) {
+        return { csv: "", count: 0 };
+      }
+
+      // Xero CSV header
+      const headers = [
+        "*ContactName",
+        "EmailAddress",
+        "*InvoiceNumber",
+        "*InvoiceDate",
+        "*DueDate",
+        "*Description",
+        "*Quantity",
+        "*UnitAmount",
+        "*AccountCode",
+        "TaxType",
+        "Currency",
+      ];
+
+      const rows: string[][] = [];
+      for (const chase of chases) {
+        // Each invoice becomes one row (single line item = total amount)
+        // GST is 10% of the total in Australia
+        const total = parseFloat(chase.amountDue) || 0;
+        const exGst = (total / 1.1).toFixed(2);
+
+        rows.push([
+          escapeCsvField(chase.customerName),
+          escapeCsvField(chase.customerEmail),
+          escapeCsvField(chase.invoiceNumber),
+          formatXeroDate(chase.issuedAt),
+          formatXeroDate(chase.dueDate),
+          escapeCsvField(chase.description ?? `Invoice ${chase.invoiceNumber}`),
+          "1",
+          exGst,
+          "200", // Xero default: Sales account code
+          "GST on Income",
+          "AUD",
+        ]);
+      }
+
+      const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      return { csv, count: chases.length };
+    }),
 });
+
+function escapeCsvField(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function formatXeroDate(dateStr: string | Date): string {
+  const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`; // DD/MM/YYYY for Australian Xero
+}
 
 // ─── Admin router (console-facing) ───────────────────────────────────────────
 

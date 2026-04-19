@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Dashboard — the home screen for Solvr clients.
  *
  * Shows:
@@ -6,21 +11,23 @@
  * - Call volume chart (last 14 days)
  * - Pipeline revenue estimate
  * - AI Weekly Insight (full-managed plan) — live LLM-generated summary
+ * - AI Receptionist Test Widget (Sprint 7) — live Vapi call using the tradie's own agent
  * - Upgrade prompt for locked features
  */
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell,
 } from "recharts";
-import { Phone, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Users, Share2, X, CalendarCheck, Receipt, ChevronDown, ChevronUp, Mic } from "lucide-react";
+import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings, Receipt, FileText, BarChart3 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -28,6 +35,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useVapi, type PersonaConfig } from "@/hooks/useVapi";
+import { Waveform } from "@/components/Waveform";
+import { TranscriptFeed } from "@/components/TranscriptFeed";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 
 // ─── Quick Job Button ────────────────────────────────────────────────────────
 function QuickJobButton() {
@@ -166,6 +178,317 @@ function UpgradeCard({ feature, plan }: { feature: string; plan: string }) {
   );
 }
 
+// ─── Vapi Demo Widget ────────────────────────────────────────────────────────
+function formatDuration(seconds: number) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function VapiDemoWidget({
+  vapiAgentId,
+  businessName,
+  tradeType,
+}: {
+  vapiAgentId: string | null;
+  businessName: string | null;
+  tradeType: string | null;
+}) {
+  // Build a persona from the tradie's own profile data
+  const persona = useMemo<PersonaConfig>(() => ({
+    businessName: businessName ?? "Your Business",
+    ownerName: "the team",
+    tradeType: tradeType ?? "trade",
+    services: "General trade services",
+    serviceArea: "Your service area",
+    hours: "Mon–Fri 7am–5pm",
+    emergencyFee: "$150 + labour",
+  }), [businessName, tradeType]);
+
+  const {
+    status,
+    transcript,
+    isSpeaking,
+    callDuration,
+    error,
+    startCall,
+    endCall,
+    resetDemo,
+  } = useVapi(persona);
+
+  const isIdle = status === "idle";
+  const isConnecting = status === "connecting";
+  const isActive = status === "active";
+  const isEnded = status === "ended";
+  const callInProgress = isConnecting || isActive;
+
+  // If no agent is configured yet, show a setup prompt
+  if (!vapiAgentId) {
+    return (
+      <div
+        className="rounded-xl p-5"
+        style={{ background: "#0F1F3D", border: "1px solid rgba(245,166,35,0.2)" }}
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(245,166,35,0.12)" }}
+          >
+            <Bot className="w-4 h-4" style={{ color: "#F5A623" }} />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Test Your AI Receptionist</h2>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Your AI agent isn't configured yet.
+            </p>
+          </div>
+        </div>
+        <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.5)" }}>
+          Your Solvr AI receptionist needs to be set up before you can test it here. Contact your Solvr account manager or complete your onboarding to get your agent live.
+        </p>
+        <Link href="/portal/settings">
+          <button
+            className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition-all"
+            style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Go to Settings
+          </button>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: "#0F1F3D", border: "1px solid rgba(245,166,35,0.2)" }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-5 py-3"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "rgba(245,166,35,0.12)" }}
+          >
+            <Bot className="w-4 h-4" style={{ color: "#F5A623" }} />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Test Your AI Receptionist</h2>
+            <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+              {businessName ?? "Your Business"} · {tradeType ?? "Trade"}
+            </p>
+          </div>
+        </div>
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          {isActive && (
+            <span className="font-mono text-xs font-bold" style={{ color: "#F5A623" }}>
+              {formatDuration(callDuration)}
+            </span>
+          )}
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+            style={{
+              background: isActive
+                ? "rgba(74,222,128,0.12)"
+                : isConnecting
+                ? "rgba(245,166,35,0.12)"
+                : isEnded
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(255,255,255,0.06)",
+              color: isActive
+                ? "#4ade80"
+                : isConnecting
+                ? "#F5A623"
+                : "rgba(255,255,255,0.4)",
+            }}
+          >
+            {isActive ? "● LIVE" : isConnecting ? "Connecting…" : isEnded ? "Call ended" : "Ready"}
+          </span>
+        </div>
+      </div>
+
+      {/* Waveform + transcript area */}
+      <div className="px-5 pt-4 pb-2">
+        {/* Waveform */}
+        <div className="flex justify-center mb-4">
+          <Waveform isActive={callInProgress} isSpeaking={isSpeaking} className="h-10" />
+        </div>
+
+        {/* Transcript feed — show when a call has started */}
+        {(callInProgress || isEnded) && (
+          <div
+            className="rounded-lg overflow-hidden mb-4"
+            style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <TranscriptFeed entries={transcript} isActive={callInProgress} />
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div
+            className="rounded-lg px-3 py-2 mb-3 text-xs"
+            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5" }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Idle hint */}
+        {isIdle && (
+          <p className="text-xs text-center mb-4" style={{ color: "rgba(255,255,255,0.35)" }}>
+            Call your AI receptionist exactly as a customer would. Test how it handles bookings, emergencies, and pricing questions.
+          </p>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div
+        className="flex items-center justify-center gap-3 px-5 py-4"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {isIdle && (
+          <button
+            onClick={startCall}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
+          >
+            <Phone className="w-4 h-4" />
+            Start Test Call
+          </button>
+        )}
+
+        {isConnecting && (
+          <button
+            disabled
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm cursor-not-allowed"
+            style={{ background: "rgba(245,166,35,0.2)", color: "#F5A623" }}
+          >
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Connecting…
+          </button>
+        )}
+
+        {isActive && (
+          <button
+            onClick={endCall}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+            style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }}
+          >
+            <PhoneOff className="w-4 h-4" />
+            End Call
+          </button>
+        )}
+
+        {isEnded && (
+          <button
+            onClick={resetDemo}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.12)" }}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Call Again
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Revenue Snapshot — mini monthly chart + KPIs for dashboard ──────────────
+function RevenueSnapshot({ data }: { data: any }) {
+  const reportingQuery = trpc.reporting.getRevenueMetrics.useQuery({ monthsBack: 6 });
+  const quoteQuery = trpc.reporting.getQuoteConversion.useQuery({ monthsBack: 6 });
+
+  const monthlyData = useMemo(() => {
+    if (!reportingQuery.data?.monthlyRevenue) return [];
+    return reportingQuery.data.monthlyRevenue.map((m: any) => ({
+      month: m.month,
+      revenue: m.revenue / 100,
+    }));
+  }, [reportingQuery.data]);
+
+  const conversionRate = quoteQuery.data?.conversionRate ?? null;
+  const outstandingCents = reportingQuery.data?.totalOutstanding ?? 0;
+
+  return (
+    <div
+      className="rounded-xl p-5"
+      style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" style={{ color: "#F5A623" }} />
+          <h2 className="text-sm font-semibold text-white">Revenue Snapshot</h2>
+        </div>
+        <Link href="/portal/reporting">
+          <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
+            Full Report <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+      </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <div className="text-center">
+          <div className="text-2xl font-bold" style={{ color: "#F5A623" }}>
+            ${data.potentialRevenue.toLocaleString()}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Pipeline</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-green-400">
+            ${data.wonRevenue.toLocaleString()}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Won</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold" style={{ color: outstandingCents > 0 ? "#fb923c" : "rgba(255,255,255,0.6)" }}>
+            ${Math.round(outstandingCents / 100).toLocaleString()}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Outstanding</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">
+            {conversionRate !== null ? `${conversionRate}%` : "—"}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Quote Win Rate</div>
+        </div>
+      </div>
+
+      {/* Mini bar chart */}
+      {monthlyData.length > 0 && (
+        <div style={{ height: 120 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyData} barCategoryGap="20%">
+              <XAxis
+                dataKey="month"
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{ background: "#1a2744", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }}
+                formatter={(v: number) => [`$${v.toLocaleString()}`, "Revenue"]}
+              />
+              <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                {monthlyData.map((_: any, i: number) => (
+                  <Cell key={i} fill={i === monthlyData.length - 1 ? "#F5A623" : "rgba(245,166,35,0.35)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PortalDashboard() {
   const [, navigate] = useLocation();
 
@@ -223,6 +546,22 @@ export default function PortalDashboard() {
     });
   }
 
+  const utils = trpc.useUtils();
+
+  // Activation checklist
+  const { data: checklistData, isLoading: checklistLoading } = trpc.portal.getActivationChecklist.useQuery(undefined, {
+    staleTime: 60 * 1000,
+  });
+  const dismissChecklistMutation = trpc.portal.dismissActivationChecklist.useMutation({
+    onSuccess: () => utils.portal.getActivationChecklist.invalidate(),
+  });
+
+  // Invoice chasing summary (for dashboard widget)
+  const { data: chaseStats } = trpc.invoiceChasing.summary.useQuery(undefined, {
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
   // Referral programme
   const { data: referralCode } = trpc.portal.getReferralCode.useQuery(undefined, { staleTime: Infinity });
   const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
@@ -251,9 +590,23 @@ export default function PortalDashboard() {
     }
   };
 
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.getDashboard.invalidate(),
+      utils.invoiceChasing.summary.invalidate(),
+      utils.portal.getActivationChecklist.invalidate(),
+      utils.portal.getReferralStats.invalidate(),
+    ]);
+  }, [utils]);
+
+  const { containerRef, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="dashboard">
-      <div className="space-y-6">
+      <div ref={containerRef} className="space-y-6" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isRefreshing} />
         {/* Free-tier upgrade banner */}
         {isFreeTier && !upgradeBannerDismissed && (
           <div
@@ -280,6 +633,74 @@ export default function PortalDashboard() {
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Activation Checklist */}
+        {!checklistLoading && checklistData && !checklistData.dismissed && checklistData.steps.length > 0 && (
+          <div
+            className="rounded-xl p-4"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "rgba(245,166,35,0.15)" }}>
+                  <span className="text-xs font-bold" style={{ color: "#F5A623" }}>
+                    {checklistData.steps.filter((s) => s.completed).length}/{checklistData.steps.length}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-white">Get set up in 4 steps</p>
+              </div>
+              <button
+                onClick={() => dismissChecklistMutation.mutate()}
+                className="p-1 rounded-lg transition-colors"
+                style={{ color: "rgba(255,255,255,0.3)" }}
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {checklistData.steps.map((step) => (
+                <Link key={step.id} href={step.href}>
+                  <div
+                    className="flex items-start gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-all"
+                    style={{
+                      background: step.completed ? "rgba(74,222,128,0.07)" : "rgba(255,255,255,0.03)",
+                      border: step.completed ? "1px solid rgba(74,222,128,0.2)" : "1px solid rgba(255,255,255,0.07)",
+                    }}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                      style={{
+                        background: step.completed ? "rgba(74,222,128,0.2)" : "rgba(255,255,255,0.06)",
+                        border: step.completed ? "1px solid rgba(74,222,128,0.4)" : "1px solid rgba(255,255,255,0.12)",
+                      }}
+                    >
+                      {step.completed ? (
+                        <Check className="w-3 h-3" style={{ color: "#4ade80" }} />
+                      ) : (
+                        <div className="w-2 h-2 rounded-full" style={{ background: "rgba(255,255,255,0.2)" }} />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p
+                        className="text-xs font-semibold leading-tight"
+                        style={{ color: step.completed ? "rgba(74,222,128,0.9)" : "rgba(255,255,255,0.85)" }}
+                      >
+                        {step.label}
+                      </p>
+                      <p className="text-xs mt-0.5 leading-snug" style={{ color: "rgba(255,255,255,0.4)" }}>
+                        {step.description}
+                      </p>
+                    </div>
+                    {!step.completed && (
+                      <ArrowRight className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "rgba(245,166,35,0.6)" }} />
+                    )}
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
         )}
@@ -376,7 +797,7 @@ export default function PortalDashboard() {
               <>
                 <div className="w-px h-6 hidden sm:block" style={{ background: "rgba(255,255,255,0.1)" }} />
                 <button
-                  onClick={() => navigate("/portal/quotes?record=1")}
+                  onClick={() => navigate("/portal/jobs?tab=quotes&record=1")}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
                   style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.35)" }}
                 >
@@ -430,6 +851,96 @@ export default function PortalDashboard() {
                 <UpgradeCard feature="Revenue Tracking" plan="Pro" />
               )}
             </div>
+
+            {/* ── What's Next — actionable items ─────────────────────── */}
+            {features.includes("jobs") && (() => {
+              const actions: { label: string; count: number; href: string; color: string; icon: React.ReactNode }[] = [];
+              if ((data as any).draftQuotesCount > 0) {
+                actions.push({
+                  label: `${(data as any).draftQuotesCount} draft quote${(data as any).draftQuotesCount > 1 ? "s" : ""} to send`,
+                  count: (data as any).draftQuotesCount,
+                  href: "/portal/jobs?tab=quotes",
+                  color: "#3b82f6",
+                  icon: <FileText className="w-4 h-4" />,
+                });
+              }
+              if ((data as any).jobsNeedInvoiceCount > 0) {
+                actions.push({
+                  label: `${(data as any).jobsNeedInvoiceCount} completed job${(data as any).jobsNeedInvoiceCount > 1 ? "s" : ""} need invoicing`,
+                  count: (data as any).jobsNeedInvoiceCount,
+                  href: "/portal/invoices",
+                  color: "#4ade80",
+                  icon: <Receipt className="w-4 h-4" />,
+                });
+              }
+              if ((data as any).idleLeadsCount > 0) {
+                actions.push({
+                  label: `${(data as any).idleLeadsCount} lead${(data as any).idleLeadsCount > 1 ? "s" : ""} waiting 3+ days`,
+                  count: (data as any).idleLeadsCount,
+                  href: "/portal/jobs",
+                  color: "#F5A623",
+                  icon: <Briefcase className="w-4 h-4" />,
+                });
+              }
+              if (chaseStats && (chaseStats.activeCount > 0 || chaseStats.escalatedCount > 0)) {
+                const overdueCount = chaseStats.activeCount + chaseStats.escalatedCount;
+                actions.push({
+                  label: `${overdueCount} unpaid invoice${overdueCount > 1 ? "s" : ""} to chase`,
+                  count: overdueCount,
+                  href: "/portal/invoices",
+                  color: "#ef4444",
+                  icon: <DollarSign className="w-4 h-4" />,
+                });
+              }
+
+              if (actions.length === 0) return null;
+
+              return (
+                <div
+                  className="rounded-xl p-4"
+                  style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.18)" }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
+                    <h2 className="text-sm font-semibold text-white">What's Next</h2>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                      style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                    >
+                      {actions.reduce((s, a) => s + a.count, 0)} action{actions.reduce((s, a) => s + a.count, 0) !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {actions.map((action, i) => (
+                      <Link key={i} href={action.href}>
+                        <div
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 cursor-pointer transition-all hover:brightness-110"
+                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                            style={{ background: `${action.color}20` }}
+                          >
+                            <span style={{ color: action.color }}>{action.icon}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-white truncate">{action.label}</p>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── AI Receptionist Test Widget (Sprint 7) ─────────────────── */}
+            <VapiDemoWidget
+              vapiAgentId={data.vapiAgentId}
+              businessName={data.businessName}
+              tradeType={data.tradeType}
+            />
 
             {/* Call volume chart */}
             <div
@@ -491,31 +1002,57 @@ export default function PortalDashboard() {
               </ResponsiveContainer>
             </div>
 
-            {/* Revenue summary (jobs plan) */}
-            {features.includes("jobs") && (
+            {/* Revenue Snapshot — mini chart + KPIs */}
+            {features.includes("jobs") && <RevenueSnapshot data={data} />}
+
+            {/* Invoice Chasing Widget */}
+            {features.includes("jobs") && chaseStats && (chaseStats.activeCount > 0 || chaseStats.escalatedCount > 0 || chaseStats.paidCount30d > 0) && (
               <div
                 className="rounded-xl p-5"
                 style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
               >
-                <h2 className="text-sm font-semibold text-white mb-4">Revenue Summary</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" style={{ color: "#F5A623" }} />
+                    <h2 className="text-sm font-semibold text-white">Invoice Chasing</h2>
+                  </div>
+                  <Link href="/portal/invoices">
+                    <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
+                      View all <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </Link>
+                </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold" style={{ color: "#F5A623" }}>
-                      ${data.potentialRevenue.toLocaleString()}
+                      {chaseStats.activeCount}
                     </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Pipeline value</div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Active chases</div>
+                    {Number(chaseStats.totalOutstanding) > 0 && (
+                      <div className="text-[10px] mt-0.5" style={{ color: "rgba(245,166,35,0.6)" }}>
+                        ${Number(chaseStats.totalOutstanding).toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} outstanding
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${chaseStats.escalatedCount > 0 ? "text-red-400" : "text-white"}`}>
+                      {chaseStats.escalatedCount}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Escalated</div>
+                    {chaseStats.escalatedCount > 0 && (
+                      <div className="text-[10px] mt-0.5 text-red-400/60">Needs attention</div>
+                    )}
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-400">
-                      ${data.wonRevenue.toLocaleString()}
+                      {chaseStats.paidCount30d}
                     </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Revenue won</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">
-                      ${data.avgJobValue.toLocaleString()}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Avg job value</div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Paid (30d)</div>
+                    {Number(chaseStats.totalCollected30d) > 0 && (
+                      <div className="text-[10px] mt-0.5 text-green-400/60">
+                        ${Number(chaseStats.totalCollected30d).toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} collected
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

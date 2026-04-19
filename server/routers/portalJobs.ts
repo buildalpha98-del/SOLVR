@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Jobs Router — extended job detail, progress payments, photos, invoice, customer DB.
  * Merged into the main portal router via spread.
  */
@@ -8,7 +13,7 @@ import React from "react";
 import { renderToBuffer, Document } from "@react-pdf/renderer";
 import { publicProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getPortalClient } from "./portalAuth";
+import { getPortalClient, requirePortalAuth, requirePortalWrite } from "./portalAuth";
 import { storagePut } from "../storage";
 import { sendEmail } from "../_core/email";
 import { sendSms } from "../lib/sms";
@@ -18,6 +23,10 @@ import { CompletionReportDocument } from "../_core/CompletionReportDocument";
 import { getClientProfile } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 import { hasFeature } from "../_core/featureGate";
+import { generateInvoiceForJob, createAutoInvoiceChase } from "../lib/invoiceGenerator";
+import { getDb } from "../db";
+import { invoiceChases } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 import {
   getPortalJob,
   updatePortalJob,
@@ -45,6 +54,14 @@ import {
   createPaymentLink,
   listScheduleEntriesForJob,
   listTimeEntriesForJob,
+  checkJobFormCompliance,
+  listFormSubmissions,
+  listJobTypeFormRequirements,
+  upsertJobTypeFormRequirement,
+  deleteJobTypeFormRequirement,
+  getDistinctJobTypes,
+  getRequiredFormsForJobType,
+  backfillJobTypeFormRequirements,
 } from "../db";
 
 
@@ -56,9 +73,7 @@ export const portalJobsProcedures = {
   getJobDetail: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.id);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -101,7 +116,7 @@ export const portalJobsProcedures = {
       description: z.string().optional(),
       location: z.string().optional(),
       notes: z.string().optional(),
-      stage: z.enum(["new_lead", "quoted", "booked", "completed", "lost"]).optional(),
+      stage: z.enum(["new_lead", "quoted", "booked", "in_progress", "completed", "lost"]).optional(),
       estimatedValue: z.number().optional(),
       actualValue: z.number().optional(),
       preferredDate: z.string().optional(),
@@ -112,9 +127,7 @@ export const portalJobsProcedures = {
       paymentMethod: z.enum(["bank_transfer", "cash", "stripe", "other"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.id);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -124,11 +137,13 @@ export const portalJobsProcedures = {
       await updatePortalJob(id, data as any);
 
       // ── Job status SMS ────────────────────────────────────────────────────
-      // Fire a non-blocking SMS to the customer when stage changes to
-      // "booked" (confirmed / on the way) or "completed" (job done).
-      if (input.stage && input.stage !== job.stage) {
+      // Fire a non-blocking SMS to the customer when stage changes.
+      // Stages that trigger an SMS: booked, in_progress, completed.
+      // invoiced is handled separately in the invoice generation flow.
+      const SMS_STAGES = ["booked", "in_progress", "completed"] as const;
+      if (input.stage && input.stage !== job.stage && (SMS_STAGES as readonly string[]).includes(input.stage)) {
         const customerPhone = job.customerPhone ?? job.callerPhone ?? null;
-        if (customerPhone && (input.stage === "booked" || input.stage === "completed")) {
+        if (customerPhone) {
           void (async () => {
             try {
               const profile = await getClientProfile(client.id);
@@ -136,9 +151,12 @@ export const portalJobsProcedures = {
               const firstName = (job.customerName ?? job.callerName ?? "").split(" ")[0] || "there";
               const publicBase = process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";
               const statusLink = job.customerStatusToken ? ` Track your job: ${publicBase}/job/${job.customerStatusToken}` : "";
-              const body = input.stage === "booked"
-                ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly.${statusLink} Reply STOP to opt out.`
-                : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business!${statusLink} Reply STOP to opt out.`;
+              const body =
+                input.stage === "booked"
+                  ? `Hi ${firstName}, ${businessName} has confirmed your booking. We'll be in touch shortly.${statusLink} Reply STOP to opt out.`
+                  : input.stage === "in_progress"
+                  ? `Hi ${firstName}, ${businessName} is on the way and work is now underway.${statusLink} Reply STOP to opt out.`
+                  : `Hi ${firstName}, ${businessName} has completed your job. Thanks for your business!${statusLink} Reply STOP to opt out.`;
               await sendSms({ to: customerPhone, body });
               console.log(`[JobSMS] '${input.stage}' SMS sent to ${customerPhone} for job ${id}`);
             } catch (e) {
@@ -164,9 +182,7 @@ export const portalJobsProcedures = {
       receivedAt: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -192,9 +208,7 @@ export const portalJobsProcedures = {
   removeProgressPayment: publicProcedure
     .input(z.object({ id: z.number(), jobId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -222,9 +236,7 @@ export const portalJobsProcedures = {
       caption: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -240,9 +252,7 @@ export const portalJobsProcedures = {
   removeJobPhoto: publicProcedure
     .input(z.object({ id: z.string(), jobId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const photo = await getJobPhoto(input.id);
       if (!photo || photo.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Photo not found." });
@@ -263,9 +273,7 @@ export const portalJobsProcedures = {
       actualValue: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.id);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -310,7 +318,125 @@ export const portalJobsProcedures = {
         businessName: client.businessName,
       }).catch(err => console.error("[ReviewRequest] Fire-and-forget error:", err));
 
+      // ── Auto-Invoice on Completion ─────────────────────────────────────────
+      void (async () => {
+        try {
+          const profile = await getClientProfile(client.id);
+          if (profile?.autoInvoiceOnCompletion) {
+            // Check form compliance before auto-invoicing
+            const compliance = await checkJobFormCompliance(job.id, client.id);
+            if (!compliance.canInvoice) {
+              console.log(`[AutoInvoice] Blocked for job ${job.id} — missing forms: ${compliance.missingTemplateNames.join(", ")}`);
+              return; // Skip auto-invoice, tradie must complete forms first
+            }
+            const origin = (ctx.req as any)?.headers?.origin ?? process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";
+            console.log(`[AutoInvoice] Generating invoice for job ${job.id} (client ${client.id})`);
+            const result = await generateInvoiceForJob(
+              client.id,
+              client.businessName,
+              job.id,
+              {
+                sendEmail: !!job.customerEmail,
+                customerName: job.customerName ?? job.callerName ?? undefined,
+                customerEmail: job.customerEmail ?? undefined,
+              },
+              origin,
+            );
+            console.log(`[AutoInvoice] Invoice ${result.invoiceNumber} generated for job ${job.id}`);
+            // Auto-create invoice chase so the chasing cron picks it up
+            await createAutoInvoiceChase(client.id, job.id, result);
+          } else {
+            console.log(`[AutoInvoice] Skipped for job ${job.id} — autoInvoiceOnCompletion is disabled`);
+          }
+        } catch (e) {
+          console.error("[AutoInvoice] Failed to generate auto-invoice:", e);
+        }
+      })();
+
       return { success: true };
+    }),
+
+  /** Check form compliance for a job (are all required forms completed?) */
+  formCompliance: publicProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      return checkJobFormCompliance(input.jobId, client.id);
+    }),
+
+  /** Update the required form template IDs for a job */
+  updateRequiredForms: publicProcedure
+    .input(z.object({ jobId: z.number(), requiredFormTemplateIds: z.array(z.number()) }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      await updatePortalJob(input.jobId, { requiredFormTemplateIds: input.requiredFormTemplateIds } as any);
+      return { success: true };
+    }),
+
+  /** List form submissions for a specific job */
+  jobForms: publicProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      return listFormSubmissions(client.id, input.jobId);
+    }),
+
+  // ─── Job Type Form Requirements (Settings) ────────────────────────────────
+
+  /** List all job type form requirement rules for this client */
+  listFormRequirements: publicProcedure
+    .query(async ({ ctx }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      return listJobTypeFormRequirements(client.id);
+    }),
+
+  /** Create or update a job type form requirement rule */
+  upsertFormRequirement: publicProcedure
+    .input(z.object({
+      jobType: z.string().min(1),
+      requiredFormTemplateIds: z.array(z.number()),
+      applyToExistingJobs: z.boolean().default(false),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const id = await upsertJobTypeFormRequirement({
+        clientId: client.id,
+        jobType: input.jobType,
+        requiredFormTemplateIds: input.requiredFormTemplateIds,
+      });
+      let backfilledCount = 0;
+      if (input.applyToExistingJobs) {
+        backfilledCount = await backfillJobTypeFormRequirements(
+          client.id,
+          input.jobType,
+          input.requiredFormTemplateIds,
+        );
+      }
+      return { id, backfilledCount };
+    }),
+
+  /** Delete a job type form requirement rule */
+  deleteFormRequirement: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      await deleteJobTypeFormRequirement(input.id, client.id);
+      return { success: true };
+    }),
+
+  /** Get distinct job types from existing jobs (for autocomplete) */
+  distinctJobTypes: publicProcedure
+    .query(async ({ ctx }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      return getDistinctJobTypes(client.id);
     }),
 
   /**
@@ -330,180 +456,58 @@ export const portalJobsProcedures = {
       sendEmail: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
       }
 
-      // Fetch client profile for branding + bank details
-      const profile = await getClientProfile(client.id);
-
-      // Fetch line items from linked quote
-      let lineItems: { description: string; quantity: string; unit: string | null; unitPrice: string | null; lineTotal: string | null }[] = [];
-      if (job.sourceQuoteId) {
-        const rawItems = await listQuoteLineItems(job.sourceQuoteId);
-        lineItems = rawItems.map((li) => ({
-          description: li.description,
-          quantity: String(li.quantity ?? 1),
-          unit: li.unit ?? null,
-          unitPrice: li.unitPrice ? String(li.unitPrice) : null,
-          lineTotal: li.lineTotal ? String(li.lineTotal) : null,
-        }));
-      }
-
-      // Fetch progress payments
-      const progressPayments = await listJobProgressPayments(input.jobId);
-
-      // Calculate totals
-      const totalCents = input.invoicedAmount ?? (job.actualValue ? Math.round(job.actualValue * 100) : 0);
-      const gstCents = Math.round(totalCents / 11); // GST inclusive (10% of 110%)
-      const subtotalCents = totalCents - gstCents;
-      const amountPaidCents = progressPayments.reduce((sum, p) => sum + p.amountCents, 0);
-      const balanceDueCents = Math.max(0, totalCents - amountPaidCents);
-
-      const invoiceNumber = `INV-${String(Date.now()).slice(-6)}`;
-      const now = new Date();
-
-      // Fetch logo buffer if available
-      let logoBuffer: Buffer | null = null;
-      if (profile?.logoUrl) logoBuffer = await fetchImageBuffer(profile.logoUrl);
-
-      // Build PDF input
-      const pdfInput = {
-        invoice: {
-          invoiceNumber,
-          jobTitle: job.jobType ?? job.description ?? "Job",
-          jobDescription: job.description ?? null,
-          customerName: input.customerName ?? job.customerName ?? job.callerName ?? null,
-          customerEmail: input.customerEmail ?? job.customerEmail ?? null,
-          customerPhone: job.customerPhone ?? job.callerPhone ?? null,
-          customerAddress: job.customerAddress ?? job.location ?? null,
-          invoicedAt: now.toISOString(),
-          dueDate: input.dueDate ?? null,
-          subtotalCents,
-          gstCents,
-          totalCents,
-          amountPaidCents,
-          balanceDueCents,
-          paymentMethod: input.paymentMethod ?? "bank_transfer" as const,
-          isCashPaid: input.isCashPaid ?? false,
-          notes: input.notes ?? null,
-        },
-        lineItems,
-        progressPayments: progressPayments.map((p) => ({
-          label: p.label ?? null,
-          amountCents: p.amountCents,
-          method: p.method,
-          receivedAt: p.receivedAt instanceof Date ? p.receivedAt.toISOString() : String(p.receivedAt),
-        })),
-        branding: {
-          businessName: profile?.tradingName ?? client.businessName ?? "Your Business",
-          abn: profile?.abn ?? null,
-          phone: profile?.phone ?? null,
-          address: profile?.address ?? null,
-          logoBuffer,
-          primaryColor: profile?.primaryColor ?? "#1F2937",
-          secondaryColor: profile?.secondaryColor ?? "#2563EB",
-          bankName: profile?.bankName ?? null,
-          bankAccountName: profile?.bankAccountName ?? null,
-          bankBsb: profile?.bankBsb ?? null,
-          bankAccountNumber: profile?.bankAccountNumber ?? null,
-        },
-      };
-
-      // Render PDF
-      const element = React.createElement(InvoiceDocument, { input: pdfInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
-      const pdfBuffer = Buffer.from(await renderToBuffer(element));
-
-      // Upload to S3
-      const { url: pdfUrl } = await storagePut(
-        `invoices/${client.id}/${invoiceNumber}-${Date.now()}.pdf`,
-        pdfBuffer,
-        "application/pdf",
-      );
-
-      // Determine invoice status
-      const recipientEmail = input.customerEmail ?? job.customerEmail ?? null;
-      const shouldSendEmail = input.sendEmail && !!recipientEmail;
-      const invoiceStatus = shouldSendEmail ? "sent" : (input.isCashPaid ? "paid" : "draft");
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await updatePortalJob(input.jobId, {
-        invoiceNumber,
-        invoiceStatus,
-        invoicedAt: now,
-        invoicedAmount: totalCents,
-        paymentMethod: input.paymentMethod,
-        customerName: input.customerName ?? job.customerName ?? undefined,
-        customerEmail: recipientEmail ?? undefined,
-        invoicePdfUrl: pdfUrl,
-        paidAt: input.isCashPaid ? now : undefined,
-        amountPaid: input.isCashPaid ? totalCents : undefined,
-      } as any);
-
-      // Send email if requested
-      if (shouldSendEmail && recipientEmail) {
-        const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
-        const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
-<h2 style="color:#1F2937">Tax Invoice ${invoiceNumber}</h2>
-<p>Hi ${pdfInput.invoice.customerName ?? "there"},</p>
-<p>Please find your invoice attached for <strong>${pdfInput.invoice.jobTitle}</strong>.</p>
-<p><strong>Total: $${(totalCents / 100).toFixed(2)} (inc. GST)</strong></p>
-${balanceDueCents > 0 ? `<p><strong>Balance Due: $${(balanceDueCents / 100).toFixed(2)}</strong></p>` : "<p style='color:#16A34A'><strong>Paid in Full</strong></p>"}
-${profile?.bankBsb ? `<div style="background:#F0FDF4;border-left:4px solid #16A34A;padding:16px;border-radius:4px;margin:16px 0">
-<p style="margin:0 0 8px;font-weight:bold;color:#15803D">Payment Details</p>
-${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` : ""}
-<p style="margin:0 0 4px">Account Name: ${profile.bankAccountName}</p>
-<p style="margin:0 0 4px">BSB: ${profile.bankBsb}</p>
-<p style="margin:0 0 4px">Account Number: ${profile.bankAccountNumber}</p>
-<p style="margin:0;font-weight:bold">Reference: ${invoiceNumber}</p>
-</div>` : ""}
-<p style="color:#6B7280;font-size:13px">Powered by <a href="https://solvr.com.au" style="color:#6B7280">Solvr</a></p>
-</body></html>`;
-        await sendEmail({
-          to: recipientEmail,
-          subject: `Invoice ${invoiceNumber} from ${businessName}`,
-          html,
-          fromName: businessName,
-          attachments: [{ filename: `${invoiceNumber}.pdf`, content: pdfBuffer }],
+      // ── Invoice Blocking: check required forms are completed ──
+      const compliance = await checkJobFormCompliance(input.jobId, client.id);
+      if (!compliance.canInvoice) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Cannot invoice — required forms not completed: ${compliance.missingTemplateNames.join(", ")}`,
         });
       }
 
-      // Create SMS payment link if customer has a phone number and balance is due
-      let paymentLinkUrl: string | null = null;
-      const customerPhone = job.customerPhone ?? job.callerPhone ?? null;
-      if (customerPhone && balanceDueCents > 0 && !input.isCashPaid) {
+      const origin = (ctx.req as any)?.headers?.origin ?? process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";
+      const result = await generateInvoiceForJob(
+        client.id,
+        client.businessName,
+        input.jobId,
+        {
+          customerName: input.customerName,
+          customerEmail: input.customerEmail,
+          invoicedAmount: input.invoicedAmount,
+          paymentMethod: input.paymentMethod,
+          isCashPaid: input.isCashPaid,
+          notes: input.notes,
+          dueDate: input.dueDate,
+          sendEmail: input.sendEmail,
+        },
+        origin,
+      );
+
+      // Auto-create invoice chase for manually generated invoices sent to customer
+      // (auto-invoices on job completion already call createAutoInvoiceChase separately)
+      if (result.sent && !input.isCashPaid) {
         try {
-          const token = randomUUID().replace(/-/g, "");
-          const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          await createPaymentLink({
-            id: randomUUID(),
-            clientId: client.id,
-            jobId: input.jobId,
-            token,
-            amountCents: balanceDueCents,
-            customerName: pdfInput.invoice.customerName ?? undefined,
-            customerPhone,
-            customerEmail: recipientEmail ?? undefined,
-            invoiceNumber,
-            expiresAt: sevenDaysFromNow,
-          });
-          const origin = (ctx.req as any).headers?.origin ?? "https://solvr.com.au";
-          paymentLinkUrl = `${origin}/pay/${token}`;
-          const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
-          const smsBody = `Hi ${pdfInput.invoice.customerName ?? "there"}, your invoice ${invoiceNumber} from ${businessName} for $${(balanceDueCents / 100).toFixed(2)} is ready. Pay securely: ${paymentLinkUrl}`;
-          await sendSms({ to: customerPhone, body: smsBody });
-          console.log(`[Invoice] Payment link SMS sent to ${customerPhone} for invoice ${invoiceNumber}`);
-        } catch (smsErr) {
-          console.error("[Invoice] Failed to create/send payment link:", smsErr);
-          // Non-fatal — invoice is still generated
+          await createAutoInvoiceChase(client.id, input.jobId, result);
+          console.log(`[generateInvoice] Invoice chase created for job ${input.jobId}`);
+        } catch (e) {
+          // Non-fatal — invoice is still sent even if chase creation fails
+          console.error("[generateInvoice] Failed to create invoice chase:", e);
         }
       }
 
-      return { success: true, invoiceNumber, pdfUrl, sent: shouldSendEmail, paymentLinkUrl };
+      return {
+        success: true,
+        invoiceNumber: result.invoiceNumber,
+        pdfUrl: result.pdfUrl,
+        sent: result.sent,
+        paymentLinkUrl: result.paymentLinkUrl,
+      };
     }),
 
   /**
@@ -517,9 +521,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       amountCents: z.number().int().positive(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -560,6 +562,24 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
           lastJobType: job.jobType,
         });
       }
+      // Stop the invoice chase — customer has paid, no more chasing needed
+      try {
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(invoiceChases)
+            .set({ status: "paid", updatedAt: now })
+            .where(
+              and(
+                eq(invoiceChases.jobId, input.jobId),
+                eq(invoiceChases.clientId, client.id),
+              )
+            );
+          console.log(`[markInvoicePaid] Stopped invoice chase for job ${input.jobId}`);
+        }
+      } catch (e) {
+        console.error("[markInvoicePaid] Failed to stop invoice chase:", e);
+      }
       return { success: true };
     }),
 
@@ -568,9 +588,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
    */
   listTradieCustomers: publicProcedure
     .query(async ({ ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       return listTradieCustomers(client.id);
     }),
 
@@ -586,9 +604,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       customerEmail: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -765,9 +781,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       address: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const customer = await getTradieCustomer(input.id);
       if (!customer || customer.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found." });
@@ -792,9 +806,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       reference: z.string().max(100).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -817,9 +829,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
   deleteJobCostItem: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const item = await getJobCostItem(input.id);
       if (!item || item.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Cost item not found." });
@@ -834,9 +844,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
   getJobProfitSummary: publicProcedure
     .input(z.object({ jobId: z.number() }))
     .query(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -866,9 +874,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
       frequency: z.enum(["weekly", "fortnightly", "monthly"]),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
@@ -923,9 +929,7 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
   disableRecurring: publicProcedure
     .input(z.object({ jobId: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const result = await getPortalClient(ctx.req as unknown as { cookies?: Record<string, string> });
-      if (!result) throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." });
-      const { client } = result;
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });

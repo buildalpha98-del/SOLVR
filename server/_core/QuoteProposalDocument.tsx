@@ -9,9 +9,32 @@ import {
   Font,
 } from "@react-pdf/renderer";
 import type { QuoteReportContent } from "./reportGeneration";
+import {
+  getPdfLabels,
+  isRTL,
+  rtlStyle,
+  rtlBoldStyle,
+  QUOTE_TRANSLATIONS,
+} from "./pdfTranslations";
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
-// Using built-in Helvetica — no external font registration needed for PDF
+// Using built-in Helvetica for LTR languages.
+// Noto Sans Arabic is registered for Arabic (ar) to support RTL text rendering.
+Font.register({
+  family: "NotoSansArabic",
+  fonts: [
+    {
+      src: "https://fonts.gstatic.com/s/notosansarabic/v18/nwpxtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlhQ5l3sQWIHPqzCfyGybdQ.woff",
+      fontWeight: "normal",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/notosansarabic/v18/nwpxtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlhQ5l3sQWIHPqzCfyGyb9w.woff",
+      fontWeight: "bold",
+    },
+  ],
+});
+// Disable hyphenation for Arabic (words must not be split)
+Font.registerHyphenationCallback((word) => [word]);
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -379,8 +402,12 @@ function formatDate(d: Date | string | null | undefined): string {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+// (All translation helpers imported from shared pdfTranslations.ts above)
+
 export interface QuoteProposalPdfInput {
   acceptUrl?: string | null;
+  /** ISO-639-1 language code of the original voice recording (e.g. "ar", "zh"). Used to render a translated subtitle in the PDF header. */
+  detectedLanguage?: string | null;
   quote: {
     quoteNumber: string;
     jobTitle: string;
@@ -427,9 +454,15 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
   const { quote, lineItems, branding } = input;
   const primary = branding.primaryColor || "#1F2937";
   const accent = branding.secondaryColor || "#2563EB";
+  const L = getPdfLabels(input.detectedLanguage);
+  const lang = input.detectedLanguage;
+  // RTL: base page font overrides for Arabic
+  const pageStyle = isRTL(lang)
+    ? [styles.page, { fontFamily: "NotoSansArabic" }]
+    : styles.page;
 
   return (
-    <Page size="A4" style={styles.page}>
+    <Page size="A4" style={pageStyle}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: primary }]}>
         <View style={styles.headerLeft}>
@@ -444,6 +477,11 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         </View>
         <View style={styles.headerRight}>
           <Text style={styles.quoteLabel}>QUOTE</Text>
+          {input.detectedLanguage && input.detectedLanguage !== "en" && QUOTE_TRANSLATIONS[input.detectedLanguage] && (
+            <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.65)", marginTop: 2, textAlign: "right" }}>
+              {QUOTE_TRANSLATIONS[input.detectedLanguage]}
+            </Text>
+          )}
           <Text style={styles.quoteNumber}>{quote.quoteNumber}</Text>
         </View>
       </View>
@@ -462,48 +500,48 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
 
       <View style={styles.body}>
         {/* Customer + Job info */}
-        <View style={styles.infoRow}>
+        <View style={isRTL(lang) ? [styles.infoRow, { flexDirection: "row-reverse" }] : styles.infoRow}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>Prepared For</Text>
+            <Text style={[styles.infoBoxTitle, rtlStyle(lang)]}>{L.billTo}</Text>
             {quote.customerName && (
-              <Text style={styles.infoTextBold}>{quote.customerName}</Text>
+              <Text style={[styles.infoTextBold, rtlStyle(lang)]}>{quote.customerName}</Text>
             )}
             {quote.customerAddress && (
-              <Text style={styles.infoText}>{quote.customerAddress}</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>{quote.customerAddress}</Text>
             )}
             {quote.customerPhone && (
-              <Text style={styles.infoText}>{quote.customerPhone}</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>{quote.customerPhone}</Text>
             )}
             {quote.customerEmail && (
-              <Text style={styles.infoText}>{quote.customerEmail}</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>{quote.customerEmail}</Text>
             )}
             {!quote.customerName && !quote.customerAddress && (
-              <Text style={styles.infoText}>—</Text>
+              <Text style={[styles.infoText, rtlStyle(lang)]}>—</Text>
             )}
           </View>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>Job</Text>
-            <Text style={styles.infoTextBold}>{quote.jobTitle}</Text>
+            <Text style={[styles.infoBoxTitle, rtlStyle(lang)]}>{L.job}</Text>
+            <Text style={[styles.infoTextBold, rtlStyle(lang)]}>{quote.jobTitle}</Text>
             {quote.jobDescription && (
-              <Text style={[styles.infoText, { marginTop: 4 }]}>{quote.jobDescription}</Text>
+              <Text style={[styles.infoText, { marginTop: 4 }, rtlStyle(lang)]}>{quote.jobDescription}</Text>
             )}
           </View>
         </View>
 
         {/* Line items */}
-        <Text style={styles.sectionHeading}>Scope of Works & Pricing</Text>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.colDesc, styles.colHeaderText]}>Description</Text>
-          <Text style={[styles.colQty, styles.colHeaderText]}>Qty</Text>
-          <Text style={[styles.colUnit, styles.colHeaderText]}>Unit</Text>
-          <Text style={[styles.colPrice, styles.colHeaderText]}>Unit Price</Text>
-          <Text style={[styles.colTotal, styles.colHeaderText]}>Total</Text>
+        <Text style={[styles.sectionHeading, rtlStyle(lang)]}>{L.scopeAndPricing}</Text>
+        <View style={isRTL(lang) ? [styles.tableHeader, { flexDirection: "row-reverse" }] : styles.tableHeader}>
+          <Text style={[styles.colDesc, styles.colHeaderText, rtlStyle(lang)]}>{L.description}</Text>
+          <Text style={[styles.colQty, styles.colHeaderText, rtlStyle(lang)]}>{L.qty}</Text>
+          <Text style={[styles.colUnit, styles.colHeaderText, rtlStyle(lang)]}>{L.unit}</Text>
+          <Text style={[styles.colPrice, styles.colHeaderText, rtlStyle(lang)]}>{L.unitPrice}</Text>
+          <Text style={[styles.colTotal, styles.colHeaderText, rtlStyle(lang)]}>{L.total}</Text>
         </View>
         {lineItems.map((li, i) => (
-          <View key={i} style={styles.tableRow}>
-            <Text style={styles.colDesc}>{li.description}</Text>
-            <Text style={styles.colQty}>{li.quantity}</Text>
-            <Text style={styles.colUnit}>{li.unit ?? "each"}</Text>
+          <View key={i} style={isRTL(lang) ? [styles.tableRow, { flexDirection: "row-reverse" }] : styles.tableRow}>
+            <Text style={[styles.colDesc, rtlStyle(lang)]}>{li.description}</Text>
+            <Text style={[styles.colQty, rtlStyle(lang)]}>{li.quantity}</Text>
+            <Text style={[styles.colUnit, rtlStyle(lang)]}>{li.unit ?? "each"}</Text>
             <Text style={styles.colPrice}>{formatCurrency(li.unitPrice)}</Text>
             <Text style={styles.colTotal}>{formatCurrency(li.lineTotal)}</Text>
           </View>
@@ -512,15 +550,15 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         {/* Totals */}
         <View style={styles.totalsBlock}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
+            <Text style={[styles.totalLabel, rtlStyle(lang)]}>{L.subtotal}</Text>
             <Text style={styles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>GST ({quote.gstRate}%)</Text>
+            <Text style={[styles.totalLabel, rtlStyle(lang)]}>{L.gst} ({quote.gstRate}%)</Text>
             <Text style={styles.totalValue}>{formatCurrency(quote.gstAmount)}</Text>
           </View>
           <View style={[styles.totalRow, { marginTop: 4 }]}>
-            <Text style={styles.grandTotalLabel}>TOTAL (AUD)</Text>
+            <Text style={[styles.grandTotalLabel, rtlBoldStyle(lang)]}>{L.grandTotal}</Text>
             <Text style={[styles.grandTotalValue, { color: accent }]}>
               {formatCurrency(quote.totalAmount)}
             </Text>
@@ -528,46 +566,46 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
         </View>
 
         {/* Terms */}
-        <View style={styles.termsRow}>
+        <View style={isRTL(lang) ? [styles.termsRow, { flexDirection: "row-reverse" }] : styles.termsRow}>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Payment Terms</Text>
-            <Text style={styles.termValue}>{quote.paymentTerms ?? "Due on completion"}</Text>
+            <Text style={[styles.termLabel, rtlBoldStyle(lang)]}>{L.paymentTerms}</Text>
+            <Text style={[styles.termValue, rtlStyle(lang)]}>{quote.paymentTerms ?? "Due on completion"}</Text>
           </View>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Valid Until</Text>
-            <Text style={styles.termValue}>{formatDate(quote.validUntil)}</Text>
+            <Text style={[styles.termLabel, rtlBoldStyle(lang)]}>{L.validUntil}</Text>
+            <Text style={[styles.termValue, rtlStyle(lang)]}>{formatDate(quote.validUntil)}</Text>
           </View>
           <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Prepared By</Text>
-            <Text style={styles.termValue}>{branding.businessName}</Text>
+            <Text style={[styles.termLabel, rtlBoldStyle(lang)]}>{L.preparedBy}</Text>
+            <Text style={[styles.termValue, rtlStyle(lang)]}>{branding.businessName}</Text>
           </View>
         </View>
 
         {/* Notes */}
         {quote.notes && (
           <View style={styles.notesBox}>
-            <Text style={styles.notesText}>{quote.notes}</Text>
+            <Text style={[styles.notesText, rtlStyle(lang)]}>{quote.notes}</Text>
           </View>
         )}
 
         {/* Signature / Acceptance block */}
-        <View style={styles.signatureBlock}>
+        <View style={isRTL(lang) ? [styles.signatureBlock, { flexDirection: "row-reverse" }] : styles.signatureBlock}>
           <View style={styles.signatureItem}>
-            <Text style={styles.signatureLabel}>Customer Signature</Text>
+            <Text style={[styles.signatureLabel, rtlBoldStyle(lang)]}>{L.customerSignature}</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureSubLabel}>Signature / Date</Text>
+            <Text style={[styles.signatureSubLabel, rtlStyle(lang)]}>{L.signatureDate}</Text>
           </View>
           <View style={styles.signatureItem}>
-            <Text style={styles.signatureLabel}>Authorised By ({branding.businessName})</Text>
+            <Text style={[styles.signatureLabel, rtlBoldStyle(lang)]}>{L.authorisedBy} ({branding.businessName})</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureSubLabel}>Signature / Date</Text>
+            <Text style={[styles.signatureSubLabel, rtlStyle(lang)]}>{L.signatureDate}</Text>
           </View>
         </View>
 
         {/* Accept online CTA */}
         {input.acceptUrl && (
-          <View style={[styles.acceptBox, { backgroundColor: accent }]}>
-            <Text style={styles.acceptBoxText}>✓  Accept this quote online</Text>
+          <View style={isRTL(lang) ? [styles.acceptBox, { backgroundColor: accent, flexDirection: "row-reverse" }] : [styles.acceptBox, { backgroundColor: accent }]}>
+            <Text style={[styles.acceptBoxText, rtlBoldStyle(lang)]}>{L.acceptOnline}</Text>
             <Text style={styles.acceptBoxUrl}>{input.acceptUrl}</Text>
           </View>
         )}
@@ -589,18 +627,24 @@ function ReportPage({
   photos,
   photoBuffers,
   quoteNumber,
+  detectedLanguage,
 }: {
   report: QuoteReportContent;
   branding: QuoteProposalPdfInput["branding"];
   photos: QuoteProposalPdfInput["photos"];
   photoBuffers: (Buffer | null)[];
   quoteNumber: string;
+  detectedLanguage?: string | null;
 }) {
   const primary = branding.primaryColor || "#1F2937";
   const accent = branding.secondaryColor || "#2563EB";
+  const lang = detectedLanguage;
+  const reportPageStyle = isRTL(lang)
+    ? [styles.reportPage, { fontFamily: "NotoSansArabic" }]
+    : styles.reportPage;
 
   return (
-    <Page size="A4" style={styles.reportPage}>
+    <Page size="A4" style={reportPageStyle}>
       {/* Header */}
       <View style={[styles.reportHeader, { backgroundColor: primary }]}>
         <Text style={styles.reportHeaderTitle}>Proposal — {branding.businessName}</Text>
@@ -610,21 +654,21 @@ function ReportPage({
 
       <View style={styles.reportBody}>
         {/* Scope of Works */}
-        <Text style={styles.reportSectionTitle}>Scope of Works</Text>
-        <Text style={styles.reportBodyText}>{report.scopeOfWorks}</Text>
+        <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Scope of Works</Text>
+        <Text style={[styles.reportBodyText, rtlStyle(lang)]}>{report.scopeOfWorks}</Text>
 
         {/* Methodology */}
         {report.methodology.length > 0 && (
           <>
-            <Text style={styles.reportSectionTitle}>Our Methodology</Text>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Our Methodology</Text>
             {report.methodology.map((step) => (
-              <View key={step.stepNumber} style={styles.stepRow}>
+              <View key={step.stepNumber} style={isRTL(lang) ? [styles.stepRow, { flexDirection: "row-reverse" }] : styles.stepRow}>
                 <View style={[styles.stepNumber, { backgroundColor: accent }]}>
                   <Text style={styles.stepNumberText}>{step.stepNumber}</Text>
                 </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>{step.title}</Text>
-                  <Text style={styles.stepDesc}>{step.description}</Text>
+                  <Text style={[styles.stepTitle, rtlBoldStyle(lang)]}>{step.title}</Text>
+                  <Text style={[styles.stepDesc, rtlStyle(lang)]}>{step.description}</Text>
                 </View>
               </View>
             ))}
@@ -634,13 +678,13 @@ function ReportPage({
         {/* Materials */}
         {report.materials.length > 0 && (
           <>
-            <Text style={styles.reportSectionTitle}>Materials & Specifications</Text>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Materials & Specifications</Text>
             {report.materials.map((mat, i) => (
               <View key={i} style={styles.materialRow}>
-                <Text style={styles.materialName}>{mat.name}</Text>
-                <Text style={styles.materialText}>{mat.reason}</Text>
+                <Text style={[styles.materialName, rtlBoldStyle(lang)]}>{mat.name}</Text>
+                <Text style={[styles.materialText, rtlStyle(lang)]}>{mat.reason}</Text>
                 {mat.specs && (
-                  <Text style={[styles.materialText, { color: "#6B7280" }]}>{mat.specs}</Text>
+                  <Text style={[styles.materialText, { color: "#6B7280" }, rtlStyle(lang)]}>{mat.specs}</Text>
                 )}
               </View>
             ))}
@@ -650,29 +694,29 @@ function ReportPage({
         {/* Inclusions & Exclusions */}
         {report.inclusionsExclusions && report.inclusionsExclusions.length > 0 && (
           <>
-            <Text style={styles.reportSectionTitle}>Inclusions & Exclusions</Text>
-            <View style={{ flexDirection: "row", gap: 16, marginBottom: 8 }}>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Inclusions & Exclusions</Text>
+            <View style={isRTL(lang) ? { flexDirection: "row-reverse", gap: 16, marginBottom: 8 } : { flexDirection: "row", gap: 16, marginBottom: 8 }}>
               {/* Inclusions */}
               <View style={{ flex: 1 }}>
-                <Text style={[styles.stepTitle, { color: "#166534", marginBottom: 4 }]}>✓ Included</Text>
+                <Text style={[styles.stepTitle, { color: "#166534", marginBottom: 4 }, rtlBoldStyle(lang)]}>✓ Included</Text>
                 {report.inclusionsExclusions
                   .filter((ie) => ie.type === "inclusion")
                   .map((ie, i) => (
-                    <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
-                      <Text style={{ fontSize: 9, color: "#166534", marginRight: 4 }}>•</Text>
-                      <Text style={{ fontSize: 9, color: "#374151", flex: 1, lineHeight: 1.4 }}>{ie.item}</Text>
+                    <View key={i} style={isRTL(lang) ? { flexDirection: "row-reverse", marginBottom: 3 } : { flexDirection: "row", marginBottom: 3 }}>
+                      <Text style={{ fontSize: 9, color: "#166534", marginRight: isRTL(lang) ? 0 : 4, marginLeft: isRTL(lang) ? 4 : 0 }}>•</Text>
+                      <Text style={[{ fontSize: 9, color: "#374151", flex: 1, lineHeight: 1.4 }, rtlStyle(lang)]}>{ie.item}</Text>
                     </View>
                   ))}
               </View>
               {/* Exclusions */}
               <View style={{ flex: 1 }}>
-                <Text style={[styles.stepTitle, { color: "#991B1B", marginBottom: 4 }]}>✗ Excluded</Text>
+                <Text style={[styles.stepTitle, { color: "#991B1B", marginBottom: 4 }, rtlBoldStyle(lang)]}>✗ Excluded</Text>
                 {report.inclusionsExclusions
                   .filter((ie) => ie.type === "exclusion")
                   .map((ie, i) => (
-                    <View key={i} style={{ flexDirection: "row", marginBottom: 3 }}>
-                      <Text style={{ fontSize: 9, color: "#991B1B", marginRight: 4 }}>•</Text>
-                      <Text style={{ fontSize: 9, color: "#374151", flex: 1, lineHeight: 1.4 }}>{ie.item}</Text>
+                    <View key={i} style={isRTL(lang) ? { flexDirection: "row-reverse", marginBottom: 3 } : { flexDirection: "row", marginBottom: 3 }}>
+                      <Text style={{ fontSize: 9, color: "#991B1B", marginRight: isRTL(lang) ? 0 : 4, marginLeft: isRTL(lang) ? 4 : 0 }}>•</Text>
+                      <Text style={[{ fontSize: 9, color: "#374151", flex: 1, lineHeight: 1.4 }, rtlStyle(lang)]}>{ie.item}</Text>
                     </View>
                   ))}
               </View>
@@ -683,15 +727,15 @@ function ReportPage({
         {/* Site Observations */}
         {report.siteObservations && (
           <>
-            <Text style={styles.reportSectionTitle}>Site Observations</Text>
-            <Text style={styles.reportBodyText}>{report.siteObservations}</Text>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Site Observations</Text>
+            <Text style={[styles.reportBodyText, rtlStyle(lang)]}>{report.siteObservations}</Text>
           </>
         )}
 
         {/* Photos */}
         {photos.length > 0 && photoBuffers.some((b) => b !== null) && (
           <>
-            <Text style={styles.reportSectionTitle}>Site Photos</Text>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Site Photos</Text>
             <View style={styles.photoGrid}>
               {photos.map((photo, i) => {
                 const buf = photoBuffers[i];
@@ -700,7 +744,7 @@ function ReportPage({
                   <View key={i} style={styles.photoItem}>
                     <Image src={buf} style={styles.photoImg} />
                     {photo.caption && (
-                      <Text style={styles.photoCaption}>{photo.caption}</Text>
+                      <Text style={[styles.photoCaption, rtlStyle(lang)]}>{photo.caption}</Text>
                     )}
                   </View>
                 );
@@ -712,9 +756,9 @@ function ReportPage({
         {/* Warranty & Guarantee */}
         {report.warrantyAndGuarantee && (
           <>
-            <Text style={styles.reportSectionTitle}>Warranty & Guarantee</Text>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Warranty & Guarantee</Text>
             <View style={[styles.materialRow, { borderLeftColor: "#2563EB", borderLeftWidth: 3, paddingLeft: 10 }]}>
-              <Text style={styles.materialText}>{report.warrantyAndGuarantee}</Text>
+              <Text style={[styles.materialText, rtlStyle(lang)]}>{report.warrantyAndGuarantee}</Text>
             </View>
           </>
         )}
@@ -722,14 +766,14 @@ function ReportPage({
         {/* Why Choose Us */}
         {report.whyChooseUs && (
           <>
-            <Text style={styles.reportSectionTitle}>Why Choose Us</Text>
-            <Text style={styles.reportBodyText}>{report.whyChooseUs}</Text>
+            <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Why Choose Us</Text>
+            <Text style={[styles.reportBodyText, rtlStyle(lang)]}>{report.whyChooseUs}</Text>
           </>
         )}
 
         {/* Important Information */}
-        <Text style={styles.reportSectionTitle}>Important Information</Text>
-        <Text style={styles.reportBodyText}>{report.importantInformation}</Text>
+        <Text style={[styles.reportSectionTitle, rtlStyle(lang)]}>Important Information</Text>
+        <Text style={[styles.reportBodyText, rtlStyle(lang)]}>{report.importantInformation}</Text>
 
         <Text style={styles.poweredBy}>Powered by Solvr · solvr.com.au</Text>
       </View>
@@ -759,6 +803,7 @@ export function QuoteProposalDocument({
           photos={input.photos}
           photoBuffers={input.photoBuffers}
           quoteNumber={input.quote.quoteNumber}
+          detectedLanguage={input.detectedLanguage}
         />
       )}
     </Document>

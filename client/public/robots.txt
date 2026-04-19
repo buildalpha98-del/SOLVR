@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Block portal and admin routes from indexing
+Disallow: /portal/
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /api/
+
+Sitemap: https://solvr.com.au/sitemap.xml

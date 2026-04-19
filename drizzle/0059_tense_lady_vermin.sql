@@ -1,0 +1,2 @@
+ALTER TABLE `referral_conversions` MODIFY COLUMN `plan` enum('starter','professional','solvr_quotes','solvr_jobs','solvr_ai') NOT NULL;--> statement-breakpoint
+ALTER TABLE `voice_agent_subscriptions` MODIFY COLUMN `plan` enum('starter','professional','solvr_quotes','solvr_jobs','solvr_ai') NOT NULL;

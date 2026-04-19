@@ -13,12 +13,12 @@
  * Cron expression: 0 23 * * * (11pm UTC = 9am AEST)
  */
 import cron from "node-cron";
-import { getDb } from "../db";
+import { getDb, ensureEmailUnsubscribeToken } from "../db";
 import { sendEmail } from "../_core/email";
 import { notifyOwner } from "../_core/notification";
 import { sendExpoPush } from "../expoPush";
 import { sendSms } from "../lib/sms";
-import { invoiceChases, crmClients, clientProfiles } from "../../drizzle/schema";
+import { invoiceChases, crmClients, clientProfiles, tradieCustomers } from "../../drizzle/schema";
 import { and, eq, lte, or, isNull } from "drizzle-orm";
 
 // ─── Email templates ──────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ function buildChaseEmail(opts: {
   amountDue: string;
   dueDate: string;
   description?: string | null;
+  unsubscribeUrl?: string;
 }): { subject: string; html: string } {
   const { chaseCount, invoiceNumber, customerName, businessName, businessEmail, amountDue, dueDate, description } = opts;
   const formattedAmount = `$${parseFloat(amountDue).toFixed(2)}`;
@@ -62,6 +63,7 @@ function buildChaseEmail(opts: {
           <p>If you've already arranged payment, please disregard this message. Otherwise, please process payment at your earliest convenience.</p>
           <p>If you have any questions, please don't hesitate to reply to this email.</p>
           <p>Kind regards,<br><strong>${businessName}</strong></p>
+          ${opts.unsubscribeUrl ? `<hr style="margin: 24px 0 12px; border: none; border-top: 1px solid #e0e0e0;"><p style="font-size: 11px; color: #999;">Don't want to receive these reminders? <a href="${opts.unsubscribeUrl}" style="color: #999;">Unsubscribe</a></p>` : ""}
         </div>
       `,
     };
@@ -92,6 +94,7 @@ function buildChaseEmail(opts: {
           <p>We understand things get busy — if you're experiencing any difficulty, please reply to this email so we can work something out.</p>
           <p>Otherwise, we'd appreciate payment as soon as possible.</p>
           <p>Kind regards,<br><strong>${businessName}</strong></p>
+          ${opts.unsubscribeUrl ? `<hr style="margin: 24px 0 12px; border: none; border-top: 1px solid #e0e0e0;"><p style="font-size: 11px; color: #999;">Don't want to receive these reminders? <a href="${opts.unsubscribeUrl}" style="color: #999;">Unsubscribe</a></p>` : ""}
         </div>
       `,
     };
@@ -126,6 +129,7 @@ function buildChaseEmail(opts: {
           </table>
           <p>To avoid further action, please arrange payment immediately or contact us to discuss a payment arrangement.</p>
           <p>Regards,<br><strong>${businessName}</strong></p>
+          ${opts.unsubscribeUrl ? `<hr style="margin: 24px 0 12px; border: none; border-top: 1px solid #e0e0e0;"><p style="font-size: 11px; color: #999;">Don't want to receive these reminders? <a href="${opts.unsubscribeUrl}" style="color: #999;">Unsubscribe</a></p>` : ""}
         </div>
       </div>
     `,
@@ -248,7 +252,35 @@ export async function runInvoiceChasingCron(): Promise<void> {
     const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
     const replyTo = profile?.replyToEmail ?? client.contactEmail ?? undefined; // replyToEmail maps to clientProfiles.email
 
-    // ── Send email ────────────────────────────────────────────────────────────
+    // ── Check email opt-out ─────────────────────────────────────────────────────────────
+    // Look up the tradieCustomer by clientId + email to check opt-out and generate token
+    let unsubscribeUrl: string | undefined;
+    const customerRows = await db.select()
+      .from(tradieCustomers)
+      .where(
+        and(
+          eq(tradieCustomers.clientId, chase.clientId),
+          eq(tradieCustomers.email, chase.customerEmail),
+        ),
+      );
+    const tradieCustomer = customerRows[0];
+    if (tradieCustomer?.optedOutEmail) {
+      console.log(`[InvoiceChasing] Skipping chase ${chase.id} — customer opted out of emails`);
+      continue;
+    }
+    // Generate unsubscribe token if we found the customer
+    if (tradieCustomer) {
+      try {
+        const token = await ensureEmailUnsubscribeToken(tradieCustomer.id);
+        // Use solvr.com.au as the base URL for unsubscribe links
+        const baseUrl = process.env.QUOTE_PUBLIC_BASE_URL || "https://solvr.com.au";
+        unsubscribeUrl = `${baseUrl}/email/unsubscribe?token=${token}`;
+      } catch (err) {
+        console.warn(`[InvoiceChasing] Failed to generate email unsubscribe token for customer ${tradieCustomer.id}:`, err);
+      }
+    }
+
+    // ── Send email ──────────────────────────────────────────────────────────────────────
     const { subject, html } = buildChaseEmail({
       chaseCount: nextChaseCount,
       invoiceNumber: chase.invoiceNumber,
@@ -258,6 +290,7 @@ export async function runInvoiceChasingCron(): Promise<void> {
       amountDue: chase.amountDue,
       dueDate: typeof chase.dueDate === 'string' ? chase.dueDate : (chase.dueDate as Date).toISOString().split('T')[0],
       description: chase.description,
+      unsubscribeUrl,
     });
     const emailResult = await sendEmail({
       to: chase.customerEmail,

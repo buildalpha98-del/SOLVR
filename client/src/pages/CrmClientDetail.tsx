@@ -13,7 +13,7 @@ import {
   Phone, Mail, Globe, MapPin, Zap, MessageSquare, PhoneCall,
   MailIcon, Video, Calendar, Headphones, Settings, Pin, PinOff,
   LogOut, Wand2, Users, DollarSign, Building2, Save, X, Check,
-  ExternalLink, ClipboardList, Volume2, ChevronDown, ChevronUp, FileUser,
+  ExternalLink, ClipboardList, Volume2, ChevronDown, ChevronUp, FileUser, Bot,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -41,7 +41,7 @@ const STAGE_ORDER: Stage[] = ["lead", "qualified", "onboarding", "active", "paus
 const INTERACTION_ICONS: Record<InteractionType, React.ElementType> = {
   note: MessageSquare, call: PhoneCall, email: MailIcon, meeting: Video,
   demo: Headphones, onboarding: Calendar, support: Settings,
-  "status-change": Zap, system: Settings,
+  "status-change": Zap, system: Bot,
 };
 
 const INTERACTION_COLORS: Record<InteractionType, string> = {
@@ -53,7 +53,7 @@ const INTERACTION_COLORS: Record<InteractionType, string> = {
   onboarding: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
   support: "text-orange-400 bg-orange-400/10 border-orange-400/20",
   "status-change": "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
-  system: "text-slate-600 bg-slate-600/10 border-slate-600/20",
+  system: "text-violet-400 bg-violet-400/10 border-violet-400/20",
 };
 
 const PACKAGE_LABELS: Record<string, string> = {
@@ -646,24 +646,41 @@ export default function CrmClientDetail() {
                     const Icon = INTERACTION_ICONS[interaction.type];
                     const colorClass = INTERACTION_COLORS[interaction.type];
                     return (
-                      <div key={interaction.id} className={`flex gap-3 group ${interaction.isPinned ? "bg-[#F5A623]/5 border border-[#F5A623]/10 rounded-lg p-3 -mx-1" : ""}`}>
+                      <div
+                        key={interaction.id}
+                        className={`flex gap-3 group ${
+                          interaction.type === "system"
+                            ? "bg-violet-500/5 border border-violet-500/15 rounded-lg p-3 -mx-1"
+                            : interaction.isPinned
+                            ? "bg-[#F5A623]/5 border border-[#F5A623]/10 rounded-lg p-3 -mx-1"
+                            : ""
+                        }`}
+                      >
                         <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${colorClass}`}>
                           <Icon size={12} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className="text-sm text-white font-medium leading-tight">{interaction.title}</div>
-                              {interaction.body && <p className="text-xs text-slate-400 mt-1 leading-relaxed whitespace-pre-wrap">{interaction.body}</p>}
+                              <div className={`text-sm font-medium leading-tight ${
+                                interaction.type === "system" ? "text-violet-200" : "text-white"
+                              }`}>{interaction.title}</div>
+                              {interaction.body && (
+                                <p className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${
+                                  interaction.type === "system" ? "text-violet-300/60" : "text-slate-400"
+                                }`}>{interaction.body}</p>
+                              )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => pinMutation.mutate({ id: interaction.id, isPinned: !interaction.isPinned })}
-                                className="p-1 rounded text-slate-500 hover:text-[#F5A623] transition-colors"
-                                title={interaction.isPinned ? "Unpin" : "Pin"}
-                              >
-                                {interaction.isPinned ? <PinOff size={11} /> : <Pin size={11} />}
-                              </button>
+                              {interaction.type !== "system" && (
+                                <button
+                                  onClick={() => pinMutation.mutate({ id: interaction.id, isPinned: !interaction.isPinned })}
+                                  className="p-1 rounded text-slate-500 hover:text-[#F5A623] transition-colors"
+                                  title={interaction.isPinned ? "Unpin" : "Pin"}
+                                >
+                                  {interaction.isPinned ? <PinOff size={11} /> : <Pin size={11} />}
+                                </button>
+                              )}
                               {interaction.type !== "system" && interaction.type !== "status-change" && (
                                 <button
                                   onClick={() => { if (confirm("Delete this interaction?")) deleteInteractionMutation.mutate({ id: interaction.id }); }}
@@ -675,7 +692,11 @@ export default function CrmClientDetail() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className={`font-mono text-[9px] uppercase tracking-wide ${colorClass.split(" ")[0]}`}>{interaction.type}</span>
+                            <span className={`font-mono text-[9px] uppercase tracking-wide ${
+                              interaction.type === "system" ? "text-violet-400" : colorClass.split(" ")[0]
+                            }`}>
+                              {interaction.type === "system" ? "automated" : interaction.type}
+                            </span>
                             <span className="text-[10px] text-slate-600">{timeAgo(interaction.createdAt)}</span>
                           </div>
                         </div>

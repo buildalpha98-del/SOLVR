@@ -258,7 +258,7 @@ export async function runQuoteFollowUpCron(): Promise<void> {
 
     const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
     const replyTo = profile?.email ?? undefined;
-    const acceptUrl = `${process.env.VITE_FRONTEND_FORGE_API_URL ? "" : "https://solvr.com.au"}/quote/${quote.customerToken}`;
+    const acceptUrl = `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`;
 
     // ── Send email ──────────────────────────────────────────────────────────────
     if (quote.customerEmail) {

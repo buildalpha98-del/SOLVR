@@ -11,6 +11,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { handleStripeWebhook } from "../stripe";
+import { handleRevenueCatWebhook } from "../revenuecatWebhook";
 import { handleVapiWebhook } from "../vapiWebhook";
 import { audioUploadRouter } from "../audioUpload";
 import { photoUploadRouter } from "../photoUpload";
@@ -23,7 +24,10 @@ import { scheduleQuoteFollowUpCron } from "../cron/quoteFollowUp";
 import { scheduleStaffTimesheetCrons } from "../cron/staffTimesheet";
 import { scheduleReviewRequestDispatchCron } from "../cron/reviewRequestDispatch";
 import { scheduleLateCheckinAlertCron } from "../cron/lateCheckinAlert";
-import { quoteAcceptRouter } from "../quoteAccept";
+import { scheduleSmsCampaignsCron } from "../cron/scheduledSmsCampaigns";
+import { scheduleAppointmentReminderCron } from "../cron/appointmentReminder";
+import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
+import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -131,6 +135,9 @@ async function startServer() {
   // Stripe webhook MUST use raw body — register BEFORE json middleware
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 
+  // RevenueCat webhook for Apple IAP events — uses JSON body + Bearer auth
+  app.post("/api/revenuecat/webhook", express.json(), handleRevenueCatWebhook);
+
   // Vapi webhook — receives call events (transcripts, summaries)
   // Must include json middleware inline since it's registered before the global parser
   app.post("/api/vapi/webhook", express.json({ limit: "10mb" }), handleVapiWebhook);
@@ -144,9 +151,6 @@ async function startServer() {
   app.use("/api", audioUploadRouter);
   // Photo upload for job before/after photos
   app.use("/api", photoUploadRouter);
-  // Quote acceptance — public GET /api/quotes/:token/accept
-  app.use("/api", quoteAcceptRouter);
-
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -184,6 +188,10 @@ async function startServer() {
   scheduleStaffTimesheetCrons();
   scheduleReviewRequestDispatchCron();
   scheduleLateCheckinAlertCron();
+  scheduleSmsCampaignsCron();
+  scheduleAppointmentReminderCron();
+  scheduleLicenceExpiryWarningCron();
+  scheduleIdleJobNudgeCron();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

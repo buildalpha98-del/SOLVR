@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Calendar — monthly view with booked jobs and manual event creation.
  * Available on full-managed plan only.
  */
@@ -8,6 +13,8 @@ import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2 } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
+import { usePortalRole } from "@/hooks/usePortalRole";
+import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -156,6 +163,7 @@ function AddEventModal({
 }
 
 export default function PortalCalendar() {
+  const { canWrite } = usePortalRole();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -237,6 +245,7 @@ export default function PortalCalendar() {
         />
       )}
       <div className="space-y-5">
+        {!canWrite && <ViewerBanner />}
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -245,7 +254,7 @@ export default function PortalCalendar() {
               Your jobs and bookings at a glance.
             </p>
           </div>
-          {selectedDate && (
+          {selectedDate && canWrite && (
             <button
               onClick={() => setShowAdd(true)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
@@ -363,13 +372,15 @@ export default function PortalCalendar() {
                   <h3 className="text-sm font-semibold text-white">
                     {selectedDate.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}
                   </h3>
-                  <button
-                    onClick={() => setShowAdd(true)}
-                    className="text-xs flex items-center gap-1 font-semibold"
-                    style={{ color: "#F5A623" }}
-                  >
-                    <Plus className="w-3 h-3" /> Add
-                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={() => setShowAdd(true)}
+                      className="text-xs flex items-center gap-1 font-semibold"
+                      style={{ color: "#F5A623" }}
+                    >
+                      <Plus className="w-3 h-3" /> Add
+                    </button>
+                  )}
                 </div>
                 {selectedDayEvents.length === 0 ? (
                   <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>No events — tap "Add" to schedule something.</p>

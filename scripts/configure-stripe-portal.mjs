@@ -39,18 +39,17 @@ if (!stripeKey) {
 
 const stripe = new Stripe(stripeKey);
 
-// ── Solvr plan price IDs ──────────────────────────────────────────────────────
-// Monthly prices only (annual prices may not exist in test mode)
+// ── Solvr plan price IDs (acct_1TKS1TIJ0SuqQaYD — hello@solvr.com.au) ──────────
 const MONTHLY_PRICE_IDS = [
-  "price_1TLKGpB1r6rG0hI7vENFsjJO", // Solvr Quotes — $49/mo
-  "price_1TLKH9B1r6rG0hI7bopLw8GF", // Solvr Jobs   — $99/mo
-  "price_1TLKHMB1r6rG0hI79G8CnCEU", // Solvr AI     — $197/mo
+  "price_1TLZ8NIJ0SuqQaYDJCmDIAo0", // Solvr Quotes — $49/mo
+  "price_1TLZ8QIJ0SuqQaYDvlcScmt1", // Solvr Jobs   — $99/mo
+  "price_1TLZ8TIJ0SuqQaYDfV2OUp1k", // Solvr AI     — $197/mo
 ];
 
-// Annual prices — verified to exist
 const ANNUAL_PRICE_IDS = [
-  "price_1TLKtlB1r6rG0hI7avq9FSlX", // Solvr Quotes — $490/yr
-  "price_1TLKu2B1r6rG0hI7VRhvS1H8", // Solvr AI     — $1970/yr
+  "price_1TLZ8OIJ0SuqQaYDRRPenciX", // Solvr Quotes — $490/yr
+  "price_1TLZ8RIJ0SuqQaYD6BLAZ6uW", // Solvr Jobs   — $990/yr
+  "price_1TLZ8UIJ0SuqQaYDLY5RfcfE", // Solvr AI     — $1970/yr
 ];
 
 async function main() {

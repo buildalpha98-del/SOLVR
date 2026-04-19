@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * PortalSchedule — Vertical mobile-first weekly job scheduler.
  *
  * Layout: Each day is a full-width card stacked vertically.
@@ -7,6 +12,7 @@
  * Designed for iPhone — no horizontal scrolling required.
  */
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -373,6 +379,7 @@ function DayCard({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PortalSchedule() {
+  const [, navTo] = useLocation();
   const utils = trpc.useUtils();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const weekStartStr = weekStart.toISOString().split("T")[0];
@@ -542,7 +549,7 @@ export default function PortalSchedule() {
           <div>
             <h1 className="text-lg font-bold text-white flex items-center gap-2">
               <CalendarClock className="w-5 h-5" style={{ color: "#F5A623" }} />
-              Schedule
+              Staff Roster
             </h1>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
               {formatDate(weekStart)} – {formatDate(addDays(weekStart, 6))}
@@ -805,6 +812,12 @@ export default function PortalSchedule() {
                 className="border"
               >
                 {deleteScheduleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><X className="w-4 h-4 mr-1" /> Remove Shift</>}
+              </Button>
+              <Button
+                onClick={() => { setSelectedEntry(null); navTo(`/portal/jobs/${selectedEntry.jobId}`); }}
+                style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)" }}
+              >
+                View Job
               </Button>
               <Button
                 onClick={() => setSelectedEntry(null)}

@@ -1,4 +1,5 @@
 import { invokeLLM } from "./llm";
+import { z } from "zod";
 
 export interface QuoteExtraction {
   jobTitle: string;
@@ -85,7 +86,20 @@ CORE EXTRACTION RULES
     - A price that seems anomalous vs the memory file (>50% variance)
     - A line item with no price where a memory file price exists but wasn't applied (explain why)
     - Any ambiguity in the transcript that required a judgement call
-    - Leave the array empty [] if no warnings apply.`;
+    - Leave the array empty [] if no warnings apply.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MULTILINGUAL SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+14. LANGUAGE HANDLING — the transcript may be in ANY language (Arabic, Mandarin, Cantonese, Hindi, Vietnamese, Greek, or any other language):
+    - Accept and understand the transcript regardless of the language it is written in.
+    - ALL output fields (jobTitle, jobDescription, line item descriptions, notes, paymentTerms, extractionWarnings) MUST be written in professional Australian English.
+    - Translate naturally — do not transliterate. Use professional Australian trade terminology in the output.
+    - If the tradie mixes languages (e.g. Arabic sentence with English trade terms), handle gracefully — extract the meaning and output English.
+    - Australian trade slang spoken in another language should be mapped to its English equivalent (e.g. Arabic equivalent of "call-out fee" → "Call-Out Fee").
+    - Customer details (name, address) should be preserved as spoken — do not translate proper nouns.
+    - If the transcript language is detected, note it as an informational entry in extractionWarnings: "Transcript language: [Language]" (informational only, not an error).`;
 
 const QUOTE_EXTRACTION_SCHEMA = {
   type: "object",
@@ -186,29 +200,25 @@ export async function extractQuoteData(
   transcript: string,
   clientBusinessName: string,
   memoryContext?: string,
+  priceListContext?: string | null,
 ): Promise<QuoteExtraction> {
-  const userContent = memoryContext
-    ? `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":
----
-${transcript}
----
+  // Build the supplementary context block (memory file + price list)
+  const contextBlocks: string[] = [];
+  if (memoryContext) contextBlocks.push(`--- BUSINESS PROFILE (Memory File) ---\n${memoryContext}\n--- END MEMORY FILE ---`);
+  if (priceListContext) contextBlocks.push(`--- PRICE LIST ---\n${priceListContext}\n--- END PRICE LIST ---`);
+  const contextSection = contextBlocks.length > 0 ? `\n\n${contextBlocks.join("\n\n")}` : "";
 
---- BUSINESS PROFILE (Memory File) ---
-${memoryContext}
---- END MEMORY FILE ---
-
-Instructions:
+  const instructions = contextBlocks.length > 0
+    ? `\n\nInstructions:
 1. Extract all quote data from the transcript above.
 2. Where the tradie uses shorthand like "standard callout", "usual rate", or "the normal fee", look up the exact value from the Memory File and use it as the unitPrice.
-3. Where the transcript does not specify payment terms or validity, use the Memory File defaults.
-4. Flag any price anomalies (>50% variance from Memory File rates) in extractionWarnings.
-5. Return valid JSON only — no markdown, no explanation.`
-    : `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":
----
-${transcript}
----
+3. Where the transcript references a service or material in the PRICE LIST, use the listed sell price as the unitPrice.
+4. Where the transcript does not specify payment terms or validity, use the Memory File defaults.
+5. Flag any price anomalies (>50% variance from Memory File or Price List rates) in extractionWarnings.
+6. Return valid JSON only — no markdown, no explanation.`
+    : "";
 
-Extract all quote data from the transcript. Return valid JSON only — no markdown, no explanation.`;
+  const userContent = `TRANSCRIPT FROM TRADIE AT "${clientBusinessName}":\n---\n${transcript}\n---${contextSection}${instructions || "\n\nExtract all quote data from the transcript. Return valid JSON only — no markdown, no explanation."}`;
 
   const response = await invokeLLM({
     messages: [
@@ -228,5 +238,75 @@ Extract all quote data from the transcript. Return valid JSON only — no markdo
   const rawContent = response.choices[0]?.message?.content;
   const content = typeof rawContent === "string" ? rawContent : null;
   if (!content) throw new Error("No content returned from LLM for quote extraction");
-  return JSON.parse(content) as QuoteExtraction;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (jsonErr) {
+    console.error("[QuoteExtraction] LLM returned invalid JSON:", content.slice(0, 500));
+    throw new Error("LLM returned invalid JSON for quote extraction");
+  }
+
+  // Validate with Zod safeParse — gracefully degrade missing/malformed fields
+  const result = QuoteExtractionSchema.safeParse(parsed);
+  if (!result.success) {
+    console.error(
+      "[QuoteExtraction] Zod validation failed — attempting partial recovery.",
+      JSON.stringify(result.error.issues.map(i => ({ path: i.path.join("."), message: i.message })), null, 2),
+    );
+    // Attempt partial recovery: cast what we can, fill defaults for the rest
+    const raw = parsed as Record<string, unknown>;
+    const fallback: QuoteExtraction = {
+      jobTitle: typeof raw.jobTitle === "string" && raw.jobTitle ? raw.jobTitle : "Untitled Job",
+      jobDescription: typeof raw.jobDescription === "string" ? raw.jobDescription : null,
+      customerName: typeof raw.customerName === "string" ? raw.customerName : null,
+      customerPhone: typeof raw.customerPhone === "string" ? raw.customerPhone : null,
+      customerEmail: typeof raw.customerEmail === "string" ? raw.customerEmail : null,
+      customerAddress: typeof raw.customerAddress === "string" ? raw.customerAddress : null,
+      lineItems: Array.isArray(raw.lineItems)
+        ? (raw.lineItems as Record<string, unknown>[]).map(li => ({
+            description: typeof li.description === "string" ? li.description : "Line item",
+            quantity: typeof li.quantity === "number" && li.quantity > 0 ? li.quantity : 1,
+            unit: typeof li.unit === "string" ? li.unit : "each",
+            unitPrice: typeof li.unitPrice === "number" ? li.unitPrice : null,
+          }))
+        : [],
+      paymentTerms: typeof raw.paymentTerms === "string" ? raw.paymentTerms : null,
+      validityDays: typeof raw.validityDays === "number" ? raw.validityDays : null,
+      notes: typeof raw.notes === "string" ? raw.notes : null,
+      extractionWarnings: [
+        ...(Array.isArray(raw.extractionWarnings) ? (raw.extractionWarnings as string[]).filter(w => typeof w === "string") : []),
+        `AI extraction returned partially invalid data — ${result.error.issues.length} field(s) were auto-corrected.`,
+      ],
+    };
+    return fallback;
+  }
+
+  return result.data;
 }
+
+/**
+ * Zod schema for runtime validation of LLM-extracted quote data.
+ * All fields use .optional() or .nullable() with defaults so we can
+ * gracefully recover from partial LLM responses.
+ */
+const QuoteExtractionLineItemSchema = z.object({
+  description: z.string().default("Line item"),
+  quantity: z.number().default(1),
+  unit: z.string().default("each"),
+  unitPrice: z.number().nullable().default(null),
+});
+
+const QuoteExtractionSchema = z.object({
+  jobTitle: z.string().min(1).default("Untitled Job"),
+  jobDescription: z.string().nullable().default(null),
+  customerName: z.string().nullable().default(null),
+  customerPhone: z.string().nullable().default(null),
+  customerEmail: z.string().nullable().default(null),
+  customerAddress: z.string().nullable().default(null),
+  lineItems: z.array(QuoteExtractionLineItemSchema).default([]),
+  paymentTerms: z.string().nullable().default(null),
+  validityDays: z.number().int().nullable().default(null),
+  notes: z.string().nullable().default(null),
+  extractionWarnings: z.array(z.string()).default([]),
+});

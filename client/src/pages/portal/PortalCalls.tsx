@@ -1,11 +1,17 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Calls — transcript list with summaries, job type tags, and search.
  * Available on all plans. Includes "Convert to Job" one-tap action.
  */
 import { useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { Phone, Search, ChevronDown, ChevronUp, Clock, MessageSquare, Briefcase, CheckCircle2 } from "lucide-react";
+import { Phone, Search, ChevronDown, ChevronUp, Clock, MessageSquare, Briefcase, CheckCircle2, FileText } from "lucide-react";
+import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,6 +48,7 @@ function CallCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [jobCreated, setJobCreated] = useState(false);
+  const [, navigate] = useLocation();
 
   // Extract job type from title (format: "Call: Hot water repair — John Smith")
   const titleParts = call.title.replace(/^Call:\s*/i, "").split("—");
@@ -191,27 +198,48 @@ function CallCard({
             </div>
           )}
 
-          {/* Convert to Job button — only visible for plans with jobs feature */}
+          {/* Action buttons — Convert to Job + Create Quote */}
           {canCreateJobs && !jobCreated && (
-            <button
-              onClick={handleConvertToJob}
-              disabled={createJob.isPending}
-              className="mt-4 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
-              style={{
-                background: "rgba(245,166,35,0.1)",
-                border: "1px solid rgba(245,166,35,0.25)",
-                color: "#F5A623",
-                cursor: createJob.isPending ? "not-allowed" : "pointer",
-                opacity: createJob.isPending ? 0.6 : 1,
-              }}
-            >
-              {createJob.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Briefcase className="w-3.5 h-3.5" />
-              )}
-              {createJob.isPending ? "Adding to pipeline…" : "Convert to Job"}
-            </button>
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleConvertToJob}
+                disabled={createJob.isPending}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: "rgba(245,166,35,0.1)",
+                  border: "1px solid rgba(245,166,35,0.25)",
+                  color: "#F5A623",
+                  cursor: createJob.isPending ? "not-allowed" : "pointer",
+                  opacity: createJob.isPending ? 0.6 : 1,
+                }}
+              >
+                {createJob.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Briefcase className="w-3.5 h-3.5" />
+                )}
+                {createJob.isPending ? "Adding to pipeline…" : "Convert to Job"}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const params = new URLSearchParams();
+                  if (jobType) params.set("jobTitle", jobType);
+                  if (callerName) params.set("customerName", callerName);
+                  if (summary) params.set("description", summary.slice(0, 500));
+                  navigate(`/portal/quotes/new?${params.toString()}`);
+                }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: "rgba(99,102,241,0.1)",
+                  border: "1px solid rgba(99,102,241,0.25)",
+                  color: "#818cf8",
+                }}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Create Quote
+              </button>
+            </div>
           )}
           {canCreateJobs && jobCreated && (
             <div

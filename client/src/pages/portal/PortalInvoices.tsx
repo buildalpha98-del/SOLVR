@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * PortalInvoices — AI Invoice Chasing
  *
  * Clients can:
@@ -22,7 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Receipt, Plus, CheckCircle2, Clock, AlertTriangle,
-  XCircle, PhoneCall, Loader2, RefreshCw
+  XCircle, PhoneCall, Loader2, RefreshCw, Download
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -351,9 +356,31 @@ export default function PortalInvoices() {
               AI sends polite payment reminders automatically — you get notified when it's time to call.
             </p>
           </div>
-          <Button onClick={() => setAddOpen(true)} style={{ background: "#F5A623", color: "#0F1F3D", fontWeight: 700 }}>
-            <Plus className="w-4 h-4 mr-1.5" /> Add Invoice
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const result = await utils.invoiceChasing.exportXeroCsv.fetch({ status: "all" });
+                  if (!result.csv) { toast.info("No invoices to export."); return; }
+                  const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `solvr-invoices-xero-${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success(`Exported ${result.count} invoices for Xero.`);
+                } catch { toast.error("Export failed."); }
+              }}
+              style={{ borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)" }}
+            >
+              <Download className="w-4 h-4 mr-1.5" /> Export to Xero
+            </Button>
+            <Button onClick={() => setAddOpen(true)} style={{ background: "#F5A623", color: "#0F1F3D", fontWeight: 700 }}>
+              <Plus className="w-4 h-4 mr-1.5" /> Add Invoice
+            </Button>
+          </div>
         </div>
 
         {/* ── Summary cards ──────────────────────────────────────────────── */}

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -30,6 +35,16 @@ import { quotesRouter } from "./routers/quotes";
 import { publicQuotesRouter } from "./routers/publicQuotes";
 import { portalInvoiceChasingRouter, adminInvoiceChasingRouter } from "./routers/invoiceChasing";
 import { staffPortalRouter } from "./routers/staffPortal";
+import { priceListRouter } from "./routers/priceList";
+import { portalTeamRouter } from "./routers/portalTeam";
+import { portalCustomersRouter } from "./routers/portalCustomers";
+import { portalJobTasksRouter } from "./routers/portalJobTasks";
+import { portalJobTemplatesRouter } from "./routers/portalJobTemplates";
+import { portalAssistantRouter } from "./routers/portalAssistant";
+import { portalReportingRouter } from "./routers/portalReporting";
+import { portalSubcontractorsRouter } from "./routers/portalSubcontractors";
+import { portalPurchaseOrdersRouter } from "./routers/portalPurchaseOrders";
+import { portalFormsRouter } from "./routers/portalForms";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1567,6 +1582,15 @@ export const appRouter = router({
   adminInvoiceChasing: adminInvoiceChasingRouter,
   support: supportRouter,
   staffPortal: staffPortalRouter,
+  priceList: router(priceListRouter),
+   portalTeam: portalTeamRouter,
+  portalCustomers: portalCustomersRouter,
+  jobTasks: portalJobTasksRouter,
+  jobTemplates: portalJobTemplatesRouter,
+  assistant: portalAssistantRouter,
+  reporting: portalReportingRouter,
+  subcontractors: portalSubcontractorsRouter,
+  purchaseOrders: portalPurchaseOrdersRouter,
+  forms: portalFormsRouter,
 });
-
 export type AppRouter = typeof appRouter;

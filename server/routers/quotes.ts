@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * quotes.ts — Portal-side Voice-to-Quote Engine procedures.
  * All procedures require a valid portal session (clientId from session token).
  * Feature gate: client must have "quote-engine" product active.
@@ -6,7 +11,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../_core/trpc";
-import { getPortalClient } from "../_core/portalAuth";
+import { getPortalClient, requirePortalAuth, requirePortalWrite } from "../_core/portalAuth";
 import { requireFeature } from "../_core/featureGate";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { extractQuoteData, sanitiseExtracted } from "../_core/quoteExtraction";
@@ -36,15 +41,36 @@ import {
   getCrmClientById,
   createPortalJob,
   updatePortalJob,
+  getJobByQuoteId,
   updateCrmClient,
   getClientProfile,
   buildMemoryContext,
+  buildPriceListContext,
   insertCrmInteraction,
 } from "../db";
 import { randomUUID, randomBytes } from "crypto";
 import type { QuoteReportContent } from "../_core/reportGeneration";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Permissive email schema: accepts valid emails, empty strings, and null/undefined.
+ * Coerces invalid values (e.g. "user@domain", "N/A", "not provided") to null
+ * instead of throwing a Zod validation error. This prevents the iOS
+ * "The string did not match the expected pattern" error when tradies type
+ * partial emails or when prefill params contain malformed values.
+ */
+const permissiveEmail = z
+  .string()
+  .nullish()
+  .transform((v) => {
+    if (!v || v.trim() === "") return null;
+    const trimmed = v.trim();
+    // Basic RFC-5322 check — must have @ with at least one dot after it
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return EMAIL_RE.test(trimmed) ? trimmed : null;
+  });
+
 function generateCustomerToken(): string {
   return randomBytes(32).toString("hex");
 }
@@ -82,8 +108,7 @@ export const quotesRouter = router({
    * Quotes where warningsAcknowledged=true are treated as having no warnings.
    */
   list: publicProcedure.query(async ({ ctx }) => {
-    const portalAuth = await getPortalClient(ctx.req);
-    if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+    const portalAuth = await requirePortalAuth(ctx.req);
     const clientId = portalAuth.client.id;
     await requireFeature(clientId, "quote-engine");
     const rawQuotes = await listQuotesByClient(clientId);
@@ -120,8 +145,7 @@ export const quotesRouter = router({
   get: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalAuth(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
@@ -139,7 +163,9 @@ export const quotesRouter = router({
       const extractedJson = recording?.extractedJson as { extractionWarnings?: string[] } | null;
       const extractionWarnings: string[] = extractedJson?.extractionWarnings ?? [];
 
-      return { quote, lineItems, photos, extractionWarnings };
+      // Look up the linked job (created when the quote was made)
+      const linkedJob = await getJobByQuoteId(input.id);
+      return { quote, lineItems, photos, extractionWarnings, linkedJobId: linkedJob?.id ?? null };
     }),
 
   /**
@@ -151,7 +177,7 @@ export const quotesRouter = router({
         jobTitle: z.string().min(1).max(255),
         jobDescription: z.string().max(2000).nullish(),
         customerName: z.string().max(255).nullish(),
-        customerEmail: z.union([z.string().email().max(320), z.literal("")]).nullish().transform(v => (v === "" ? null : v)),
+        customerEmail: permissiveEmail,
         customerPhone: z.string().max(50).nullish(),
         customerAddress: z.string().max(512).nullish(),
         notes: z.string().max(2000).nullish(),
@@ -166,8 +192,7 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
@@ -256,23 +281,16 @@ export const quotesRouter = router({
         // when the server fetches it for transcription.
         audioUrl: z.string().min(1),
         durationSeconds: z.number().int().nonnegative().max(300).optional(),
+        /** ISO-639-1 language code override (e.g. "ar", "zh", "hi"). When provided, Whisper skips auto-detection. */
+        languageOverride: z.string().min(2).max(10).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
       const client = portalAuth.client;
-
-      // ── DEBUG LOGGING (production diagnosis) ──────────────────────────────────
-      console.log("[VTQ-DEBUG] processVoiceRecording called", {
-        clientId,
-        audioUrl: input.audioUrl?.substring(0, 80),
-        durationSeconds: input.durationSeconds,
-        businessName: client.businessName,
-      });
 
       const recordingId = randomUUID();
       await insertQuoteVoiceRecording({
@@ -285,28 +303,26 @@ export const quotesRouter = router({
 
       try {
         // Step 1: Transcribe
-        console.log("[VTQ-DEBUG] Step 1: starting transcription");
-        const transcriptionResult = await transcribeAudio({ audioUrl: input.audioUrl, language: "en" });
+        const transcriptionResult = await transcribeAudio({
+          audioUrl: input.audioUrl,
+          ...(input.languageOverride ? { language: input.languageOverride } : {}),
+        }); // languageOverride forces a specific language; otherwise Whisper auto-detects
         if ("error" in transcriptionResult) {
-          console.error("[VTQ-DEBUG] Transcription error:", transcriptionResult);
           throw new Error(transcriptionResult.details ?? transcriptionResult.error);
         }
         const transcription = transcriptionResult;
-        console.log("[VTQ-DEBUG] Transcription OK, length:", transcription.text?.length, "chars");
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "extracting",
           transcript: transcription.text,
         });
 
         // Step 2: Extract quote data
-        // Fetch the client's memory file for richer extraction context
-        console.log("[VTQ-DEBUG] Step 2: starting LLM extraction");
+        // Fetch the client's memory file and price list for richer extraction context
         const profile = await getClientProfile(clientId);
         const memoryContext = profile ? buildMemoryContext(profile, client.businessName) : undefined;
-        const rawExtracted = await extractQuoteData(transcription.text, client.businessName, memoryContext);
-        console.log("[VTQ-DEBUG] LLM extraction OK, raw:", JSON.stringify(rawExtracted).substring(0, 300));
+        const priceListCtx = await buildPriceListContext(clientId);
+        const rawExtracted = await extractQuoteData(transcription.text, client.businessName, memoryContext, priceListCtx);
         const extracted = sanitiseExtracted(rawExtracted);
-        console.log("[VTQ-DEBUG] Sanitised extraction OK, lineItems:", extracted.lineItems?.length);
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "complete",
           extractedJson: extracted as any,
@@ -336,7 +352,6 @@ export const quotesRouter = router({
         const financials = calcFinancials(lineItemsWithTotals, gstRate);
         const validUntil = addDays(validityDays);
 
-        console.log("[VTQ-DEBUG] Step 3: inserting quote", { quoteId, quoteNumber, totalAmount: financials.totalAmount });
         await insertQuote({
           id: quoteId,
           clientId,
@@ -358,11 +373,10 @@ export const quotesRouter = router({
           notes: extracted.notes ?? null,
           customerToken,
           voiceRecordingId: recordingId,
+          detectedLanguage: transcription.language ?? null,
         });
-        console.log("[VTQ-DEBUG] Quote inserted OK");
 
         await insertQuoteLineItems(lineItemsWithTotals);
-        console.log("[VTQ-DEBUG] Line items inserted OK", lineItemsWithTotals.length);
 
         // Auto-create a linked job in "quoted" stage so it appears in the Jobs tab
         try {
@@ -380,10 +394,8 @@ export const quotesRouter = router({
             customerAddress: extracted.customerAddress ?? null,
             customerStatusToken,
           });
-          console.log("[VTQ-DEBUG] Linked job created OK (stage=quoted)");
         } catch (jobErr) {
           // Non-fatal — don't block quote creation if job creation fails
-          console.warn("[VTQ-DEBUG] Job creation failed (non-fatal):", jobErr);
         }
 
         // Log extractionWarnings to the CRM timeline if any were flagged
@@ -408,20 +420,9 @@ export const quotesRouter = router({
           }
         }
 
-        return { quoteId, quoteNumber, transcript: transcription.text, extracted };
+        return { quoteId, quoteNumber, transcript: transcription.text, detectedLanguage: transcription.language ?? null, extracted };
       } catch (err) {
-        // ── DETAILED ERROR LOGGING for production diagnosis ──────────────────────────
         const errMsg = err instanceof Error ? err.message : String(err);
-        const errStack = err instanceof Error ? err.stack : undefined;
-        // Zod errors have an 'issues' array with path + message
-        const zodIssues = (err as { issues?: unknown[] })?.issues;
-        console.error("[VTQ-DEBUG] PIPELINE FAILED:", {
-          message: errMsg,
-          zodIssues: zodIssues ? JSON.stringify(zodIssues) : undefined,
-          stack: errStack?.split("\n").slice(0, 5).join(" | "),
-          clientId,
-          businessName: client.businessName,
-        });
         await updateQuoteVoiceRecording(recordingId, {
           processingStatus: "failed",
           errorMessage: errMsg,
@@ -443,7 +444,7 @@ export const quotesRouter = router({
         jobTitle: z.string().min(1).max(255).optional(),
         jobDescription: z.string().max(2000).nullish(),
         customerName: z.string().max(255).nullish(),
-        customerEmail: z.union([z.string().email().max(320), z.literal("")]).nullish().transform(v => (v === "" ? null : v)),
+        customerEmail: permissiveEmail,
         customerPhone: z.string().max(50).nullish(),
         customerAddress: z.string().max(512).nullish(),
         notes: z.string().max(2000).nullish(),
@@ -462,8 +463,7 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       const quote = await getQuoteById(input.id);
@@ -528,8 +528,7 @@ export const quotesRouter = router({
   generateReport: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
@@ -591,8 +590,7 @@ export const quotesRouter = router({
   generatePdf: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
@@ -670,6 +668,7 @@ export const quotesRouter = router({
 
       const pdfBuffer = await generateQuotePdf({
         acceptUrl,
+        detectedLanguage: quote.detectedLanguage ?? null,
         quote: {
           quoteNumber: quote.quoteNumber,
           jobTitle: quote.jobTitle,
@@ -727,7 +726,9 @@ export const quotesRouter = router({
     .input(
       z.object({
         id: z.string(),
-        recipientEmail: z.string().email(),
+        // permissiveEmail coerces malformed addresses to null; the mutation
+        // validates below that a valid email is present before sending.
+        recipientEmail: z.string().min(1).max(320),
         recipientName: z.string().max(255).optional(),
         customMessage: z.string().max(1000).optional(),
         // z.string().url() intentionally NOT used — Zod v4 rejects S3 presigned
@@ -736,8 +737,7 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
@@ -822,8 +822,7 @@ export const quotesRouter = router({
   delete: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       const quote = await getQuoteById(input.id);
@@ -852,8 +851,7 @@ export const quotesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
 
       const quote = await getQuoteById(input.quoteId);
@@ -893,8 +891,7 @@ export const quotesRouter = router({
   analysePhotos: publicProcedure
     .input(z.object({ quoteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 
@@ -939,8 +936,7 @@ export const quotesRouter = router({
   deletePhoto: publicProcedure
     .input(z.object({ photoId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await deleteQuotePhoto(input.photoId);
       return { success: true };
@@ -950,8 +946,7 @@ export const quotesRouter = router({
    * Get branding settings for the authenticated client.
    */
   getBranding: publicProcedure.query(async ({ ctx }) => {
-    const portalAuth = await getPortalClient(ctx.req);
-    if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+    const portalAuth = await requirePortalAuth(ctx.req);
     const clientId = portalAuth.client.id;
     const client = await getCrmClientById(clientId);
     if (!client) throw new TRPCError({ code: "NOT_FOUND", message: "Client not found" });
@@ -980,12 +975,11 @@ export const quotesRouter = router({
         gstRate: z.string().optional(),
         paymentTerms: z.string().max(255).optional(),
         validityDays: z.number().int().positive().optional(),
-         replyToEmail: z.union([z.string().email().max(320), z.literal("")]).nullish().transform(v => (v === "" ? null : v)),
+        replyToEmail: permissiveEmail,
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       const updateData: Record<string, unknown> = {};
       if (input.logoDataUrl) {
@@ -1020,8 +1014,7 @@ export const quotesRouter = router({
   dismissWarnings: publicProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const portalAuth = await getPortalClient(ctx.req);
-      if (!portalAuth) throw new TRPCError({ code: "UNAUTHORIZED", message: "Portal session required" });
+      const portalAuth = await requirePortalWrite(ctx.req);
       const clientId = portalAuth.client.id;
       await requireFeature(clientId, "quote-engine");
 

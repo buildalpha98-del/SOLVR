@@ -1,0 +1,2 @@
+ALTER TABLE `purchase_orders` ADD `supplierAccessToken` varchar(64);--> statement-breakpoint
+ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_supplierAccessToken_unique` UNIQUE(`supplierAccessToken`);

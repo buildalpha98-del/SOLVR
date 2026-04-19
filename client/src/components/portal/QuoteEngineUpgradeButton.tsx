@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * QuoteEngineUpgradeButton — CTA for upgrading to the Quote Engine add-on.
  * Calls portal.createQuoteEngineCheckout and opens Stripe checkout in a new tab.
  * $97/mo AUD (founding member rate).
@@ -8,7 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { getSolvrOrigin } from "@/const";
+import { getSolvrOrigin, isNativeApp } from "@/const";
 
 interface QuoteEngineUpgradeButtonProps {
   billingCycle?: "monthly" | "annual";
@@ -25,6 +30,9 @@ export function QuoteEngineUpgradeButton({
 }: QuoteEngineUpgradeButtonProps) {
   const [loading, setLoading] = useState(false);
   const checkout = trpc.portal.createQuoteEngineCheckout.useMutation();
+
+  // Apple Guideline 3.1.1 — no purchase UI inside native app
+  if (isNativeApp()) return null;
 
   const handleClick = async () => {
     setLoading(true);

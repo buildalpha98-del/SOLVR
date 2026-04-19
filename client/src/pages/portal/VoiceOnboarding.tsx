@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * VoiceOnboarding — Voice-first onboarding for new Solvr clients.
  *
  * Flow:
@@ -27,7 +32,7 @@ import {
 import { toast } from "sonner";
 import {
   Mic, MicOff, Loader2, CheckCircle2,
-  AlertCircle, Volume2, Sparkles, Square,
+  AlertCircle, Volume2, Sparkles, Square, Globe,
 } from "lucide-react";
 import type { OnboardingExtraction } from "../../../../server/_core/onboardingExtraction";
 
@@ -325,6 +330,8 @@ export default function VoiceOnboarding() {
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
   const [missingValues, setMissingValues] = useState<Record<string, string>>({});
   const [showTranscript, setShowTranscript] = useState(false);
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [languageOverride, setLanguageOverride] = useState<string>("auto");
 
   // Review form state (pre-filled from extraction, editable)
   const [form, setForm] = useState<Partial<OnboardingExtraction>>({});
@@ -421,11 +428,17 @@ export default function VoiceOnboarding() {
       const { url } = await uploadRes.json();
 
       setStage("processing");
-      const result = await extractMutation.mutateAsync({ audioUrl: url });
+      const result = await extractMutation.mutateAsync({
+        audioUrl: url,
+        ...(languageOverride !== "auto" ? { languageOverride } : {}),
+      });
 
       setTranscript(result.transcript);
       setExtraction(result.extraction);
       setMissingFields(result.missingFields as MissingField[]);
+      if (result.detectedLanguage && result.detectedLanguage !== "en") {
+        setDetectedLanguage(result.detectedLanguage);
+      }
       setForm({ ...result.extraction });
       const mv: Record<string, string> = {};
       for (const f of result.missingFields) mv[f.key] = "";
@@ -508,6 +521,47 @@ export default function VoiceOnboarding() {
               </p>
             </div>
 
+            {/* Language selector */}
+            <div className="text-left">
+              <label className="block text-xs font-medium mb-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <Globe className="w-3 h-3 inline mr-1" />
+                Language you'll speak in
+              </label>
+              <select
+                value={languageOverride}
+                onChange={(e) => setLanguageOverride(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 text-sm font-medium"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  outline: "none",
+                }}
+              >
+                <option value="auto">🌐 Auto-detect (recommended)</option>
+                <option value="en">🇦🇺 English</option>
+                <option value="ar">🇱🇧 Arabic (عربي)</option>
+                <option value="zh">🇨🇳 Mandarin (普通话)</option>
+                <option value="hi">🇮🇳 Hindi (हिन्दी)</option>
+                <option value="vi">🇻🇳 Vietnamese (Tiếng Việt)</option>
+                <option value="el">🇬🇷 Greek (Ελληνικά)</option>
+                <option value="it">🇮🇹 Italian (Italiano)</option>
+                <option value="ko">🇰🇷 Korean (한국어)</option>
+                <option value="fr">🇫🇷 French (Français)</option>
+                <option value="es">🇪🇸 Spanish (Español)</option>
+                <option value="de">🇩🇪 German (Deutsch)</option>
+                <option value="pt">🇧🇷 Portuguese (Português)</option>
+                <option value="tr">🇹🇷 Turkish (Türkçe)</option>
+                <option value="ru">🇷🇺 Russian (Русский)</option>
+                <option value="ja">🇯🇵 Japanese (日本語)</option>
+              </select>
+              {languageOverride !== "auto" && (
+                <p className="text-xs mt-1" style={{ color: "rgba(245,166,35,0.7)" }}>
+                  Whisper will transcribe in {languageOverride.toUpperCase()} and your profile will be extracted in English.
+                </p>
+              )}
+            </div>
+
             {/* Mic button */}
             <div className="flex flex-col items-center gap-4">
               {isRecording && (
@@ -579,6 +633,16 @@ export default function VoiceOnboarding() {
                 We've filled in what we could. Review each section — tap the mic icon to re-record just that part.
               </p>
             </div>
+
+            {/* Language detection badge */}
+            {detectedLanguage && detectedLanguage !== "en" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)" }}>
+                <Globe className="w-4 h-4 flex-shrink-0" style={{ color: "#60A5FA" }} />
+                <span className="text-xs font-medium" style={{ color: "#60A5FA" }}>
+                  Voice detected in {detectedLanguage.toUpperCase()} — profile extracted and translated to English
+                </span>
+              </div>
+            )}
 
             {/* Transcript toggle */}
             {transcript && (

@@ -1,4 +1,9 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * PortalQuoteDetail — View, edit, and send a single quote.
  *
  * Sections:
@@ -23,7 +28,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Send, FileText, Sparkles, Camera, Trash2,
   Loader2, CheckCircle, Download, Plus, XCircle, RefreshCw,
-  ExternalLink, AlertTriangle,
+  ExternalLink, AlertTriangle, Copy,
 } from "lucide-react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -119,7 +124,7 @@ export default function PortalQuoteDetail() {
       <PortalLayout activeTab="quotes">
         <div className="text-center py-20">
           <p className="text-white/50">Quote not found.</p>
-          <Button variant="ghost" className="mt-4 text-amber-400" onClick={() => navigate("/portal/quotes")}>
+          <Button variant="ghost" className="mt-4 text-amber-400" onClick={() => navigate("/portal/jobs?tab=quotes")}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Quotes
           </Button>
         </div>
@@ -127,7 +132,7 @@ export default function PortalQuoteDetail() {
     );
   }
 
-  const { quote, lineItems: savedLineItems, photos, extractionWarnings } = data;
+  const { quote, lineItems: savedLineItems, photos, extractionWarnings, linkedJobId } = data;
   const isDraft = quote.status === "draft";
   const reportContent = quote.reportContent as Record<string, unknown> | null;
 
@@ -227,7 +232,7 @@ export default function PortalQuoteDetail() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/portal/quotes")}
+          onClick={() => navigate("/portal/jobs?tab=quotes")}
           className="text-white/50 hover:text-white"
         >
           <ArrowLeft className="w-4 h-4 mr-1.5" />
@@ -639,6 +644,24 @@ export default function PortalQuoteDetail() {
             </div>
           </div>
 
+          {/* View linked job */}
+          {linkedJobId && (
+            <div
+              className="rounded-xl border p-5"
+              style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
+            >
+              <h3 className="font-semibold text-white mb-3 text-sm">Linked Job</h3>
+              <Button
+                variant="outline"
+                className="w-full border-amber-400/30 text-amber-400 hover:bg-amber-400/10"
+                onClick={() => navigate(`/portal/jobs/${linkedJobId}`)}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                View Job #{linkedJobId}
+              </Button>
+            </div>
+          )}
+
           {/* Quote summary */}
           <div
             className="rounded-xl border p-5 space-y-2"
@@ -666,15 +689,28 @@ export default function PortalQuoteDetail() {
               style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
             >
               <h3 className="font-semibold text-white mb-2 text-sm">Customer Link</h3>
-              <a
-                href={`/quote/${quote.customerToken}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 break-all"
-              >
-                <ExternalLink className="w-3 h-3 shrink-0" />
-                /quote/{quote.customerToken?.slice(0, 16)}…
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`${window.location.origin}/quote/${quote.customerToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 break-all flex-1 min-w-0"
+                >
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{window.location.origin}/quote/{quote.customerToken?.slice(0, 16)}…</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/quote/${quote.customerToken}`);
+                    toast.success("Link copied to clipboard");
+                  }}
+                  className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Copy link"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>

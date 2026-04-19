@@ -1,12 +1,30 @@
 import React from "react";
 import {
   Document,
+  Font,
   Page,
   View,
   Text,
   Image,
   StyleSheet,
 } from "@react-pdf/renderer";
+import { getPdfLabels, isRTL, rtlStyle } from "./pdfTranslations";
+
+// Register Noto Sans Arabic for RTL support
+Font.register({
+  family: "NotoSansArabic",
+  fonts: [
+    {
+      src: "https://fonts.gstatic.com/s/notosansarabic/v18/nwpxtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlhQ5l3sQWIHPqzCfyGybdQ.woff",
+      fontWeight: "normal",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/notosansarabic/v18/nwpxtLGrOAZMl5nJ_wfgRg3DrWFZWsnVBJ_sS6tlqHHFlhQ5l3sQWIHPqzCfyGyb9w.woff",
+      fontWeight: "bold",
+    },
+  ],
+});
+Font.registerHyphenationCallback((word) => [word]);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +44,8 @@ export interface InvoiceProgressPayment {
 }
 
 export interface InvoicePdfInput {
+  /** ISO-639-1 language code — used to render translated labels in the PDF. */
+  detectedLanguage?: string | null;
   invoice: {
     invoiceNumber: string;
     jobTitle: string;
@@ -293,12 +313,17 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
   const { invoice, lineItems, progressPayments, branding } = input;
   const primaryColor = branding.primaryColor || "#1F2937";
   const accentColor = branding.secondaryColor || "#2563EB";
+  const lang = input.detectedLanguage;
+  const L = getPdfLabels(lang);
+  const pageStyle = isRTL(lang)
+    ? [styles.page, { fontFamily: "NotoSansArabic" }]
+    : styles.page;
 
   const hasBankDetails = branding.bankBsb && branding.bankAccountNumber;
   const hasProgressPayments = progressPayments.length > 0;
 
   return (
-    <Page size="A4" style={styles.page}>
+    <Page size="A4" style={pageStyle}>
       {/* ── Header ── */}
       <View style={[styles.header, { backgroundColor: primaryColor }]}>
         <View style={styles.headerLeft}>
@@ -332,14 +357,14 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
           )}
         </View>
         <View style={styles.headerRight}>
-          <Text style={styles.invoiceLabel}>TAX INVOICE</Text>
+          <Text style={styles.invoiceLabel}>{L.taxInvoice}</Text>
           <Text style={styles.invoiceNumber}>{invoice.invoiceNumber}</Text>
           <Text style={[styles.invoiceLabel, { marginTop: 8 }]}>
-            Date: {formatDate(invoice.invoicedAt)}
+            {L.date}: {formatDate(invoice.invoicedAt)}
           </Text>
           {invoice.dueDate && (
             <Text style={styles.invoiceLabel}>
-              Due: {formatDate(invoice.dueDate)}
+              {L.due}: {formatDate(invoice.dueDate)}
             </Text>
           )}
         </View>
@@ -360,7 +385,7 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
         {/* Bill To + Job Info */}
         <View style={styles.infoRow}>
           <View style={styles.infoBox}>
-            <Text style={styles.infoBoxLabel}>Bill To</Text>
+            <Text style={[styles.infoBoxLabel, rtlStyle(lang)]}>{L.billTo}</Text>
             {invoice.customerName && (
               <Text style={styles.infoBoxBold}>{invoice.customerName}</Text>
             )}
@@ -386,13 +411,13 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
         </View>
 
         {/* Line Items */}
-        <Text style={styles.sectionTitle}>Services & Materials</Text>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.colDesc]}>Description</Text>
-          <Text style={[styles.tableHeaderText, styles.colQty]}>Qty</Text>
-          <Text style={[styles.tableHeaderText, styles.colUnit]}>Unit</Text>
-          <Text style={[styles.tableHeaderText, styles.colPrice]}>Unit Price</Text>
-          <Text style={[styles.tableHeaderText, styles.colTotal]}>Total</Text>
+        <Text style={[styles.sectionTitle, rtlStyle(lang)]}>{L.servicesAndMaterials}</Text>
+        <View style={isRTL(lang) ? [styles.tableHeader, { flexDirection: "row-reverse" }] : styles.tableHeader}>
+          <Text style={[styles.tableHeaderText, styles.colDesc, rtlStyle(lang)]}>{L.description}</Text>
+          <Text style={[styles.tableHeaderText, styles.colQty, rtlStyle(lang)]}>{L.qty}</Text>
+          <Text style={[styles.tableHeaderText, styles.colUnit, rtlStyle(lang)]}>{L.unit}</Text>
+          <Text style={[styles.tableHeaderText, styles.colPrice, rtlStyle(lang)]}>{L.unitPrice}</Text>
+          <Text style={[styles.tableHeaderText, styles.colTotal, rtlStyle(lang)]}>{L.total}</Text>
         </View>
         {lineItems.map((item, i) => (
           <View key={i} style={styles.tableRow}>
@@ -417,20 +442,20 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
         {/* Totals */}
         <View style={styles.totalsSection}>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Subtotal</Text>
+            <Text style={[styles.totalsLabel, rtlStyle(lang)]}>{L.subtotal}</Text>
             <Text style={styles.totalsValue}>
               {formatCents(invoice.subtotalCents)}
             </Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>GST (10%)</Text>
+            <Text style={[styles.totalsLabel, rtlStyle(lang)]}>{L.gst} (10%)</Text>
             <Text style={styles.totalsValue}>
               {formatCents(invoice.gstCents)}
             </Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsBoldLabel}>Total (inc. GST)</Text>
+            <Text style={[styles.totalsBoldLabel, rtlStyle(lang)]}>{L.totalIncGst}</Text>
             <Text style={styles.totalsBold}>
               {formatCents(invoice.totalCents)}
             </Text>
@@ -438,14 +463,14 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
           {hasProgressPayments && (
             <>
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>Less: Payments Received</Text>
+                <Text style={[styles.totalsLabel, rtlStyle(lang)]}>{L.lessPaymentsReceived}</Text>
                 <Text style={[styles.totalsValue, { color: "#16A34A" }]}>
                   −{formatCents(invoice.amountPaidCents)}
                 </Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.totalsRow}>
-                <Text style={styles.totalsBoldLabel}>Balance Due</Text>
+                <Text style={[styles.totalsBoldLabel, rtlStyle(lang)]}>{L.balanceDue}</Text>
                 <Text
                   style={[
                     styles.totalsBold,
@@ -453,7 +478,7 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
                   ]}
                 >
                   {invoice.balanceDueCents <= 0
-                    ? "PAID"
+                    ? L.paid
                     : formatCents(invoice.balanceDueCents)}
                 </Text>
               </View>
@@ -464,13 +489,13 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
         {/* Progress Payments */}
         {hasProgressPayments && (
           <>
-            <Text style={styles.sectionTitle}>Payments Received</Text>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Description</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Method</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1 }]}>Date</Text>
-              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>
-                Amount
+            <Text style={[styles.sectionTitle, rtlStyle(lang)]}>{L.paymentsReceived}</Text>
+            <View style={isRTL(lang) ? [styles.tableHeader, { flexDirection: "row-reverse" }] : styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 2 }, rtlStyle(lang)]}>{L.description}</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1.5 }, rtlStyle(lang)]}>{L.method}</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1 }, rtlStyle(lang)]}>{L.date}</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: isRTL(lang) ? "left" : "right" }, rtlStyle(lang)]}>
+                {L.amount}
               </Text>
             </View>
             {progressPayments.map((p, i) => (
@@ -497,27 +522,27 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
         {/* Payment Details (bank transfer) */}
         {!invoice.isCashPaid && hasBankDetails && (
           <View style={styles.paymentBox}>
-            <Text style={styles.paymentBoxTitle}>Payment Details</Text>
+            <Text style={[styles.paymentBoxTitle, rtlStyle(lang)]}>{L.paymentDetails}</Text>
             {branding.bankName && (
               <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>Bank</Text>
+                <Text style={[styles.paymentLabel, rtlStyle(lang)]}>{L.bank}</Text>
                 <Text style={styles.paymentValue}>{branding.bankName}</Text>
               </View>
             )}
             <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Account Name</Text>
+              <Text style={[styles.paymentLabel, rtlStyle(lang)]}>{L.accountName}</Text>
               <Text style={styles.paymentValue}>{branding.bankAccountName}</Text>
             </View>
             <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>BSB</Text>
+              <Text style={[styles.paymentLabel, rtlStyle(lang)]}>{L.bsb}</Text>
               <Text style={styles.paymentValue}>{branding.bankBsb}</Text>
             </View>
             <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Account Number</Text>
+              <Text style={[styles.paymentLabel, rtlStyle(lang)]}>{L.accountNumber}</Text>
               <Text style={styles.paymentValue}>{branding.bankAccountNumber}</Text>
             </View>
             <View style={[styles.paymentRow, { marginTop: 8 }]}>
-              <Text style={styles.paymentLabel}>Reference</Text>
+              <Text style={[styles.paymentLabel, rtlStyle(lang)]}>{L.reference}</Text>
               <Text style={[styles.paymentValue, { fontFamily: "Helvetica-Bold" }]}>
                 {invoice.invoiceNumber}
               </Text>
@@ -528,7 +553,7 @@ function InvoicePage({ input }: { input: InvoicePdfInput }) {
         {/* Notes */}
         {invoice.notes && (
           <View style={styles.notesBox}>
-            <Text style={styles.notesTitle}>Notes</Text>
+            <Text style={[styles.notesTitle, rtlStyle(lang)]}>{L.notes}</Text>
             <Text style={styles.notesText}>{invoice.notes}</Text>
           </View>
         )}

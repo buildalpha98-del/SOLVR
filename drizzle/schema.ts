@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal, date, json } from "drizzle-orm/mysql-core";
 
 /**
@@ -392,8 +397,9 @@ export type InsertTask = typeof tasks.$inferInsert;
 //  VOICE AGENT SUBSCRIPTIONS 
 
 /**
- * Voice Agent subscriptions — tracks Stripe checkout sessions and subscription IDs.
- * We store only minimal Stripe identifiers; all billing details live in Stripe.
+ * Voice Agent subscriptions — tracks both Stripe and Apple IAP subscriptions.
+ * Stripe identifiers live alongside Apple/RevenueCat identifiers.
+ * The subscriptionSource field determines which billing system is authoritative.
  */
 export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   id: int("id").autoincrement().primaryKey(),
@@ -402,15 +408,34 @@ export const voiceAgentSubscriptions = mysqlTable("voice_agent_subscriptions", {
   /** Name provided at checkout */
   name: text("name"),
   /** Plan selected */
-  plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
+  plan: mysqlEnum("plan", ["starter", "professional", "solvr_quotes", "solvr_jobs", "solvr_ai"]).notNull(),
   /** Billing cycle */
   billingCycle: mysqlEnum("billingCycle", ["monthly", "annual"]).default("monthly").notNull(),
+  /**
+   * Subscription source — which billing system owns this subscription.
+   * "stripe" = web checkout via Stripe, "apple" = iOS in-app purchase via RevenueCat,
+   * "manual" = admin-provisioned (comped, grandfathered, etc.)
+   * Defaults to "stripe" for backward compatibility with existing rows.
+   */
+  subscriptionSource: mysqlEnum("subscriptionSource", ["stripe", "apple", "revenuecat_web", "manual"]).default("stripe").notNull(),
   /** Stripe Customer ID */
   stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
   /** Stripe Subscription ID (set after subscription created via webhook) */
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
   /** Stripe Checkout Session ID */
   stripeSessionId: varchar("stripeSessionId", { length: 128 }),
+  /**
+   * RevenueCat App User ID — the unique identifier in RevenueCat.
+   * Typically set to the crmClients.id or a prefixed string like "rc_123".
+   * Only populated for Apple IAP subscriptions.
+   */
+  revenueCatId: varchar("revenueCatId", { length: 128 }),
+  /**
+   * Apple original_transaction_id — the immutable identifier for the Apple
+   * subscription purchase. Used to deduplicate and reconcile Apple receipts.
+   * Only populated for Apple IAP subscriptions.
+   */
+  appleOriginalTransactionId: varchar("appleOriginalTransactionId", { length: 128 }),
   /** FK to crmClients.id — set when a portal client upgrades via the portal upgrade checkout */
   clientId: int("clientId"),
   /** Onboarding email sequence tracking */
@@ -558,7 +583,7 @@ export const portalJobs = mysqlTable("portal_jobs", {
   /** Address or suburb mentioned */
   location: varchar("location", { length: 255 }),
   /** Pipeline stage */
-  stage: mysqlEnum("stage", ["new_lead", "quoted", "booked", "completed", "lost"]).default("new_lead").notNull(),
+  stage: mysqlEnum("stage", ["new_lead", "quoted", "booked", "in_progress", "completed", "lost"]).default("new_lead").notNull(),
   /** Estimated job value (set by client when quoting) */
   estimatedValue: int("estimatedValue"),
   /** Actual job value (set by client when marking complete) */
@@ -617,6 +642,13 @@ export const portalJobs = mysqlTable("portal_jobs", {
   recurrenceFrequency: mysqlEnum("recurrenceFrequency", ["weekly", "fortnightly", "monthly"]),
   /** FK to the original job in a recurring series (null if this IS the original) */
   parentJobId: int("parentJobId"),
+  //  Smart Job Board (Sprint 2) 
+  /** JSON array of form template IDs that must be completed before invoicing */
+  requiredFormTemplateIds: json("requiredFormTemplateIds").$type<number[]>(),
+  /** AI-generated next-action suggestion for this job card (cached, regenerated on job update) */
+  nextActionSuggestion: text("nextActionSuggestion"),
+  /** When the AI task template was last generated for this job */
+  tasksGeneratedAt: timestamp("tasksGeneratedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -644,6 +676,8 @@ export const portalCalendarEvents = mysqlTable("portal_calendar_events", {
   isAllDay: boolean("isAllDay").default(false).notNull(),
   /** Color for calendar display */
   color: varchar("color", { length: 32 }).default("amber").notNull(),
+  /** When the 24-hour appointment reminder SMS was sent (null = not yet sent) */
+  reminderSentAt: timestamp("reminderSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -678,7 +712,7 @@ export const referralConversions = mysqlTable("referral_conversions", {
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   subscriberEmail: varchar("subscriberEmail", { length: 320 }).notNull(),
   subscriberName: varchar("subscriberName", { length: 255 }),
-  plan: mysqlEnum("plan", ["starter", "professional"]).notNull(),
+  plan: mysqlEnum("plan", ["starter", "professional", "solvr_quotes", "solvr_jobs", "solvr_ai"]).notNull(),
   monthlyAmountCents: int("monthlyAmountCents").notNull(),
   commissionAmountCents: int("commissionAmountCents").notNull(),
   status: mysqlEnum("status", ["active", "cancelled", "pending"]).default("active").notNull(),
@@ -773,6 +807,9 @@ export const quotes = mysqlTable("quotes", {
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** S3 key of the generated PDF */
   pdfKey: varchar("pdfKey", { length: 512 }),
+  //  Language 
+  /** ISO-639-1 code detected by Whisper (e.g. "ar", "zh", "hi"). Null means English or undetected. */
+  detectedLanguage: varchar("detectedLanguage", { length: 10 }),
   //  Warnings 
   /** Set to true once the tradie has reviewed and dismissed AI extraction warnings */
   warningsAcknowledged: boolean("warningsAcknowledged").default(false).notNull(),
@@ -1041,6 +1078,17 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Delay in minutes before the review request is sent after job completion (default 30) */
   reviewRequestDelayMinutes: int("reviewRequestDelayMinutes").default(30).notNull(),
 
+  // ── Auto-Invoice Settings ──────────────────────────────────────────────────
+  /** Automatically generate and send invoice when a job is marked complete */
+  autoInvoiceOnCompletion: boolean("autoInvoiceOnCompletion").default(true).notNull(),
+
+  // ── Appointment Reminder Settings ──────────────────────────────────────────
+  /** Send SMS reminder 24 hours before scheduled appointments */
+  appointmentReminderEnabled: boolean("appointmentReminderEnabled").default(true).notNull(),
+
+  /** Timestamp when the tradie dismissed the activation checklist (null = not yet dismissed) */
+  activationChecklistDismissedAt: timestamp("activationChecklistDismissedAt"),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1168,6 +1216,14 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   notes: text("notes"),
   /** Tags for segmentation (e.g. "repeat", "referral", "commercial") */
   tags: json("tags").$type<string[]>(),
+  /** Whether this customer has opted out of bulk SMS marketing */
+  optedOutSms: boolean("optedOutSms").default(false).notNull(),
+  /** Unique token used in the public /sms/unsubscribe?token=xxx URL */
+  smsUnsubscribeToken: varchar("smsUnsubscribeToken", { length: 64 }),
+  /** Whether this customer has opted out of chase/marketing emails */
+  optedOutEmail: boolean("optedOutEmail").default(false).notNull(),
+  /** Unique token used in the public /email/unsubscribe?token=xxx URL */
+  emailUnsubscribeToken: varchar("emailUnsubscribeToken", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1491,3 +1547,505 @@ export const appSettings = mysqlTable("app_settings", {
 });
 export type AppSettings = typeof appSettings.$inferSelect;
 export type InsertAppSettings = typeof appSettings.$inferInsert;
+
+// ─── Price List Items ─────────────────────────────────────────────────────────
+/**
+ * Tradie's personal price list — a catalogue of services, materials, and labour
+ * rates that the AI uses as context when generating quotes from voice recordings.
+ *
+ * Each item has a cost price (what the tradie pays) and a sell price (what they
+ * charge the customer). The margin is derived at query time.
+ *
+ * Items are grouped by category (labour, materials, call-out, other) so the
+ * tradie can apply default markup rules per category.
+ */
+export const priceListItems = mysqlTable("price_list_items", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — each tradie has their own price list */
+  clientId: int("clientId").notNull(),
+  /** Display name shown in quotes and to the AI (e.g. "Replace tap washer") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Optional longer description for the AI context */
+  description: text("description"),
+  /** Unit of measure (e.g. "each", "hour", "m²", "m", "kit") */
+  unit: varchar("unit", { length: 50 }).default("each").notNull(),
+  /**
+   * Category for grouping and default markup rules.
+   * labour = time-based work | materials = physical parts/supplies
+   * call_out = travel/call-out fees | subcontractor = pass-through costs
+   * other = anything else
+   */
+  category: mysqlEnum("price_list_category", [
+    "labour",
+    "materials",
+    "call_out",
+    "subcontractor",
+    "other",
+  ])
+    .default("labour")
+    .notNull(),
+  /**
+   * Cost price in cents (what the tradie pays, e.g. wholesale).
+   * Nullable — tradies may only want to track sell price.
+   */
+  costCents: int("costCents"),
+  /**
+   * Sell price in cents (what the tradie charges the customer).
+   * This is the value injected into AI quote context.
+   */
+  sellCents: int("sellCents").notNull(),
+  /** Whether this item is active (soft-delete pattern) */
+  isActive: boolean("isActive").default(true).notNull(),
+  /** Sort order within the category for display */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PriceListItem = typeof priceListItems.$inferSelect;
+export type InsertPriceListItem = typeof priceListItems.$inferInsert;
+
+// Portal Team Members (Sprint 9 - Multi-staff accounts)
+export const portalTeamMembers = mysqlTable("portal_team_members", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  role: mysqlEnum("portal_team_role", ["admin", "viewer"]).default("viewer").notNull(),
+  passwordHash: varchar("passwordHash", { length: 255 }),
+  inviteToken: varchar("inviteToken", { length: 128 }).unique(),
+  inviteExpiresAt: timestamp("inviteExpiresAt"),
+  sessionToken: varchar("sessionToken", { length: 128 }).unique(),
+  sessionExpiresAt: timestamp("sessionExpiresAt"),
+  isActive: boolean("isActive").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PortalTeamMember = typeof portalTeamMembers.$inferSelect;
+export type InsertPortalTeamMember = typeof portalTeamMembers.$inferInsert;
+
+// SMS Campaigns (Sprint 12 - Bulk SMS execution)
+export const smsCampaigns = mysqlTable("sms_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  /** Short label for the campaign, e.g. "Winter promo — inactive customers" */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** The message body sent to all recipients */
+  message: text("message").notNull(),
+  /** Total number of recipients targeted */
+  totalCount: int("totalCount").default(0).notNull(),
+  /** Number successfully sent */
+  sentCount: int("sentCount").default(0).notNull(),
+  /** Number that failed */
+  failedCount: int("failedCount").default(0).notNull(),
+  /** Campaign status */
+  status: mysqlEnum("sms_campaign_status", ["pending", "sending", "completed", "failed", "cancelled"])
+    .default("pending")
+    .notNull(),
+  /** Number of customers skipped because they opted out of SMS */
+  skippedCount: int("skippedCount").default(0).notNull(),
+  /** If this is a retry campaign, links back to the original campaign */
+  parentCampaignId: int("parentCampaignId"),
+  /** If set, the campaign will be dispatched at this time by the scheduler cron */
+  scheduledAt: timestamp("scheduledAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+});
+export type SmsCampaign = typeof smsCampaigns.$inferSelect;
+export type InsertSmsCampaign = typeof smsCampaigns.$inferInsert;
+
+// SMS Campaign Recipients — one row per phone number per campaign
+export const smsCampaignRecipients = mysqlTable("sms_campaign_recipients", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  /** Customer display name */
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Delivery status */
+  status: mysqlEnum("sms_recipient_status", ["pending", "sent", "failed"])
+    .default("pending")
+    .notNull(),
+  /** Twilio message SID on success */
+  twilioSid: varchar("twilioSid", { length: 64 }),
+  /** Error message on failure */
+  errorMessage: varchar("errorMessage", { length: 512 }),
+  sentAt: timestamp("sentAt"),
+});
+export type SmsCampaignRecipient = typeof smsCampaignRecipients.$inferSelect;
+export type InsertSmsCampaignRecipient = typeof smsCampaignRecipients.$inferInsert;
+
+// SMS Templates — saved message templates for bulk SMS campaigns
+export const smsTemplates = mysqlTable("sms_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  /** Short label shown in the template picker, e.g. "Quote follow-up" */
+  name: varchar("name", { length: 100 }).notNull(),
+  /** The message body — may include placeholders like {name} */
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SmsTemplate = typeof smsTemplates.$inferSelect;
+export type InsertSmsTemplate = typeof smsTemplates.$inferInsert;
+
+// ─── Job Tasks (Sprint 2 — Smart Job Board) ──────────────────────────────────
+/**
+ * Task-level checklist items for a job.
+ * Can be AI-generated from a trade template or manually added by the tradie.
+ * Each task can optionally require a compliance document (SWMS, JSA, etc.)
+ * before it can be marked complete.
+ */
+export const jobTasks = mysqlTable("job_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Task description, e.g. "Waterproofing inspection" */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** Task status */
+  status: mysqlEnum("task_status", ["pending", "in_progress", "done", "skipped"])
+    .default("pending")
+    .notNull(),
+  /** Optional due date */
+  dueDate: varchar("dueDate", { length: 10 }),
+  /** FK to staffMembers.id — optional assigned staff member */
+  assignedStaffId: int("assignedStaffId"),
+  /** Display order (0-indexed, lower = higher on list) */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  /** Optional notes / instructions for this task */
+  notes: text("notes"),
+  /** Whether this task was AI-generated from a trade template */
+  aiGenerated: boolean("aiGenerated").default(false).notNull(),
+  /**
+   * If set, this task requires a compliance document before it can be marked done.
+   * Values: "swms" | "safety_cert" | "jsa" | "site_induction"
+   */
+  requiresDoc: varchar("requiresDoc", { length: 32 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobTask = typeof jobTasks.$inferSelect;
+export type InsertJobTask = typeof jobTasks.$inferInsert;
+
+// ─── Custom Job Templates (Sprint 5) ──────────────────────────────────────────
+/**
+ * Reusable task templates that tradies can create, save from completed jobs,
+ * and apply to new jobs. Each template contains an ordered list of task titles.
+ */
+export const jobTemplates = mysqlTable("job_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — the business that owns this template */
+  clientId: int("clientId").notNull(),
+  /** Human-readable template name, e.g. "Full Bathroom Reno" */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Optional trade type for filtering, e.g. "plumber", "builder" */
+  tradeType: varchar("tradeType", { length: 100 }),
+  /** Ordered JSON array of task objects: [{title, notes?}] */
+  tasks: json("tasks").notNull().$type<Array<{ title: string; notes?: string }>>(),
+  /** Optional description of when to use this template */
+  description: text("description"),
+  /** Number of times this template has been applied */
+  useCount: int("useCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobTemplate = typeof jobTemplates.$inferSelect;
+export type InsertJobTemplate = typeof jobTemplates.$inferInsert;
+
+// ─── Portal Chat Messages (Sprint 2 — Trade AI Assistant) ────────────────────
+/**
+ * Persistent conversation history for the Trade AI Assistant.
+ * One row per message (user or assistant).
+ * Conversations are grouped by conversationId (UUID).
+ */
+export const portalChatMessages = mysqlTable("portal_chat_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** UUID grouping messages into a single conversation */
+  conversationId: varchar("conversationId", { length: 36 }).notNull(),
+  /** "user" | "assistant" | "tool" */
+  role: mysqlEnum("chat_role", ["user", "assistant", "tool"]).notNull(),
+  /** Message content (plain text or markdown) */
+  content: text("content").notNull(),
+  /**
+   * If the assistant triggered a tool call, this records which tool and the result.
+   * Stored as JSON: { tool: string, input: object, output: object }
+   */
+  toolCallData: json("toolCallData").$type<{ tool: string; input: Record<string, unknown>; output: Record<string, unknown> }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PortalChatMessage = typeof portalChatMessages.$inferSelect;
+export type InsertPortalChatMessage = typeof portalChatMessages.$inferInsert;
+
+// ─── Subcontractors (Sprint 3) ───────────────────────────────────────────────
+/**
+ * Subcontractor profiles managed by a portal client (tradie).
+ * Each subbie belongs to one client. Tracks trade, ABN, contact details, and hourly rate.
+ */
+export const subcontractors = mysqlTable("subcontractors", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — the tradie who manages this subbie */
+  clientId: int("clientId").notNull(),
+  /** Subcontractor's full name */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Trade or specialisation (e.g. "Electrician", "Tiler") */
+  trade: varchar("trade", { length: 255 }),
+  /** Australian Business Number */
+  abn: varchar("abn", { length: 20 }),
+  /** Contact email */
+  email: varchar("email", { length: 320 }),
+  /** Contact phone */
+  phone: varchar("phone", { length: 50 }),
+  /** Hourly rate in cents (AUD) */
+  hourlyRateCents: int("hourlyRateCents"),
+  /** Internal notes about this subbie */
+  notes: text("notes"),
+  /** Whether this subbie is currently active */
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Subcontractor = typeof subcontractors.$inferSelect;
+export type InsertSubcontractor = typeof subcontractors.$inferInsert;
+
+// ─── Subcontractor Job Assignments ───────────────────────────────────────────
+/**
+ * Junction table linking subcontractors to jobs.
+ * A job can have multiple subbies; a subbie can work on multiple jobs.
+ */
+export const subcontractorAssignments = mysqlTable("subcontractor_assignments", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to subcontractors.id */
+  subcontractorId: int("subcontractorId").notNull(),
+  /** FK to crmClients.id (denormalised for easy querying) */
+  clientId: int("clientId").notNull(),
+  /** Status of the assignment */
+  status: mysqlEnum("assignment_status", ["assigned", "accepted", "declined", "completed"]).default("assigned").notNull(),
+  /** Magic-link token for subbie to view the job (no auth required) */
+  magicToken: varchar("magicToken", { length: 64 }).unique(),
+  /** When the magic-link email was sent */
+  inviteSentAt: timestamp("inviteSentAt"),
+  /** Notes specific to this assignment */
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SubcontractorAssignment = typeof subcontractorAssignments.$inferSelect;
+export type InsertSubcontractorAssignment = typeof subcontractorAssignments.$inferInsert;
+
+// ─── Subcontractor Timesheets ────────────────────────────────────────────────
+/**
+ * Hours logged by a subcontractor against a job.
+ * Automatically creates a jobCostItem (category: "subcontractor") on insert.
+ */
+export const subcontractorTimesheets = mysqlTable("subcontractor_timesheets", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to subcontractor_assignments.id */
+  assignmentId: int("assignmentId").notNull(),
+  /** FK to portalJobs.id (denormalised) */
+  jobId: int("jobId").notNull(),
+  /** FK to subcontractors.id (denormalised) */
+  subcontractorId: int("subcontractorId").notNull(),
+  /** FK to crmClients.id (denormalised) */
+  clientId: int("clientId").notNull(),
+  /** Date of the work */
+  workDate: timestamp("workDate").notNull(),
+  /** Hours worked (decimal, e.g. 4.5) */
+  hours: decimal("hours", { precision: 6, scale: 2 }).notNull(),
+  /** Description of work performed */
+  description: text("description"),
+  /** Hourly rate in cents at time of logging (snapshot from subcontractor profile) */
+  rateCents: int("rateCents").notNull(),
+  /** Total cost in cents (hours x rateCents) */
+  totalCents: int("totalCents").notNull(),
+  /** FK to job_cost_items.id — the auto-created cost item */
+  costItemId: int("costItemId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SubcontractorTimesheet = typeof subcontractorTimesheets.$inferSelect;
+export type InsertSubcontractorTimesheet = typeof subcontractorTimesheets.$inferInsert;
+
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+/**
+ * Supplier directory for purchase orders.
+ * Each tradie maintains their own supplier list.
+ */
+export const suppliers = mysqlTable("suppliers", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — the tradie who manages this supplier */
+  clientId: int("clientId").notNull(),
+  /** Supplier company name */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Contact person name */
+  contactName: varchar("contactName", { length: 255 }),
+  /** Contact email for sending POs */
+  email: varchar("email", { length: 320 }),
+  /** Contact phone */
+  phone: varchar("phone", { length: 50 }),
+  /** Australian Business Number */
+  abn: varchar("abn", { length: 20 }),
+  /** Street address */
+  address: varchar("address", { length: 512 }),
+  /** Default payment terms (e.g. "Net 30", "COD") */
+  paymentTerms: varchar("paymentTerms", { length: 100 }),
+  /** Internal notes */
+  notes: text("notes"),
+  /** Whether this supplier is currently active */
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = typeof suppliers.$inferInsert;
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+/**
+ * Purchase orders sent to suppliers for materials/services.
+ * Linked to a job for cost tracking.
+ */
+export const purchaseOrders = mysqlTable("purchase_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to suppliers.id */
+  supplierId: int("supplierId").notNull(),
+  /** FK to portalJobs.id — the job this PO relates to */
+  jobId: int("jobId"),
+  /** Human-readable PO number (e.g. PO-0001) */
+  poNumber: varchar("poNumber", { length: 32 }).notNull(),
+  /** PO status */
+  status: mysqlEnum("po_status", ["draft", "sent", "acknowledged", "received", "cancelled"]).default("draft").notNull(),
+  /** Total amount in cents (sum of line items) */
+  totalCents: int("totalCents").default(0).notNull(),
+  /** Delivery address (defaults to job location) */
+  deliveryAddress: varchar("deliveryAddress", { length: 512 }),
+  /** Required delivery date */
+  requiredByDate: timestamp("requiredByDate"),
+  /** Internal notes */
+  notes: text("notes"),
+  /** S3 URL of the generated PO PDF */
+  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  /** Magic-link token for supplier to view/acknowledge this PO (no auth required) */
+  supplierAccessToken: varchar("supplierAccessToken", { length: 64 }).unique(),
+  /** When the PO was sent to the supplier */
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
+
+// ─── Purchase Order Line Items ───────────────────────────────────────────────
+export const purchaseOrderItems = mysqlTable("purchase_order_items", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to purchaseOrders.id */
+  poId: int("poId").notNull(),
+  /** Item description */
+  description: varchar("description", { length: 500 }).notNull(),
+  /** Quantity */
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).default("1.00").notNull(),
+  /** Unit of measure (e.g. "each", "m", "kg", "box") */
+  unit: varchar("unit", { length: 20 }).default("each"),
+  /** Unit price in cents */
+  unitPriceCents: int("unitPriceCents"),
+  /** Line total in cents (quantity × unitPriceCents) */
+  lineTotalCents: int("lineTotalCents"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
+
+// ─── Sprint 5: Digital Forms & Certificates ──────────────────────────────────
+
+/**
+ * Form templates — reusable form definitions (e.g. Electrical Certificate, SWMS, Gas Compliance).
+ * Fields are stored as JSON for flexibility.
+ */
+export const formTemplates = mysqlTable("form_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — owner of this template (null = system template) */
+  clientId: int("clientId"),
+  /** Template name (e.g. "Electrical Certificate of Compliance") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Template category */
+  category: mysqlEnum("form_category", ["certificate", "safety", "inspection", "custom"]).default("custom").notNull(),
+  /** Short description */
+  description: text("description"),
+  /** JSON array of field definitions: { id, label, type, required, options?, placeholder? } */
+  fields: json("fields").$type<FormField[]>().notNull(),
+  /** Whether this is a system-provided template (non-editable) */
+  isSystem: boolean("isSystem").default(false).notNull(),
+  /** Whether the template is active */
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type FormTemplate = typeof formTemplates.$inferSelect;
+export type InsertFormTemplate = typeof formTemplates.$inferInsert;
+
+/** Field definition for form templates */
+export type FormField = {
+  id: string;
+  label: string;
+  type: "text" | "textarea" | "number" | "date" | "select" | "checkbox" | "signature" | "photo" | "heading" | "divider";
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+  defaultValue?: string;
+  width?: "full" | "half";
+};
+
+/**
+ * Form submissions — completed forms linked to jobs.
+ * Values stored as JSON keyed by field ID.
+ */
+export const formSubmissions = mysqlTable("form_submissions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to form_templates.id */
+  templateId: int("templateId").notNull(),
+  /** FK to portalJobs.id — the job this form is attached to */
+  jobId: int("jobId"),
+  /** Form title (snapshot from template name, can be overridden) */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** JSON object of field values keyed by field ID */
+  values: json("formValues").$type<Record<string, unknown>>().notNull(),
+  /** JSON object of signature data URLs keyed by field ID */
+  signatures: json("signatures").$type<Record<string, string>>(),
+  /** Snapshot of template fields at submission time (form versioning) */
+  templateSnapshot: json("templateSnapshot").$type<FormField[]>(),
+  /** S3 URL of the generated PDF */
+  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  /** Submission status */
+  status: mysqlEnum("form_status", ["draft", "completed", "archived"]).default("draft").notNull(),
+  /** Who submitted (name or email) */
+  submittedBy: varchar("submittedBy", { length: 255 }),
+  /** When it was completed */
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type FormSubmission = typeof formSubmissions.$inferSelect;
+export type InsertFormSubmission = typeof formSubmissions.$inferInsert;
+
+
+/**
+ * Job Type Form Requirements — configures which form templates are required per job type.
+ * When a job is created with a matching jobType, the requiredFormTemplateIds are auto-populated.
+ */
+export const jobTypeFormRequirements = mysqlTable("job_type_form_requirements", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** The job type string (e.g. "Electrical", "Plumbing", "Gas Fitting") */
+  jobType: varchar("jobType", { length: 255 }).notNull(),
+  /** JSON array of form template IDs required for this job type */
+  requiredFormTemplateIds: json("requiredFormTemplateIds").$type<number[]>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobTypeFormRequirement = typeof jobTypeFormRequirements.$inferSelect;
+export type InsertJobTypeFormRequirement = typeof jobTypeFormRequirements.$inferInsert;

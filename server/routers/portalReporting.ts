@@ -1,0 +1,98 @@
+/**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+import { z } from "zod";
+import { router } from "../_core/trpc";
+import { protectedProcedure } from "../_core/trpc";
+import React from "react";
+import { renderToBuffer, Document } from "@react-pdf/renderer";
+import { storagePut } from "../storage";
+import {
+  getRevenueMetrics,
+  getQuoteConversionMetrics,
+  getJobCostingReport,
+  getCrmClientById,
+} from "../db";
+import { ReportPDFDocument } from "../_core/ReportPDF";
+
+const dateRangeInput = z.object({
+  monthsBack: z.number().min(1).max(24).default(12),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+}).optional();
+
+export const portalReportingRouter = router({
+  /**
+   * Revenue metrics: monthly revenue chart, outstanding invoices,
+   * avg job value, total revenue, job counts.
+   */
+  getRevenueMetrics: protectedProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      const clientId = ctx.user.id;
+      const monthsBack = input?.monthsBack ?? 12;
+      return getRevenueMetrics(clientId, monthsBack, input?.startDate, input?.endDate);
+    }),
+  /**
+   * Quote conversion funnel: total → sent → accepted → declined → expired
+   * Plus monthly volume, avg quote value, conversion rate, avg days to accept.
+   */
+  getQuoteConversion: protectedProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      const clientId = ctx.user.id;
+      const monthsBack = input?.monthsBack ?? 6;
+      return getQuoteConversionMetrics(clientId, monthsBack, input?.startDate, input?.endDate);
+    }),
+  /**
+   * Job costing report: per-job margin analysis with cost breakdown.
+   * Sorted by margin (worst first) so tradies can fix problem jobs.
+   */
+  getJobCosting: protectedProcedure
+    .query(async ({ ctx }) => {
+      const clientId = ctx.user.id;
+      return getJobCostingReport(clientId);
+    }),
+  /**
+   * Generate a branded PDF report and upload to S3.
+   * Returns the public URL for download.
+   */
+  exportPdf: protectedProcedure
+    .input(z.object({
+      tab: z.enum(["revenue", "quoteConversion", "jobCosting"]),
+      monthsBack: z.number().min(1).max(24).default(12),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const clientId = ctx.user.id;
+      const client = await getCrmClientById(clientId);
+      const businessName = client?.businessName ?? "Your Business";
+
+      // Fetch the data for the requested tab
+      let data: Record<string, unknown> = {};
+      if (input.tab === "revenue") {
+        data = await getRevenueMetrics(clientId, input.monthsBack, input.startDate, input.endDate);
+      } else if (input.tab === "quoteConversion") {
+        data = await getQuoteConversionMetrics(clientId, input.monthsBack, input.startDate, input.endDate);
+      } else {
+        data = await getJobCostingReport(clientId);
+      }
+
+      const element = React.createElement(ReportPDFDocument, {
+        tab: input.tab,
+        businessName,
+        data,
+        dateRange: input.startDate && input.endDate
+          ? `${new Date(input.startDate).toLocaleDateString("en-AU")} – ${new Date(input.endDate).toLocaleDateString("en-AU")}`
+          : `Last ${input.monthsBack} months`,
+      }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+
+      const pdfBuffer = Buffer.from(await renderToBuffer(element));
+      const fileKey = `reports/${clientId}/${input.tab}-${Date.now()}.pdf`;
+      const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+      return { url };
+    }),
+});

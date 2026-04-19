@@ -111,18 +111,3 @@ temp/
 
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
-
-# ─── Capacitor iOS native project ──────────────────────────────────────────────
-# Keep ios/ source files committed (App.xcworkspace, Podfile, Info.plist, Assets.xcassets)
-# but exclude build artifacts, downloaded CocoaPods, and per-developer caches.
-ios/App/Pods/
-ios/App/build/
-ios/App/DerivedData/
-ios/App/Podfile.lock.backup
-ios/App/App.xcworkspace/xcuserdata/
-ios/App/App.xcodeproj/xcuserdata/
-ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
-ios/App/public/
-ios/DerivedData/
-ios/build/
-

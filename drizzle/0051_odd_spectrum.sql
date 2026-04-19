@@ -1,0 +1,2 @@
+ALTER TABLE `sms_campaigns` MODIFY COLUMN `sms_campaign_status` enum('pending','sending','completed','failed','cancelled') NOT NULL DEFAULT 'pending';--> statement-breakpoint
+ALTER TABLE `sms_campaigns` ADD `skippedCount` int DEFAULT 0 NOT NULL;

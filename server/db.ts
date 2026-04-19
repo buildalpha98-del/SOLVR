@@ -1,4 +1,9 @@
-import { desc, eq, and, lte, gte, sql } from "drizzle-orm";
+/**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+import { desc, eq, and, or, lte, gte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertClientOnboarding, InsertSavedPrompt, InsertStrategyCallLead, InsertUser,
@@ -537,6 +542,13 @@ export async function getPortalJob(id: number): Promise<PortalJob | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.select().from(portalJobs).where(eq(portalJobs.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getJobByQuoteId(quoteId: string): Promise<PortalJob | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(portalJobs).where(eq(portalJobs.sourceQuoteId, quoteId)).limit(1);
   return result.length > 0 ? result[0] : null;
 }
 
@@ -1670,4 +1682,1695 @@ export async function setFeatureFlag(flag: "referralProgrammeEnabled", value: bo
   if (!db) throw new Error("Database not available");
   await db.insert(appSettings).values({ id: 1, referralProgrammeEnabled: value })
     .onDuplicateKeyUpdate({ set: { [flag]: value } });
+}
+
+// ─── Price List Items ─────────────────────────────────────────────────────────
+import { priceListItems, type InsertPriceListItem, type PriceListItem } from "../drizzle/schema";
+
+export async function listPriceListItems(clientId: number): Promise<PriceListItem[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(priceListItems)
+    .where(and(eq(priceListItems.clientId, clientId), eq(priceListItems.isActive, true)))
+    .orderBy(priceListItems.category, priceListItems.sortOrder, priceListItems.name);
+}
+
+export async function getPriceListItem(id: number, clientId: number): Promise<PriceListItem | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .select()
+    .from(priceListItems)
+    .where(and(eq(priceListItems.id, id), eq(priceListItems.clientId, clientId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function insertPriceListItem(data: InsertPriceListItem): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(priceListItems).values(data);
+}
+
+export async function updatePriceListItem(
+  id: number,
+  clientId: number,
+  data: Partial<Pick<PriceListItem, "name" | "description" | "unit" | "category" | "costCents" | "sellCents" | "isActive" | "sortOrder">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(priceListItems)
+    .set(data)
+    .where(and(eq(priceListItems.id, id), eq(priceListItems.clientId, clientId)));
+}
+
+export async function deletePriceListItem(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Soft-delete: mark inactive rather than hard-delete
+  await db
+    .update(priceListItems)
+    .set({ isActive: false })
+    .where(and(eq(priceListItems.id, id), eq(priceListItems.clientId, clientId)));
+}
+
+/**
+ * Build a formatted price list string for injection into AI quote context.
+ * Returns null if the client has no price list items.
+ */
+export async function buildPriceListContext(clientId: number): Promise<string | null> {
+  const items = await listPriceListItems(clientId);
+  if (items.length === 0) return null;
+
+  const formatCents = (cents: number | null | undefined) =>
+    cents != null ? `$${(cents / 100).toFixed(2)}` : null;
+
+  const grouped: Record<string, string[]> = {};
+  for (const item of items) {
+    const cat = item.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    const cost = formatCents(item.costCents);
+    const sell = formatCents(item.sellCents);
+    const priceStr = cost ? `cost ${cost}, sell ${sell}` : `${sell}`;
+    grouped[cat].push(`  - ${item.name} (${item.unit}): ${priceStr}${item.description ? ` — ${item.description}` : ""}`);
+  }
+
+  const lines: string[] = ["PRICE LIST (use these prices when building quotes):"];
+  const categoryLabels: Record<string, string> = {
+    labour: "Labour",
+    materials: "Materials",
+    call_out: "Call-Out / Travel",
+    subcontractor: "Subcontractor",
+    other: "Other",
+  };
+  for (const [cat, catItems] of Object.entries(grouped)) {
+    lines.push(`${categoryLabels[cat] ?? cat}:`);
+    lines.push(...catItems);
+  }
+  return lines.join("\n");
+}
+
+// ─── Portal Team Members (Sprint 9) ──────────────────────────────────────────
+import {
+  portalTeamMembers,
+  type PortalTeamMember,
+  type InsertPortalTeamMember,
+} from "../drizzle/schema";
+
+export async function listPortalTeamMembers(clientId: number): Promise<PortalTeamMember[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(portalTeamMembers)
+    .where(eq(portalTeamMembers.clientId, clientId))
+    .orderBy(desc(portalTeamMembers.createdAt));
+}
+
+export async function getPortalTeamMemberByInviteToken(token: string): Promise<PortalTeamMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(portalTeamMembers)
+    .where(eq(portalTeamMembers.inviteToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPortalTeamMemberBySessionToken(token: string): Promise<PortalTeamMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(portalTeamMembers)
+    .where(eq(portalTeamMembers.sessionToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getPortalTeamMemberByEmail(clientId: number, email: string): Promise<PortalTeamMember | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(portalTeamMembers)
+    .where(and(eq(portalTeamMembers.clientId, clientId), eq(portalTeamMembers.email, email)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createPortalTeamMember(data: InsertPortalTeamMember): Promise<{ insertId: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(portalTeamMembers).values(data);
+  return { insertId: Number((result as unknown as { insertId: bigint }).insertId) };
+}
+
+export async function updatePortalTeamMember(id: number, data: Partial<InsertPortalTeamMember>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(portalTeamMembers).set(data).where(eq(portalTeamMembers.id, id));
+}
+
+export async function deletePortalTeamMember(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(portalTeamMembers)
+    .where(and(eq(portalTeamMembers.id, id), eq(portalTeamMembers.clientId, clientId)));
+}
+
+// ─── Customer History ─────────────────────────────────────────────────────────
+/**
+ * List all portal jobs for a given customer (matched by phone number).
+ * Returns jobs ordered by most recent first.
+ */
+export async function getJobsByCustomerPhone(
+  clientId: number,
+  phone: string,
+): Promise<PortalJob[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(portalJobs)
+    .where(
+      and(
+        eq(portalJobs.clientId, clientId),
+        or(eq(portalJobs.callerPhone, phone), eq(portalJobs.customerPhone, phone)),
+      ),
+    )
+    .orderBy(desc(portalJobs.createdAt));
+}
+
+/**
+ * Update notes on a tradie customer record.
+ */
+export async function updateTradieCustomerNotes(
+  id: number,
+  clientId: number,
+  notes: string,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(tradieCustomers)
+    .set({ notes, updatedAt: new Date() })
+    .where(and(eq(tradieCustomers.id, id), eq(tradieCustomers.clientId, clientId)));
+}
+
+// ─── SMS Campaigns & Templates ───────────────────────────────────────────────
+import {
+  smsCampaigns,
+  smsCampaignRecipients,
+  smsTemplates,
+  type SmsCampaign,
+  type InsertSmsCampaign,
+  type SmsCampaignRecipient,
+  type InsertSmsCampaignRecipient,
+  type SmsTemplate,
+  type InsertSmsTemplate,
+} from "../drizzle/schema";
+
+export async function createSmsCampaign(data: InsertSmsCampaign): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(smsCampaigns).values(data);
+  return (result[0] as { insertId: number }).insertId;
+}
+
+export async function updateSmsCampaignStatus(
+  id: number,
+  status: SmsCampaign["status"],
+  counts?: { sentCount?: number; failedCount?: number },
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(smsCampaigns)
+    .set({
+      status,
+      ...(counts ?? {}),
+      ...(status === "completed" || status === "failed" ? { completedAt: new Date() } : {}),
+    })
+    .where(eq(smsCampaigns.id, id));
+}
+
+export async function insertSmsCampaignRecipients(
+  rows: InsertSmsCampaignRecipient[],
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (rows.length === 0) return;
+  await db.insert(smsCampaignRecipients).values(rows);
+}
+
+export async function updateSmsCampaignRecipient(
+  id: number,
+  data: Partial<Pick<SmsCampaignRecipient, "status" | "twilioSid" | "errorMessage" | "sentAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(smsCampaignRecipients).set(data).where(eq(smsCampaignRecipients.id, id));
+}
+
+export async function listSmsCampaigns(clientId: number): Promise<SmsCampaign[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaigns)
+    .where(eq(smsCampaigns.clientId, clientId))
+    .orderBy(desc(smsCampaigns.createdAt));
+}
+
+export async function getSmsCampaignRecipients(campaignId: number): Promise<SmsCampaignRecipient[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaignRecipients)
+    .where(eq(smsCampaignRecipients.campaignId, campaignId));
+}
+
+// ─── SMS Opt-Out helpers ──────────────────────────────────────────────────────
+
+/**
+ * Generate (or return existing) a unique unsubscribe token for a customer.
+ * Called lazily when a bulk SMS is dispatched to that customer.
+ */
+export async function ensureSmsUnsubscribeToken(customerId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ token: tradieCustomers.smsUnsubscribeToken })
+    .from(tradieCustomers)
+    .where(eq(tradieCustomers.id, customerId));
+  if (rows[0]?.token) return rows[0].token;
+  const { randomBytes } = await import("crypto");
+  const token = randomBytes(32).toString("hex");
+  await db.update(tradieCustomers)
+    .set({ smsUnsubscribeToken: token })
+    .where(eq(tradieCustomers.id, customerId));
+  return token;
+}
+
+/**
+ * Ensure a tradie customer has an email unsubscribe token. Creates one if missing.
+ */
+export async function ensureEmailUnsubscribeToken(customerId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ token: tradieCustomers.emailUnsubscribeToken })
+    .from(tradieCustomers)
+    .where(eq(tradieCustomers.id, customerId));
+  if (rows[0]?.token) return rows[0].token;
+  const { randomBytes } = await import("crypto");
+  const token = randomBytes(32).toString("hex");
+  await db.update(tradieCustomers)
+    .set({ emailUnsubscribeToken: token })
+    .where(eq(tradieCustomers.id, customerId));
+  return token;
+}
+
+/**
+ * Look up a customer by their SMS unsubscribe token.
+ */
+export async function getTradieCustomerByUnsubscribeToken(
+  token: string,
+): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(tradieCustomers)
+    .where(eq(tradieCustomers.smsUnsubscribeToken, token));
+  return rows[0] ?? null;
+}
+
+/**
+ * Mark a customer as opted out of SMS marketing.
+ */
+export async function optOutCustomerSms(customerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tradieCustomers)
+    .set({ optedOutSms: true })
+    .where(eq(tradieCustomers.id, customerId));
+}
+
+/**
+ * Look up a tradie customer by their email unsubscribe token.
+ */
+export async function getTradieCustomerByEmailUnsubscribeToken(
+  token: string,
+): Promise<TradieCustomer | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(tradieCustomers)
+    .where(eq(tradieCustomers.emailUnsubscribeToken, token));
+  return rows[0] ?? null;
+}
+
+/**
+ * Mark a tradie customer as opted out of chase/marketing emails.
+ */
+export async function optOutCustomerEmail(customerId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tradieCustomers)
+    .set({ optedOutEmail: true })
+    .where(eq(tradieCustomers.id, customerId));
+}
+
+/**
+ * Get only the failed recipients for a campaign (used by retryFailedRecipients).
+ */
+export async function getFailedCampaignRecipients(
+  campaignId: number,
+): Promise<SmsCampaignRecipient[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaignRecipients)
+    .where(and(eq(smsCampaignRecipients.campaignId, campaignId), eq(smsCampaignRecipients.status, "failed")));
+}
+
+/**
+ * Get a single SMS campaign by ID.
+ */
+export async function getSmsCampaignById(id: number): Promise<SmsCampaign | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(smsCampaigns).where(eq(smsCampaigns.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Get all pending scheduled campaigns whose scheduledAt is in the past.
+ * Used by the scheduler cron to dispatch due campaigns.
+ */
+export async function getDueScheduledCampaigns(): Promise<SmsCampaign[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(smsCampaigns)
+    .where(and(
+      eq(smsCampaigns.status, "pending"),
+      sql`${smsCampaigns.scheduledAt} IS NOT NULL AND ${smsCampaigns.scheduledAt} <= NOW()`,
+    ));
+}
+
+// ─── SMS Templates ────────────────────────────────────────────────────────────
+
+export async function listSmsTemplates(clientId: number): Promise<SmsTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(smsTemplates)
+    .where(eq(smsTemplates.clientId, clientId))
+    .orderBy(smsTemplates.createdAt);
+}
+
+export async function createSmsTemplate(
+  data: Omit<InsertSmsTemplate, "id" | "createdAt">,
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(smsTemplates).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteSmsTemplate(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(smsTemplates)
+    .where(and(eq(smsTemplates.id, id), eq(smsTemplates.clientId, clientId)));
+}
+
+
+// ─── Job Tasks (Sprint 2 — Smart Job Board) ──────────────────────────────────
+import {
+  jobTasks,
+  type JobTask,
+  type InsertJobTask,
+} from "../drizzle/schema";
+
+export async function listJobTasks(jobId: number, clientId: number): Promise<JobTask[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(jobTasks)
+    .where(and(eq(jobTasks.jobId, jobId), eq(jobTasks.clientId, clientId)))
+    .orderBy(jobTasks.sortOrder);
+}
+
+export async function getJobTask(id: number, clientId: number): Promise<JobTask | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(jobTasks)
+    .where(and(eq(jobTasks.id, id), eq(jobTasks.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createJobTask(data: Omit<InsertJobTask, "id" | "createdAt" | "updatedAt">): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(jobTasks).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function bulkCreateJobTasks(
+  tasks: Omit<InsertJobTask, "id" | "createdAt" | "updatedAt">[],
+): Promise<void> {
+  if (tasks.length === 0) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(jobTasks).values(tasks);
+}
+
+export async function updateJobTask(
+  id: number,
+  clientId: number,
+  data: Partial<Pick<JobTask, "title" | "status" | "notes" | "dueDate" | "assignedStaffId" | "sortOrder" | "requiresDoc">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(jobTasks)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(jobTasks.id, id), eq(jobTasks.clientId, clientId)));
+}
+
+export async function deleteJobTask(id: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobTasks)
+    .where(and(eq(jobTasks.id, id), eq(jobTasks.clientId, clientId)));
+}
+
+export async function deleteAllJobTasks(jobId: number, clientId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(jobTasks)
+    .where(and(eq(jobTasks.jobId, jobId), eq(jobTasks.clientId, clientId)));
+}
+
+export async function countJobTasks(jobId: number, clientId: number): Promise<{ total: number; done: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ status: jobTasks.status }).from(jobTasks)
+    .where(and(eq(jobTasks.jobId, jobId), eq(jobTasks.clientId, clientId)));
+  return {
+    total: rows.length,
+    done: rows.filter((r) => r.status === "done").length,
+  };
+}
+
+// ─── Portal Chat Messages (Sprint 2 — Trade AI Assistant) ────────────────────
+import {
+  portalChatMessages,
+  type PortalChatMessage,
+  type InsertPortalChatMessage,
+} from "../drizzle/schema";
+
+export async function listChatMessages(
+  clientId: number,
+  conversationId: string,
+  limit = 50,
+): Promise<PortalChatMessage[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(portalChatMessages)
+    .where(
+      and(
+        eq(portalChatMessages.clientId, clientId),
+        eq(portalChatMessages.conversationId, conversationId),
+      ),
+    )
+    .orderBy(portalChatMessages.createdAt)
+    .limit(limit);
+}
+
+export async function listRecentConversations(clientId: number, limit = 10): Promise<{ conversationId: string; lastMessageAt: Date; preview: string }[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get the most recent message per conversation
+  const rows = await db.select({
+    conversationId: portalChatMessages.conversationId,
+    lastMessageAt: portalChatMessages.createdAt,
+    preview: portalChatMessages.content,
+  })
+    .from(portalChatMessages)
+    .where(eq(portalChatMessages.clientId, clientId))
+    .orderBy(desc(portalChatMessages.createdAt))
+    .limit(limit * 5); // over-fetch to deduplicate
+  // Deduplicate by conversationId, keep most recent
+  const seen = new Set<string>();
+  const result: { conversationId: string; lastMessageAt: Date; preview: string }[] = [];
+  for (const row of rows) {
+    if (!seen.has(row.conversationId)) {
+      seen.add(row.conversationId);
+      result.push({
+        conversationId: row.conversationId,
+        lastMessageAt: row.lastMessageAt,
+        preview: row.preview.slice(0, 120),
+      });
+    }
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+export async function saveChatMessage(
+  data: Omit<InsertPortalChatMessage, "id" | "createdAt">,
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(portalChatMessages).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function deleteChatConversation(clientId: number, conversationId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(portalChatMessages)
+    .where(
+      and(
+        eq(portalChatMessages.clientId, clientId),
+        eq(portalChatMessages.conversationId, conversationId),
+      ),
+    );
+}
+
+
+// ─── Apple IAP / RevenueCat Subscription Helpers ─────────────────────────────
+import {
+  voiceAgentSubscriptions,
+  type VoiceAgentSubscription,
+} from "../drizzle/schema";
+
+/**
+ * Create a new subscription record originating from Apple IAP (via RevenueCat).
+ */
+export async function createAppleSubscription(data: {
+  email: string;
+  plan: "starter" | "professional" | "solvr_quotes" | "solvr_jobs" | "solvr_ai";
+  billingCycle: "monthly" | "annual";
+  subscriptionSource: "apple" | "revenuecat_web";
+  revenueCatId: string;
+  appleOriginalTransactionId?: string;
+  clientId?: number;
+  status: "active" | "trialing";
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(voiceAgentSubscriptions).values({
+    email: data.email,
+    plan: data.plan,
+    billingCycle: data.billingCycle,
+    subscriptionSource: data.subscriptionSource,
+    revenueCatId: data.revenueCatId,
+    appleOriginalTransactionId: data.appleOriginalTransactionId ?? null,
+    clientId: data.clientId ?? null,
+    status: data.status,
+  });
+  return Number((result as unknown as { insertId: bigint }).insertId);
+}
+
+/**
+ * Look up a subscription by its RevenueCat app_user_id.
+ */
+export async function getSubscriptionByRevenueCatId(
+  revenueCatId: string,
+): Promise<VoiceAgentSubscription | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(voiceAgentSubscriptions)
+    .where(eq(voiceAgentSubscriptions.revenueCatId, revenueCatId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Look up a subscription by its Apple original_transaction_id.
+ */
+export async function getSubscriptionByAppleTransactionId(
+  transactionId: string,
+): Promise<VoiceAgentSubscription | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(voiceAgentSubscriptions)
+    .where(eq(voiceAgentSubscriptions.appleOriginalTransactionId, transactionId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Update a subscription record by its primary key.
+ */
+export async function updateSubscriptionById(
+  id: number,
+  data: Partial<{
+    status: "trialing" | "active" | "cancelled" | "past_due" | "incomplete";
+    plan: "starter" | "professional" | "solvr_quotes" | "solvr_jobs" | "solvr_ai";
+    billingCycle: "monthly" | "annual";
+    revenueCatId: string;
+    appleOriginalTransactionId: string;
+    clientId: number;
+    email: string;
+  }>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(voiceAgentSubscriptions)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(voiceAgentSubscriptions.id, id));
+}
+
+/**
+ * Sync the crmClients.package field based on an Apple IAP plan.
+ * Mirrors the logic in stripe.ts syncClientPackage but for Apple sources.
+ * Pass null for plan to downgrade (cancellation).
+ */
+export async function syncClientPackageFromApple(
+  clientId: number,
+  plan: string | null,
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+
+    // Import crmClients inline to avoid circular dependency issues
+    const { crmClients } = await import("../drizzle/schema");
+
+    let pkg: "setup-only" | "setup-monthly" | "full-managed";
+    if (!plan) {
+      pkg = "setup-only"; // Cancelled → downgrade to lowest
+    } else if (plan === "solvr_quotes") {
+      pkg = "setup-only";
+    } else if (plan === "solvr_jobs") {
+      pkg = "setup-monthly";
+    } else {
+      pkg = "full-managed"; // solvr_ai → full-managed
+    }
+
+    await db
+      .update(crmClients)
+      .set({ package: pkg, updatedAt: new Date() })
+      .where(eq(crmClients.id, clientId));
+
+    console.log(`[RevenueCat] Synced client ${clientId} package → ${pkg} (plan: ${plan ?? "cancelled"}, source: apple-webhook)`);
+  } catch (err) {
+    console.error(`[RevenueCat] Failed to sync package for client ${clientId}:`, err);
+  }
+}
+
+/**
+ * Get the active subscription for a client, regardless of source (Stripe or Apple).
+ * Returns the most recently updated active/trialing subscription.
+ */
+export async function getActiveSubscriptionForClient(
+  clientId: number,
+): Promise<VoiceAgentSubscription | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(voiceAgentSubscriptions)
+    .where(
+      and(
+        eq(voiceAgentSubscriptions.clientId, clientId),
+        inArray(voiceAgentSubscriptions.status, ["active", "trialing"]),
+      ),
+    )
+    .orderBy(desc(voiceAgentSubscriptions.updatedAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+// ─── Sprint 6: Job Costing & Reporting ────────────────────────────────────────
+import { invoiceChases } from "../drizzle/schema";
+/**
+ * Get revenue metrics for a client over a given period.
+ * Aggregates data from portalJobs (invoiced/paid amounts) and invoiceChases.
+ */
+export async function getRevenueMetrics(clientId: number, monthsBack = 12, startDate?: string, endDate?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cutoff = startDate ? new Date(startDate) : new Date();
+  if (!startDate) cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const end = endDate ? new Date(endDate) : new Date();
+  const allJobs = await db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  const allChases = await db.select().from(invoiceChases)
+    .where(eq(invoiceChases.clientId, clientId));
+  // ── Monthly revenue (from paid jobs) ──
+  const monthlyRevenue: Record<string, number> = {};
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+    monthlyRevenue[key] = 0;
+  }
+  allJobs.forEach(j => {
+    if (j.paidAt) {
+      const d = new Date(j.paidAt);
+      const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+      if (key in monthlyRevenue) {
+        monthlyRevenue[key] += (j.amountPaid ?? 0) / 100;
+      }
+    }
+  });
+  // ── Outstanding invoices (from active chases) ──
+  const outstandingChases = allChases.filter(c => c.status === "active");
+  const totalOutstanding = outstandingChases.reduce(
+    (sum, c) => sum + parseFloat(c.amountDue?.toString() ?? "0"), 0
+  );
+  // ── Average job value (from completed + paid jobs) ──
+  const completedJobs = allJobs.filter(j => j.stage === "completed" || j.paidAt);
+  const totalCompletedRevenue = completedJobs.reduce(
+    (sum, j) => sum + ((j.amountPaid ?? j.invoicedAmount ?? j.actualValue ?? 0) / 100), 0
+  );
+  const avgJobValue = completedJobs.length > 0
+    ? Math.round(totalCompletedRevenue / completedJobs.length)
+    : 0;
+  // ── Total revenue (all time) ──
+  const totalRevenue = allJobs.reduce(
+    (sum, j) => sum + ((j.amountPaid ?? 0) / 100), 0
+  );
+  // ── Jobs summary ──
+  const totalJobCount = allJobs.length;
+  const completedCount = allJobs.filter(j => j.stage === "completed").length;
+  const activeCount = allJobs.filter(j => !["completed", "lost"].includes(j.stage ?? "")).length;
+  const lostCount = allJobs.filter(j => j.stage === "lost").length;
+  return {
+    monthlyRevenue: Object.entries(monthlyRevenue).map(([month, amount]) => ({ month, amount })),
+    totalOutstanding,
+    outstandingCount: outstandingChases.length,
+    avgJobValue,
+    totalRevenue,
+    totalJobCount,
+    completedCount,
+    activeCount,
+    lostCount,
+  };
+}
+
+/**
+ * Get quote conversion funnel metrics for a client.
+ * Tracks: created → sent → accepted → declined → expired → converted → paid
+ */
+export async function getQuoteConversionMetrics(clientId: number, monthsBack = 6, startDate?: string, endDate?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cutoff = startDate ? new Date(startDate) : new Date();
+  if (!startDate) cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const allQuotes = await db.select().from(quotesTable)
+    .where(eq(quotesTable.clientId, clientId));
+  const recentQuotes = allQuotes.filter(q => new Date(q.createdAt) >= cutoff);
+  const total = recentQuotes.length;
+  const sent = recentQuotes.filter(q => q.status !== "draft").length;
+  const accepted = recentQuotes.filter(q => q.status === "accepted").length;
+  const declined = recentQuotes.filter(q => q.status === "declined").length;
+  const expired = recentQuotes.filter(q => q.status === "expired").length;
+  const convertedToJob = recentQuotes.filter(q => q.convertedJobId !== null).length;
+  // Quotes that led to paid invoices
+  const allJobs = await db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  const paidJobIds = new Set(allJobs.filter(j => j.paidAt).map(j => j.id));
+  const paidFromQuote = recentQuotes.filter(
+    q => q.convertedJobId && paidJobIds.has(q.convertedJobId)
+  ).length;
+  // Monthly quote volume
+  const monthlyQuotes: Record<string, { sent: number; accepted: number; declined: number }> = {};
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+    monthlyQuotes[key] = { sent: 0, accepted: 0, declined: 0 };
+  }
+  recentQuotes.forEach(q => {
+    const d = new Date(q.createdAt);
+    const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+    if (key in monthlyQuotes) {
+      if (q.status !== "draft") monthlyQuotes[key].sent++;
+      if (q.status === "accepted") monthlyQuotes[key].accepted++;
+      if (q.status === "declined") monthlyQuotes[key].declined++;
+    }
+  });
+  const quotesWithAmount = recentQuotes.filter(q => q.totalAmount);
+  const avgQuoteValue = quotesWithAmount.length > 0
+    ? Math.round(quotesWithAmount.reduce((s, q) => s + parseFloat(q.totalAmount?.toString() ?? "0"), 0) / quotesWithAmount.length)
+    : 0;
+  const conversionRate = sent > 0 ? Math.round((accepted / sent) * 100) : 0;
+  const acceptedQuotes = recentQuotes.filter(q => q.status === "accepted" && q.respondedAt && q.sentAt);
+  const avgDaysToAccept = acceptedQuotes.length > 0
+    ? Math.round(acceptedQuotes.reduce((s, q) => {
+        const sentTime = new Date(q.sentAt!).getTime();
+        const responded = new Date(q.respondedAt!).getTime();
+        return s + (responded - sentTime) / (1000 * 60 * 60 * 24);
+      }, 0) / acceptedQuotes.length)
+    : 0;
+  return {
+    funnel: { total, sent, accepted, declined, expired, convertedToJob, paidFromQuote },
+    conversionRate,
+    avgQuoteValue,
+    avgDaysToAccept,
+    monthlyQuotes: Object.entries(monthlyQuotes).map(([month, data]) => ({ month, ...data })),
+  };
+}
+
+/**
+ * Get job costing report — per-job margin analysis.
+ */
+export async function getJobCostingReport(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const allJobs = await db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  const jobsWithFinancials = allJobs.filter(
+    j => j.stage === "completed" || j.invoiceStatus === "paid" || j.invoicedAmount
+  );
+  const allCostItems = await db.select().from(jobCostItems)
+    .where(eq(jobCostItems.clientId, clientId));
+  const allPayments = await db.select().from(jobProgressPayments)
+    .where(eq(jobProgressPayments.clientId, clientId));
+  const jobCosting = jobsWithFinancials.map(job => {
+    const costs = allCostItems.filter(c => c.jobId === job.id);
+    const payments = allPayments.filter(p => p.jobId === job.id);
+    const totalCostCents = costs.reduce((s, c) => s + c.amountCents, 0);
+    const totalCost = totalCostCents / 100;
+    const revenueCents = job.amountPaid ?? job.invoicedAmount ?? (job.actualValue ? job.actualValue * 100 : (job.estimatedValue ? job.estimatedValue * 100 : 0));
+    const revenue = revenueCents / 100;
+    const margin = revenue - totalCost;
+    const marginPercent = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
+    const costBreakdown: Record<string, number> = {};
+    costs.forEach(c => {
+      costBreakdown[c.category] = (costBreakdown[c.category] ?? 0) + (c.amountCents / 100);
+    });
+    return {
+      jobId: job.id,
+      jobTitle: job.jobType,
+      customerName: job.customerName,
+      stage: job.stage,
+      invoiceStatus: job.invoiceStatus,
+      quotedAmount: job.quotedAmount ? parseFloat(job.quotedAmount.toString()) : null,
+      revenue,
+      totalCost,
+      margin,
+      marginPercent,
+      costBreakdown,
+      costItemCount: costs.length,
+      paymentCount: payments.length,
+      completedAt: job.completedAt,
+      paidAt: job.paidAt,
+    };
+  });
+  // Sort by margin (worst first so they can fix problem jobs)
+  jobCosting.sort((a, b) => a.marginPercent - b.marginPercent);
+  const totalRevenue = jobCosting.reduce((s, j) => s + j.revenue, 0);
+  const totalCosts = jobCosting.reduce((s, j) => s + j.totalCost, 0);
+  const totalMargin = totalRevenue - totalCosts;
+  const avgMarginPercent = jobCosting.length > 0
+    ? Math.round(jobCosting.reduce((s, j) => s + j.marginPercent, 0) / jobCosting.length)
+    : 0;
+  const overallCostBreakdown: Record<string, number> = {};
+  jobCosting.forEach(j => {
+    Object.entries(j.costBreakdown).forEach(([cat, amt]) => {
+      overallCostBreakdown[cat] = (overallCostBreakdown[cat] ?? 0) + amt;
+    });
+  });
+  return {
+    jobs: jobCosting,
+    summary: {
+      totalRevenue,
+      totalCosts,
+      totalMargin,
+      avgMarginPercent,
+      jobCount: jobCosting.length,
+      profitableJobs: jobCosting.filter(j => j.margin > 0).length,
+      lossJobs: jobCosting.filter(j => j.margin < 0).length,
+    },
+    overallCostBreakdown,
+  };
+}
+
+// ─── Subcontractor Management (Sprint 3) ─────────────────────────────────────
+import {
+  subcontractors, type Subcontractor, type InsertSubcontractor,
+  subcontractorAssignments, type SubcontractorAssignment, type InsertSubcontractorAssignment,
+  subcontractorTimesheets, type SubcontractorTimesheet, type InsertSubcontractorTimesheet,
+} from "../drizzle/schema";
+
+/** List all subcontractors for a client */
+export async function listSubcontractors(clientId: number): Promise<Subcontractor[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(subcontractors)
+    .where(eq(subcontractors.clientId, clientId))
+    .orderBy(desc(subcontractors.createdAt));
+}
+
+/** Get a single subcontractor (scoped to client) */
+export async function getSubcontractor(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(subcontractors)
+    .where(and(eq(subcontractors.id, id), eq(subcontractors.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create a subcontractor, returns the new id */
+export async function createSubcontractor(data: InsertSubcontractor): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.insert(subcontractors).values(data).$returningId();
+  return row.id;
+}
+
+/** Update a subcontractor (scoped to client) */
+export async function updateSubcontractor(id: number, clientId: number, data: Partial<InsertSubcontractor>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subcontractors).set({ ...data, updatedAt: new Date() })
+    .where(and(eq(subcontractors.id, id), eq(subcontractors.clientId, clientId)));
+}
+
+/** Soft-deactivate a subcontractor */
+export async function deactivateSubcontractor(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subcontractors).set({ isActive: false, updatedAt: new Date() })
+    .where(and(eq(subcontractors.id, id), eq(subcontractors.clientId, clientId)));
+}
+
+/** Assign a subcontractor to a job */
+export async function assignSubcontractorToJob(data: InsertSubcontractorAssignment): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.insert(subcontractorAssignments).values(data).$returningId();
+  return row.id;
+}
+
+/** List assignments for a job (with subcontractor details) */
+export async function listJobAssignments(jobId: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    assignment: subcontractorAssignments,
+    subcontractor: subcontractors,
+  }).from(subcontractorAssignments)
+    .innerJoin(subcontractors, eq(subcontractorAssignments.subcontractorId, subcontractors.id))
+    .where(and(
+      eq(subcontractorAssignments.jobId, jobId),
+      eq(subcontractorAssignments.clientId, clientId),
+    ));
+}
+
+/** Update assignment status */
+export async function updateAssignmentStatus(id: number, clientId: number, status: "assigned" | "accepted" | "declined" | "completed") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subcontractorAssignments)
+    .set({ status } as any)
+    .where(and(eq(subcontractorAssignments.id, id), eq(subcontractorAssignments.clientId, clientId)));
+}
+
+/** Remove an assignment */
+export async function removeAssignment(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(subcontractorAssignments)
+    .where(and(eq(subcontractorAssignments.id, id), eq(subcontractorAssignments.clientId, clientId)));
+}
+
+/** Get assignment by magic token (public — for subbie self-service) */
+export async function getAssignmentByToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({
+    assignment: subcontractorAssignments,
+    subcontractor: subcontractors,
+    job: portalJobs,
+  }).from(subcontractorAssignments)
+    .innerJoin(subcontractors, eq(subcontractorAssignments.subcontractorId, subcontractors.id))
+    .innerJoin(portalJobs, eq(subcontractorAssignments.jobId, portalJobs.id))
+    .where(eq(subcontractorAssignments.magicToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Log subcontractor hours + auto-create a jobCostItem */
+export async function logSubcontractorHours(data: InsertSubcontractorTimesheet): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.insert(subcontractorTimesheets).values(data).$returningId();
+  // Also create a cost item so it shows in Job Costing report
+  await db.insert(jobCostItems).values({
+    jobId: data.jobId,
+    clientId: data.clientId,
+    category: "subcontractor",
+    description: data.description ?? `Subbie hours: ${data.hours}h`,
+    amountCents: data.totalCents,
+  });
+  return row.id;
+}
+
+/** List timesheets for a job (with subcontractor name) */
+export async function listJobTimesheets(jobId: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    timesheet: subcontractorTimesheets,
+    subcontractor: subcontractors,
+  }).from(subcontractorTimesheets)
+    .innerJoin(subcontractors, eq(subcontractorTimesheets.subcontractorId, subcontractors.id))
+    .where(and(
+      eq(subcontractorTimesheets.jobId, jobId),
+      eq(subcontractorTimesheets.clientId, clientId),
+    ))
+    .orderBy(desc(subcontractorTimesheets.workDate));
+}
+
+/** List timesheets for a subcontractor */
+export async function listSubcontractorTimesheets(subcontractorId: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    timesheet: subcontractorTimesheets,
+    job: portalJobs,
+  }).from(subcontractorTimesheets)
+    .innerJoin(portalJobs, eq(subcontractorTimesheets.jobId, portalJobs.id))
+    .where(and(
+      eq(subcontractorTimesheets.subcontractorId, subcontractorId),
+      eq(subcontractorTimesheets.clientId, clientId),
+    ))
+    .orderBy(desc(subcontractorTimesheets.workDate));
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sprint 4 — Purchase Order helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+import {
+  suppliers, type InsertSupplier, type Supplier,
+  purchaseOrders, type InsertPurchaseOrder, type PurchaseOrder,
+  purchaseOrderItems, type InsertPurchaseOrderItem, type PurchaseOrderItem,
+} from "../drizzle/schema";
+
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+export async function listSuppliers(clientId: number): Promise<Supplier[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(suppliers)
+    .where(and(eq(suppliers.clientId, clientId), eq(suppliers.isActive, true)))
+    .orderBy(suppliers.name);
+}
+
+export async function getSupplier(id: number, clientId: number): Promise<Supplier | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(suppliers)
+    .where(and(eq(suppliers.id, id), eq(suppliers.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createSupplier(data: InsertSupplier): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(suppliers).values(data);
+  return result.insertId;
+}
+
+export async function updateSupplier(id: number, clientId: number, data: Partial<InsertSupplier>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(suppliers).set(data).where(and(eq(suppliers.id, id), eq(suppliers.clientId, clientId)));
+}
+
+export async function deactivateSupplier(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(suppliers).set({ isActive: false }).where(and(eq(suppliers.id, id), eq(suppliers.clientId, clientId)));
+}
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+export async function listPurchaseOrders(clientId: number, jobId?: number): Promise<PurchaseOrder[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(purchaseOrders.clientId, clientId)];
+  if (jobId) conditions.push(eq(purchaseOrders.jobId, jobId));
+  return db.select().from(purchaseOrders)
+    .where(and(...conditions))
+    .orderBy(desc(purchaseOrders.createdAt));
+}
+
+export async function getPurchaseOrder(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(purchaseOrders)
+    .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getNextPoNumber(clientId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.clientId, clientId));
+  const num = (row?.count ?? 0) + 1;
+  return `PO-${String(num).padStart(4, "0")}`;
+}
+
+export async function createPurchaseOrder(data: InsertPurchaseOrder): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(purchaseOrders).values(data);
+  return result.insertId;
+}
+
+export async function updatePurchaseOrder(id: number, clientId: number, data: Partial<InsertPurchaseOrder>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(purchaseOrders).set(data)
+    .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.clientId, clientId)));
+}
+
+// ─── PO Line Items ───────────────────────────────────────────────────────────
+export async function listPurchaseOrderItems(poId: number): Promise<PurchaseOrderItem[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.poId, poId))
+    .orderBy(purchaseOrderItems.sortOrder);
+}
+
+export async function createPurchaseOrderItems(items: InsertPurchaseOrderItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (items.length === 0) return;
+  await db.insert(purchaseOrderItems).values(items);
+}
+
+export async function deletePurchaseOrderItems(poId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, poId));
+}
+
+/** Create a PO from job quote line items — pulls materials from the quote */
+export async function createPoFromJobMaterials(
+  clientId: number,
+  jobId: number,
+  supplierId: number,
+  poNumber: string,
+): Promise<{ poId: number; itemCount: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the job to find the source quote
+  const job = await getPortalJob(jobId);
+  if (!job || !job.sourceQuoteId) throw new Error("Job has no linked quote");
+
+  // Get quote line items
+  const lineItems = await db.select().from(quoteLineItems)
+    .where(eq(quoteLineItems.quoteId, job.sourceQuoteId))
+    .orderBy(quoteLineItems.sortOrder);
+
+  if (lineItems.length === 0) throw new Error("No line items found on the linked quote");
+
+  // Calculate total
+  let totalCents = 0;
+  const poItems: InsertPurchaseOrderItem[] = lineItems.map((li, idx) => {
+    const unitPriceCents = li.unitPrice ? Math.round(parseFloat(li.unitPrice) * 100) : null;
+    const qty = parseFloat(li.quantity);
+    const lineTotalCents = unitPriceCents ? Math.round(qty * unitPriceCents) : null;
+    if (lineTotalCents) totalCents += lineTotalCents;
+    return {
+      poId: 0, // will be set after PO insert
+      description: li.description,
+      quantity: li.quantity,
+      unit: li.unit ?? "each",
+      unitPriceCents,
+      lineTotalCents,
+      sortOrder: idx,
+    };
+  });
+
+  // Create the PO
+  const [poResult] = await db.insert(purchaseOrders).values({
+    clientId,
+    supplierId,
+    jobId,
+    poNumber,
+    totalCents,
+    deliveryAddress: job.location ?? job.customerAddress ?? null,
+  });
+  const poId = poResult.insertId;
+
+  // Insert line items with the correct poId
+  if (poItems.length > 0) {
+    await db.insert(purchaseOrderItems).values(
+      poItems.map(item => ({ ...item, poId }))
+    );
+  }
+
+  return { poId, itemCount: poItems.length };
+}
+
+// ─── Supplier Portal Helpers ──────────────────────────────────────────────────
+
+/** Look up a PO by its supplier access token (public, no auth) */
+export async function getPurchaseOrderBySupplierToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(purchaseOrders)
+    .where(eq(purchaseOrders.supplierAccessToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Generate and store a supplier access token on a PO */
+export async function setSupplierAccessToken(poId: number, clientId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { randomBytes } = await import("crypto");
+  const token = randomBytes(32).toString("hex");
+  await db.update(purchaseOrders)
+    .set({ supplierAccessToken: token })
+    .where(and(eq(purchaseOrders.id, poId), eq(purchaseOrders.clientId, clientId)));
+  return token;
+}
+
+/** Get PO with line items for supplier portal display */
+export async function getPurchaseOrderWithItemsByToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const po = await db.select().from(purchaseOrders)
+    .where(eq(purchaseOrders.supplierAccessToken, token))
+    .limit(1);
+  if (!po[0]) return null;
+  const items = await db.select().from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.poId, po[0].id));
+  return { ...po[0], items };
+}
+
+/** Mark PO as acknowledged by supplier */
+export async function acknowledgePurchaseOrder(poId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(purchaseOrders)
+    .set({ status: "acknowledged" })
+    .where(eq(purchaseOrders.id, poId));
+}
+
+
+// ─── Digital Forms & Certificates ─────────────────────────────────────────────
+import {
+  formTemplates, formSubmissions,
+  type InsertFormTemplate, type InsertFormSubmission, type FormField,
+} from "../drizzle/schema";
+
+/** List all form templates for a client (including system templates) */
+export async function listFormTemplates(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(formTemplates)
+    .where(or(eq(formTemplates.clientId, clientId), eq(formTemplates.isSystem, true)))
+    .orderBy(formTemplates.name);
+}
+
+/** Get a single form template */
+export async function getFormTemplate(id: number, clientId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(formTemplates.id, id)];
+  if (clientId !== undefined) conditions.push(eq(formTemplates.clientId, clientId));
+  const rows = await db.select().from(formTemplates).where(and(...conditions)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create a form template */
+export async function createFormTemplate(data: InsertFormTemplate): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(formTemplates).values(data);
+  return Number(result[0].insertId);
+}
+
+/** Update a form template */
+export async function updateFormTemplate(id: number, clientId: number, data: Partial<InsertFormTemplate>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(formTemplates)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(formTemplates.id, id), eq(formTemplates.clientId, clientId)));
+}
+
+/** Delete a form template (only client-owned, not system) */
+export async function deleteFormTemplate(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(formTemplates)
+    .where(and(eq(formTemplates.id, id), eq(formTemplates.clientId, clientId), eq(formTemplates.isSystem, false)));
+}
+
+/** List form submissions for a client, optionally filtered by job */
+export async function listFormSubmissions(clientId: number, jobId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(formSubmissions.clientId, clientId)];
+  if (jobId) conditions.push(eq(formSubmissions.jobId, jobId));
+  return db.select().from(formSubmissions)
+    .where(and(...conditions))
+    .orderBy(desc(formSubmissions.createdAt));
+}
+
+/** Get a single form submission */
+export async function getFormSubmission(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(formSubmissions)
+    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create a form submission */
+export async function createFormSubmission(data: InsertFormSubmission): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(formSubmissions).values(data);
+  return Number(result[0].insertId);
+}
+
+/** Update a form submission */
+export async function updateFormSubmission(id: number, clientId: number, data: Partial<InsertFormSubmission>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(formSubmissions)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.clientId, clientId)));
+}
+
+/** Delete a form submission */
+export async function deleteFormSubmission(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(formSubmissions)
+    .where(and(eq(formSubmissions.id, id), eq(formSubmissions.clientId, clientId)));
+}
+
+/** Seed system form templates if they don't exist */
+export async function seedSystemFormTemplates() {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db.select({ name: formTemplates.name }).from(formTemplates).where(eq(formTemplates.isSystem, true));
+  const existingNames = new Set(existing.map(t => t.name));
+
+  const electricalFields: FormField[] = [
+    { id: "heading_details", label: "Work Details", type: "heading" },
+    { id: "licence_number", label: "Electrical Licence Number", type: "text", required: true, placeholder: "e.g. EC12345" },
+    { id: "work_date", label: "Date of Work", type: "date", required: true },
+    { id: "property_address", label: "Property Address", type: "textarea", required: true },
+    { id: "owner_name", label: "Property Owner / Occupier", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_work", label: "Work Performed", type: "heading" },
+    { id: "work_type", label: "Type of Work", type: "select", required: true, options: ["New Installation", "Alteration", "Addition", "Repair", "Maintenance", "Inspection"] },
+    { id: "work_description", label: "Description of Work", type: "textarea", required: true, placeholder: "Describe the electrical work performed..." },
+    { id: "circuits_affected", label: "Circuits Affected", type: "text", placeholder: "e.g. Lighting, Power, Hot Water" },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_testing", label: "Testing & Compliance", type: "heading" },
+    { id: "tested_to_standard", label: "Tested to AS/NZS 3000:2018", type: "checkbox" },
+    { id: "rcd_tested", label: "RCD(s) tested and operational", type: "checkbox" },
+    { id: "earth_tested", label: "Earth continuity tested", type: "checkbox" },
+    { id: "insulation_tested", label: "Insulation resistance tested", type: "checkbox" },
+    { id: "test_results", label: "Test Results / Notes", type: "textarea", placeholder: "Record test instrument readings..." },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_sign", label: "Declaration", type: "heading" },
+    { id: "declaration", label: "I certify that the electrical work described above has been carried out in accordance with AS/NZS 3000:2018 and is safe to be connected to the electricity supply.", type: "checkbox", required: true },
+    { id: "electrician_name", label: "Electrician Name", type: "text", required: true },
+    { id: "electrician_signature", label: "Electrician Signature", type: "signature", required: true },
+    { id: "sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const swmsFields: FormField[] = [
+    { id: "heading_project", label: "Project Information", type: "heading" },
+    { id: "project_name", label: "Project / Job Name", type: "text", required: true },
+    { id: "site_address", label: "Site Address", type: "textarea", required: true },
+    { id: "swms_date", label: "Date Prepared", type: "date", required: true },
+    { id: "prepared_by", label: "Prepared By", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_scope", label: "Scope of Work", type: "heading" },
+    { id: "work_activity", label: "High-Risk Work Activity", type: "select", required: true, options: ["Working at Heights", "Electrical Work", "Confined Spaces", "Demolition", "Excavation", "Hot Work", "Asbestos Removal", "Structural Alteration", "Other"] },
+    { id: "work_description", label: "Description of Work", type: "textarea", required: true },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_hazards", label: "Hazard Identification & Controls", type: "heading" },
+    { id: "hazards", label: "Identified Hazards", type: "textarea", required: true, placeholder: "List all identified hazards..." },
+    { id: "risk_rating", label: "Initial Risk Rating", type: "select", required: true, options: ["Low", "Medium", "High", "Extreme"] },
+    { id: "control_measures", label: "Control Measures", type: "textarea", required: true, placeholder: "Describe control measures to eliminate or minimise risks..." },
+    { id: "residual_risk", label: "Residual Risk Rating", type: "select", required: true, options: ["Low", "Medium", "High"] },
+    { id: "ppe_required", label: "PPE Required", type: "textarea", placeholder: "e.g. Hard hat, safety glasses, steel-cap boots, hi-vis vest..." },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_emergency", label: "Emergency Procedures", type: "heading" },
+    { id: "emergency_contact", label: "Emergency Contact", type: "text", required: true },
+    { id: "first_aid", label: "First Aid Kit Location", type: "text" },
+    { id: "nearest_hospital", label: "Nearest Hospital", type: "text" },
+    { id: "divider_4", label: "", type: "divider" },
+    { id: "heading_sign", label: "Sign-Off", type: "heading" },
+    { id: "worker_briefed", label: "All workers have been briefed on this SWMS", type: "checkbox", required: true },
+    { id: "supervisor_name", label: "Supervisor Name", type: "text", required: true },
+    { id: "supervisor_signature", label: "Supervisor Signature", type: "signature", required: true },
+    { id: "worker_name", label: "Worker Name", type: "text", required: true },
+    { id: "worker_signature", label: "Worker Signature", type: "signature", required: true },
+    { id: "sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const gasFields: FormField[] = [
+    { id: "heading_details", label: "Work Details", type: "heading" },
+    { id: "licence_number", label: "Gas Fitter Licence Number", type: "text", required: true, placeholder: "e.g. GF12345" },
+    { id: "work_date", label: "Date of Work", type: "date", required: true },
+    { id: "property_address", label: "Property Address", type: "textarea", required: true },
+    { id: "owner_name", label: "Property Owner / Occupier", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_work", label: "Work Performed", type: "heading" },
+    { id: "work_type", label: "Type of Gas Work", type: "select", required: true, options: ["New Installation", "Alteration", "Repair", "Disconnection", "Reconnection", "Servicing", "Inspection"] },
+    { id: "gas_type", label: "Gas Type", type: "select", required: true, options: ["Natural Gas", "LPG", "Both"] },
+    { id: "work_description", label: "Description of Work", type: "textarea", required: true },
+    { id: "appliances", label: "Appliances Installed / Serviced", type: "textarea", placeholder: "List appliances with make, model, and serial numbers..." },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_testing", label: "Testing & Compliance", type: "heading" },
+    { id: "pressure_test", label: "Pressure test completed (AS 5601)", type: "checkbox" },
+    { id: "leak_test", label: "Leak detection test completed", type: "checkbox" },
+    { id: "ventilation_check", label: "Ventilation requirements checked", type: "checkbox" },
+    { id: "flue_check", label: "Flue/exhaust system checked", type: "checkbox" },
+    { id: "test_pressure", label: "Test Pressure (kPa)", type: "number", placeholder: "e.g. 1.5" },
+    { id: "test_results", label: "Test Results / Notes", type: "textarea" },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_sign", label: "Declaration", type: "heading" },
+    { id: "declaration", label: "I certify that the gas fitting work described above complies with AS/NZS 5601 and all applicable regulations.", type: "checkbox", required: true },
+    { id: "gasfitter_name", label: "Gas Fitter Name", type: "text", required: true },
+    { id: "gasfitter_signature", label: "Gas Fitter Signature", type: "signature", required: true },
+    { id: "sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const handoverFields: FormField[] = [
+    { id: "heading_project", label: "Project Details", type: "heading" },
+    { id: "job_address", label: "Job / Site Address", type: "textarea", required: true },
+    { id: "completion_date", label: "Completion Date", type: "date", required: true },
+    { id: "contractor_name", label: "Contractor / Tradesperson Name", type: "text", required: true },
+    { id: "customer_name", label: "Customer / Property Owner", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_scope", label: "Scope of Work Completed", type: "heading" },
+    { id: "work_summary", label: "Summary of Work Performed", type: "textarea", required: true, placeholder: "Describe all work completed as part of this job..." },
+    { id: "variations", label: "Variations / Additional Work", type: "textarea", placeholder: "List any variations from the original scope..." },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_photos", label: "Before & After Documentation", type: "heading" },
+    { id: "before_photo_1", label: "Before Photo 1", type: "photo" },
+    { id: "before_photo_2", label: "Before Photo 2", type: "photo" },
+    { id: "after_photo_1", label: "After Photo 1", type: "photo" },
+    { id: "after_photo_2", label: "After Photo 2", type: "photo" },
+    { id: "photo_notes", label: "Photo Notes", type: "textarea", placeholder: "Any additional notes about the photos..." },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_defects", label: "Defects & Outstanding Items", type: "heading" },
+    { id: "defects_found", label: "Were any defects or outstanding items identified?", type: "select", required: true, options: ["No defects — all work complete", "Minor defects — noted below", "Major defects — rectification required"] },
+    { id: "defect_list", label: "Defect / Outstanding Item Details", type: "textarea", placeholder: "Describe each defect or outstanding item, including location and proposed rectification timeline..." },
+    { id: "rectification_date", label: "Expected Rectification Date", type: "date" },
+    { id: "divider_4", label: "", type: "divider" },
+    { id: "heading_warranty", label: "Warranty & Maintenance", type: "heading" },
+    { id: "warranty_period", label: "Warranty Period", type: "select", options: ["3 months", "6 months", "12 months", "24 months", "As per contract", "N/A"] },
+    { id: "maintenance_notes", label: "Maintenance Instructions / Notes", type: "textarea", placeholder: "Any care or maintenance instructions for the customer..." },
+    { id: "divider_5", label: "", type: "divider" },
+    { id: "heading_signoff", label: "Customer Sign-Off", type: "heading" },
+    { id: "customer_satisfied", label: "Customer confirms the work has been completed to their satisfaction", type: "checkbox", required: true },
+    { id: "customer_accepts_defects", label: "Customer acknowledges any noted defects and agreed rectification timeline", type: "checkbox" },
+    { id: "customer_signature", label: "Customer Signature", type: "signature", required: true },
+    { id: "customer_sign_date", label: "Date", type: "date", required: true },
+    { id: "divider_6", label: "", type: "divider" },
+    { id: "heading_contractor_sign", label: "Contractor Sign-Off", type: "heading" },
+    { id: "contractor_signature", label: "Contractor Signature", type: "signature", required: true },
+    { id: "contractor_sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const systemTemplates = [
+    { name: "Electrical Certificate of Compliance", category: "certificate" as const, description: "Certificate of compliance for electrical work as required by Australian regulations.", isSystem: true, isActive: true, fields: electricalFields },
+    { name: "Safe Work Method Statement (SWMS)", category: "safety" as const, description: "SWMS for high-risk construction work as required under WHS regulations.", isSystem: true, isActive: true, fields: swmsFields },
+    { name: "Gas Compliance Certificate", category: "certificate" as const, description: "Certificate of compliance for gas fitting work as required by Australian regulations.", isSystem: true, isActive: true, fields: gasFields },
+    { name: "Job Handover Checklist", category: "inspection" as const, description: "Handover documentation with before/after photos, defects list, warranty info, and customer sign-off.", isSystem: true, isActive: true, fields: handoverFields },
+  ];
+
+  const toInsert = systemTemplates.filter(t => !existingNames.has(t.name));
+  if (toInsert.length > 0) {
+    await db.insert(formTemplates).values(toInsert);
+  }
+}
+
+
+// ─── Invoice Blocking (Required Forms) ───────────────────────────────────────
+
+/** Check if all required forms for a job are completed. Returns { canInvoice, missing[] } */
+export async function checkJobFormCompliance(jobId: number, clientId: number): Promise<{
+  canInvoice: boolean;
+  requiredTemplateIds: number[];
+  completedTemplateIds: number[];
+  missingTemplateIds: number[];
+  missingTemplateNames: string[];
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the job's required form template IDs
+  const [job] = await db.select({ requiredFormTemplateIds: portalJobs.requiredFormTemplateIds })
+    .from(portalJobs)
+    .where(and(eq(portalJobs.id, jobId), eq(portalJobs.clientId, clientId)))
+    .limit(1);
+
+  const requiredIds = (job?.requiredFormTemplateIds as number[] | null) ?? [];
+  if (requiredIds.length === 0) {
+    return { canInvoice: true, requiredTemplateIds: [], completedTemplateIds: [], missingTemplateIds: [], missingTemplateNames: [] };
+  }
+
+  // Get completed submissions for this job
+  const completedSubs = await db.select({ templateId: formSubmissions.templateId })
+    .from(formSubmissions)
+    .where(and(
+      eq(formSubmissions.jobId, jobId),
+      eq(formSubmissions.clientId, clientId),
+      eq(formSubmissions.status, "completed"),
+    ));
+
+  const completedTemplateIds = Array.from(new Set(completedSubs.map(s => s.templateId)));
+  const missingTemplateIds = requiredIds.filter(id => !completedTemplateIds.includes(id));
+
+  // Get names for missing templates
+  let missingTemplateNames: string[] = [];
+  if (missingTemplateIds.length > 0) {
+    const templates = await db.select({ id: formTemplates.id, name: formTemplates.name })
+      .from(formTemplates)
+      .where(inArray(formTemplates.id, missingTemplateIds));
+    missingTemplateNames = templates.map(t => t.name);
+  }
+
+  return {
+    canInvoice: missingTemplateIds.length === 0,
+    requiredTemplateIds: requiredIds,
+    completedTemplateIds,
+    missingTemplateIds,
+    missingTemplateNames,
+  };
+}
+
+
+// ─── Job Type Form Requirements ─────────────────────────────────────────────
+
+import { jobTypeFormRequirements } from "../drizzle/schema";
+
+/** List all job type form requirements for a client */
+export async function listJobTypeFormRequirements(clientId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobTypeFormRequirements).where(eq(jobTypeFormRequirements.clientId, clientId));
+}
+
+/** Get a single job type form requirement by ID */
+export async function getJobTypeFormRequirement(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(jobTypeFormRequirements)
+    .where(and(eq(jobTypeFormRequirements.id, id), eq(jobTypeFormRequirements.clientId, clientId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Get required form template IDs for a given job type */
+export async function getRequiredFormsForJobType(clientId: number, jobType: string): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [row] = await db.select({ requiredFormTemplateIds: jobTypeFormRequirements.requiredFormTemplateIds })
+    .from(jobTypeFormRequirements)
+    .where(and(
+      eq(jobTypeFormRequirements.clientId, clientId),
+      eq(jobTypeFormRequirements.jobType, jobType),
+    ))
+    .limit(1);
+  return (row?.requiredFormTemplateIds as number[] | null) ?? [];
+}
+
+/** Create or update a job type form requirement (upsert by clientId + jobType) */
+export async function upsertJobTypeFormRequirement(data: {
+  clientId: number;
+  jobType: string;
+  requiredFormTemplateIds: number[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Check if one already exists for this client + jobType
+  const [existing] = await db.select({ id: jobTypeFormRequirements.id })
+    .from(jobTypeFormRequirements)
+    .where(and(
+      eq(jobTypeFormRequirements.clientId, data.clientId),
+      eq(jobTypeFormRequirements.jobType, data.jobType),
+    ))
+    .limit(1);
+
+  if (existing) {
+    await db.update(jobTypeFormRequirements)
+      .set({ requiredFormTemplateIds: data.requiredFormTemplateIds })
+      .where(eq(jobTypeFormRequirements.id, existing.id));
+    return existing.id;
+  } else {
+    const result = await db.insert(jobTypeFormRequirements).values(data);
+    return Number(result[0].insertId);
+  }
+}
+
+/** Delete a job type form requirement */
+export async function deleteJobTypeFormRequirement(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(jobTypeFormRequirements)
+    .where(and(eq(jobTypeFormRequirements.id, id), eq(jobTypeFormRequirements.clientId, clientId)));
+}
+
+/** Get distinct job types for a client (from existing jobs) */
+export async function getDistinctJobTypes(clientId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.selectDistinct({ jobType: portalJobs.jobType })
+    .from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  return rows.map(r => r.jobType).filter(Boolean);
+}
+
+/** Backfill requiredFormTemplateIds on all existing jobs matching a given jobType for a client */
+export async function backfillJobTypeFormRequirements(
+  clientId: number,
+  jobType: string,
+  requiredFormTemplateIds: number[],
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.update(portalJobs)
+    .set({ requiredFormTemplateIds })
+    .where(
+      and(
+        eq(portalJobs.clientId, clientId),
+        eq(portalJobs.jobType, jobType),
+      ),
+    );
+  return result[0].affectedRows ?? 0;
 }

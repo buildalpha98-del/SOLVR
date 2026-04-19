@@ -1,28 +1,42 @@
 /**
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
  * Portal Jobs — Kanban pipeline board with revenue tracking.
  * Available on setup-monthly + full-managed plans.
  * Features: Board/List toggle, search/filter, tap-to-open job detail.
  */
-import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useLocation, useSearch } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import {
   Plus, DollarSign, X, Loader2, Lock, ChevronRight,
   LayoutGrid, List, Search, MapPin, Phone, Calendar,
-  Sparkles, ArrowRight,
+  Sparkles, ArrowRight, Share2, Briefcase,
 } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
+import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import { toast } from "sonner";
+import { lazy, Suspense } from "react";
+import { FileText } from "lucide-react";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 
-type JobStage = "new_lead" | "quoted" | "booked" | "completed" | "lost";
+const QuoteListContent = lazy(() => import("./QuoteListContent"));
+
+type JobStage = "new_lead" | "quoted" | "booked" | "in_progress" | "completed" | "lost";
 type ViewMode = "board" | "list";
 
 const COLUMNS: { key: JobStage; label: string; color: string; bg: string }[] = [
-  { key: "new_lead",  label: "New Lead",  color: "#F5A623", bg: "rgba(245,166,35,0.08)" },
-  { key: "quoted",    label: "Quoted",    color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
-  { key: "booked",    label: "Booked",    color: "#8b5cf6", bg: "rgba(139,92,246,0.08)" },
-  { key: "completed", label: "Completed", color: "#4ade80", bg: "rgba(74,222,128,0.08)" },
+  { key: "new_lead",    label: "New Lead",    color: "#F5A623", bg: "rgba(245,166,35,0.08)" },
+  { key: "quoted",      label: "Quoted",      color: "#3b82f6", bg: "rgba(59,130,246,0.08)" },
+  { key: "booked",      label: "Booked",      color: "#8b5cf6", bg: "rgba(139,92,246,0.08)" },
+  { key: "in_progress", label: "In Progress", color: "#f97316", bg: "rgba(249,115,22,0.08)" },
+  { key: "completed",   label: "Completed",   color: "#4ade80", bg: "rgba(74,222,128,0.08)" },
 ];
 
 const STAGE_ALL = [...COLUMNS.map(c => c.key), "lost" as JobStage];
@@ -39,6 +53,7 @@ interface Job {
   actualValue: number | null;
   notes: string | null;
   createdAt: Date;
+  customerStatusToken: string | null;
   sourceQuoteNumber?: string | null;
   sourceQuoteStatus?: string | null;
 }
@@ -158,6 +173,25 @@ function JobCard({
           </button>
         )}
       </div>
+
+      {/* Share tracking link — only for booked/in_progress/completed jobs with a token */}
+      {job.customerStatusToken && ["booked", "in_progress", "completed"].includes(job.stage) && (
+        <button
+          onClick={e => {
+            e.stopPropagation();
+            const url = `${window.location.origin}/job/${job.customerStatusToken}`;
+            navigator.clipboard.writeText(url).then(
+              () => toast.success("Tracking link copied — send it to your customer"),
+              () => toast.error("Could not copy link"),
+            );
+          }}
+          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded font-medium w-full"
+          style={{ background: "rgba(96,165,250,0.08)", color: "#60a5fa" }}
+        >
+          <Share2 className="w-2.5 h-2.5" />
+          Share tracking link with customer
+        </button>
+      )}
 
       <div className="flex gap-1 flex-wrap">
         {COLUMNS.filter(c => c.key !== job.stage).map(col => (
@@ -345,13 +379,34 @@ function AddJobModal({
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+type PageTab = "jobs" | "quotes";
+
 export default function PortalJobs() {
   const [showAdd, setShowAdd] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<JobStage | "all">("all");
   const [, navigate] = useLocation();
+  const searchString = useSearch();
   const utils = trpc.useUtils();
+
+  // Tab state from URL ?tab=quotes
+  const [activeTab, setActiveTab] = useState<PageTab>("jobs");
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const tab = params.get("tab");
+    if (tab === "quotes") setActiveTab("quotes");
+    else setActiveTab("jobs");
+  }, [searchString]);
+
+  const switchTab = (tab: PageTab) => {
+    setActiveTab(tab);
+    if (tab === "quotes") {
+      navigate("/portal/jobs?tab=quotes");
+    } else {
+      navigate("/portal/jobs");
+    }
+  };
 
   const handleOpen = (id: number) => navigate(`/portal/jobs/${id}`);
 
@@ -364,17 +419,35 @@ export default function PortalJobs() {
   });
 
   const updateJobMutation = trpc.portal.updateJob.useMutation({
-    onSuccess: () => utils.portal.listJobs.invalidate(),
+    onSuccess: () => { utils.portal.listJobs.invalidate(); hapticLight(); },
     onError: () => toast.error("Failed to update job"),
   });
 
   const createJobMutation = trpc.portal.createJob.useMutation({
     onSuccess: () => {
       utils.portal.listJobs.invalidate();
-      toast.success("Job added to pipeline");
+      hapticSuccess(); toast.success("Job added to pipeline");
     },
     onError: () => toast.error("Failed to add job"),
   });
+
+  const jobs = (rawJobs ?? []) as Job[];
+
+  const filteredJobs = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return jobs.filter(j => {
+      const matchesStage = stageFilter === "all" || j.stage === stageFilter;
+      if (!matchesStage) return false;
+      if (!q) return true;
+      return (
+        j.jobType.toLowerCase().includes(q) ||
+        (j.description ?? "").toLowerCase().includes(q) ||
+        (j.callerName ?? "").toLowerCase().includes(q) ||
+        (j.callerPhone ?? "").toLowerCase().includes(q) ||
+        (j.location ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [jobs, search, stageFilter]);
 
   if (!features.includes("jobs")) {
     const jobFeatures = [
@@ -445,32 +518,14 @@ export default function PortalJobs() {
     );
   }
 
-  const jobs = (rawJobs ?? []) as Job[];
-
   const handleMove = (id: number, stage: JobStage) => {
-    updateJobMutation.mutate({ id, stage });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateJobMutation.mutate({ id, stage: stage as any });
   };
 
   const handleSetValue = (id: number, actualValue: number) => {
     updateJobMutation.mutate({ id, actualValue });
   };
-
-  // Search + filter
-  const filteredJobs = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return jobs.filter(j => {
-      const matchesStage = stageFilter === "all" || j.stage === stageFilter;
-      if (!matchesStage) return false;
-      if (!q) return true;
-      return (
-        j.jobType.toLowerCase().includes(q) ||
-        (j.description ?? "").toLowerCase().includes(q) ||
-        (j.callerName ?? "").toLowerCase().includes(q) ||
-        (j.callerPhone ?? "").toLowerCase().includes(q) ||
-        (j.location ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [jobs, search, stageFilter]);
 
   const byStage = (stage: JobStage) => filteredJobs.filter(j => j.stage === stage);
 
@@ -482,6 +537,17 @@ export default function PortalJobs() {
     .filter(j => j.stage === "completed")
     .reduce((sum, j) => sum + (j.actualValue ?? j.estimatedValue ?? 0), 0);
 
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.listJobs.invalidate(),
+      utils.quotes.list.invalidate(),
+    ]);
+  }, [utils]);
+
+  const { containerRef: jobsContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="jobs">
       {showAdd && (
@@ -490,7 +556,47 @@ export default function PortalJobs() {
           onAdd={data => createJobMutation.mutate(data)}
         />
       )}
-      <div className="space-y-4">
+      <div ref={jobsContainerRef} className="space-y-4" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
+        <ViewerBanner />
+
+        {/* ── Jobs / Quotes toggle ── */}
+        <div className="flex items-center gap-1 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <button
+            onClick={() => switchTab("jobs")}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: activeTab === "jobs" ? "rgba(245,166,35,0.15)" : "transparent",
+              color: activeTab === "jobs" ? "#F5A623" : "rgba(255,255,255,0.4)",
+            }}
+          >
+            <Briefcase className="w-4 h-4" />
+            Jobs
+          </button>
+          <button
+            onClick={() => switchTab("quotes")}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              background: activeTab === "quotes" ? "rgba(245,166,35,0.15)" : "transparent",
+              color: activeTab === "quotes" ? "#F5A623" : "rgba(255,255,255,0.4)",
+            }}
+          >
+            <FileText className="w-4 h-4" />
+            Quotes
+          </button>
+        </div>
+
+        {/* ── Quotes tab content ── */}
+        {activeTab === "quotes" ? (
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+            </div>
+          }>
+            <QuoteListContent />
+          </Suspense>
+        ) : (
+        <>
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -499,13 +605,15 @@ export default function PortalJobs() {
               Your job pipeline — from first call to completed job.
             </p>
           </div>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-          >
-            <Plus className="w-4 h-4" /> Add Job
-          </button>
+          <WriteGuard>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              <Plus className="w-4 h-4" /> Add Job
+            </button>
+          </WriteGuard>
         </div>
 
         {/* Revenue summary */}
@@ -682,6 +790,8 @@ export default function PortalJobs() {
                 ))
             )}
           </div>
+        )}
+      </>
         )}
       </div>
     </PortalLayout>
