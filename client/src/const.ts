@@ -27,8 +27,14 @@ export const getLoginUrl = () => {
   const appId = import.meta.env.VITE_APP_ID;
   const origin = getSolvrOrigin();
 
-  // On Capacitor (or when env vars aren't set), redirect to portal login directly
-  if (!oauthPortalUrl || isNativeApp()) {
+  // On Capacitor, use relative path — absolute https:// URLs would navigate
+  // the WKWebView away from capacitor://localhost to the real website (→ Safari).
+  if (isNativeApp()) {
+    return "/portal/login";
+  }
+
+  // On web without env vars, use origin-relative URL
+  if (!oauthPortalUrl) {
     return `${origin}/portal/login`;
   }
 
