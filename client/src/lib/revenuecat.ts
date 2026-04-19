@@ -17,7 +17,7 @@ import { isNativeApp } from "@/const";
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-const RC_API_KEY = "test_fORkIqQnrexYiYNyklXwRRHpmlP";
+const RC_API_KEY = "appl_dCUaWwLSGkjEWkdeQeNKslTxIDZ";
 
 let isConfigured = false;
 
