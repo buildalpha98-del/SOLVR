@@ -235,6 +235,27 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // SEO: set document.title and update meta tags for homepage
+  useEffect(() => {
+    document.title = "Solvr | AI Quoting App for Australian Tradies";
+
+    // Update meta description (50-160 chars)
+    const descMeta = document.querySelector('meta[name="description"]');
+    if (descMeta) {
+      descMeta.setAttribute("content", "AI quoting app for Australian tradies. Voice-to-quote in 30 seconds. Send branded quotes on-site and win more jobs.");
+    }
+
+    // Update meta keywords (3-8 focused keywords)
+    const kwMeta = document.querySelector('meta[name="keywords"]');
+    if (kwMeta) {
+      kwMeta.setAttribute("content", "AI quoting app, tradie quoting software, voice to quote, quoting app Australia, Solvr");
+    }
+
+    return () => {
+      document.title = "Solvr";
+    };
+  }, []);
+
   // Inject Organisation JSON-LD for homepage
   useEffect(() => {
     const orgSchema = {

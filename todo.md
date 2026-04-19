@@ -223,3 +223,8 @@ These are planned features that are not blocking the current launch. They will b
 - [ ] Confirm Android back button behaviour (navigate back, not exit)
 - [ ] Verify Capacitor Android permissions in AndroidManifest.xml
 - [ ] Confirm app does not use clipboard without user action (Play policy)
+
+### SEO Fixes
+- [x] Fix homepage title (document.title override to 45 chars, was 5 chars from VITE_APP_TITLE)
+- [x] Fix meta description (115 chars, was 209 chars)
+- [x] Reduce keywords from 9 to 5 focused terms
