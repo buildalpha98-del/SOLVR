@@ -1,3 +1,4 @@
+import { openUrl } from "@/lib/openUrl";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -804,7 +805,7 @@ function BillingSection() {
   });
   const billingPortal = trpc.portal.createBillingPortalSession.useMutation({
     onSuccess: ({ url }) => {
-      window.open(url, "_blank");
+      openUrl(url);
     },
     onError: (err) => {
       toast.error(err.message ?? "Could not open billing portal.");

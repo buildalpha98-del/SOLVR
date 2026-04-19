@@ -57,7 +57,22 @@ if (isNative) {
     }
   })();
 
-  // 4. Initialise RevenueCat native SDK for Apple IAP.
+  // 4. Intercept all <a target="_blank"> clicks to open in-app browser
+  //    instead of kicking to Safari (which loses app context).
+  document.addEventListener("click", (e) => {
+    const anchor = (e.target as HTMLElement).closest?.("a[target='_blank']") as HTMLAnchorElement | null;
+    if (!anchor) return;
+    const href = anchor.href;
+    if (!href || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+    e.preventDefault();
+    import("@capacitor/browser").then(({ Browser }) => {
+      Browser.open({ url: href });
+    }).catch(() => {
+      window.open(href, "_blank");
+    });
+  }, true);
+
+  // 5. Initialise RevenueCat native SDK for Apple IAP.
   // Must be done early, before any paywall or entitlement check.
   // We initialise anonymously here — the hook will identify the user later.
   (async () => {

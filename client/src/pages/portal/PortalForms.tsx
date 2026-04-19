@@ -1,3 +1,4 @@
+import { openUrl } from "@/lib/openUrl";
 /**
  * Sprint 5 — Digital Forms & Certificates
  * Tabs: Templates | Submissions
@@ -762,7 +763,7 @@ function FormFillerDialog({
   const pdfMutation = trpc.forms.generatePdf.useMutation({
     onSuccess: (data) => {
       toast.success("PDF generated");
-      if (data.pdfUrl) window.open(data.pdfUrl, "_blank");
+      if (data.pdfUrl) openUrl(data.pdfUrl);
     },
     onError: e => toast.error(e.message),
   });
@@ -857,7 +858,7 @@ function FormViewerDialog({ submissionId, onClose }: { submissionId: number; onC
   const pdfMutation = trpc.forms.generatePdf.useMutation({
     onSuccess: (data) => {
       toast.success("PDF generated");
-      if (data.pdfUrl) window.open(data.pdfUrl, "_blank");
+      if (data.pdfUrl) openUrl(data.pdfUrl);
     },
     onError: e => toast.error(e.message),
   });

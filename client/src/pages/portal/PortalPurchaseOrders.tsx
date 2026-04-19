@@ -1,3 +1,4 @@
+import { openUrl } from "@/lib/openUrl";
 /**
  * Sprint 4 — Purchase Orders page
  * Tabs: Suppliers | Purchase Orders
@@ -270,7 +271,7 @@ function OrdersTab({ search }: { search: string }) {
   }, [orders, search, supplierMap]);
 
   const genPdf = trpc.purchaseOrders.generatePdf.useMutation({
-    onSuccess: (data) => { window.open(data.pdfUrl, "_blank"); toast.success("PDF generated"); },
+    onSuccess: (data) => { openUrl(data.pdfUrl); toast.success("PDF generated"); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -499,7 +500,7 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
   const supplierName = suppliers?.find(s => s.id === po?.supplierId)?.name ?? "Unknown";
 
   const genPdf = trpc.purchaseOrders.generatePdf.useMutation({
-    onSuccess: (data) => { window.open(data.pdfUrl, "_blank"); toast.success("PDF generated"); },
+    onSuccess: (data) => { openUrl(data.pdfUrl); toast.success("PDF generated"); },
   });
 
   const sendToSupplier = trpc.purchaseOrders.sendToSupplier.useMutation({

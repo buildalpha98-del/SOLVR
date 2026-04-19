@@ -1,3 +1,4 @@
+import { openUrl } from "@/lib/openUrl";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -496,7 +497,7 @@ export default function PortalJobDetail() {
     onSuccess: (res) => {
       utils.portal.getJobDetail.invalidate({ id: jobId });
       toast.success("Completion report generated");
-      if (res.pdfUrl) window.open(res.pdfUrl, "_blank");
+      if (res.pdfUrl) openUrl(res.pdfUrl);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -899,7 +900,7 @@ export default function PortalJobDetail() {
                     {job.paidAt && <><span>·</span><span>Paid {formatDate(job.paidAt)}</span></>}
                   </div>
                   {(job as any).invoicePdfUrl && (
-                    <Button size="sm" onClick={() => window.open((job as any).invoicePdfUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                    <Button size="sm" onClick={() => openUrl((job as any).invoicePdfUrl)} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
                       <FileText className="w-3.5 h-3.5 mr-1.5" /> View PDF
                     </Button>
                   )}
@@ -1094,7 +1095,7 @@ export default function PortalJobDetail() {
                 <div className="space-y-3">
                   <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report generated and ready to send to your customer.</p>
                   <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => window.open((job as any).completionReportUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                    <Button size="sm" onClick={() => openUrl((job as any).completionReportUrl)} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
                       <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
                     </Button>
                     {(job as any).completionReportToken && <CopyReportLinkButton token={(job as any).completionReportToken} />}
@@ -1219,7 +1220,7 @@ export default function PortalJobDetail() {
                 variant="ghost" size="sm"
                 className="text-xs gap-1"
                 style={{ color: "#F5A623" }}
-                onClick={() => window.open(`/portal/forms?jobId=${jobId}`, "_blank")}
+                onClick={() => navigate(`/portal/forms?jobId=${jobId}`)}
               >
                 <Plus className="w-3.5 h-3.5" /> New Form
               </Button>
