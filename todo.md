@@ -310,3 +310,14 @@ These are planned features that are not blocking the current launch. They will b
 - [x] APPLE_APP_STORE_SUBMISSION.md Section 5 updated for RevenueCat IAP (6 products, tier hierarchy, free trial, restore purchases)
 - [x] seed-apple-upgrade.mjs updated with form template seeding + completed SWMS submission for Apple reviewer
 - [x] Portal nav updated to include forms, purchase-orders, subcontractors pages
+
+### Mobile Redesign — PortalAssistant
+- [x] Chat messages full width with small padding (not narrow centered column)
+- [x] Input area sticky at bottom with safe-area padding (env(safe-area-inset-bottom))
+- [x] Suggested prompts as horizontal scroll chips, not grid
+- [x] Font sizes readable on mobile (14px body, 12px metadata)
+- [x] Streaming response area word-wrap for long text
+- [x] Mobile sidebar as overlay drawer with backdrop (hidden on desktop)
+- [x] Desktop sidebar still works as before
+- [x] calc(100dvh - 64px) height for proper mobile viewport
+- [x] 0 TypeScript errors maintained
