@@ -115,6 +115,11 @@ import {
   getJobFeedback,
   listJobFeedbackForClient,
   getRequiredFormsForJobType,
+  listFormSubmissions,
+  listFormTemplates,
+  getFormTemplate,
+  createFormSubmission,
+  updateFormSubmission,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 import { getPortalClient, PORTAL_COOKIE, requirePortalAuth, requirePortalWrite } from "./portalAuth";
@@ -2530,6 +2535,113 @@ export const portalRouter = router({
         // Payment link token for "Pay Now" button (only when pending)
         paymentLinkToken: pendingPaymentLink?.token ?? null,
       };
+    }),
+
+  /**
+   * customerListJobForms — public, token-based.
+   * Returns form submissions linked to this job + any required templates that haven't been filled yet.
+   */
+  customerListJobForms: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+
+      const submissions = await listFormSubmissions(job.clientId, job.id);
+      const requiredIds = (job.requiredFormTemplateIds as number[] | null) ?? [];
+
+      // Get templates for required forms that customer can fill
+      const templates = await listFormTemplates(job.clientId);
+      const customerFillableTemplates = templates.filter(t =>
+        t.isActive && requiredIds.includes(t.id)
+      );
+
+      // Determine which required templates still need completion
+      const completedTemplateIds = new Set(
+        submissions
+          .filter(s => s.status === "completed")
+          .map(s => s.templateId)
+      );
+      const pendingTemplates = customerFillableTemplates.filter(
+        t => !completedTemplateIds.has(t.id)
+      );
+
+      return {
+        submissions: submissions.map(s => ({
+          id: s.id,
+          title: s.title,
+          templateId: s.templateId,
+          status: s.status,
+          completedAt: s.completedAt,
+          pdfUrl: s.pdfUrl,
+          submittedBy: s.submittedBy,
+        })),
+        pendingTemplates: pendingTemplates.map(t => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          description: t.description,
+        })),
+      };
+    }),
+
+  /**
+   * customerGetFormTemplate — public, token-based.
+   * Returns template fields so the customer can fill out the form.
+   */
+  customerGetFormTemplate: publicProcedure
+    .input(z.object({ token: z.string(), templateId: z.number() }))
+    .query(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+
+      const template = await getFormTemplate(input.templateId, job.clientId);
+      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
+
+      return {
+        id: template.id,
+        name: template.name,
+        category: template.category,
+        description: template.description,
+        fields: template.fields,
+      };
+    }),
+
+  /**
+   * customerSubmitForm — public, token-based.
+   * Customer fills and signs a form from the status page.
+   */
+  customerSubmitForm: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      templateId: z.number(),
+      title: z.string().min(1),
+      values: z.record(z.string(), z.unknown()),
+      signatures: z.record(z.string(), z.string()).optional(),
+      submittedBy: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const job = await getPortalJobByStatusToken(input.token);
+      if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+
+      // Snapshot template fields for versioning
+      const template = await getFormTemplate(input.templateId, job.clientId);
+      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found." });
+
+      const id = await createFormSubmission({
+        templateId: input.templateId,
+        title: input.title,
+        values: input.values as Record<string, unknown>,
+        signatures: (input.signatures as Record<string, string>) ?? undefined,
+        submittedBy: input.submittedBy ?? (job.customerName ?? job.callerName ?? "Customer"),
+        status: "completed",
+        clientId: job.clientId,
+        jobId: job.id,
+        completedAt: new Date(),
+        templateSnapshot: template.fields ?? null,
+      });
+
+      return { id };
     }),
 
   /**

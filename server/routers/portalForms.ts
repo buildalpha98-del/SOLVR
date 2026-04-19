@@ -112,6 +112,8 @@ export const portalFormsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { clientId } = await requirePortalWrite(ctx.req);
+      // Snapshot template fields at submission time for form versioning
+      const template = await getFormTemplate(input.templateId, clientId);
       const id = await createFormSubmission({
         templateId: input.templateId,
         title: input.title,
@@ -122,6 +124,7 @@ export const portalFormsRouter = router({
         clientId,
         jobId: input.jobId ?? null,
         completedAt: input.status === "completed" ? new Date() : null,
+        templateSnapshot: template?.fields ?? null,
       });
       return { id };
     }),
@@ -172,7 +175,8 @@ export const portalFormsRouter = router({
         logoBuffer = await fetchImageBuffer(profile.logoUrl);
       }
 
-      const fields = (template.fields as FormField[]) ?? [];
+      // Use snapshotted fields for versioning; fall back to live template for legacy submissions
+      const fields = ((submission as any).templateSnapshot as FormField[] | null) ?? (template.fields as FormField[]) ?? [];
       const values = (submission.values as Record<string, unknown>) ?? {};
       const signatures = (submission.signatures as Record<string, string>) ?? {};
 

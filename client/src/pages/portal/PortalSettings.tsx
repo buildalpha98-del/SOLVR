@@ -1219,7 +1219,14 @@ function RequiredFormsConfigSection() {
   const { data: jobTypes } = trpc.portal.distinctJobTypes.useQuery();
 
   const upsertMutation = trpc.portal.upsertFormRequirement.useMutation({
-    onSuccess: () => { utils.portal.listFormRequirements.invalidate(); toast.success("Rule saved"); },
+    onSuccess: (data) => {
+      utils.portal.listFormRequirements.invalidate();
+      if (data.backfilledCount && data.backfilledCount > 0) {
+        toast.success(`Rule saved — updated ${data.backfilledCount} existing job${data.backfilledCount === 1 ? '' : 's'}`);
+      } else {
+        toast.success("Rule saved");
+      }
+    },
     onError: (e) => toast.error(e.message),
   });
   const deleteMutation = trpc.portal.deleteFormRequirement.useMutation({
@@ -1230,6 +1237,7 @@ function RequiredFormsConfigSection() {
   const [showAdd, setShowAdd] = useState(false);
   const [newJobType, setNewJobType] = useState("");
   const [newTemplateIds, setNewTemplateIds] = useState<number[]>([]);
+  const [applyToExisting, setApplyToExisting] = useState(false);
 
   const activeTemplates = (templates ?? []).filter(t => t.isActive);
   const templateMap = Object.fromEntries(activeTemplates.map(t => [t.id, t.name]));
@@ -1237,10 +1245,11 @@ function RequiredFormsConfigSection() {
   const handleSave = () => {
     if (!newJobType.trim()) { toast.error("Enter a job type"); return; }
     if (newTemplateIds.length === 0) { toast.error("Select at least one form template"); return; }
-    upsertMutation.mutate({ jobType: newJobType.trim(), requiredFormTemplateIds: newTemplateIds });
+    upsertMutation.mutate({ jobType: newJobType.trim(), requiredFormTemplateIds: newTemplateIds, applyToExistingJobs: applyToExisting });
     setShowAdd(false);
     setNewJobType("");
     setNewTemplateIds([]);
+    setApplyToExisting(false);
   };
 
   const toggleTemplate = (id: number) => {
@@ -1340,6 +1349,23 @@ function RequiredFormsConfigSection() {
                   )}
                 </div>
               </div>
+
+              {/* Apply to existing jobs checkbox */}
+              <label
+                className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
+                style={{ background: applyToExisting ? "rgba(245,166,35,0.08)" : "transparent", border: `1px solid ${applyToExisting ? "rgba(245,166,35,0.25)" : "rgba(255,255,255,0.06)"}` }}
+              >
+                <input
+                  type="checkbox"
+                  checked={applyToExisting}
+                  onChange={() => setApplyToExisting(!applyToExisting)}
+                  className="accent-amber-500"
+                />
+                <div>
+                  <span className="text-sm text-white">Apply to existing jobs</span>
+                  <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Update all existing jobs of this type with these form requirements</p>
+                </div>
+              </label>
 
               <div className="flex gap-2 pt-1">
                 <Button

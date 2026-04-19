@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 19 April 2026
-> **Test count:** 364 vitest tests passing (37 test files) · 0 TypeScript errors
+> **Test count:** 376 vitest tests passing (38 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -289,3 +289,16 @@ These are planned features that are not blocking the current launch. They will b
 - [x] DB schema: job_type_form_requirements table + 7 DB helpers (CRUD, distinct job types, upsert)
 - [x] 4 tRPC procedures: listFormRequirements, upsertFormRequirement, deleteFormRequirement, distinctJobTypes
 - [x] Vitest tests: 7 new tests (sprint5c.test.ts + portal.test.ts mock fix)
+
+### Sprint 5d — Forms Enhancements (Round 3)
+- [x] Form versioning: templateSnapshot JSON field on form_submissions, snapshotted on creation
+- [x] Form versioning: PDF generation + form rendering use snapshotted fields (fallback for legacy submissions)
+- [x] Form versioning: getFormTemplate updated to accept optional clientId for scoping
+- [x] Bulk form assignment: "Apply to existing jobs" checkbox in RequiredFormsConfigSection UI
+- [x] Bulk form assignment: backfillJobTypeFormRequirements DB helper + wired to upsertFormRequirement procedure
+- [x] Bulk form assignment: toast shows count of backfilled jobs on save
+- [x] Customer-facing form completion: CustomerFormsSection on /job/:token status page
+- [x] Customer-facing form completion: 3 public procedures (customerListJobForms, customerGetFormTemplate, customerSubmitForm)
+- [x] Customer-facing form completion: full form filler modal with all field types + signature capture (canvas)
+- [x] Customer-facing form completion: completed forms collapsible with PDF download links
+- [x] Vitest tests: 12 new tests (sprint5d.test.ts — versioning, backfill, customer procedures, router integration)

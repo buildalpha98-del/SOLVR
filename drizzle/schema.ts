@@ -2015,6 +2015,8 @@ export const formSubmissions = mysqlTable("form_submissions", {
   values: json("formValues").$type<Record<string, unknown>>().notNull(),
   /** JSON object of signature data URLs keyed by field ID */
   signatures: json("signatures").$type<Record<string, string>>(),
+  /** Snapshot of template fields at submission time (form versioning) */
+  templateSnapshot: json("templateSnapshot").$type<FormField[]>(),
   /** S3 URL of the generated PDF */
   pdfUrl: varchar("pdfUrl", { length: 512 }),
   /** Submission status */

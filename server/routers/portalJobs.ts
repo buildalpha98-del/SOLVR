@@ -61,6 +61,7 @@ import {
   deleteJobTypeFormRequirement,
   getDistinctJobTypes,
   getRequiredFormsForJobType,
+  backfillJobTypeFormRequirements,
 } from "../db";
 
 
@@ -402,6 +403,7 @@ export const portalJobsProcedures = {
     .input(z.object({
       jobType: z.string().min(1),
       requiredFormTemplateIds: z.array(z.number()),
+      applyToExistingJobs: z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(ctx.req);
@@ -410,7 +412,15 @@ export const portalJobsProcedures = {
         jobType: input.jobType,
         requiredFormTemplateIds: input.requiredFormTemplateIds,
       });
-      return { id };
+      let backfilledCount = 0;
+      if (input.applyToExistingJobs) {
+        backfilledCount = await backfillJobTypeFormRequirements(
+          client.id,
+          input.jobType,
+          input.requiredFormTemplateIds,
+        );
+      }
+      return { id, backfilledCount };
     }),
 
   /** Delete a job type form requirement rule */

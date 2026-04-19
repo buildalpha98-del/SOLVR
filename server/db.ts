@@ -2994,10 +2994,12 @@ export async function listFormTemplates(clientId: number) {
 }
 
 /** Get a single form template */
-export async function getFormTemplate(id: number) {
+export async function getFormTemplate(id: number, clientId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const rows = await db.select().from(formTemplates).where(eq(formTemplates.id, id)).limit(1);
+  const conditions = [eq(formTemplates.id, id)];
+  if (clientId !== undefined) conditions.push(eq(formTemplates.clientId, clientId));
+  const rows = await db.select().from(formTemplates).where(and(...conditions)).limit(1);
   return rows[0] ?? null;
 }
 
@@ -3352,4 +3354,23 @@ export async function getDistinctJobTypes(clientId: number): Promise<string[]> {
     .from(portalJobs)
     .where(eq(portalJobs.clientId, clientId));
   return rows.map(r => r.jobType).filter(Boolean);
+}
+
+/** Backfill requiredFormTemplateIds on all existing jobs matching a given jobType for a client */
+export async function backfillJobTypeFormRequirements(
+  clientId: number,
+  jobType: string,
+  requiredFormTemplateIds: number[],
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.update(portalJobs)
+    .set({ requiredFormTemplateIds })
+    .where(
+      and(
+        eq(portalJobs.clientId, clientId),
+        eq(portalJobs.jobType, jobType),
+      ),
+    );
+  return result[0].affectedRows ?? 0;
 }
