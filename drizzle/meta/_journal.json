@@ -428,6 +428,13 @@
       "when": 1776549487764,
       "tag": "0060_yellow_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "5",
+      "when": 1776561620626,
+      "tag": "0061_quiet_mongu",
+      "breakpoints": true
     }
   ]
 }

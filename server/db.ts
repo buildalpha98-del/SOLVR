@@ -2403,11 +2403,12 @@ import { invoiceChases } from "../drizzle/schema";
  * Get revenue metrics for a client over a given period.
  * Aggregates data from portalJobs (invoiced/paid amounts) and invoiceChases.
  */
-export async function getRevenueMetrics(clientId: number, monthsBack = 12) {
+export async function getRevenueMetrics(clientId: number, monthsBack = 12, startDate?: string, endDate?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const cutoff = startDate ? new Date(startDate) : new Date();
+  if (!startDate) cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const end = endDate ? new Date(endDate) : new Date();
   const allJobs = await db.select().from(portalJobs)
     .where(eq(portalJobs.clientId, clientId));
   const allChases = await db.select().from(invoiceChases)
@@ -2468,11 +2469,11 @@ export async function getRevenueMetrics(clientId: number, monthsBack = 12) {
  * Get quote conversion funnel metrics for a client.
  * Tracks: created → sent → accepted → declined → expired → converted → paid
  */
-export async function getQuoteConversionMetrics(clientId: number, monthsBack = 6) {
+export async function getQuoteConversionMetrics(clientId: number, monthsBack = 6, startDate?: string, endDate?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const cutoff = startDate ? new Date(startDate) : new Date();
+  if (!startDate) cutoff.setMonth(cutoff.getMonth() - monthsBack);
   const allQuotes = await db.select().from(quotesTable)
     .where(eq(quotesTable.clientId, clientId));
   const recentQuotes = allQuotes.filter(q => new Date(q.createdAt) >= cutoff);
@@ -2601,4 +2602,158 @@ export async function getJobCostingReport(clientId: number) {
     },
     overallCostBreakdown,
   };
+}
+
+// ─── Subcontractor Management (Sprint 3) ─────────────────────────────────────
+import {
+  subcontractors, type Subcontractor, type InsertSubcontractor,
+  subcontractorAssignments, type SubcontractorAssignment, type InsertSubcontractorAssignment,
+  subcontractorTimesheets, type SubcontractorTimesheet, type InsertSubcontractorTimesheet,
+} from "../drizzle/schema";
+
+/** List all subcontractors for a client */
+export async function listSubcontractors(clientId: number): Promise<Subcontractor[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(subcontractors)
+    .where(eq(subcontractors.clientId, clientId))
+    .orderBy(desc(subcontractors.createdAt));
+}
+
+/** Get a single subcontractor (scoped to client) */
+export async function getSubcontractor(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(subcontractors)
+    .where(and(eq(subcontractors.id, id), eq(subcontractors.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create a subcontractor, returns the new id */
+export async function createSubcontractor(data: InsertSubcontractor): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.insert(subcontractors).values(data).$returningId();
+  return row.id;
+}
+
+/** Update a subcontractor (scoped to client) */
+export async function updateSubcontractor(id: number, clientId: number, data: Partial<InsertSubcontractor>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subcontractors).set({ ...data, updatedAt: new Date() })
+    .where(and(eq(subcontractors.id, id), eq(subcontractors.clientId, clientId)));
+}
+
+/** Soft-deactivate a subcontractor */
+export async function deactivateSubcontractor(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subcontractors).set({ isActive: false, updatedAt: new Date() })
+    .where(and(eq(subcontractors.id, id), eq(subcontractors.clientId, clientId)));
+}
+
+/** Assign a subcontractor to a job */
+export async function assignSubcontractorToJob(data: InsertSubcontractorAssignment): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.insert(subcontractorAssignments).values(data).$returningId();
+  return row.id;
+}
+
+/** List assignments for a job (with subcontractor details) */
+export async function listJobAssignments(jobId: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    assignment: subcontractorAssignments,
+    subcontractor: subcontractors,
+  }).from(subcontractorAssignments)
+    .innerJoin(subcontractors, eq(subcontractorAssignments.subcontractorId, subcontractors.id))
+    .where(and(
+      eq(subcontractorAssignments.jobId, jobId),
+      eq(subcontractorAssignments.clientId, clientId),
+    ));
+}
+
+/** Update assignment status */
+export async function updateAssignmentStatus(id: number, clientId: number, status: "assigned" | "accepted" | "declined" | "completed") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(subcontractorAssignments)
+    .set({ status } as any)
+    .where(and(eq(subcontractorAssignments.id, id), eq(subcontractorAssignments.clientId, clientId)));
+}
+
+/** Remove an assignment */
+export async function removeAssignment(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(subcontractorAssignments)
+    .where(and(eq(subcontractorAssignments.id, id), eq(subcontractorAssignments.clientId, clientId)));
+}
+
+/** Get assignment by magic token (public — for subbie self-service) */
+export async function getAssignmentByToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({
+    assignment: subcontractorAssignments,
+    subcontractor: subcontractors,
+    job: portalJobs,
+  }).from(subcontractorAssignments)
+    .innerJoin(subcontractors, eq(subcontractorAssignments.subcontractorId, subcontractors.id))
+    .innerJoin(portalJobs, eq(subcontractorAssignments.jobId, portalJobs.id))
+    .where(eq(subcontractorAssignments.magicToken, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Log subcontractor hours + auto-create a jobCostItem */
+export async function logSubcontractorHours(data: InsertSubcontractorTimesheet): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.insert(subcontractorTimesheets).values(data).$returningId();
+  // Also create a cost item so it shows in Job Costing report
+  await db.insert(jobCostItems).values({
+    jobId: data.jobId,
+    clientId: data.clientId,
+    category: "subcontractor",
+    description: data.description ?? `Subbie hours: ${data.hours}h`,
+    amountCents: data.totalCents,
+  });
+  return row.id;
+}
+
+/** List timesheets for a job (with subcontractor name) */
+export async function listJobTimesheets(jobId: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    timesheet: subcontractorTimesheets,
+    subcontractor: subcontractors,
+  }).from(subcontractorTimesheets)
+    .innerJoin(subcontractors, eq(subcontractorTimesheets.subcontractorId, subcontractors.id))
+    .where(and(
+      eq(subcontractorTimesheets.jobId, jobId),
+      eq(subcontractorTimesheets.clientId, clientId),
+    ))
+    .orderBy(desc(subcontractorTimesheets.workDate));
+}
+
+/** List timesheets for a subcontractor */
+export async function listSubcontractorTimesheets(subcontractorId: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    timesheet: subcontractorTimesheets,
+    job: portalJobs,
+  }).from(subcontractorTimesheets)
+    .innerJoin(portalJobs, eq(subcontractorTimesheets.jobId, portalJobs.id))
+    .where(and(
+      eq(subcontractorTimesheets.subcontractorId, subcontractorId),
+      eq(subcontractorTimesheets.clientId, clientId),
+    ))
+    .orderBy(desc(subcontractorTimesheets.workDate));
 }

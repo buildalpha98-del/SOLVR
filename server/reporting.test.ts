@@ -79,7 +79,7 @@ describe("reporting.getRevenueMetrics", () => {
     expect(result.completedCount).toBe(0);
     expect(result.activeCount).toBe(0);
     expect(result.lostCount).toBe(0);
-    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 6);
+    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 6, undefined, undefined);
   });
 
   it("passes correct clientId and monthsBack to DB helper", async () => {
@@ -98,7 +98,7 @@ describe("reporting.getRevenueMetrics", () => {
     const caller = appRouter.createCaller(createAuthContext());
     const result = await caller.reporting.getRevenueMetrics({ monthsBack: 12 });
 
-    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 12);
+    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 12, undefined, undefined);
     expect(result.totalRevenue).toBe(15000);
     expect(result.avgJobValue).toBe(800);
     expect(result.monthlyRevenue).toHaveLength(1);
@@ -121,7 +121,7 @@ describe("reporting.getRevenueMetrics", () => {
     const caller = appRouter.createCaller(createAuthContext());
     await caller.reporting.getRevenueMetrics();
 
-    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 12);
+    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 12, undefined, undefined);
   });
 
   it("returns revenue with outstanding invoices", async () => {
@@ -166,7 +166,7 @@ describe("reporting.getQuoteConversion", () => {
     expect(result.funnel.total).toBe(0);
     expect(result.funnel.sent).toBe(0);
     expect(result.conversionRate).toBe(0);
-    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(42, 6);
+    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(42, 6, undefined, undefined);
   });
 
   it("returns correct conversion funnel metrics", async () => {
@@ -209,7 +209,7 @@ describe("reporting.getQuoteConversion", () => {
     const caller = appRouter.createCaller(createAuthContext());
     await caller.reporting.getQuoteConversion();
 
-    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(42, 6);
+    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(42, 6, undefined, undefined);
   });
 });
 

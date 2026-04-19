@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 18 April 2026
-> **Test count:** 313 vitest tests passing (32 test files) · 0 TypeScript errors
+> **Test count:** 326 vitest tests passing (33 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -169,11 +169,18 @@ All items below are live in production. Grouped by domain for reference.
 These are planned features that are not blocking the current launch. They will be prioritised based on customer feedback and revenue impact.
 
 ### Sprint 3 — Subcontractor Management
-- [ ] Subcontractor profiles (name, trade, ABN, contact, rate)
-- [ ] Assign subbie to job from job card
-- [ ] Subbie magic-link email with read-only job card
-- [ ] Subbie timesheet (log hours against job)
-- [ ] Subbie invoice tracking (cost recorded against job)
+- [x] Subcontractor profiles (name, trade, ABN, contact, rate)
+- [x] Assign subbie to job from job card
+- [x] Subbie magic-link email with read-only job card
+- [x] Subbie timesheet (log hours against job)
+- [x] Subbie invoice tracking (cost recorded against job)
+- [x] Schema: subcontractors, subcontractor_assignments, subcontractor_timesheets tables
+- [x] 14 DB helpers (CRUD, assignments, timesheets, magic token)
+- [x] portalSubcontractors tRPC router (13 procedures)
+- [x] PortalSubcontractors UI page (subbie list, add/edit dialog, assignment + timesheet modals)
+- [x] Route + nav wired (/portal/subcontractors)
+- [x] 13 vitest tests for subcontractor procedures
+- [x] Subbie costs auto-feed into Job Costing report via jobCostItems
 
 ### Sprint 4 — Purchase Orders
 - [ ] Create PO from job (pulls materials from quote line items)
@@ -197,6 +204,13 @@ These are planned features that are not blocking the current launch. They will b
 - [x] PortalReporting UI page (3 tabs: Revenue, Quote Conversion, Job Costing)
 - [x] Route + nav wired (/portal/reporting)
 - [x] 11 vitest tests for reporting procedures
+
+### Sprint 6b — Reporting Enhancements
+- [x] Date range picker on all 3 reporting tabs (custom start/end or preset months)
+- [x] PDF export — branded report PDF uploaded to S3, download button on each tab
+- [x] ReportPDF React-PDF component (revenue, quote conversion, job costing sections)
+- [x] Updated DB helpers to accept optional startDate/endDate
+- [x] Updated reporting test assertions for new 4-arg signatures
 
 ### Polish & QoL (Low Priority)
 - [ ] Regenerate 6 Instagram posts with diamond circuit icon

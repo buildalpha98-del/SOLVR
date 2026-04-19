@@ -10,6 +10,10 @@
  * 1. Revenue Dashboard — monthly revenue chart, KPI cards, job summary
  * 2. Quote Conversion — funnel metrics, monthly volume chart, conversion rate
  * 3. Job Costing — per-job margin table, cost breakdown, summary stats
+ *
+ * Features:
+ * - Custom date range picker (replaces fixed 6/12-month windows)
+ * - Download Report button (generates branded PDF via S3)
  */
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
@@ -21,8 +25,10 @@ import {
 import {
   DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle,
   CheckCircle, XCircle, Clock, ArrowRight, Loader2, BarChart3,
+  Download, Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const AMBER = "#F5A623";
 const NAVY = "#0F1F3D";
@@ -33,15 +39,52 @@ const GRAY = "#94a3b8";
 const COST_COLORS = ["#F5A623", "#3b82f6", "#22c55e", "#ef4444", "#a855f7", "#ec4899", "#14b8a6"];
 
 type Tab = "revenue" | "quotes" | "costing";
+type TabApi = "revenue" | "quoteConversion" | "jobCosting";
+
+const TAB_TO_API: Record<Tab, TabApi> = {
+  revenue: "revenue",
+  quotes: "quoteConversion",
+  costing: "jobCosting",
+};
+
+function getDefaultRange(): { start: string; end: string } {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 12);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  };
+}
 
 export default function PortalReporting() {
   const [tab, setTab] = useState<Tab>("revenue");
+  const defaults = useMemo(() => getDefaultRange(), []);
+  const [startDate, setStartDate] = useState(defaults.start);
+  const [endDate, setEndDate] = useState(defaults.end);
+
+  const exportPdf = trpc.reporting.exportPdf.useMutation({
+    onSuccess: (result) => {
+      window.open(result.url, "_blank");
+      toast.success("Report downloaded");
+    },
+    onError: () => toast.error("Failed to generate PDF"),
+  });
+
+  const handleExport = () => {
+    exportPdf.mutate({
+      tab: TAB_TO_API[tab],
+      monthsBack: 12,
+      startDate,
+      endDate,
+    });
+  };
 
   return (
     <PortalLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-amber-500" />
@@ -50,6 +93,40 @@ export default function PortalReporting() {
             <p className="text-sm text-muted-foreground mt-1">
               Track revenue, quote conversion, and job profitability
             </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Date range picker */}
+            <div className="flex items-center gap-2 bg-card border rounded-lg px-3 py-1.5">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-sm text-foreground outline-none w-[120px]"
+              />
+              <span className="text-muted-foreground text-xs">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-sm text-foreground outline-none w-[120px]"
+              />
+            </div>
+            {/* Download PDF */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={exportPdf.isPending}
+              className="gap-2"
+            >
+              {exportPdf.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Download Report
+            </Button>
           </div>
         </div>
 
@@ -75,8 +152,8 @@ export default function PortalReporting() {
         </div>
 
         {/* Tab content */}
-        {tab === "revenue" && <RevenueTab />}
-        {tab === "quotes" && <QuoteConversionTab />}
+        {tab === "revenue" && <RevenueTab startDate={startDate} endDate={endDate} />}
+        {tab === "quotes" && <QuoteConversionTab startDate={startDate} endDate={endDate} />}
         {tab === "costing" && <JobCostingTab />}
       </div>
     </PortalLayout>
@@ -84,8 +161,9 @@ export default function PortalReporting() {
 }
 
 // ─── Revenue Tab ──────────────────────────────────────────────────────────────
-function RevenueTab() {
-  const { data, isLoading } = trpc.reporting.getRevenueMetrics.useQuery({ monthsBack: 12 });
+function RevenueTab({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const input = useMemo(() => ({ monthsBack: 12, startDate, endDate }), [startDate, endDate]);
+  const { data, isLoading } = trpc.reporting.getRevenueMetrics.useQuery(input);
 
   if (isLoading || !data) {
     return (
@@ -152,8 +230,9 @@ function RevenueTab() {
 }
 
 // ─── Quote Conversion Tab ─────────────────────────────────────────────────────
-function QuoteConversionTab() {
-  const { data, isLoading } = trpc.reporting.getQuoteConversion.useQuery({ monthsBack: 6 });
+function QuoteConversionTab({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const input = useMemo(() => ({ monthsBack: 6, startDate, endDate }), [startDate, endDate]);
+  const { data, isLoading } = trpc.reporting.getQuoteConversion.useQuery(input);
 
   if (isLoading || !data) {
     return (
@@ -205,7 +284,7 @@ function QuoteConversionTab() {
 
       {/* Funnel */}
       <div className="bg-card rounded-xl border p-6">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Quote Funnel (Last 6 Months)</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-4">Quote Funnel</h3>
         <div className="flex items-end gap-2 justify-around">
           {funnelSteps.map((step, i) => {
             const maxVal = Math.max(...funnelSteps.map(s => s.value), 1);
@@ -218,9 +297,6 @@ function QuoteConversionTab() {
                   style={{ height, backgroundColor: step.color }}
                 />
                 <span className="text-xs text-muted-foreground">{step.label}</span>
-                {i < funnelSteps.length - 1 && (
-                  <ArrowRight className="w-3 h-3 text-muted-foreground absolute" style={{ display: "none" }} />
-                )}
               </div>
             );
           })}

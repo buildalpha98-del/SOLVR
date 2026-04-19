@@ -1774,3 +1774,92 @@ export const portalChatMessages = mysqlTable("portal_chat_messages", {
 });
 export type PortalChatMessage = typeof portalChatMessages.$inferSelect;
 export type InsertPortalChatMessage = typeof portalChatMessages.$inferInsert;
+
+// ─── Subcontractors (Sprint 3) ───────────────────────────────────────────────
+/**
+ * Subcontractor profiles managed by a portal client (tradie).
+ * Each subbie belongs to one client. Tracks trade, ABN, contact details, and hourly rate.
+ */
+export const subcontractors = mysqlTable("subcontractors", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — the tradie who manages this subbie */
+  clientId: int("clientId").notNull(),
+  /** Subcontractor's full name */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Trade or specialisation (e.g. "Electrician", "Tiler") */
+  trade: varchar("trade", { length: 255 }),
+  /** Australian Business Number */
+  abn: varchar("abn", { length: 20 }),
+  /** Contact email */
+  email: varchar("email", { length: 320 }),
+  /** Contact phone */
+  phone: varchar("phone", { length: 50 }),
+  /** Hourly rate in cents (AUD) */
+  hourlyRateCents: int("hourlyRateCents"),
+  /** Internal notes about this subbie */
+  notes: text("notes"),
+  /** Whether this subbie is currently active */
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Subcontractor = typeof subcontractors.$inferSelect;
+export type InsertSubcontractor = typeof subcontractors.$inferInsert;
+
+// ─── Subcontractor Job Assignments ───────────────────────────────────────────
+/**
+ * Junction table linking subcontractors to jobs.
+ * A job can have multiple subbies; a subbie can work on multiple jobs.
+ */
+export const subcontractorAssignments = mysqlTable("subcontractor_assignments", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to portalJobs.id */
+  jobId: int("jobId").notNull(),
+  /** FK to subcontractors.id */
+  subcontractorId: int("subcontractorId").notNull(),
+  /** FK to crmClients.id (denormalised for easy querying) */
+  clientId: int("clientId").notNull(),
+  /** Status of the assignment */
+  status: mysqlEnum("assignment_status", ["assigned", "accepted", "declined", "completed"]).default("assigned").notNull(),
+  /** Magic-link token for subbie to view the job (no auth required) */
+  magicToken: varchar("magicToken", { length: 64 }).unique(),
+  /** When the magic-link email was sent */
+  inviteSentAt: timestamp("inviteSentAt"),
+  /** Notes specific to this assignment */
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SubcontractorAssignment = typeof subcontractorAssignments.$inferSelect;
+export type InsertSubcontractorAssignment = typeof subcontractorAssignments.$inferInsert;
+
+// ─── Subcontractor Timesheets ────────────────────────────────────────────────
+/**
+ * Hours logged by a subcontractor against a job.
+ * Automatically creates a jobCostItem (category: "subcontractor") on insert.
+ */
+export const subcontractorTimesheets = mysqlTable("subcontractor_timesheets", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to subcontractor_assignments.id */
+  assignmentId: int("assignmentId").notNull(),
+  /** FK to portalJobs.id (denormalised) */
+  jobId: int("jobId").notNull(),
+  /** FK to subcontractors.id (denormalised) */
+  subcontractorId: int("subcontractorId").notNull(),
+  /** FK to crmClients.id (denormalised) */
+  clientId: int("clientId").notNull(),
+  /** Date of the work */
+  workDate: timestamp("workDate").notNull(),
+  /** Hours worked (decimal, e.g. 4.5) */
+  hours: decimal("hours", { precision: 6, scale: 2 }).notNull(),
+  /** Description of work performed */
+  description: text("description"),
+  /** Hourly rate in cents at time of logging (snapshot from subcontractor profile) */
+  rateCents: int("rateCents").notNull(),
+  /** Total cost in cents (hours x rateCents) */
+  totalCents: int("totalCents").notNull(),
+  /** FK to job_cost_items.id — the auto-created cost item */
+  costItemId: int("costItemId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SubcontractorTimesheet = typeof subcontractorTimesheets.$inferSelect;
+export type InsertSubcontractorTimesheet = typeof subcontractorTimesheets.$inferInsert;
