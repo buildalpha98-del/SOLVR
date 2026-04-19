@@ -45,9 +45,6 @@ export function UpgradeButton({
   const paywallRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
-  // Apple Guideline 3.1.1 — no purchase UI inside native app
-  if (isNativeApp()) return null;
-
   const handleClick = useCallback(async () => {
     // Ensure RC is configured
     if (!isRevenueCatConfigured() && user?.id) {
@@ -88,6 +85,9 @@ export function UpgradeButton({
       setLoading(false);
     }
   }, [user?.id]);
+
+  // Native iOS/Android — hide purchase UI (hooks already called above)
+  if (isNativeApp()) return null;
 
   const defaultLabel = plan === "professional" ? "Upgrade to Solvr AI" : "Upgrade to Solvr Jobs";
   const displayLabel = label ?? defaultLabel;

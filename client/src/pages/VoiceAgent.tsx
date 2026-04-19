@@ -269,7 +269,14 @@ const testimonials = [
 
 // ─── Pricing Section Component ──────────────────────────────────────────────────────────────────
 function PricingSection() {
-  // Apple Guideline 3.1.1 — no purchase UI inside native app
+  // ALL hooks MUST be before any conditional returns (React Rules of Hooks)
+  const [isAnnual, setIsAnnual] = useState(false);
+  const [missedCalls, setMissedCalls] = useState(3);
+  const [avgJobValue, setAvgJobValue] = useState(800);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const createCheckout = trpc.stripe.createCheckout.useMutation();
+
+  // Native iOS/Android — no purchase UI (hooks already called above)
   if (isNativeApp()) {
     return (
       <section id="pricing" style={{ background: "#0F1F3D", padding: "4rem 0" }}>
@@ -283,12 +290,6 @@ function PricingSection() {
       </section>
     );
   }
-
-  const [isAnnual, setIsAnnual] = useState(false);
-  const [missedCalls, setMissedCalls] = useState(3);
-  const [avgJobValue, setAvgJobValue] = useState(800);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const createCheckout = trpc.stripe.createCheckout.useMutation();
 
   // Map display plan names to Stripe plan keys
   const planKeyMap: Record<string, "starter" | "professional"> = {

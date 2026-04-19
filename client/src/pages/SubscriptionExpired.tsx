@@ -78,25 +78,6 @@ export default function SubscriptionExpired() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const paywallRef = useRef<HTMLDivElement>(null);
 
-  // Apple Guideline 3.1.1 — no purchase/billing UI inside native app
-  if (isNativeApp()) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#FAFAF8" }}>
-        <div className="text-center max-w-sm">
-          <img src={LOGO} alt="Solvr" style={{ height: 32, objectFit: "contain", marginBottom: 24 }} />
-          <div className="text-4xl mb-4">⏰</div>
-          <h2 className="font-bold text-xl mb-3" style={{ color: "#0F1F3D" }}>Your free trial has ended</h2>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: "#718096" }}>
-            To reactivate your account, visit solvr.com.au on your browser.
-          </p>
-          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
-            Back to Portal →
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   const handleReactivate = useCallback(async () => {
     // Ensure RC is configured
     if (!isRevenueCatConfigured() && user?.id) {
@@ -141,6 +122,24 @@ export default function SubscriptionExpired() {
       setLoading(false);
     }
   }, [user?.id]);
+
+  // Native iOS/Android — no purchase/billing UI (hooks already called above)
+  if (isNativeApp()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#FAFAF8" }}>
+        <div className="text-center max-w-sm">
+          <div className="text-4xl mb-4">⏰</div>
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#0F1F3D" }}>Your free trial has ended</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "#718096" }}>
+            To reactivate your account, visit solvr.com.au on your browser.
+          </p>
+          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
+            Back to Portal →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

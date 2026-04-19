@@ -118,24 +118,7 @@ const COMPETITORS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Pricing() {
-  // Apple Guideline 3.1.1 — redirect to portal on native iOS/Android
-  if (isNativeApp()) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#0A1628" }}>
-        <div className="text-center max-w-sm">
-          <div className="text-4xl mb-4">📱</div>
-          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
-            To start a subscription or manage your plan, visit solvr.com.au on your browser.
-          </p>
-          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
-            Go to Client Portal →
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
+  // ALL hooks MUST be before any conditional returns (React Rules of Hooks)
   const [isAnnual, setIsAnnual] = useState(false);
   const [paywallLoading, setPaywallLoading] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -186,6 +169,24 @@ export default function Pricing() {
       setPaywallLoading(false);
     }
   }, []);
+
+  // Native iOS/Android — show simple redirect notice (hooks are already called above)
+  if (isNativeApp()) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#0A1628" }}>
+        <div className="text-center max-w-sm">
+          <div className="text-4xl mb-4">📱</div>
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
+            To start a subscription or manage your plan, visit solvr.com.au on your browser.
+          </p>
+          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
+            Go to Client Portal →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={{ background: "#0A1628", fontFamily: "'DM Sans', sans-serif" }}>
