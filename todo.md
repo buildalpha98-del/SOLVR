@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 18 April 2026
-> **Test count:** 326 vitest tests passing (33 test files) · 0 TypeScript errors
+> **Test count:** 338 vitest tests passing (34 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -183,11 +183,11 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Subbie costs auto-feed into Job Costing report via jobCostItems
 
 ### Sprint 4 — Purchase Orders
-- [ ] Create PO from job (pulls materials from quote line items)
-- [ ] Supplier management (name, contact, account number)
-- [ ] Send PO as branded PDF email to supplier
-- [ ] Record actual cost when PO received
-- [ ] PO status: Draft → Sent → Received → Invoiced
+- [x] Create PO from job (pulls materials from quote line items)
+- [x] Supplier management (name, contact, account number)
+- [x] Send PO as branded PDF email to supplier
+- [x] Record actual cost when PO received
+- [x] PO status: Draft → Sent → Acknowledged → Received → Cancelled
 
 ### Sprint 5 — Digital Forms & Certificates
 - [ ] Form builder (text, checkbox, signature, photo fields)
@@ -228,3 +228,22 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Fix homepage title (document.title override to 45 chars, was 5 chars from VITE_APP_TITLE)
 - [x] Fix meta description (115 chars, was 209 chars)
 - [x] Reduce keywords from 9 to 5 focused terms
+
+### Sprint 4 — Purchase Orders (Implementation)
+- [x] Schema: suppliers, purchase_orders, purchase_order_items tables
+- [x] DB helpers: 12 CRUD functions for suppliers, POs, PO items, create PO from job materials
+- [x] portalPurchaseOrders tRPC router (12 procedures)
+- [x] PurchaseOrderPDF React-PDF component (branded with logo, supplier details, line items)
+- [x] Email PO PDF to supplier (sendToSupplier mutation)
+- [x] PortalPurchaseOrders UI page (supplier list, PO creation, PO list, send to supplier)
+- [x] Route + nav wired (/portal/purchase-orders)
+- [x] 12 vitest tests for PO procedures
+
+### Subbie Notification Email
+- [x] Auto-send email with magic link when subbie is assigned to a job
+- [x] Email includes job type, location, preferred date, and tradie's business name
+
+### Dashboard KPIs
+- [x] Embed mini revenue bar chart on PortalDashboard (6-month trailing)
+- [x] Show key KPIs (outstanding invoices, quote conversion rate)
+- [x] RevenueSnapshot component with responsive chart + metric cards

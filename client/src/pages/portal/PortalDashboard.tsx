@@ -17,9 +17,10 @@
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell,
 } from "recharts";
-import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings, Receipt, FileText } from "lucide-react";
+import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings, Receipt, FileText, BarChart3 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -395,6 +396,95 @@ function VapiDemoWidget({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Revenue Snapshot — mini monthly chart + KPIs for dashboard ──────────────
+function RevenueSnapshot({ data }: { data: any }) {
+  const reportingQuery = trpc.reporting.getRevenueMetrics.useQuery({ monthsBack: 6 });
+  const quoteQuery = trpc.reporting.getQuoteConversion.useQuery({ monthsBack: 6 });
+
+  const monthlyData = useMemo(() => {
+    if (!reportingQuery.data?.monthlyRevenue) return [];
+    return reportingQuery.data.monthlyRevenue.map((m: any) => ({
+      month: m.month,
+      revenue: m.revenue / 100,
+    }));
+  }, [reportingQuery.data]);
+
+  const conversionRate = quoteQuery.data?.conversionRate ?? null;
+  const outstandingCents = reportingQuery.data?.totalOutstanding ?? 0;
+
+  return (
+    <div
+      className="rounded-xl p-5"
+      style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4" style={{ color: "#F5A623" }} />
+          <h2 className="text-sm font-semibold text-white">Revenue Snapshot</h2>
+        </div>
+        <Link href="/portal/reporting">
+          <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>
+            Full Report <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+      </div>
+
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        <div className="text-center">
+          <div className="text-2xl font-bold" style={{ color: "#F5A623" }}>
+            ${data.potentialRevenue.toLocaleString()}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Pipeline</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-green-400">
+            ${data.wonRevenue.toLocaleString()}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Won</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold" style={{ color: outstandingCents > 0 ? "#fb923c" : "rgba(255,255,255,0.6)" }}>
+            ${Math.round(outstandingCents / 100).toLocaleString()}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Outstanding</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white">
+            {conversionRate !== null ? `${conversionRate}%` : "—"}
+          </div>
+          <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Quote Win Rate</div>
+        </div>
+      </div>
+
+      {/* Mini bar chart */}
+      {monthlyData.length > 0 && (
+        <div style={{ height: 120 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyData} barCategoryGap="20%">
+              <XAxis
+                dataKey="month"
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{ background: "#1a2744", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }}
+                formatter={(v: number) => [`$${v.toLocaleString()}`, "Revenue"]}
+              />
+              <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
+                {monthlyData.map((_: any, i: number) => (
+                  <Cell key={i} fill={i === monthlyData.length - 1 ? "#F5A623" : "rgba(245,166,35,0.35)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -912,35 +1002,8 @@ export default function PortalDashboard() {
               </ResponsiveContainer>
             </div>
 
-            {/* Revenue summary (jobs plan) */}
-            {features.includes("jobs") && (
-              <div
-                className="rounded-xl p-5"
-                style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
-              >
-                <h2 className="text-sm font-semibold text-white mb-4">Revenue Summary</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold" style={{ color: "#F5A623" }}>
-                      ${data.potentialRevenue.toLocaleString()}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Pipeline value</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-400">
-                      ${data.wonRevenue.toLocaleString()}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Revenue won</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-white">
-                      ${data.avgJobValue.toLocaleString()}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>Avg job value</div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Revenue Snapshot — mini chart + KPIs */}
+            {features.includes("jobs") && <RevenueSnapshot data={data} />}
 
             {/* Invoice Chasing Widget */}
             {features.includes("jobs") && chaseStats && (chaseStats.activeCount > 0 || chaseStats.escalatedCount > 0 || chaseStats.paidCount30d > 0) && (

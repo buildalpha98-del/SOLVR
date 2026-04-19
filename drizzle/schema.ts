@@ -1863,3 +1863,92 @@ export const subcontractorTimesheets = mysqlTable("subcontractor_timesheets", {
 });
 export type SubcontractorTimesheet = typeof subcontractorTimesheets.$inferSelect;
 export type InsertSubcontractorTimesheet = typeof subcontractorTimesheets.$inferInsert;
+
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+/**
+ * Supplier directory for purchase orders.
+ * Each tradie maintains their own supplier list.
+ */
+export const suppliers = mysqlTable("suppliers", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id — the tradie who manages this supplier */
+  clientId: int("clientId").notNull(),
+  /** Supplier company name */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Contact person name */
+  contactName: varchar("contactName", { length: 255 }),
+  /** Contact email for sending POs */
+  email: varchar("email", { length: 320 }),
+  /** Contact phone */
+  phone: varchar("phone", { length: 50 }),
+  /** Australian Business Number */
+  abn: varchar("abn", { length: 20 }),
+  /** Street address */
+  address: varchar("address", { length: 512 }),
+  /** Default payment terms (e.g. "Net 30", "COD") */
+  paymentTerms: varchar("paymentTerms", { length: 100 }),
+  /** Internal notes */
+  notes: text("notes"),
+  /** Whether this supplier is currently active */
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Supplier = typeof suppliers.$inferSelect;
+export type InsertSupplier = typeof suppliers.$inferInsert;
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+/**
+ * Purchase orders sent to suppliers for materials/services.
+ * Linked to a job for cost tracking.
+ */
+export const purchaseOrders = mysqlTable("purchase_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** FK to suppliers.id */
+  supplierId: int("supplierId").notNull(),
+  /** FK to portalJobs.id — the job this PO relates to */
+  jobId: int("jobId"),
+  /** Human-readable PO number (e.g. PO-0001) */
+  poNumber: varchar("poNumber", { length: 32 }).notNull(),
+  /** PO status */
+  status: mysqlEnum("po_status", ["draft", "sent", "acknowledged", "received", "cancelled"]).default("draft").notNull(),
+  /** Total amount in cents (sum of line items) */
+  totalCents: int("totalCents").default(0).notNull(),
+  /** Delivery address (defaults to job location) */
+  deliveryAddress: varchar("deliveryAddress", { length: 512 }),
+  /** Required delivery date */
+  requiredByDate: timestamp("requiredByDate"),
+  /** Internal notes */
+  notes: text("notes"),
+  /** S3 URL of the generated PO PDF */
+  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  /** When the PO was sent to the supplier */
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
+
+// ─── Purchase Order Line Items ───────────────────────────────────────────────
+export const purchaseOrderItems = mysqlTable("purchase_order_items", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to purchaseOrders.id */
+  poId: int("poId").notNull(),
+  /** Item description */
+  description: varchar("description", { length: 500 }).notNull(),
+  /** Quantity */
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).default("1.00").notNull(),
+  /** Unit of measure (e.g. "each", "m", "kg", "box") */
+  unit: varchar("unit", { length: 20 }).default("each"),
+  /** Unit price in cents */
+  unitPriceCents: int("unitPriceCents"),
+  /** Line total in cents (quantity × unitPriceCents) */
+  lineTotalCents: int("lineTotalCents"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;

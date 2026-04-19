@@ -2757,3 +2757,176 @@ export async function listSubcontractorTimesheets(subcontractorId: number, clien
     ))
     .orderBy(desc(subcontractorTimesheets.workDate));
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sprint 4 — Purchase Order helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+import {
+  suppliers, type InsertSupplier, type Supplier,
+  purchaseOrders, type InsertPurchaseOrder, type PurchaseOrder,
+  purchaseOrderItems, type InsertPurchaseOrderItem, type PurchaseOrderItem,
+} from "../drizzle/schema";
+
+// ─── Suppliers ───────────────────────────────────────────────────────────────
+export async function listSuppliers(clientId: number): Promise<Supplier[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(suppliers)
+    .where(and(eq(suppliers.clientId, clientId), eq(suppliers.isActive, true)))
+    .orderBy(suppliers.name);
+}
+
+export async function getSupplier(id: number, clientId: number): Promise<Supplier | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(suppliers)
+    .where(and(eq(suppliers.id, id), eq(suppliers.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createSupplier(data: InsertSupplier): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(suppliers).values(data);
+  return result.insertId;
+}
+
+export async function updateSupplier(id: number, clientId: number, data: Partial<InsertSupplier>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(suppliers).set(data).where(and(eq(suppliers.id, id), eq(suppliers.clientId, clientId)));
+}
+
+export async function deactivateSupplier(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(suppliers).set({ isActive: false }).where(and(eq(suppliers.id, id), eq(suppliers.clientId, clientId)));
+}
+
+// ─── Purchase Orders ─────────────────────────────────────────────────────────
+export async function listPurchaseOrders(clientId: number, jobId?: number): Promise<PurchaseOrder[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(purchaseOrders.clientId, clientId)];
+  if (jobId) conditions.push(eq(purchaseOrders.jobId, jobId));
+  return db.select().from(purchaseOrders)
+    .where(and(...conditions))
+    .orderBy(desc(purchaseOrders.createdAt));
+}
+
+export async function getPurchaseOrder(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(purchaseOrders)
+    .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.clientId, clientId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getNextPoNumber(clientId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.clientId, clientId));
+  const num = (row?.count ?? 0) + 1;
+  return `PO-${String(num).padStart(4, "0")}`;
+}
+
+export async function createPurchaseOrder(data: InsertPurchaseOrder): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(purchaseOrders).values(data);
+  return result.insertId;
+}
+
+export async function updatePurchaseOrder(id: number, clientId: number, data: Partial<InsertPurchaseOrder>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(purchaseOrders).set(data)
+    .where(and(eq(purchaseOrders.id, id), eq(purchaseOrders.clientId, clientId)));
+}
+
+// ─── PO Line Items ───────────────────────────────────────────────────────────
+export async function listPurchaseOrderItems(poId: number): Promise<PurchaseOrderItem[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.poId, poId))
+    .orderBy(purchaseOrderItems.sortOrder);
+}
+
+export async function createPurchaseOrderItems(items: InsertPurchaseOrderItem[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (items.length === 0) return;
+  await db.insert(purchaseOrderItems).values(items);
+}
+
+export async function deletePurchaseOrderItems(poId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(purchaseOrderItems).where(eq(purchaseOrderItems.poId, poId));
+}
+
+/** Create a PO from job quote line items — pulls materials from the quote */
+export async function createPoFromJobMaterials(
+  clientId: number,
+  jobId: number,
+  supplierId: number,
+  poNumber: string,
+): Promise<{ poId: number; itemCount: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the job to find the source quote
+  const job = await getPortalJob(jobId);
+  if (!job || !job.sourceQuoteId) throw new Error("Job has no linked quote");
+
+  // Get quote line items
+  const lineItems = await db.select().from(quoteLineItems)
+    .where(eq(quoteLineItems.quoteId, job.sourceQuoteId))
+    .orderBy(quoteLineItems.sortOrder);
+
+  if (lineItems.length === 0) throw new Error("No line items found on the linked quote");
+
+  // Calculate total
+  let totalCents = 0;
+  const poItems: InsertPurchaseOrderItem[] = lineItems.map((li, idx) => {
+    const unitPriceCents = li.unitPrice ? Math.round(parseFloat(li.unitPrice) * 100) : null;
+    const qty = parseFloat(li.quantity);
+    const lineTotalCents = unitPriceCents ? Math.round(qty * unitPriceCents) : null;
+    if (lineTotalCents) totalCents += lineTotalCents;
+    return {
+      poId: 0, // will be set after PO insert
+      description: li.description,
+      quantity: li.quantity,
+      unit: li.unit ?? "each",
+      unitPriceCents,
+      lineTotalCents,
+      sortOrder: idx,
+    };
+  });
+
+  // Create the PO
+  const [poResult] = await db.insert(purchaseOrders).values({
+    clientId,
+    supplierId,
+    jobId,
+    poNumber,
+    totalCents,
+    deliveryAddress: job.location ?? job.customerAddress ?? null,
+  });
+  const poId = poResult.insertId;
+
+  // Insert line items with the correct poId
+  if (poItems.length > 0) {
+    await db.insert(purchaseOrderItems).values(
+      poItems.map(item => ({ ...item, poId }))
+    );
+  }
+
+  return { poId, itemCount: poItems.length };
+}

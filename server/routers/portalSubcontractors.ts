@@ -24,7 +24,11 @@ import {
   listJobTimesheets,
   listSubcontractorTimesheets,
   getAssignmentByToken,
+  getPortalJob,
+  getCrmClientById,
+  getClientProfile,
 } from "../db";
+import { sendEmail } from "../_core/email";
 
 export const portalSubcontractorsRouter = router({
   // ─── Subcontractor CRUD ──────────────────────────────────────────────────
@@ -97,6 +101,61 @@ export const portalSubcontractorsRouter = router({
         clientId,
         magicToken,
       });
+
+      // ── Auto-send notification email to subbie ──
+      try {
+        const subbie = await getSubcontractor(input.subcontractorId, clientId);
+        if (subbie?.email) {
+          const job = await getPortalJob(input.jobId);
+          const client = await getCrmClientById(clientId);
+          const profile = await getClientProfile(clientId);
+          const businessName = profile?.tradingName ?? client?.businessName ?? "Your Business";
+          const origin = ctx.req.headers.origin || "https://solvr.com.au";
+          const magicLink = `${origin}/subbie/job/${magicToken}`;
+
+          const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
+<div style="text-align:center;margin-bottom:24px">
+  <h2 style="color:#0F1F3D;margin:0">Job Assignment</h2>
+  <p style="color:#6B7280;margin:4px 0 0">from ${businessName}</p>
+</div>
+<p>Hi ${subbie.name},</p>
+<p>You've been assigned to a new job. Here are the details:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0">
+  <tr style="border-bottom:1px solid #E5E7EB">
+    <td style="padding:8px;font-weight:600;color:#6B7280;width:120px">Job Type</td>
+    <td style="padding:8px">${job?.jobType ?? "—"}</td>
+  </tr>
+  <tr style="border-bottom:1px solid #E5E7EB">
+    <td style="padding:8px;font-weight:600;color:#6B7280">Location</td>
+    <td style="padding:8px">${job?.location ?? "—"}</td>
+  </tr>
+  ${job?.preferredDate ? `<tr style="border-bottom:1px solid #E5E7EB">
+    <td style="padding:8px;font-weight:600;color:#6B7280">Scheduled</td>
+    <td style="padding:8px">${job.preferredDate}</td>
+  </tr>` : ""}
+  ${input.notes ? `<tr style="border-bottom:1px solid #E5E7EB">
+    <td style="padding:8px;font-weight:600;color:#6B7280">Notes</td>
+    <td style="padding:8px">${input.notes}</td>
+  </tr>` : ""}
+</table>
+<div style="text-align:center;margin:24px 0">
+  <a href="${magicLink}" style="display:inline-block;background:#F5A623;color:#0F1F3D;padding:12px 32px;border-radius:6px;font-weight:600;text-decoration:none">View Job Details</a>
+</div>
+<p style="color:#9CA3AF;font-size:12px;text-align:center;margin-top:32px">This link is unique to you. Do not share it.<br/>Sent via <a href="https://solvr.com.au" style="color:#9CA3AF">Solvr</a></p>
+</body></html>`;
+
+          await sendEmail({
+            to: subbie.email,
+            subject: `New Job Assignment from ${businessName}`,
+            html,
+            fromName: businessName,
+          });
+        }
+      } catch (err) {
+        // Don't fail the assignment if email fails — log and continue
+        console.error("[SubbieNotify] Failed to send assignment email:", err);
+      }
+
       return { id, magicToken };
     }),
 

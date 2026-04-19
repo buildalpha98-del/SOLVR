@@ -43,6 +43,7 @@ import { portalJobTemplatesRouter } from "./routers/portalJobTemplates";
 import { portalAssistantRouter } from "./routers/portalAssistant";
 import { portalReportingRouter } from "./routers/portalReporting";
 import { portalSubcontractorsRouter } from "./routers/portalSubcontractors";
+import { portalPurchaseOrdersRouter } from "./routers/portalPurchaseOrders";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1588,5 +1589,6 @@ export const appRouter = router({
   assistant: portalAssistantRouter,
   reporting: portalReportingRouter,
   subcontractors: portalSubcontractorsRouter,
+  purchaseOrders: portalPurchaseOrdersRouter,
 });
 export type AppRouter = typeof appRouter;
