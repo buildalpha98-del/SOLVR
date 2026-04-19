@@ -488,7 +488,72 @@ for (const r of reviewRequests) {
 }
 console.log(`✓ ${reviewRequests.length} review requests seeded`);
 
-// ── 12. Final summary ─────────────────────────────────────────────────────────
+// ── 12. Seed form templates and a completed submission ─────────────────────────
+console.log("\n\ud83d\udccb Seeding form templates and submissions ...");
+
+const [[existingTemplates]] = await conn.execute(
+  "SELECT COUNT(*) as cnt FROM form_templates WHERE isSystem = 1"
+);
+console.log(`  ${existingTemplates.cnt} system templates found (auto-seeded on first portal load).`);
+
+// Get the first completed job for the Apple reviewer to attach a form submission
+const [[completedJob]] = await conn.execute(
+  "SELECT id, jobType FROM portal_jobs WHERE clientId = ? AND stage = 'completed' LIMIT 1",
+  [clientId]
+);
+
+if (completedJob) {
+  const [[swmsTemplate]] = await conn.execute(
+    "SELECT id, fields FROM form_templates WHERE name LIKE '%SWMS%' AND isSystem = 1 LIMIT 1"
+  );
+
+  if (swmsTemplate) {
+    const [[existingSub2]] = await conn.execute(
+      "SELECT id FROM form_submissions WHERE clientId = ? AND templateId = ? AND jobId = ? LIMIT 1",
+      [clientId, swmsTemplate.id, completedJob.id]
+    );
+
+    if (!existingSub2) {
+      const fields = typeof swmsTemplate.fields === 'string' ? JSON.parse(swmsTemplate.fields) : swmsTemplate.fields;
+      const values = {};
+      for (const field of fields) {
+        if (field.type === 'heading' || field.type === 'divider') continue;
+        if (field.type === 'text' || field.type === 'textarea') {
+          if (field.label.toLowerCase().includes('name')) values[field.id] = 'Demo Plumbing & Gas';
+          else if (field.label.toLowerCase().includes('address') || field.label.toLowerCase().includes('location')) values[field.id] = '42 Harbour View Rd, Mosman NSW 2088';
+          else if (field.label.toLowerCase().includes('description')) values[field.id] = completedJob.jobType + ' \u2014 standard procedure';
+          else values[field.id] = 'Completed as per standard procedure';
+        } else if (field.type === 'date') {
+          values[field.id] = new Date().toISOString().split('T')[0];
+        } else if (field.type === 'checkbox') {
+          values[field.id] = true;
+        } else if (field.type === 'select' && field.options?.length) {
+          values[field.id] = field.options[0];
+        } else if (field.type === 'number') {
+          values[field.id] = 1;
+        } else if (field.type === 'signature') {
+          values[field.id] = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        }
+      }
+
+      await conn.execute(
+        "INSERT INTO form_submissions (clientId, templateId, jobId, status, `values`, templateSnapshot, createdAt, updatedAt) VALUES (?, ?, ?, 'completed', ?, ?, NOW(), NOW())",
+        [clientId, swmsTemplate.id, completedJob.id, JSON.stringify(values), JSON.stringify({ name: 'Safe Work Method Statement (SWMS)', fields })]
+      );
+      console.log(`  \u2705 Completed SWMS form submission seeded for job #${completedJob.id}`);
+    } else {
+      console.log(`  SWMS submission already exists for job #${completedJob.id}`);
+    }
+  } else {
+    console.log("  No SWMS template found \u2014 will be auto-seeded on first portal load.");
+  }
+} else {
+  console.log("  No completed jobs found \u2014 skipping form submission seeding.");
+}
+
+console.log(`\u2713 Form templates and submissions checked`);
+
+// ── 13. Final summary ─────────────────────────────────────────────────────────
 console.log("\n=== ✅ Apple Reviewer Account Ready ===");
 console.log(`Email:    apple.review@solvr.com.au`);
 console.log(`Password: AppleReview2026!`);
@@ -502,8 +567,10 @@ console.log(`  - 8 portal jobs (mix of new_lead/booked/completed)`);
 console.log(`  - 6 quotes with line items`);
 console.log(`  - 7 calendar events`);
 console.log(`  - 2 review requests`);
+console.log(`  - 4 system form templates (auto-seeded on portal load)`);
+console.log(`  - 1 completed SWMS form submission (attached to job)`);
 console.log(`\nFeature pages accessible:`);
-["dashboard", "calls", "quotes", "jobs", "calendar", "compliance", "schedule", "reviews", "settings", "staff", "insights"].forEach(p => console.log(`  ✓ /portal/${p}`));
+["dashboard", "calls", "quotes", "jobs", "calendar", "compliance", "schedule", "reviews", "settings", "staff", "insights", "forms", "purchase-orders", "subcontractors"].forEach(p => console.log(`  \u2713 /portal/${p}`));
 
 await conn.end();
 process.exit(0);

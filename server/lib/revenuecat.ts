@@ -59,6 +59,10 @@ const PRODUCT_MAP: Record<string, ProductMapping> = {
   "solvr_quotes_annual":        { plan: "solvr_quotes", billingCycle: "annual" },
   "solvr_jobs_annual":          { plan: "solvr_jobs",   billingCycle: "annual" },
   "solvr_ai_annual":            { plan: "solvr_ai",     billingCycle: "annual" },
+  // Yearly aliases (RC store identifiers use _yearly)
+  "solvr_quotes_yearly":        { plan: "solvr_quotes", billingCycle: "annual" },
+  "solvr_jobs_yearly":          { plan: "solvr_jobs",   billingCycle: "annual" },
+  "solvr_ai_yearly":            { plan: "solvr_ai",     billingCycle: "annual" },
 };
 
 /**

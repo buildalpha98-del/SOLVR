@@ -194,7 +194,7 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Pre-built templates: electrical cert, SWMS, gas compliance (system-seeded on first load)
 - [x] Mobile-first form completion with customer signature capture (HTML5 canvas)
 - [x] PDF generation from completed form, attached to job
-- [ ] Option to block invoice until required form is completed
+- [x] Option to block invoice until required form is completed (Sprint 5b)
 
 ### Sprint 6 — Job Costing & Reporting Dashboard
 - [x] Revenue dashboard (monthly revenue, outstanding, avg job value, conversion rate)
@@ -302,3 +302,11 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Customer-facing form completion: full form filler modal with all field types + signature capture (canvas)
 - [x] Customer-facing form completion: completed forms collapsible with PDF download links
 - [x] Vitest tests: 12 new tests (sprint5d.test.ts — versioning, backfill, customer procedures, router integration)
+
+### App Store Submission Prep
+- [x] RevenueCat configured via API: 3 entitlements (solvr_quotes, solvr_jobs, solvr_ai), 6 products, 3 offerings with packages
+- [x] PRODUCT_MAP updated with yearly aliases (solvr_*_yearly → solvr_*_annual)
+- [x] REVENUECAT_CONFIG.md created with full configuration reference for Claude Code
+- [x] APPLE_APP_STORE_SUBMISSION.md Section 5 updated for RevenueCat IAP (6 products, tier hierarchy, free trial, restore purchases)
+- [x] seed-apple-upgrade.mjs updated with form template seeding + completed SWMS submission for Apple reviewer
+- [x] Portal nav updated to include forms, purchase-orders, subcontractors pages
