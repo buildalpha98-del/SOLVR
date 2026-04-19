@@ -88,30 +88,49 @@ if (isNative) {
 
 const queryClient = new QueryClient();
 
-const redirectToLoginIfUnauthorized = (error: unknown) => {
+// Track whether we're already redirecting to prevent multiple redirects
+let isRedirecting = false;
+
+const redirectToLoginIfUnauthorized = (error: unknown, queryKey?: string) => {
+  if (isRedirecting) return;
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
-
   if (!isUnauthorized) return;
 
+  // Don't redirect if already on login page (prevents loop)
+  if (window.location.pathname === "/portal/login") return;
+
+  // Only redirect on core auth queries (portal.me, portal.getDashboard)
+  // Ignore UNAUTHORIZED from feature-gated queries (reporting, invoiceChasing)
+  // that may fail because the user's plan doesn't include that feature
+  const coreAuthQueries = ["portal.me", "portal.getDashboard", "portal.getSubscriptionStatus", "portal.passwordLogin"];
+  if (queryKey && !coreAuthQueries.some(q => queryKey.includes(q))) {
+    // Non-core query returned UNAUTHORIZED — silently ignore, don't redirect
+    return;
+  }
+
+  isRedirecting = true;
   window.location.href = getLoginUrl();
 };
 
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
-    redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    // Pass the query key so we can filter non-core queries
+    const queryKey = JSON.stringify(event.query.queryKey ?? "");
+    redirectToLoginIfUnauthorized(error, queryKey);
+    if (import.meta.env.DEV) console.error("[API Query Error]", queryKey, error);
   }
 });
 
 queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
-    redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
+    // Mutations are always user-initiated, so redirect on UNAUTHORIZED
+    redirectToLoginIfUnauthorized(error, "mutation");
+    if (import.meta.env.DEV) console.error("[API Mutation Error]", error);
   }
 });
 
