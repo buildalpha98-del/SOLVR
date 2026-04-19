@@ -278,7 +278,7 @@ export default function PortalLogin() {
                 {isNativeApp() ? (
                   <>
                     <p className="text-white/40 text-xs">
-                      New to Solvr? Subscribe at solvr.com.au on your browser, then log in here.
+                      New to Solvr? Log in to get started, or visit solvr.com.au to learn more.
                     </p>
                   </>
                 ) : (

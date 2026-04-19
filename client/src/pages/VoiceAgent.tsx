@@ -276,16 +276,35 @@ function PricingSection() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const createCheckout = trpc.stripe.createCheckout.useMutation();
 
-  // Native iOS/Android — no purchase UI (hooks already called above)
+  // Native iOS/Android — show native RevenueCat paywall
   if (isNativeApp()) {
+    const handleNativePurchase = async () => {
+      setCheckoutLoading("native");
+      try {
+        const { presentNativePaywall } = await import("@/lib/revenuecat");
+        const result = await presentNativePaywall();
+        if (result.success) {
+          window.location.href = "/portal/dashboard";
+        }
+      } catch { /* user cancelled or error — do nothing */ }
+      finally { setCheckoutLoading(null); }
+    };
+
     return (
       <section id="pricing" style={{ background: "#0F1F3D", padding: "4rem 0" }}>
         <div className="container mx-auto px-6 text-center max-w-sm">
-          <div className="text-4xl mb-4">📱</div>
-          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
-          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
-            To start a subscription, visit solvr.com.au on your browser.
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Get Started</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Choose the plan that fits your trade business.
           </p>
+          <button
+            onClick={handleNativePurchase}
+            disabled={!!checkoutLoading}
+            className="w-full font-semibold px-8 py-4 rounded-xl text-lg disabled:opacity-50"
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
+          >
+            {checkoutLoading ? "Loading..." : "View Plans & Subscribe"}
+          </button>
         </div>
       </section>
     );

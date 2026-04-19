@@ -322,7 +322,7 @@ export default function QuoteListContent() {
   }
 
   return (
-    <>
+    <div className="pb-24">
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
@@ -864,6 +864,6 @@ export default function QuoteListContent() {
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

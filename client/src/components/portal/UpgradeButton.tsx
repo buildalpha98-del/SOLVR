@@ -19,6 +19,7 @@ import {
   configureRevenueCat,
   isRevenueCatConfigured,
   presentPaywall,
+  presentNativePaywall,
   type PurchaseOutcome,
 } from "@/lib/revenuecat";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -46,7 +47,30 @@ export function UpgradeButton({
   const { user } = useAuth();
 
   const handleClick = useCallback(async () => {
-    // Ensure RC is configured
+    // On native iOS — present the native RevenueCat paywall (Apple StoreKit)
+    if (isNativeApp()) {
+      setLoading(true);
+      try {
+        const result = await presentNativePaywall();
+        if (result.success) {
+          toast.success("Subscription updated!", {
+            description: "Your plan has been upgraded. Refreshing…",
+          });
+          setTimeout(() => window.location.reload(), 2000);
+        } else if (result.error) {
+          toast.error("Upgrade failed", { description: result.error });
+        }
+      } catch {
+        toast.error("Something went wrong", {
+          description: "Please try again or contact hello@solvr.com.au",
+        });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // On web — use embedded RevenueCat web paywall (Stripe)
     if (!isRevenueCatConfigured() && user?.id) {
       configureRevenueCat(`rc_${user.id}`);
     }
@@ -54,7 +78,6 @@ export function UpgradeButton({
     setPaywallOpen(true);
     setLoading(true);
 
-    // Wait for DOM to render the paywall container
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     if (!paywallRef.current) {
@@ -85,9 +108,6 @@ export function UpgradeButton({
       setLoading(false);
     }
   }, [user?.id]);
-
-  // Native iOS/Android — hide purchase UI (hooks already called above)
-  if (isNativeApp()) return null;
 
   const defaultLabel = plan === "professional" ? "Upgrade to Solvr AI" : "Upgrade to Solvr Jobs";
   const displayLabel = label ?? defaultLabel;

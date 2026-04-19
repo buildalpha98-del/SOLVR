@@ -44,7 +44,7 @@ export async function configureRevenueCat(appUserId?: string | null): Promise<vo
         apiKey: RC_API_KEY,
         ...(appUserId ? { appUserID: `rc_${appUserId}` } : {}),
       });
-      console.log("[RevenueCat] Native Capacitor SDK configured", appUserId ? `for user rc_${appUserId}` : "anonymously");
+      if (import.meta.env.DEV) console.log("[RevenueCat] Native Capacitor SDK configured", appUserId ? `for user rc_${appUserId}` : "anonymously");
     } else {
       // Web browser — use JS SDK for Stripe billing
       const { Purchases } = await import("@revenuecat/purchases-js");
@@ -53,7 +53,7 @@ export async function configureRevenueCat(appUserId?: string | null): Promise<vo
         apiKey: RC_API_KEY,
         appUserId: userId,
       });
-      console.log("[RevenueCat] Web SDK configured for user:", userId);
+      if (import.meta.env.DEV) console.log("[RevenueCat] Web SDK configured for user:", userId);
     }
     isConfigured = true;
   } catch (err) {

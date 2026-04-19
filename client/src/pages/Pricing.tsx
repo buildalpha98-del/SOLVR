@@ -8,7 +8,7 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { isNativeApp } from "@/const";
 import { Check, X, Zap, Wrench, Bot, Loader2 } from "lucide-react";
-import { configureRevenueCat, isRevenueCatConfigured, presentPaywall, type PurchaseOutcome } from "@/lib/revenuecat";
+import { configureRevenueCat, isRevenueCatConfigured, presentPaywall, presentNativePaywall, type PurchaseOutcome } from "@/lib/revenuecat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CALENDLY_URL = import.meta.env.VITE_CALENDLY_URL ?? "https://calendly.com/solvr";
@@ -170,18 +170,42 @@ export default function Pricing() {
     }
   }, []);
 
-  // Native iOS/Android — show simple redirect notice (hooks are already called above)
+  // Native iOS/Android — present native RevenueCat paywall (Apple StoreKit)
   if (isNativeApp()) {
+    const handleNativeSubscribe = async () => {
+      setPaywallLoading(true);
+      try {
+        const result = await presentNativePaywall();
+        if (result.success) {
+          toast.success("Subscription activated!", { description: "Welcome to Solvr. Redirecting..." });
+          setTimeout(() => { window.location.href = "/portal/dashboard"; }, 2000);
+        } else if (result.error) {
+          toast.error("Purchase failed", { description: result.error });
+        }
+      } catch {
+        toast.error("Something went wrong");
+      } finally {
+        setPaywallLoading(false);
+      }
+    };
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#0A1628" }}>
         <div className="text-center max-w-sm">
-          <div className="text-4xl mb-4">📱</div>
-          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
-            To start a subscription or manage your plan, visit solvr.com.au on your browser.
+          <h2 className="font-bold text-2xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Choose Your Plan</h2>
+          <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Subscribe to unlock Solvr's full power for your trade business.
           </p>
-          <Link href="/portal" className="inline-block font-semibold px-6 py-3 rounded-xl text-sm" style={{ background: "#F5A623", color: "#0F1F3D", textDecoration: "none" }}>
-            Go to Client Portal →
+          <button
+            onClick={handleNativeSubscribe}
+            disabled={paywallLoading}
+            className="w-full font-semibold px-8 py-4 rounded-xl text-lg disabled:opacity-50"
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
+          >
+            {paywallLoading ? "Loading..." : "View Plans & Subscribe"}
+          </button>
+          <Link href="/portal" className="block mt-4 text-sm" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>
+            Back to Portal
           </Link>
         </div>
       </div>
