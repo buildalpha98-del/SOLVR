@@ -450,6 +450,18 @@ export default function PortalJobs() {
     });
   }, [jobs, search, stageFilter]);
 
+  // Pull-to-refresh MUST be before any early returns (React Rules of Hooks)
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.listJobs.invalidate(),
+      utils.quotes.list.invalidate(),
+    ]);
+  }, [utils]);
+
+  const { containerRef: jobsContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   if (!features.includes("jobs")) {
     const jobFeatures = [
       { icon: "📋", title: "Job Pipeline Board", desc: "Kanban view — drag leads from New → Quoted → Booked → Completed" },
@@ -537,17 +549,6 @@ export default function PortalJobs() {
   const wonValue = jobs
     .filter(j => j.stage === "completed")
     .reduce((sum, j) => sum + (j.actualValue ?? j.estimatedValue ?? 0), 0);
-
-  const handlePullRefresh = useCallback(async () => {
-    await Promise.all([
-      utils.portal.listJobs.invalidate(),
-      utils.quotes.list.invalidate(),
-    ]);
-  }, [utils]);
-
-  const { containerRef: jobsContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
-    onRefresh: handlePullRefresh,
-  });
 
   return (
     <PortalLayout activeTab="jobs">
