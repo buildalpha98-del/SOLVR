@@ -331,3 +331,25 @@ These are planned features that are not blocking the current launch. They will b
 - [x] PO items: card list on mobile, table on desktop (sm:hidden / hidden sm:block)
 - [x] Supplier cards: info stacked vertically, actions as full-width row
 - [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalForms
+- [x] Submissions table → card-based layout on mobile (sm:hidden table, mobile card list)
+- [x] Form filler dialog → full-screen overlay on mobile (fixed inset-0 z-50)
+- [x] Signature canvas → taller h-32 on mobile with finger-friendly dashed border
+- [x] Template builder dialog → full-width on mobile (w-[calc(100vw-2rem)])
+- [x] Form viewer dialog → full-width on mobile (w-[calc(100vw-2rem)])
+- [x] Template selector dialog → full-width on mobile (w-[calc(100vw-2rem)])
+- [x] All dialog footers → stacked buttons on mobile (flex-col-reverse sm:flex-row)
+- [x] Add pb-24 to main container for tab bar clearance
+- [x] Search full-width on mobile (sm:max-w-sm)
+- [x] Tabs full-width on mobile (flex-1 sm:flex-none)
+- [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalCompliance
+- [x] Header stacks on mobile (flex-col sm:flex-row, full-width button)
+- [x] Generate/Cancel buttons stack vertically on mobile (flex-col sm:flex-row)
+- [x] DocPdfPanel stacks vertically on mobile (flex-col sm:flex-row)
+- [x] Add pb-24 to main container for tab bar clearance
+- [x] Remove max-w-3xl constraint on mobile (sm:max-w-3xl)
+- [x] Doc type short labels on mobile for narrower cards
+- [x] 0 TypeScript errors, 376 vitest tests passing

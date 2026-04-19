@@ -4,8 +4,11 @@
  * Unauthorised copying or distribution is strictly prohibited.
  */
 /**
- * PortalCompliance — AI-generated compliance documents for tradies.
+ * PortalCompliance — AI-generated compliance documents for tradies (Mobile-First).
  * Supports: SWMS, Safety Certificates, JSA, Site Induction checklists.
+ *
+ * Mobile: stacked header, full-width buttons, stacked DocPdfPanel,
+ * no max-w constraint on mobile, pb-24 for tab bar clearance.
  */
 import { useState } from "react";
 import PortalLayout from "./PortalLayout";
@@ -78,7 +81,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── Document PDF action panel ────────────────────────────────────────────────
+// ─── Document PDF action panel (stacks on mobile) ────────────────────────────
 function DocPdfPanel({ pdfUrl, title }: { pdfUrl: string | null | undefined; title: string }) {
   if (!pdfUrl) {
     return (
@@ -92,13 +95,13 @@ function DocPdfPanel({ pdfUrl, title }: { pdfUrl: string | null | undefined; tit
   }
   return (
     <div
-      className="rounded-lg p-4 mt-3 flex items-center justify-between gap-4"
+      className="rounded-lg p-4 mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
       style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.18)" }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <FileText className="w-5 h-5 flex-shrink-0" style={{ color: "#F5A623" }} />
-        <div>
-          <p className="text-sm font-medium" style={{ color: "white" }}>{title}</p>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate" style={{ color: "white" }}>{title}</p>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>Branded PDF — ready to share or print</p>
         </div>
       </div>
@@ -106,7 +109,7 @@ function DocPdfPanel({ pdfUrl, title }: { pdfUrl: string | null | undefined; tit
         href={pdfUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium flex-shrink-0"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium w-full sm:w-auto flex-shrink-0"
         style={{ background: "#F5A623", color: "#0F1F3D" }}
       >
         <ExternalLink className="w-3.5 h-3.5" />
@@ -173,18 +176,18 @@ export default function PortalCompliance() {
 
   return (
     <PortalLayout>
-      <div className="max-w-3xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+      <div className="sm:max-w-3xl pb-24">
+        {/* Header — stacks on mobile */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-1">Compliance Documents</h1>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
+            <h1 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Compliance Documents</h1>
+            <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.45)" }}>
               AI-generated SWMS, safety certificates, JSAs, and site induction checklists.
             </p>
           </div>
           <Button
             onClick={() => setShowForm(!showForm)}
-            className="font-semibold gap-2"
+            className="font-semibold gap-2 w-full sm:w-auto flex-shrink-0"
             style={{ background: "#F5A623", color: "#0F1F3D" }}
           >
             <Plus className="w-4 h-4" />
@@ -195,10 +198,10 @@ export default function PortalCompliance() {
         {/* Generate form */}
         {showForm && (
           <div
-            className="rounded-xl p-6 mb-6"
+            className="rounded-xl p-4 sm:p-6 mb-6"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(245,166,35,0.25)" }}
           >
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3 mb-4 sm:mb-5">
               <div
                 className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                 style={{ background: "rgba(245,166,35,0.12)" }}
@@ -262,11 +265,12 @@ export default function PortalCompliance() {
                 />
               </div>
 
-              <div className="flex gap-3 pt-2">
+              {/* Buttons — stack vertically on mobile */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
                 <Button
                   type="submit"
                   disabled={generateMutation.isPending}
-                  className="flex-1 font-semibold"
+                  className="w-full sm:flex-1 font-semibold"
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
                 >
                   {generateMutation.isPending ? (
@@ -279,6 +283,7 @@ export default function PortalCompliance() {
                   type="button"
                   variant="outline"
                   onClick={() => setShowForm(false)}
+                  className="w-full sm:w-auto"
                   style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)" }}
                 >
                   Cancel
@@ -295,7 +300,7 @@ export default function PortalCompliance() {
           </div>
         ) : docs.length === 0 ? (
           <div
-            className="rounded-xl p-12 text-center"
+            className="rounded-xl p-8 sm:p-12 text-center"
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
           >
             <ShieldCheck className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
@@ -307,17 +312,17 @@ export default function PortalCompliance() {
             {docs.map((doc) => (
               <div key={doc.id}>
                 <div
-                  className="rounded-xl p-4 cursor-pointer transition-all"
+                  className="rounded-xl p-3.5 sm:p-4 cursor-pointer transition-all"
                   style={{
                     background: selectedDocId === doc.id ? "rgba(245,166,35,0.07)" : "rgba(255,255,255,0.04)",
                     border: selectedDocId === doc.id ? "1px solid rgba(245,166,35,0.25)" : "1px solid rgba(255,255,255,0.08)",
                   }}
                   onClick={() => setSelectedDocId(selectedDocId === doc.id ? null : doc.id)}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-start sm:items-center justify-between gap-2">
+                    <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                       <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0"
                         style={{ background: "rgba(245,166,35,0.1)" }}
                       >
                         <FileText className="w-4 h-4" style={{ color: "#F5A623" }} />
@@ -325,12 +330,13 @@ export default function PortalCompliance() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white truncate">{doc.title}</p>
                         <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                          {DOC_TYPE_LABELS[doc.docType as DocType]} &middot;{" "}
+                          <span className="hidden sm:inline">{DOC_TYPE_LABELS[doc.docType as DocType]} &middot; </span>
+                          <span className="sm:hidden">{DOC_TYPE_SHORT_LABELS[doc.docType as DocType]} &middot; </span>
                           {new Date(doc.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                       <StatusBadge status={doc.status} />
                       <button
                         onClick={(e) => {
@@ -357,10 +363,10 @@ export default function PortalCompliance() {
                 {/* Expanded: generating state */}
                 {selectedDocId === doc.id && doc.status === "generating" && (
                   <div
-                    className="rounded-lg p-4 mt-2 flex items-center gap-3"
+                    className="rounded-lg p-3.5 sm:p-4 mt-2 flex items-start sm:items-center gap-3"
                     style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.15)" }}
                   >
-                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "#F5A623" }} />
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5 sm:mt-0" style={{ color: "#F5A623" }} />
                     <p className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
                       Document is being generated… this usually takes 20–40 seconds. The page will refresh automatically.
                     </p>
@@ -370,10 +376,10 @@ export default function PortalCompliance() {
                 {/* Expanded: error state */}
                 {selectedDocId === doc.id && doc.status === "error" && (
                   <div
-                    className="rounded-lg p-4 mt-2 flex items-center gap-3"
+                    className="rounded-lg p-3.5 sm:p-4 mt-2 flex items-start sm:items-center gap-3"
                     style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)" }}
                   >
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#f87171" }} />
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 sm:mt-0" style={{ color: "#f87171" }} />
                     <p className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
                       Generation failed. Please delete this document and try again.
                     </p>
