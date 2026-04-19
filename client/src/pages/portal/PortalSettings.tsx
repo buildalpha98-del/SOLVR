@@ -23,6 +23,7 @@ import {
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
@@ -47,10 +48,10 @@ function SectionCard({
 }) {
   return (
     <div
-      className="rounded-xl p-6 mb-6"
+      className="rounded-xl p-4 sm:p-6 mb-4 sm:mb-6"
       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-4 sm:mb-5">
         <div
           className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: "rgba(245,166,35,0.12)" }}
@@ -87,6 +88,7 @@ export default function PortalSettings() {
   const profileQuery = trpc.portal.getBusinessProfile.useQuery();
   const updateProfile = trpc.portal.updateBusinessProfile.useMutation({
     onSuccess: () => {
+      hapticSuccess();
       toast.success("Business profile saved.");
       profileQuery.refetch();
     },
@@ -115,7 +117,7 @@ export default function PortalSettings() {
   });
   const [bankLoaded, setBankLoaded] = useState(false);
   const updateBankDetails = trpc.portal.updateBusinessProfile.useMutation({
-    onSuccess: () => toast.success("Payment details saved."),
+    onSuccess: () => { hapticSuccess(); toast.success("Payment details saved."); },
     onError: (err) => toast.error(err.message ?? "Failed to save payment details."),
   });
 
@@ -169,6 +171,7 @@ export default function PortalSettings() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      hapticSuccess();
       toast.success("Password updated successfully.");
     },
     onError: (err) => toast.error(err.message ?? "Failed to update password."),
@@ -198,10 +201,10 @@ export default function PortalSettings() {
   // ─── Render ─────────────────────────────────────────────────────────────
   return (
     <PortalLayout>
-      <div className="max-w-xl">
+      <div className="sm:max-w-xl pb-24">
         {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-1">Settings</h1>
+        <div className="mb-5 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-bold text-white mb-1">Settings</h1>
           <p className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
             Manage your business details, quote defaults, and account security.
           </p>
@@ -331,7 +334,7 @@ export default function PortalSettings() {
                 <Button
                   type="submit"
                   disabled={updateProfile.isPending || !canWrite}
-                  className="font-semibold"
+                  className="w-full font-semibold"
                   style={{ background: canWrite ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0F1F3D" }}
                 >
                   {updateProfile.isPending ? (
@@ -419,7 +422,7 @@ export default function PortalSettings() {
               <Button
                 type="submit"
                 disabled={updateBankDetails.isPending || !canWrite}
-                className="font-semibold"
+                className="w-full font-semibold"
                 style={{ background: canWrite ? "#F5A623" : "rgba(245,166,35,0.3)", color: "#0F1F3D" }}
               >
                 {updateBankDetails.isPending ? (
@@ -626,6 +629,7 @@ function LicenceInsuranceSection() {
   const profileQuery = trpc.portal.getBusinessProfile.useQuery();
   const saveMutation = trpc.portal.saveLicenceInsurance.useMutation({
     onSuccess: () => {
+      hapticSuccess();
       toast.success("Licence & insurance details saved.");
       profileQuery.refetch();
     },
@@ -849,7 +853,7 @@ function BillingSection() {
       ) : (
         <div className="space-y-4">
           {/* Plan summary row */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div
               className="rounded-lg p-3 text-center"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
@@ -913,7 +917,7 @@ function NotificationsSection() {
     staleTime: 30_000,
   });
   const updatePrefs = trpc.portal.updateNotificationPrefs.useMutation({
-    onSuccess: () => toast.success("Notification preferences saved."),
+    onSuccess: () => { hapticSuccess(); toast.success("Notification preferences saved."); },
     onError: () => toast.error("Failed to save preferences."),
   });
   const utils = trpc.useUtils();
@@ -1029,7 +1033,7 @@ function AutomationSection() {
     staleTime: 30_000,
   });
   const updatePrefs = trpc.portal.updateNotificationPrefs.useMutation({
-    onSuccess: () => toast.success("Automation settings saved."),
+    onSuccess: () => { hapticSuccess(); toast.success("Automation settings saved."); },
     onError: () => toast.error("Failed to save automation settings."),
   });
   const utils = trpc.useUtils();
@@ -1144,6 +1148,7 @@ function DeleteAccountSection() {
   const [showConfirm, setShowConfirm] = useState(false);
   const requestDeletion = trpc.portal.requestDeletion.useMutation({
     onSuccess: () => {
+      hapticWarning();
       toast.success("Deletion request sent. We will action it within 30 days.");
       setShowConfirm(false);
     },
@@ -1181,11 +1186,11 @@ function DeleteAccountSection() {
               </p>
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
             <Button
               variant="outline"
               size="sm"
-              className="border-white/20 text-white/60 hover:bg-white/5"
+              className="border-white/20 text-white/60 hover:bg-white/5 w-full sm:w-auto"
               onClick={() => setShowConfirm(false)}
               disabled={requestDeletion.isPending}
             >
@@ -1193,7 +1198,7 @@ function DeleteAccountSection() {
             </Button>
             <Button
               size="sm"
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto"
               onClick={() => requestDeletion.mutate()}
               disabled={requestDeletion.isPending}
             >
@@ -1367,17 +1372,17 @@ function RequiredFormsConfigSection() {
                 </div>
               </label>
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
                 <Button
                   size="sm"
                   onClick={handleSave}
                   disabled={upsertMutation.isPending}
-                  className="bg-[#F5A623] hover:bg-[#e09510] text-[#0F1F3D]"
+                  className="bg-[#F5A623] hover:bg-[#e09510] text-[#0F1F3D] w-full sm:w-auto"
                 >
                   {upsertMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
                   Save Rule
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => { setShowAdd(false); setNewJobType(""); setNewTemplateIds([]); }}>
+                <Button size="sm" variant="ghost" onClick={() => { setShowAdd(false); setNewJobType(""); setNewTemplateIds([]); }} className="w-full sm:w-auto">
                   Cancel
                 </Button>
               </div>

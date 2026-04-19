@@ -30,6 +30,7 @@ import {
   XCircle, PhoneCall, Loader2, RefreshCw, Download
 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ChaseStatus = "active" | "paid" | "snoozed" | "cancelled" | "escalated";
@@ -152,7 +153,7 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
         <DialogHeader>
           <DialogTitle style={{ color: "#F5A623" }}>Start Invoice Chase</DialogTitle>
         </DialogHeader>
@@ -247,7 +248,7 @@ function MarkPaidDialog({ chase, onClose, onConfirm, isPending }: MarkPaidDialog
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
         <DialogHeader>
           <DialogTitle style={{ color: "#4ADE80" }}>Mark Invoice as Paid</DialogTitle>
         </DialogHeader>

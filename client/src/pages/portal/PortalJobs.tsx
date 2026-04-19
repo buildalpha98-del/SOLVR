@@ -459,7 +459,7 @@ export default function PortalJobs() {
     ];
     return (
       <PortalLayout activeTab="jobs">
-        <div className="max-w-2xl mx-auto py-10 space-y-6">
+        <div className="sm:max-w-2xl mx-auto py-10 space-y-6">
           {/* Banner */}
           <div
             className="rounded-2xl p-6"

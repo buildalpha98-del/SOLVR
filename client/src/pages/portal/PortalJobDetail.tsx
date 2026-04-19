@@ -606,7 +606,7 @@ export default function PortalJobDetail() {
 
   return (
     <PortalLayout>
-      <div className="max-w-4xl mx-auto space-y-4 pb-12">
+      <div className="sm:max-w-4xl mx-auto space-y-4 pb-24">
 
         {/* ── Header (always visible) ── */}
         <div className="flex items-start gap-3">

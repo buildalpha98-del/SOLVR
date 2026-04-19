@@ -492,7 +492,7 @@ export default function QuoteListContent() {
       {/* ── New Quote modal ── */}
       <Dialog open={showNewModal} onOpenChange={(o) => { setShowNewModal(o); if (!o) { setNewMode(null); voice.reset(); setDetectedLanguage(null); } }}>
         <DialogContent
-          className="max-w-lg"
+          className="w-[calc(100vw-2rem)] max-w-lg mx-auto"
           style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
         >
           {newMode === null && (

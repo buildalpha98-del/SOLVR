@@ -24,6 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   Plus, Search, Building2, FileText, Send, Download, Trash2, Package, Edit,
   ChevronRight,
@@ -104,7 +105,7 @@ function SuppliersTab({ search }: { search: string }) {
   }, [suppliers, search]);
 
   const deactivate = trpc.purchaseOrders.deactivateSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); toast.success("Supplier removed"); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticWarning(); toast.success("Supplier removed"); },
   });
 
   if (isLoading) return <div className="text-center py-12 text-gray-400">Loading suppliers...</div>;
@@ -204,10 +205,10 @@ function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose:
   }
 
   const createMut = trpc.purchaseOrders.createSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); toast.success("Supplier added"); onClose(); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier added"); onClose(); },
   });
   const updateMut = trpc.purchaseOrders.updateSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); toast.success("Supplier updated"); onClose(); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier updated"); onClose(); },
   });
 
   const handleSave = () => {

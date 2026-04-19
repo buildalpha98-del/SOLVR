@@ -22,6 +22,7 @@ import {
   AlertTriangle, CheckCircle2, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning } from "@/lib/haptics";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type DocType = "swms" | "safety_cert" | "site_induction" | "jsa";
@@ -138,6 +139,7 @@ export default function PortalCompliance() {
   // Generate mutation
   const generateMutation = trpc.portal.generateComplianceDoc.useMutation({
     onSuccess: ({ docId }) => {
+      hapticSuccess();
       toast.success("Document generation started. It will be ready in ~30 seconds.");
       setPollingDocId(docId);
       setShowForm(false);
@@ -151,6 +153,7 @@ export default function PortalCompliance() {
   // Delete mutation
   const deleteMutation = trpc.portal.deleteComplianceDoc.useMutation({
     onSuccess: () => {
+      hapticWarning();
       toast.success("Document deleted.");
       if (selectedDocId) setSelectedDocId(null);
       listQuery.refetch();

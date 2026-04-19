@@ -26,6 +26,7 @@ import {
   MessageSquare, Trash2, Sparkles, Loader2, Send, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

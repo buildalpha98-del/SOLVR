@@ -4,6 +4,7 @@
  * Unauthorised copying or distribution is strictly prohibited.
  */
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 /**
  * PortalTeam.tsx — Multi-staff account management (Sprint 9)
  *
@@ -98,7 +99,7 @@ export default function PortalTeam() {
   });
 
   const resendInvite = trpc.portalTeam.resendInvite.useMutation({
-    onSuccess: () => toast.success("Invite resent", { description: "A fresh invite link has been sent." }),
+    onSuccess: () => { hapticSuccess(); toast.success("Invite resent", { description: "A fresh invite link has been sent." }); },
     onError: (e) => toast.error("Resend failed", { description: e.message }),
   });
 
@@ -117,7 +118,7 @@ export default function PortalTeam() {
 
   return (
     <PortalLayout>
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="sm:max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -289,7 +290,7 @@ export default function PortalTeam() {
 
       {/* Invite dialog */}
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
+        <DialogContent className="bg-slate-900 border-slate-700 text-white w-[calc(100vw-2rem)] max-w-md mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-amber-400" />
@@ -367,7 +368,7 @@ export default function PortalTeam() {
 
       {/* Confirm remove dialog */}
       <Dialog open={confirmRemoveId !== null} onOpenChange={() => setConfirmRemoveId(null)}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-sm">
+        <DialogContent className="bg-slate-900 border-slate-700 text-white w-[calc(100vw-2rem)] max-w-sm mx-auto">
           <DialogHeader>
             <DialogTitle>Remove team member?</DialogTitle>
             <DialogDescription className="text-slate-400">

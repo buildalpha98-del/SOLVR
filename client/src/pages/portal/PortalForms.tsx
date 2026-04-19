@@ -24,6 +24,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   Plus, Search, FileText, Download, Trash2, Edit, ClipboardList,
   CheckCircle, PenTool, Loader2, FileCheck, AlertTriangle, Eye,
@@ -365,8 +366,7 @@ function TemplatesTab({ search }: { search: string }) {
   const { data: templates, isLoading } = trpc.forms.listTemplates.useQuery();
   const utils = trpc.useUtils();
   const deleteMutation = trpc.forms.deleteTemplate.useMutation({
-    onSuccess: () => { utils.forms.listTemplates.invalidate(); toast.success("Template deleted"); },
-  });
+    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticWarning(); toast.success("Template deleted"); },  });
 
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -461,11 +461,11 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
   }, [existing]);
 
   const createMutation = trpc.forms.createTemplate.useMutation({
-    onSuccess: () => { utils.forms.listTemplates.invalidate(); toast.success("Template created"); onClose(); },
+    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticSuccess(); toast.success("Template created"); onClose(); },
     onError: e => toast.error(e.message),
   });
   const updateMutation = trpc.forms.updateTemplate.useMutation({
-    onSuccess: () => { utils.forms.listTemplates.invalidate(); toast.success("Template updated"); onClose(); },
+    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticSuccess(); toast.success("Template updated"); onClose(); },
     onError: e => toast.error(e.message),
   });
 
@@ -606,7 +606,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
   const { data: templates } = trpc.forms.listTemplates.useQuery();
   const utils = trpc.useUtils();
   const deleteMutation = trpc.forms.deleteSubmission.useMutation({
-    onSuccess: () => { utils.forms.listSubmissions.invalidate(); toast.success("Form deleted"); },
+    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticWarning(); toast.success("Form deleted"); },
   });
 
   const [showNew, setShowNew] = useState(!!linkedJobId);
@@ -817,11 +817,11 @@ function FormFillerDialog({
   }, [template, existingSubmission]);
 
   const createMutation = trpc.forms.createSubmission.useMutation({
-    onSuccess: () => { utils.forms.listSubmissions.invalidate(); toast.success("Form saved"); onClose(); },
+    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticSuccess(); toast.success("Form saved"); onClose(); },
     onError: e => toast.error(e.message),
   });
   const updateMutation = trpc.forms.updateSubmission.useMutation({
-    onSuccess: () => { utils.forms.listSubmissions.invalidate(); toast.success("Form updated"); onClose(); },
+    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticSuccess(); toast.success("Form updated"); onClose(); },
     onError: e => toast.error(e.message),
   });
   const pdfMutation = trpc.forms.generatePdf.useMutation({

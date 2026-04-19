@@ -19,6 +19,7 @@ import {
   MessageSquare, Mail, Phone, ExternalLink, Settings, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { Link } from "wouter";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ export default function PortalReviews() {
 
   return (
     <PortalLayout>
-      <div className="max-w-4xl">
+      <div className="sm:max-w-4xl">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
           <div>

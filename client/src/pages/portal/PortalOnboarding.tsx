@@ -398,7 +398,7 @@ export default function PortalOnboarding() {
     <div className="min-h-screen" style={{ background: "#0F1F3D" }}>
       {/* Header */}
       <div className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <img src={LOGO} alt="Solvr" className="h-7 opacity-90" />
           <div className="flex items-center gap-2">
             {isSaving && <Loader2 className="w-4 h-4 animate-spin text-amber-400" />}
@@ -408,7 +408,7 @@ export default function PortalOnboarding() {
       </div>
 
       {/* Progress bar */}
-      <div className="max-w-4xl mx-auto px-6 pt-8">
+      <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 pt-8">
         <div className="flex items-center gap-2 mb-2">
           {STEPS.map((step, i) => (
             <div key={step.id} className="flex items-center gap-2 flex-1">
@@ -447,7 +447,7 @@ export default function PortalOnboarding() {
 
       {/* Dictation tip */}
       {showDictationTip && currentStep < 3 && (
-        <div className="max-w-4xl mx-auto px-6 mt-6">
+        <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 mt-6">
           <div className="flex items-start gap-3 p-4 rounded-xl" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.12)" }}>
             <Mic className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
             <div className="flex-1">
@@ -463,7 +463,7 @@ export default function PortalOnboarding() {
       )}
 
       {/* Step content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
           <h2 className="text-white text-2xl font-bold">{STEPS[currentStep].title}</h2>
           <p className="text-white/50 text-sm mt-1">{STEPS[currentStep].desc}</p>

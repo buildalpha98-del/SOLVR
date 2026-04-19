@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, CreditCard, Zap, CheckCircle, Clock, AlertTriangle, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { useLocation } from "wouter";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -312,7 +313,7 @@ export default function PortalSubscription() {
 
   return (
     <PortalLayout activeTab="subscription">
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="sm:max-w-2xl mx-auto space-y-6">
         {/* ── RevenueCat Paywall Modal ─────────────────────────────────── */}
         {paywallOpen && (
           <div

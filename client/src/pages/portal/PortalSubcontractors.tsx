@@ -6,13 +6,15 @@
 /**
  * PortalSubcontractors — Manage subcontractors, assign to jobs, log timesheets.
  * Costs auto-feed into the Job Costing report.
+ *
+ * Mobile-first: card layout, full-width dialog, stacked buttons, pb-24.
  */
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import {
   Hammer, Plus, Search, Phone, Mail, DollarSign,
-  Loader2, UserX, ChevronDown, ChevronUp,
+  Loader2, UserX, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,11 +22,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { hapticLight, hapticSuccess, hapticWarning } from "@/lib/haptics";
 
 export default function PortalSubcontractors() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
   const { data: subbies, isLoading } = trpc.subcontractors.list.useQuery();
@@ -33,6 +37,7 @@ export default function PortalSubcontractors() {
     onSuccess: () => {
       utils.subcontractors.list.invalidate();
       setShowCreate(false);
+      hapticSuccess();
       toast.success("Subcontractor added");
     },
     onError: () => toast.error("Failed to add subcontractor"),
@@ -42,6 +47,7 @@ export default function PortalSubcontractors() {
     onSuccess: () => {
       utils.subcontractors.list.invalidate();
       setEditId(null);
+      hapticSuccess();
       toast.success("Subcontractor updated");
     },
     onError: () => toast.error("Failed to update"),
@@ -50,6 +56,7 @@ export default function PortalSubcontractors() {
   const deactivateMut = trpc.subcontractors.deactivate.useMutation({
     onSuccess: () => {
       utils.subcontractors.list.invalidate();
+      hapticWarning();
       toast.success("Subcontractor deactivated");
     },
     onError: () => toast.error("Failed to deactivate"),
@@ -62,24 +69,27 @@ export default function PortalSubcontractors() {
 
   return (
     <PortalLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6 pb-24">
+        {/* Header — stacks on mobile */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Hammer className="w-6 h-6 text-amber-500" />
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+              <Hammer className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
               Subcontractors
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-[13px] text-muted-foreground mt-0.5">
               Manage your subbies, assign them to jobs, and track their hours
             </p>
           </div>
-          <Button onClick={() => setShowCreate(true)} className="gap-2 bg-amber-500 hover:bg-amber-600 text-white">
+          <Button
+            onClick={() => { setShowCreate(true); hapticLight(); }}
+            className="gap-2 bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
+          >
             <Plus className="w-4 h-4" /> Add Subcontractor
           </Button>
         </div>
 
-        {/* Search */}
+        {/* Search — full width */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -98,20 +108,29 @@ export default function PortalSubcontractors() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-20">
             <Hammer className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {subbies?.length === 0
                 ? "No subcontractors yet. Add your first subbie to get started."
                 : "No subcontractors match your search."}
             </p>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             {filtered.map(sub => (
               <SubbieCard
                 key={sub.id}
                 sub={sub}
-                onEdit={() => setEditId(sub.id)}
-                onDeactivate={() => deactivateMut.mutate({ id: sub.id })}
+                isExpanded={expandedId === sub.id}
+                onToggle={() => {
+                  hapticLight();
+                  setExpandedId(expandedId === sub.id ? null : sub.id);
+                }}
+                onEdit={() => { setEditId(sub.id); hapticLight(); }}
+                onDeactivate={() => {
+                  if (confirm("Deactivate this subcontractor?")) {
+                    deactivateMut.mutate({ id: sub.id });
+                  }
+                }}
               />
             ))}
           </div>
@@ -141,86 +160,114 @@ export default function PortalSubcontractors() {
   );
 }
 
-// ─── Subbie Card ─────────────────────────────────────────────────────────────
+// ─── Subbie Card (mobile-first) ─────────────────────────────────────────────
 function SubbieCard({
   sub,
+  isExpanded,
+  onToggle,
   onEdit,
   onDeactivate,
 }: {
   sub: any;
+  isExpanded: boolean;
+  onToggle: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   return (
     <div className="bg-card rounded-xl border overflow-hidden">
-      <div className="p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-            <Hammer className="w-5 h-5 text-amber-500" />
+      {/* Tap row — always visible */}
+      <div
+        className="p-3.5 sm:p-4 flex items-center gap-3 cursor-pointer active:bg-muted/30"
+        onClick={onToggle}
+      >
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+          <Hammer className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-semibold text-foreground truncate">{sub.name}</h3>
+            {!sub.isActive && (
+              <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded-full flex-shrink-0">Inactive</span>
+            )}
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-foreground truncate">{sub.name}</h3>
-              {!sub.isActive && (
-                <span className="text-xs bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full">Inactive</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-              {sub.trade && <span>{sub.trade}</span>}
-              {sub.abn && <span>ABN: {sub.abn}</span>}
-              {sub.hourlyRateCents != null && (
-                <span className="flex items-center gap-1">
-                  <DollarSign className="w-3 h-3" />
-                  ${(sub.hourlyRateCents / 100).toFixed(2)}/hr
-                </span>
-              )}
-            </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground mt-0.5">
+            {sub.trade && <span>{sub.trade}</span>}
+            {sub.hourlyRateCents != null && (
+              <span className="flex items-center gap-0.5">
+                <DollarSign className="w-3 h-3" />
+                ${(sub.hourlyRateCents / 100).toFixed(2)}/hr
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {sub.phone && (
-            <a href={`tel:${sub.phone}`} className="p-2 hover:bg-muted rounded-lg">
-              <Phone className="w-4 h-4 text-muted-foreground" />
-            </a>
-          )}
-          {sub.email && (
-            <a href={`mailto:${sub.email}`} className="p-2 hover:bg-muted rounded-lg">
-              <Mail className="w-4 h-4 text-muted-foreground" />
-            </a>
-          )}
-          <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
-          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </Button>
-        </div>
+        <ChevronRight
+          className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+        />
       </div>
 
-      {expanded && (
-        <div className="border-t p-4 space-y-3">
-          {sub.notes && <p className="text-sm text-muted-foreground">{sub.notes}</p>}
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {sub.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {sub.email}</span>}
-            {sub.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {sub.phone}</span>}
+      {/* Expanded details */}
+      {isExpanded && (
+        <div className="border-t px-3.5 sm:px-4 py-3 space-y-3">
+          {/* Contact info — stacked on mobile */}
+          <div className="space-y-1.5">
+            {sub.email && (
+              <a href={`mailto:${sub.email}`} className="flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+                <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{sub.email}</span>
+              </a>
+            )}
+            {sub.phone && (
+              <a href={`tel:${sub.phone}`} className="flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+                <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{sub.phone}</span>
+              </a>
+            )}
+            {sub.abn && (
+              <div className="text-[12px] text-muted-foreground">ABN: {sub.abn}</div>
+            )}
           </div>
-          {sub.isActive && (
+
+          {sub.notes && (
+            <p className="text-[13px] text-muted-foreground leading-relaxed">{sub.notes}</p>
+          )}
+
+          {/* Actions — stacked on mobile */}
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            {sub.phone && (
+              <a
+                href={`tel:${sub.phone}`}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-foreground w-full sm:w-auto"
+              >
+                <Phone className="w-4 h-4" /> Call
+              </a>
+            )}
             <Button
               variant="outline"
               size="sm"
-              onClick={onDeactivate}
-              className="text-red-500 border-red-500/30 hover:bg-red-500/10"
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="w-full sm:w-auto"
             >
-              <UserX className="w-4 h-4 mr-1" /> Deactivate
+              Edit
             </Button>
-          )}
+            {sub.isActive && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onDeactivate(); }}
+                className="text-red-500 border-red-500/30 hover:bg-red-500/10 w-full sm:w-auto"
+              >
+                <UserX className="w-4 h-4 mr-1" /> Deactivate
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Create Form Dialog ──────────────────────────────────────────────────────
+// ─── Create Form Dialog (mobile-first) ──────────────────────────────────────
 function SubbieFormDialog({
   open,
   onClose,
@@ -260,7 +307,7 @@ function SubbieFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -269,7 +316,8 @@ function SubbieFormDialog({
             <label className="text-sm font-medium text-foreground">Name *</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Dave's Plumbing" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* Trade + ABN — stack on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-foreground">Trade</label>
               <Input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="e.g. Plumber" />
@@ -279,7 +327,8 @@ function SubbieFormDialog({
               <Input value={abn} onChange={(e) => setAbn(e.target.value)} placeholder="12 345 678 901" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* Email + Phone — stack on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-foreground">Email</label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dave@example.com" />
@@ -302,9 +351,16 @@ function SubbieFormDialog({
               placeholder="Any notes about this subbie..."
             />
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={isPending || !name.trim()} className="bg-amber-500 hover:bg-amber-600 text-white">
+          {/* Footer — stacked on mobile */}
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={isPending || !name.trim()}
+              className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
+            >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
               Save
             </Button>

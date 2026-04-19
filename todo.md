@@ -353,3 +353,31 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Remove max-w-3xl constraint on mobile (sm:max-w-3xl)
 - [x] Doc type short labels on mobile for narrower cards
 - [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalSubcontractors
+- [x] Card-based layout on mobile (not table/wide flex)
+- [x] Dialogs full-width on mobile (w-[calc(100vw-2rem)])
+- [x] Buttons stacked on mobile (flex-col-reverse sm:flex-row)
+- [x] pb-24 for tab bar clearance
+- [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalSettings
+- [x] Settings sections stack vertically on mobile (sm:max-w-xl)
+- [x] Form inputs full-width on mobile
+- [x] Save buttons full-width on mobile (w-full sm:w-auto)
+- [x] pb-24 for tab bar clearance
+- [x] Haptics wired into all save/delete actions
+
+### Portal-wide max-w- audit
+- [x] Grep all portal pages for max-w- constraints
+- [x] Fixed 13 page-level containers (added sm: prefix)
+- [x] Fixed 6 dialog containers (added w-[calc(100vw-2rem)])
+- [x] Pages fixed: JobDetail, Jobs, Onboarding, Referral, Staff, Subscription, Reviews, QuoteSettings, Customers, Invoices, PriceList, QuoteDetail, Team
+
+### Capacitor Haptic Feedback
+- [x] Upgraded haptics.ts to use @capacitor/haptics (Taptic Engine) with Vibration API fallback
+- [x] Added hapticSelection() for picker/scroll changes
+- [x] Installed @capacitor/haptics + @capacitor/core packages
+- [x] Wired haptics into all 22 portal pages with toast.success callbacks
+- [x] hapticSuccess on saves/creates, hapticWarning on deletes
+- [x] Pages: Forms, Compliance, PurchaseOrders, Settings, Customers, Invoices, PriceList, QuoteDetail, QuoteSettings, Referral, Reporting, Reviews, Schedule, Staff, StaffCheckIn, Subscription, Team, Assistant, Calendar, Calls, CustomerDetail, Dashboard

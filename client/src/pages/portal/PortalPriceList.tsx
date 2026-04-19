@@ -23,6 +23,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   Plus, Pencil, Trash2, Loader2, Tag, DollarSign, Info,
   Upload, FileText, AlertTriangle, CheckCircle2,
@@ -156,7 +157,7 @@ function CsvImportModal({ open, onClose, onImported }: CsvImportModalProps) {
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="max-w-lg"
+        className="w-[calc(100vw-2rem)] max-w-lg mx-auto"
         style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
       >
         <DialogHeader>
@@ -398,7 +399,7 @@ export default function PortalPriceList() {
 
   return (
     <PortalLayout>
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="sm:max-w-4xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
@@ -569,7 +570,7 @@ export default function PortalPriceList() {
       {/* ── Add / Edit modal ─────────────────────────────────────────────────── */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent
-          className="max-w-md"
+          className="w-[calc(100vw-2rem)] max-w-md mx-auto"
           style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
         >
           <DialogHeader>
