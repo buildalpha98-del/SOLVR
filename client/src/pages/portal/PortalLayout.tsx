@@ -27,7 +27,7 @@ import { usePortalRole } from "@/hooks/usePortalRole";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles, Bot,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
-  CalendarClock, UserCog, Star, ChevronDown, Tag, UserPlus, MoreHorizontal
+  CalendarClock, UserCog, Star, ChevronDown, Tag, UserPlus, MoreHorizontal, BarChart3
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -61,6 +61,7 @@ const ALL_TABS: NavTab[] = [
   { key: "price-list", label: "Price List", href: "/portal/price-list", icon: <Tag className="w-4 h-4" />, feature: "quote-engine", badge: "Pro" },
   { key: "team", label: "Team", href: "/portal/team", icon: <UserPlus className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "insights", label: "AI Insights", href: "/portal/insights", icon: <Sparkles className="w-4 h-4" />, feature: "ai-insights", badge: "Managed" },
+  { key: "reporting", label: "Reporting", href: "/portal/reporting", icon: <BarChart3 className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
 ];
 
 // 5 primary tabs — the tradie's daily workflow

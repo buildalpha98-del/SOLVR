@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 18 April 2026
-> **Test count:** 283 vitest tests passing (30 test files) · 0 TypeScript errors
+> **Test count:** 313 vitest tests passing (32 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -190,9 +190,13 @@ These are planned features that are not blocking the current launch. They will b
 - [ ] Option to block invoice until required form is completed
 
 ### Sprint 6 — Job Costing & Reporting Dashboard
-- [ ] Revenue dashboard (monthly revenue, outstanding, avg job value, conversion rate)
-- [ ] Quote conversion rate tracking
-- [ ] Job costing report (list, sorted by margin)
+- [x] Revenue dashboard (monthly revenue, outstanding, avg job value, conversion rate)
+- [x] Quote conversion rate tracking
+- [x] Job costing report (list, sorted by margin)
+- [x] portalReporting tRPC router (3 procedures)
+- [x] PortalReporting UI page (3 tabs: Revenue, Quote Conversion, Job Costing)
+- [x] Route + nav wired (/portal/reporting)
+- [x] 11 vitest tests for reporting procedures
 
 ### Polish & QoL (Low Priority)
 - [ ] Regenerate 6 Instagram posts with diamond circuit icon

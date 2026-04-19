@@ -2396,3 +2396,209 @@ export async function getActiveSubscriptionForClient(
     .limit(1);
   return rows[0] ?? null;
 }
+
+// ─── Sprint 6: Job Costing & Reporting ────────────────────────────────────────
+import { invoiceChases } from "../drizzle/schema";
+/**
+ * Get revenue metrics for a client over a given period.
+ * Aggregates data from portalJobs (invoiced/paid amounts) and invoiceChases.
+ */
+export async function getRevenueMetrics(clientId: number, monthsBack = 12) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const allJobs = await db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  const allChases = await db.select().from(invoiceChases)
+    .where(eq(invoiceChases.clientId, clientId));
+  // ── Monthly revenue (from paid jobs) ──
+  const monthlyRevenue: Record<string, number> = {};
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+    monthlyRevenue[key] = 0;
+  }
+  allJobs.forEach(j => {
+    if (j.paidAt) {
+      const d = new Date(j.paidAt);
+      const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+      if (key in monthlyRevenue) {
+        monthlyRevenue[key] += (j.amountPaid ?? 0) / 100;
+      }
+    }
+  });
+  // ── Outstanding invoices (from active chases) ──
+  const outstandingChases = allChases.filter(c => c.status === "active");
+  const totalOutstanding = outstandingChases.reduce(
+    (sum, c) => sum + parseFloat(c.amountDue?.toString() ?? "0"), 0
+  );
+  // ── Average job value (from completed + paid jobs) ──
+  const completedJobs = allJobs.filter(j => j.stage === "completed" || j.paidAt);
+  const totalCompletedRevenue = completedJobs.reduce(
+    (sum, j) => sum + ((j.amountPaid ?? j.invoicedAmount ?? j.actualValue ?? 0) / 100), 0
+  );
+  const avgJobValue = completedJobs.length > 0
+    ? Math.round(totalCompletedRevenue / completedJobs.length)
+    : 0;
+  // ── Total revenue (all time) ──
+  const totalRevenue = allJobs.reduce(
+    (sum, j) => sum + ((j.amountPaid ?? 0) / 100), 0
+  );
+  // ── Jobs summary ──
+  const totalJobCount = allJobs.length;
+  const completedCount = allJobs.filter(j => j.stage === "completed").length;
+  const activeCount = allJobs.filter(j => !["completed", "lost"].includes(j.stage ?? "")).length;
+  const lostCount = allJobs.filter(j => j.stage === "lost").length;
+  return {
+    monthlyRevenue: Object.entries(monthlyRevenue).map(([month, amount]) => ({ month, amount })),
+    totalOutstanding,
+    outstandingCount: outstandingChases.length,
+    avgJobValue,
+    totalRevenue,
+    totalJobCount,
+    completedCount,
+    activeCount,
+    lostCount,
+  };
+}
+
+/**
+ * Get quote conversion funnel metrics for a client.
+ * Tracks: created → sent → accepted → declined → expired → converted → paid
+ */
+export async function getQuoteConversionMetrics(clientId: number, monthsBack = 6) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  const allQuotes = await db.select().from(quotesTable)
+    .where(eq(quotesTable.clientId, clientId));
+  const recentQuotes = allQuotes.filter(q => new Date(q.createdAt) >= cutoff);
+  const total = recentQuotes.length;
+  const sent = recentQuotes.filter(q => q.status !== "draft").length;
+  const accepted = recentQuotes.filter(q => q.status === "accepted").length;
+  const declined = recentQuotes.filter(q => q.status === "declined").length;
+  const expired = recentQuotes.filter(q => q.status === "expired").length;
+  const convertedToJob = recentQuotes.filter(q => q.convertedJobId !== null).length;
+  // Quotes that led to paid invoices
+  const allJobs = await db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  const paidJobIds = new Set(allJobs.filter(j => j.paidAt).map(j => j.id));
+  const paidFromQuote = recentQuotes.filter(
+    q => q.convertedJobId && paidJobIds.has(q.convertedJobId)
+  ).length;
+  // Monthly quote volume
+  const monthlyQuotes: Record<string, { sent: number; accepted: number; declined: number }> = {};
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+    monthlyQuotes[key] = { sent: 0, accepted: 0, declined: 0 };
+  }
+  recentQuotes.forEach(q => {
+    const d = new Date(q.createdAt);
+    const key = d.toLocaleDateString("en-AU", { year: "numeric", month: "short" });
+    if (key in monthlyQuotes) {
+      if (q.status !== "draft") monthlyQuotes[key].sent++;
+      if (q.status === "accepted") monthlyQuotes[key].accepted++;
+      if (q.status === "declined") monthlyQuotes[key].declined++;
+    }
+  });
+  const quotesWithAmount = recentQuotes.filter(q => q.totalAmount);
+  const avgQuoteValue = quotesWithAmount.length > 0
+    ? Math.round(quotesWithAmount.reduce((s, q) => s + parseFloat(q.totalAmount?.toString() ?? "0"), 0) / quotesWithAmount.length)
+    : 0;
+  const conversionRate = sent > 0 ? Math.round((accepted / sent) * 100) : 0;
+  const acceptedQuotes = recentQuotes.filter(q => q.status === "accepted" && q.respondedAt && q.sentAt);
+  const avgDaysToAccept = acceptedQuotes.length > 0
+    ? Math.round(acceptedQuotes.reduce((s, q) => {
+        const sentTime = new Date(q.sentAt!).getTime();
+        const responded = new Date(q.respondedAt!).getTime();
+        return s + (responded - sentTime) / (1000 * 60 * 60 * 24);
+      }, 0) / acceptedQuotes.length)
+    : 0;
+  return {
+    funnel: { total, sent, accepted, declined, expired, convertedToJob, paidFromQuote },
+    conversionRate,
+    avgQuoteValue,
+    avgDaysToAccept,
+    monthlyQuotes: Object.entries(monthlyQuotes).map(([month, data]) => ({ month, ...data })),
+  };
+}
+
+/**
+ * Get job costing report — per-job margin analysis.
+ */
+export async function getJobCostingReport(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const allJobs = await db.select().from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  const jobsWithFinancials = allJobs.filter(
+    j => j.stage === "completed" || j.invoiceStatus === "paid" || j.invoicedAmount
+  );
+  const allCostItems = await db.select().from(jobCostItems)
+    .where(eq(jobCostItems.clientId, clientId));
+  const allPayments = await db.select().from(jobProgressPayments)
+    .where(eq(jobProgressPayments.clientId, clientId));
+  const jobCosting = jobsWithFinancials.map(job => {
+    const costs = allCostItems.filter(c => c.jobId === job.id);
+    const payments = allPayments.filter(p => p.jobId === job.id);
+    const totalCostCents = costs.reduce((s, c) => s + c.amountCents, 0);
+    const totalCost = totalCostCents / 100;
+    const revenueCents = job.amountPaid ?? job.invoicedAmount ?? (job.actualValue ? job.actualValue * 100 : (job.estimatedValue ? job.estimatedValue * 100 : 0));
+    const revenue = revenueCents / 100;
+    const margin = revenue - totalCost;
+    const marginPercent = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
+    const costBreakdown: Record<string, number> = {};
+    costs.forEach(c => {
+      costBreakdown[c.category] = (costBreakdown[c.category] ?? 0) + (c.amountCents / 100);
+    });
+    return {
+      jobId: job.id,
+      jobTitle: job.jobType,
+      customerName: job.customerName,
+      stage: job.stage,
+      invoiceStatus: job.invoiceStatus,
+      quotedAmount: job.quotedAmount ? parseFloat(job.quotedAmount.toString()) : null,
+      revenue,
+      totalCost,
+      margin,
+      marginPercent,
+      costBreakdown,
+      costItemCount: costs.length,
+      paymentCount: payments.length,
+      completedAt: job.completedAt,
+      paidAt: job.paidAt,
+    };
+  });
+  // Sort by margin (worst first so they can fix problem jobs)
+  jobCosting.sort((a, b) => a.marginPercent - b.marginPercent);
+  const totalRevenue = jobCosting.reduce((s, j) => s + j.revenue, 0);
+  const totalCosts = jobCosting.reduce((s, j) => s + j.totalCost, 0);
+  const totalMargin = totalRevenue - totalCosts;
+  const avgMarginPercent = jobCosting.length > 0
+    ? Math.round(jobCosting.reduce((s, j) => s + j.marginPercent, 0) / jobCosting.length)
+    : 0;
+  const overallCostBreakdown: Record<string, number> = {};
+  jobCosting.forEach(j => {
+    Object.entries(j.costBreakdown).forEach(([cat, amt]) => {
+      overallCostBreakdown[cat] = (overallCostBreakdown[cat] ?? 0) + amt;
+    });
+  });
+  return {
+    jobs: jobCosting,
+    summary: {
+      totalRevenue,
+      totalCosts,
+      totalMargin,
+      avgMarginPercent,
+      jobCount: jobCosting.length,
+      profitableJobs: jobCosting.filter(j => j.margin > 0).length,
+      lossJobs: jobCosting.filter(j => j.margin < 0).length,
+    },
+    overallCostBreakdown,
+  };
+}

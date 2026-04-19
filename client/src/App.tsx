@@ -95,6 +95,7 @@ import PortalPriceList from "./pages/portal/PortalPriceList";
 import PortalTeam from "./pages/portal/PortalTeam";
 import PortalTeamAccept from "./pages/portal/PortalTeamAccept";
 import PortalAssistant from "./pages/portal/PortalAssistant";
+import PortalReporting from "./pages/portal/PortalReporting";
 
 // ── Staff Portal (PIN auth) ──────────────────────────────────────────────
 import StaffLogin from "./pages/staff/StaffLogin";
@@ -222,6 +223,7 @@ function Router() {
       <Route path="/portal/team" component={PortalTeam} />
       <Route path="/portal/team/accept" component={PortalTeamAccept} />
       <Route path="/portal/assistant" component={PortalAssistant} />
+      <Route path="/portal/reporting" component={PortalReporting} />
 
       {/* ── Staff Portal (PIN auth) ─────────────────────────────────────── */}
       <Route path="/staff" component={StaffLogin} />
