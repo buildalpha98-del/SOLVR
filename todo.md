@@ -321,3 +321,13 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Desktop sidebar still works as before
 - [x] calc(100dvh - 64px) height for proper mobile viewport
 - [x] 0 TypeScript errors maintained
+
+### Mobile Fix — PortalPurchaseOrders
+- [x] Table/grid overflows on mobile — switch to card-based layout at mobile breakpoints
+- [x] Forms and modals full-width on mobile (w-[calc(100vw-2rem)] max-w-*)
+- [x] Buttons full-width stacked on mobile (w-full sm:w-auto, flex-col-reverse sm:flex-row)
+- [x] PO detail view stacks sections vertically on mobile (grid-cols-1 sm:grid-cols-2)
+- [x] Add pb-24 to main scroll container for tab bar clearance
+- [x] PO items: card list on mobile, table on desktop (sm:hidden / hidden sm:block)
+- [x] Supplier cards: info stacked vertically, actions as full-width row
+- [x] 0 TypeScript errors, 376 vitest tests passing
