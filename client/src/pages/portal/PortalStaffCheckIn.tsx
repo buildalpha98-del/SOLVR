@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   MapPin, Clock, CheckCircle2, LogIn, LogOut,
   ChevronDown, Loader2, CalendarClock, User,

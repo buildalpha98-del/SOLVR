@@ -33,6 +33,7 @@ import {
 import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { Loader2 } from "lucide-react";
 
 type StaffMember = {
@@ -434,7 +435,7 @@ export default function PortalStaff() {
 
   return (
     <PortalLayout activeTab="staff">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+      <div className="sm:max-w-2xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

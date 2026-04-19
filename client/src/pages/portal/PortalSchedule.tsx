@@ -35,6 +35,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   ChevronLeft, ChevronRight, Plus, CalendarClock,
   Clock, MapPin, Loader2, X, CheckCircle2, ChevronDown, ChevronUp,

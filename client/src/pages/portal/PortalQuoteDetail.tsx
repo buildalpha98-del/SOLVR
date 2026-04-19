@@ -26,6 +26,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   ArrowLeft, Send, FileText, Sparkles, Camera, Trash2,
   Loader2, CheckCircle, Download, Plus, XCircle, RefreshCw,
@@ -720,7 +721,7 @@ export default function PortalQuoteDetail() {
       {/* ── Send modal ──────────────────────────────────────────────────── */}
       <Dialog open={showSendModal} onOpenChange={setShowSendModal}>
         <DialogContent
-          className="max-w-md"
+          className="w-[calc(100vw-2rem)] max-w-md mx-auto"
           style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
         >
           <DialogHeader>

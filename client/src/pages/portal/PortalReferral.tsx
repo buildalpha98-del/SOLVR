@@ -19,6 +19,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Gift, Copy, CheckCheck, Users, Percent, MessageCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 
 // Hardcoded — window.location.origin returns "capacitor://localhost" on iOS Capacitor.
 const SOLVR_ORIGIN = "https://solvr.com.au";
@@ -54,7 +55,7 @@ export default function PortalReferral() {
   // ── Feature disabled state ────────────────────────────────────────────────
   if (!enabledLoading && enabledData?.enabled === false) {
     return (
-      <div className="max-w-lg mx-auto py-16 text-center space-y-4">
+      <div className="sm:max-w-lg mx-auto py-16 text-center space-y-4">
         <div
           className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
           style={{ background: "rgba(245,166,35,0.10)", border: "1px solid rgba(245,166,35,0.2)" }}
@@ -70,7 +71,7 @@ export default function PortalReferral() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6 py-2">
+    <div className="sm:max-w-lg mx-auto space-y-6 py-2">
 
       {/* Hero card */}
       <div

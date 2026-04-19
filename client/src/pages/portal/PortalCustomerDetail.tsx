@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import {
   ArrowLeft, Phone, Mail, MapPin, DollarSign, Briefcase,

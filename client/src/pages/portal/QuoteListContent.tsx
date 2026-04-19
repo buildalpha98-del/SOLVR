@@ -128,10 +128,9 @@ export default function QuoteListContent() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("activated") === "1") {
       toast.success("Quote Engine activated! You can now create quotes.", { duration: 6000 });
-      const params = new URLSearchParams(window.location.search);
-      params.delete("activated");
-      const qs = params.toString();
-      window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("activated");
+      window.history.replaceState({}, "", url.toString());
     }
   }, []);
 
@@ -141,10 +140,9 @@ export default function QuoteListContent() {
     if (params.get("record") !== "1") return;
     setShowNewModal(true);
     setNewMode("voice");
-    const rp = new URLSearchParams(window.location.search);
-    rp.delete("record");
-    const rqs = rp.toString();
-    window.history.replaceState({}, "", `${window.location.pathname}${rqs ? `?${rqs}` : ""}`);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("record");
+    window.history.replaceState({}, "", url.toString());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -168,10 +166,9 @@ export default function QuoteListContent() {
     if (name || phone || address) {
       toast.success("Quote pre-filled from your last call.", { duration: 4000 });
     }
-    const pp = new URLSearchParams(window.location.search);
-    ["prefill", "name", "phone", "address", "jobType"].forEach((k) => pp.delete(k));
-    const pqs = pp.toString();
-    window.history.replaceState({}, "", `${window.location.pathname}${pqs ? `?${pqs}` : ""}`);
+    const url = new URL(window.location.href);
+    ["prefill", "name", "phone", "address", "jobType"].forEach((k) => url.searchParams.delete(k));
+    window.history.replaceState({}, "", url.toString());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -322,7 +319,7 @@ export default function QuoteListContent() {
   }
 
   return (
-    <div className="pb-24">
+    <>
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
@@ -495,7 +492,7 @@ export default function QuoteListContent() {
       {/* ── New Quote modal ── */}
       <Dialog open={showNewModal} onOpenChange={(o) => { setShowNewModal(o); if (!o) { setNewMode(null); voice.reset(); setDetectedLanguage(null); } }}>
         <DialogContent
-          className="max-w-lg"
+          className="w-[calc(100vw-2rem)] max-w-lg mx-auto"
           style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}
         >
           {newMode === null && (
@@ -864,6 +861,6 @@ export default function QuoteListContent() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

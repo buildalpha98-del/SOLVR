@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import {
   Users, Search, MessageSquare, ChevronRight, Phone,
@@ -687,7 +688,7 @@ export default function PortalCustomers() {
 
       {/* Bulk SMS Modal */}
       <Dialog open={showBulkSms} onOpenChange={setShowBulkSms}>
-        <DialogContent className="max-w-md" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
           <DialogHeader>
             <DialogTitle className="text-white">
               Bulk SMS — {selected.size} customer{selected.size !== 1 ? "s" : ""}

@@ -310,3 +310,74 @@ These are planned features that are not blocking the current launch. They will b
 - [x] APPLE_APP_STORE_SUBMISSION.md Section 5 updated for RevenueCat IAP (6 products, tier hierarchy, free trial, restore purchases)
 - [x] seed-apple-upgrade.mjs updated with form template seeding + completed SWMS submission for Apple reviewer
 - [x] Portal nav updated to include forms, purchase-orders, subcontractors pages
+
+### Mobile Redesign — PortalAssistant
+- [x] Chat messages full width with small padding (not narrow centered column)
+- [x] Input area sticky at bottom with safe-area padding (env(safe-area-inset-bottom))
+- [x] Suggested prompts as horizontal scroll chips, not grid
+- [x] Font sizes readable on mobile (14px body, 12px metadata)
+- [x] Streaming response area word-wrap for long text
+- [x] Mobile sidebar as overlay drawer with backdrop (hidden on desktop)
+- [x] Desktop sidebar still works as before
+- [x] calc(100dvh - 64px) height for proper mobile viewport
+- [x] 0 TypeScript errors maintained
+
+### Mobile Fix — PortalPurchaseOrders
+- [x] Table/grid overflows on mobile — switch to card-based layout at mobile breakpoints
+- [x] Forms and modals full-width on mobile (w-[calc(100vw-2rem)] max-w-*)
+- [x] Buttons full-width stacked on mobile (w-full sm:w-auto, flex-col-reverse sm:flex-row)
+- [x] PO detail view stacks sections vertically on mobile (grid-cols-1 sm:grid-cols-2)
+- [x] Add pb-24 to main scroll container for tab bar clearance
+- [x] PO items: card list on mobile, table on desktop (sm:hidden / hidden sm:block)
+- [x] Supplier cards: info stacked vertically, actions as full-width row
+- [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalForms
+- [x] Submissions table → card-based layout on mobile (sm:hidden table, mobile card list)
+- [x] Form filler dialog → full-screen overlay on mobile (fixed inset-0 z-50)
+- [x] Signature canvas → taller h-32 on mobile with finger-friendly dashed border
+- [x] Template builder dialog → full-width on mobile (w-[calc(100vw-2rem)])
+- [x] Form viewer dialog → full-width on mobile (w-[calc(100vw-2rem)])
+- [x] Template selector dialog → full-width on mobile (w-[calc(100vw-2rem)])
+- [x] All dialog footers → stacked buttons on mobile (flex-col-reverse sm:flex-row)
+- [x] Add pb-24 to main container for tab bar clearance
+- [x] Search full-width on mobile (sm:max-w-sm)
+- [x] Tabs full-width on mobile (flex-1 sm:flex-none)
+- [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalCompliance
+- [x] Header stacks on mobile (flex-col sm:flex-row, full-width button)
+- [x] Generate/Cancel buttons stack vertically on mobile (flex-col sm:flex-row)
+- [x] DocPdfPanel stacks vertically on mobile (flex-col sm:flex-row)
+- [x] Add pb-24 to main container for tab bar clearance
+- [x] Remove max-w-3xl constraint on mobile (sm:max-w-3xl)
+- [x] Doc type short labels on mobile for narrower cards
+- [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalSubcontractors
+- [x] Card-based layout on mobile (not table/wide flex)
+- [x] Dialogs full-width on mobile (w-[calc(100vw-2rem)])
+- [x] Buttons stacked on mobile (flex-col-reverse sm:flex-row)
+- [x] pb-24 for tab bar clearance
+- [x] 0 TypeScript errors, 376 vitest tests passing
+
+### Mobile Fix — PortalSettings
+- [x] Settings sections stack vertically on mobile (sm:max-w-xl)
+- [x] Form inputs full-width on mobile
+- [x] Save buttons full-width on mobile (w-full sm:w-auto)
+- [x] pb-24 for tab bar clearance
+- [x] Haptics wired into all save/delete actions
+
+### Portal-wide max-w- audit
+- [x] Grep all portal pages for max-w- constraints
+- [x] Fixed 13 page-level containers (added sm: prefix)
+- [x] Fixed 6 dialog containers (added w-[calc(100vw-2rem)])
+- [x] Pages fixed: JobDetail, Jobs, Onboarding, Referral, Staff, Subscription, Reviews, QuoteSettings, Customers, Invoices, PriceList, QuoteDetail, Team
+
+### Capacitor Haptic Feedback
+- [x] Upgraded haptics.ts to use @capacitor/haptics (Taptic Engine) with Vibration API fallback
+- [x] Added hapticSelection() for picker/scroll changes
+- [x] Installed @capacitor/haptics + @capacitor/core packages
+- [x] Wired haptics into all 22 portal pages with toast.success callbacks
+- [x] hapticSuccess on saves/creates, hapticWarning on deletes
+- [x] Pages: Forms, Compliance, PurchaseOrders, Settings, Customers, Invoices, PriceList, QuoteDetail, QuoteSettings, Referral, Reporting, Reviews, Schedule, Staff, StaffCheckIn, Subscription, Team, Assistant, Calendar, Calls, CustomerDetail, Dashboard

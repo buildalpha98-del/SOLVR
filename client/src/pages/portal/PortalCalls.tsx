@@ -14,6 +14,7 @@ import { Phone, Search, ChevronDown, ChevronUp, Clock, MessageSquare, Briefcase,
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 
 // Job type tag colours
 const JOB_TYPE_COLORS: Record<string, string> = {

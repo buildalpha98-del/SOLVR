@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { useVapi, type PersonaConfig } from "@/hooks/useVapi";
 import { Waveform } from "@/components/Waveform";
 import { TranscriptFeed } from "@/components/TranscriptFeed";

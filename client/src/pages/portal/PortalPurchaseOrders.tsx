@@ -1,8 +1,15 @@
-import { openUrl } from "@/lib/openUrl";
 /**
- * Sprint 4 — Purchase Orders page
+ * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
+ * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
+ * Unauthorised copying or distribution is strictly prohibited.
+ */
+/**
+ * Sprint 4 — Purchase Orders page (Mobile-First)
  * Tabs: Suppliers | Purchase Orders
  * Supplier CRUD, PO creation (manual or from job), PDF generation, email to supplier
+ *
+ * Mobile: card-based layout, full-width stacked buttons, full-width modals,
+ * vertical sections in PO detail, pb-24 for tab bar clearance.
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -17,8 +24,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   Plus, Search, Building2, FileText, Send, Download, Trash2, Package, Edit,
+  ChevronRight,
 } from "lucide-react";
 
 const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -36,21 +45,20 @@ export default function PortalPurchaseOrders() {
   const [search, setSearch] = useState("");
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Purchase Orders</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage suppliers and send purchase orders</p>
-        </div>
+    <div className="space-y-4 pb-24">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Purchase Orders</h1>
+        <p className="text-[13px] text-gray-500 mt-0.5">Manage suppliers and send purchase orders</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+      {/* Tabs — full width on mobile */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
         {(["orders", "suppliers"] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -59,14 +67,14 @@ export default function PortalPurchaseOrders() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
+      {/* Search — full width on mobile */}
+      <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
           placeholder={`Search ${tab}...`}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="pl-9"
+          className="pl-9 sm:max-w-sm"
         />
       </div>
 
@@ -97,7 +105,7 @@ function SuppliersTab({ search }: { search: string }) {
   }, [suppliers, search]);
 
   const deactivate = trpc.purchaseOrders.deactivateSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); toast.success("Supplier removed"); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticWarning(); toast.success("Supplier removed"); },
   });
 
   if (isLoading) return <div className="text-center py-12 text-gray-400">Loading suppliers...</div>;
@@ -105,7 +113,7 @@ function SuppliersTab({ search }: { search: string }) {
   return (
     <>
       <div className="flex justify-end">
-        <Button onClick={() => setShowAdd(true)} size="sm">
+        <Button onClick={() => setShowAdd(true)} size="sm" className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-1" /> Add Supplier
         </Button>
       </div>
@@ -119,32 +127,38 @@ function SuppliersTab({ search }: { search: string }) {
       ) : (
         <div className="grid gap-3">
           {filtered.map(s => (
-            <div key={s.id} className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-900">{s.name}</span>
-                  {s.abn && <span className="text-xs text-gray-400">ABN: {s.abn}</span>}
+            <div key={s.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              {/* Supplier info */}
+              <div className="min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-semibold text-gray-900 text-[15px] block truncate">{s.name}</span>
+                    {s.abn && <span className="text-xs text-gray-400 block mt-0.5">ABN: {s.abn}</span>}
+                  </div>
                 </div>
-                <div className="flex gap-4 mt-1 text-sm text-gray-500">
-                  {s.contactName && <span>{s.contactName}</span>}
-                  {s.email && <span>{s.email}</span>}
+                <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 mt-2 text-sm text-gray-500">
+                  {s.contactName && <span className="truncate">{s.contactName}</span>}
+                  {s.email && <span className="truncate">{s.email}</span>}
                   {s.phone && <span>{s.phone}</span>}
                 </div>
                 {s.paymentTerms && (
-                  <span className="text-xs text-gray-400 mt-1 block">Terms: {s.paymentTerms}</span>
+                  <span className="text-xs text-gray-400 mt-1.5 block">Terms: {s.paymentTerms}</span>
                 )}
               </div>
-              <div className="flex gap-2 ml-4">
-                <Button variant="outline" size="sm" onClick={() => setEditId(s.id)}>
-                  <Edit className="h-3.5 w-3.5" />
+              {/* Actions — stacked on mobile */}
+              <div className="flex gap-2 mt-3 sm:mt-2">
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => setEditId(s.id)}>
+                  <Edit className="h-3.5 w-3.5 mr-1.5" />
+                  <span className="sm:hidden">Edit</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-red-500 hover:text-red-700"
+                  className="flex-1 sm:flex-none text-red-500 hover:text-red-700"
                   onClick={() => { if (confirm("Remove this supplier?")) deactivate.mutate({ id: s.id }); }}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  <span className="sm:hidden">Remove</span>
                 </Button>
               </div>
             </div>
@@ -162,7 +176,7 @@ function SuppliersTab({ search }: { search: string }) {
   );
 }
 
-// ─── Supplier Dialog ───────────────────────────────────────────────────────
+// ─── Supplier Dialog (full-width on mobile) ───────────────────────────────
 function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose: () => void }) {
   const utils = trpc.useUtils();
   const { data: existing } = trpc.purchaseOrders.getSupplier.useQuery(
@@ -191,10 +205,10 @@ function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose:
   }
 
   const createMut = trpc.purchaseOrders.createSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); toast.success("Supplier added"); onClose(); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier added"); onClose(); },
   });
   const updateMut = trpc.purchaseOrders.updateSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); toast.success("Supplier updated"); onClose(); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier updated"); onClose(); },
   });
 
   const handleSave = () => {
@@ -218,27 +232,27 @@ function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose:
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{supplierId ? "Edit Supplier" : "Add Supplier"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <Input placeholder="Company name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <Input placeholder="Contact person" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input placeholder="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             <Input placeholder="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input placeholder="ABN" value={form.abn} onChange={e => setForm(f => ({ ...f, abn: e.target.value }))} />
             <Input placeholder="Payment terms (e.g. Net 30)" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms: e.target.value }))} />
           </div>
           <Input placeholder="Address" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
           <Textarea placeholder="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={createMut.isPending || updateMut.isPending}>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
+          <Button onClick={handleSave} disabled={createMut.isPending || updateMut.isPending} className="w-full sm:w-auto">
             {supplierId ? "Save Changes" : "Add Supplier"}
           </Button>
         </DialogFooter>
@@ -271,7 +285,7 @@ function OrdersTab({ search }: { search: string }) {
   }, [orders, search, supplierMap]);
 
   const genPdf = trpc.purchaseOrders.generatePdf.useMutation({
-    onSuccess: (data) => { openUrl(data.pdfUrl); toast.success("PDF generated"); },
+    onSuccess: (data) => { window.open(data.pdfUrl, "_blank"); toast.success("PDF generated"); },
     onError: (err) => toast.error(err.message),
   });
 
@@ -288,7 +302,7 @@ function OrdersTab({ search }: { search: string }) {
   return (
     <>
       <div className="flex justify-end">
-        <Button onClick={() => setShowCreate(true)} size="sm" disabled={!suppliers?.length}>
+        <Button onClick={() => setShowCreate(true)} size="sm" disabled={!suppliers?.length} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-1" /> New Purchase Order
         </Button>
       </div>
@@ -306,43 +320,53 @@ function OrdersTab({ search }: { search: string }) {
           <p className="text-sm mt-1">Create your first PO to track material costs</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map(o => (
             <div
               key={o.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:border-gray-300 transition-colors cursor-pointer"
+              className="bg-white border border-gray-200 rounded-lg p-4 active:bg-gray-50 transition-colors cursor-pointer"
               onClick={() => setViewId(o.id)}
             >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono font-semibold text-gray-900">{o.poNumber}</span>
-                  <Badge className={STATUS_COLORS[o.status] ?? ""}>{o.status}</Badge>
-                  <span className="text-sm text-gray-500">{supplierMap.get(o.supplierId) ?? "Unknown"}</span>
+              {/* Card header: PO number + status */}
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-semibold text-gray-900 text-[15px]">{o.poNumber}</span>
+                    <Badge className={`${STATUS_COLORS[o.status] ?? ""} text-[11px]`}>{o.status}</Badge>
+                  </div>
+                  <span className="text-sm text-gray-500 block mt-0.5 truncate">
+                    {supplierMap.get(o.supplierId) ?? "Unknown supplier"}
+                  </span>
                 </div>
-                <div className="flex gap-4 mt-1 text-sm text-gray-400">
-                  <span>{fmt(o.totalCents)}</span>
-                  <span>{new Date(o.createdAt).toLocaleDateString("en-AU")}</span>
-                  {o.sentAt && <span>Sent {new Date(o.sentAt).toLocaleDateString("en-AU")}</span>}
-                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
               </div>
-              <div className="flex gap-2 ml-4" onClick={e => e.stopPropagation()}>
+
+              {/* Card meta: total + date */}
+              <div className="flex items-center gap-3 text-sm text-gray-400">
+                <span className="font-semibold text-gray-700">{fmt(o.totalCents)}</span>
+                <span>{new Date(o.createdAt).toLocaleDateString("en-AU")}</span>
+                {o.sentAt && <span className="text-green-600">Sent {new Date(o.sentAt).toLocaleDateString("en-AU")}</span>}
+              </div>
+
+              {/* Card actions — stacked on mobile */}
+              <div className="flex gap-2 mt-3" onClick={e => e.stopPropagation()}>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="flex-1 sm:flex-none text-[13px]"
                   onClick={() => genPdf.mutate({ id: o.id })}
                   disabled={genPdf.isPending}
-                  title="Download PDF"
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-3.5 w-3.5 mr-1.5" /> PDF
                 </Button>
                 {o.status === "draft" && (
                   <Button
                     size="sm"
+                    className="flex-1 sm:flex-none text-[13px]"
                     onClick={() => sendToSupplier.mutate({ id: o.id })}
                     disabled={sendToSupplier.isPending}
-                    title="Email to supplier"
                   >
-                    <Send className="h-3.5 w-3.5 mr-1" /> Send
+                    <Send className="h-3.5 w-3.5 mr-1.5" /> Send
                   </Button>
                 )}
               </div>
@@ -357,7 +381,7 @@ function OrdersTab({ search }: { search: string }) {
   );
 }
 
-// ─── Create PO Dialog ──────────────────────────────────────────────────────
+// ─── Create PO Dialog (full-width on mobile) ─────────────────────────────
 function CreatePODialog({ onClose }: { onClose: () => void }) {
   const utils = trpc.useUtils();
   const { data: suppliers } = trpc.purchaseOrders.listSuppliers.useQuery();
@@ -407,7 +431,7 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Purchase Order</DialogTitle>
         </DialogHeader>
@@ -423,7 +447,7 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Delivery address</label>
               <Input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} placeholder="Job site address" />
@@ -434,42 +458,45 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          {/* Line items */}
+          {/* Line items — mobile-friendly stacked layout */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700">Line Items</label>
-              <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
+              <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" /> Add</Button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {items.map((item, idx) => (
-                <div key={idx} className="flex gap-2 items-start">
+                <div key={idx} className="bg-gray-50 rounded-lg p-3 space-y-2">
                   <Input
                     placeholder="Description"
-                    className="flex-1"
                     value={item.description}
                     onChange={e => updateItem(idx, "description", e.target.value)}
                   />
-                  <Input
-                    placeholder="Qty"
-                    className="w-16"
-                    value={item.quantity}
-                    onChange={e => updateItem(idx, "quantity", e.target.value)}
-                  />
-                  <Input
-                    placeholder="Unit"
-                    className="w-16"
-                    value={item.unit}
-                    onChange={e => updateItem(idx, "unit", e.target.value)}
-                  />
-                  <Input
-                    placeholder="Price $"
-                    className="w-20"
-                    value={item.unitPriceCents}
-                    onChange={e => updateItem(idx, "unitPriceCents", e.target.value)}
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input
+                      placeholder="Qty"
+                      value={item.quantity}
+                      onChange={e => updateItem(idx, "quantity", e.target.value)}
+                    />
+                    <Input
+                      placeholder="Unit"
+                      value={item.unit}
+                      onChange={e => updateItem(idx, "unit", e.target.value)}
+                    />
+                    <Input
+                      placeholder="Price $"
+                      value={item.unitPriceCents}
+                      onChange={e => updateItem(idx, "unitPriceCents", e.target.value)}
+                    />
+                  </div>
                   {items.length > 1 && (
-                    <Button variant="ghost" size="sm" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 px-2">
-                      <Trash2 className="h-3.5 w-3.5" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeItem(idx)}
+                      className="text-red-400 hover:text-red-600 w-full sm:w-auto text-xs"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" /> Remove item
                     </Button>
                   )}
                 </div>
@@ -482,16 +509,16 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
 
           <Textarea placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} rows={2} />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={createMut.isPending}>Create PO</Button>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
+          <Button onClick={handleCreate} disabled={createMut.isPending} className="w-full sm:w-auto">Create PO</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ─── View PO Dialog ────────────────────────────────────────────────────────
+// ─── View PO Dialog (full-width on mobile, vertical sections) ─────────────
 function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) {
   const { data: po, isLoading } = trpc.purchaseOrders.get.useQuery({ id: poId });
   const { data: suppliers } = trpc.purchaseOrders.listSuppliers.useQuery();
@@ -500,7 +527,7 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
   const supplierName = suppliers?.find(s => s.id === po?.supplierId)?.name ?? "Unknown";
 
   const genPdf = trpc.purchaseOrders.generatePdf.useMutation({
-    onSuccess: (data) => { openUrl(data.pdfUrl); toast.success("PDF generated"); },
+    onSuccess: (data) => { window.open(data.pdfUrl, "_blank"); toast.success("PDF generated"); },
   });
 
   const sendToSupplier = trpc.purchaseOrders.sendToSupplier.useMutation({
@@ -523,36 +550,39 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             <span className="font-mono">{po.poNumber}</span>
             <Badge className={STATUS_COLORS[po.status] ?? ""}>{po.status}</Badge>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500 block">Supplier</span>
+          {/* PO details — stacked vertically on mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <span className="text-gray-500 block text-xs mb-0.5">Supplier</span>
               <span className="font-medium">{supplierName}</span>
             </div>
-            <div>
-              <span className="text-gray-500 block">Created</span>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <span className="text-gray-500 block text-xs mb-0.5">Created</span>
               <span className="font-medium">{new Date(po.createdAt).toLocaleDateString("en-AU")}</span>
             </div>
             {po.deliveryAddress && (
-              <div className="col-span-2">
-                <span className="text-gray-500 block">Delivery Address</span>
+              <div className="sm:col-span-2 bg-gray-50 rounded-lg p-3">
+                <span className="text-gray-500 block text-xs mb-0.5">Delivery Address</span>
                 <span className="font-medium">{po.deliveryAddress}</span>
               </div>
             )}
           </div>
 
-          {/* Items */}
+          {/* Items — card-based instead of table on mobile */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-2">Items</h4>
-            <div className="border rounded-lg overflow-hidden">
+
+            {/* Desktop table (hidden on mobile) */}
+            <div className="hidden sm:block border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -572,7 +602,21 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
                 </tbody>
               </table>
             </div>
-            <div className="text-right mt-2 font-semibold">{fmt(po.totalCents)}</div>
+
+            {/* Mobile card list */}
+            <div className="sm:hidden space-y-2">
+              {(po as any).items?.map((item: any, i: number) => (
+                <div key={i} className="bg-gray-50 rounded-lg p-3">
+                  <p className="font-medium text-gray-900 text-[14px]">{item.description}</p>
+                  <div className="flex justify-between mt-1 text-sm text-gray-500">
+                    <span>{item.quantity} {item.unit}</span>
+                    <span className="font-semibold text-gray-700">{item.lineTotalCents ? fmt(item.lineTotalCents) : "—"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-right mt-2 font-semibold text-[15px]">{fmt(po.totalCents)}</div>
           </div>
 
           {po.notes && (
@@ -593,16 +637,16 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2">
-          <Button variant="outline" onClick={() => genPdf.mutate({ id: po.id })} disabled={genPdf.isPending}>
-            <FileText className="h-4 w-4 mr-1" /> PDF
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Close</Button>
+          <Button variant="outline" onClick={() => genPdf.mutate({ id: po.id })} disabled={genPdf.isPending} className="w-full sm:w-auto">
+            <FileText className="h-4 w-4 mr-1.5" /> Download PDF
           </Button>
           {po.status === "draft" && (
-            <Button onClick={() => sendToSupplier.mutate({ id: po.id })} disabled={sendToSupplier.isPending}>
-              <Send className="h-4 w-4 mr-1" /> Send to Supplier
+            <Button onClick={() => sendToSupplier.mutate({ id: po.id })} disabled={sendToSupplier.isPending} className="w-full sm:w-auto">
+              <Send className="h-4 w-4 mr-1.5" /> Send to Supplier
             </Button>
           )}
-          <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

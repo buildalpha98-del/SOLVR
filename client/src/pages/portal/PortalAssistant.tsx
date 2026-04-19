@@ -1,17 +1,19 @@
-import { openUrl } from "@/lib/openUrl";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
  * Unauthorised copying or distribution is strictly prohibited.
  */
 /**
- * PortalAssistant — Trade AI Assistant
+ * PortalAssistant — Trade AI Assistant (Mobile-First)
  *
  * A trade-specific AI chat pre-seeded with:
  * - The client's trade type, business profile, and job history
  * - 8 trade knowledge blocks (plumbing, electrical, carpentry, etc.)
  * - Voice-to-document generation (SWMS, job certs, notes)
  * - Conversation history with named conversations
+ *
+ * Mobile-first: full-width messages, sticky input with safe-area,
+ * horizontal scroll prompt chips, 14px body / 12px metadata.
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -20,10 +22,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Streamdown } from "streamdown";
 import {
-  Bot, Plus, Mic, MicOff, FileText, ChevronRight,
-  MessageSquare, Trash2, Sparkles, Loader2, Send,
+  Bot, Plus, Mic, MicOff, FileText, ChevronRight, ChevronLeft,
+  MessageSquare, Trash2, Sparkles, Loader2, Send, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,51 +44,51 @@ type ConversationItem = {
 const TRADE_PROMPTS: Record<string, string[]> = {
   plumber: [
     "Generate a SWMS for hot water system replacement",
-    "What are the AS/NZS 3500 requirements for backflow prevention?",
-    "Draft a scope of works for a full bathroom renovation",
-    "Write job notes for a blocked drain callout",
+    "AS/NZS 3500 backflow prevention requirements",
+    "Draft scope of works for bathroom reno",
+    "Write job notes for blocked drain callout",
   ],
   electrician: [
     "Generate a SWMS for switchboard upgrade",
-    "What are the AS/NZS 3000 requirements for RCD protection?",
-    "Draft a scope of works for a solar installation",
-    "Write job notes for a fault-finding callout",
+    "AS/NZS 3000 RCD protection requirements",
+    "Draft scope of works for solar install",
+    "Write job notes for fault-finding callout",
   ],
   carpenter: [
-    "Generate a SWMS for working at heights on a deck build",
-    "Draft a scope of works for a kitchen renovation",
-    "Write a materials list for a 4m x 6m deck",
-    "Create job notes for a door frame replacement",
+    "Generate a SWMS for working at heights",
+    "Draft scope of works for kitchen reno",
+    "Materials list for a 4m x 6m deck",
+    "Job notes for door frame replacement",
   ],
   builder: [
     "Generate a SWMS for excavation works",
-    "Draft a scope of works for a bathroom addition",
-    "Write a progress report for a residential renovation",
-    "Create a subcontractor coordination email for tiling stage",
+    "Draft scope of works for bathroom addition",
+    "Progress report for residential reno",
+    "Subcontractor coordination email for tiling",
   ],
   hvac: [
-    "Generate a SWMS for rooftop AC installation",
-    "Draft a scope of works for a commercial fitout",
-    "Write job notes for a refrigerant leak repair",
-    "Create a maintenance checklist for split system service",
+    "Generate a SWMS for rooftop AC install",
+    "Draft scope of works for commercial fitout",
+    "Job notes for refrigerant leak repair",
+    "Maintenance checklist for split system",
   ],
   painter: [
-    "Generate a SWMS for exterior painting at heights",
-    "Draft a scope of works for interior repaint",
-    "Write job notes for a water damage repaint",
-    "Create a surface preparation checklist",
+    "Generate a SWMS for exterior painting",
+    "Draft scope of works for interior repaint",
+    "Job notes for water damage repaint",
+    "Surface preparation checklist",
   ],
   tiler: [
     "Generate a SWMS for wet area tiling",
-    "Draft a scope of works for bathroom retile",
-    "Write job notes for a grout repair",
-    "Create a materials list for a 15m² floor tile job",
+    "Draft scope of works for bathroom retile",
+    "Job notes for grout repair",
+    "Materials list for 15m² floor tile job",
   ],
   default: [
     "Generate a SWMS for my current job",
-    "Write professional job notes from my voice recording",
+    "Write job notes from voice recording",
     "Draft a scope of works for a quote",
-    "What compliance requirements apply to my trade?",
+    "Compliance requirements for my trade",
   ],
 };
 
@@ -98,8 +101,8 @@ function getSuggestedPrompts(tradeType: string | null | undefined): string[] {
   return TRADE_PROMPTS.default;
 }
 
-// ─── Conversation Sidebar ─────────────────────────────────────────────────────
-function ConversationSidebar({
+// ─── Conversation Drawer (Mobile overlay / Desktop sidebar) ──────────────────
+function ConversationDrawer({
   conversations,
   activeId,
   onSelect,
@@ -107,6 +110,7 @@ function ConversationSidebar({
   onDelete,
   tradeType,
   isLoading,
+  onClose,
 }: {
   conversations: ConversationItem[];
   activeId: string | null;
@@ -115,32 +119,39 @@ function ConversationSidebar({
   onDelete: (id: string) => void;
   tradeType: string | null;
   isLoading: boolean;
+  onClose: () => void;
 }) {
   return (
-    <div
-      className="flex flex-col h-full"
-      style={{ background: "#0A1628", borderRight: "1px solid rgba(255,255,255,0.08)" }}
-    >
+    <div className="flex flex-col h-full" style={{ background: "#0A1628" }}>
       {/* Header */}
-      <div className="p-4 border-b flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+      <div className="px-4 pt-4 pb-3 flex-shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5" style={{ color: "#F5A623" }} />
-            <span className="font-semibold text-white text-sm">AI Assistant</span>
+            <span className="font-semibold text-white text-[14px]">Conversations</span>
           </div>
-          {tradeType && (
-            <Badge
-              className="text-[10px] px-2 py-0.5 capitalize"
-              style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "none" }}
+          <div className="flex items-center gap-2">
+            {tradeType && (
+              <Badge
+                className="text-[11px] px-2 py-0.5 capitalize"
+                style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "none" }}
+              >
+                {tradeType}
+              </Badge>
+            )}
+            {/* Close button — visible on mobile */}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md hover:bg-white/10 transition-colors sm:hidden"
             >
-              {tradeType}
-            </Badge>
-          )}
+              <X className="w-4 h-4 text-white/60" />
+            </button>
+          </div>
         </div>
         <Button
-          onClick={onNew}
+          onClick={() => { onNew(); onClose(); }}
           size="sm"
-          className="w-full gap-2 text-xs"
+          className="w-full gap-2 text-[13px] h-9"
           style={{ background: "#F5A623", color: "#0F1F3D" }}
         >
           <Plus className="w-3.5 h-3.5" />
@@ -151,41 +162,41 @@ function ConversationSidebar({
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto py-2">
         {isLoading ? (
-          <div className="flex justify-center py-6">
+          <div className="flex justify-center py-8">
             <Loader2 className="w-5 h-5 animate-spin" style={{ color: "rgba(255,255,255,0.3)" }} />
           </div>
         ) : conversations.length === 0 ? (
-          <div className="px-4 py-6 text-center">
+          <div className="px-4 py-8 text-center">
             <MessageSquare className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(255,255,255,0.15)" }} />
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>No conversations yet</p>
+            <p className="text-[12px]" style={{ color: "rgba(255,255,255,0.4)" }}>No conversations yet</p>
           </div>
         ) : (
           conversations.map((conv) => (
             <div
               key={conv.id}
               className={cn(
-                "group flex items-center gap-2 px-3 py-2.5 mx-2 rounded-lg cursor-pointer transition-colors",
-                activeId === conv.id ? "bg-amber-500/10" : "hover:bg-white/5"
+                "group flex items-center gap-2.5 px-3 py-3 mx-2 rounded-lg cursor-pointer transition-colors",
+                activeId === conv.id ? "bg-amber-500/10" : "hover:bg-white/5 active:bg-white/10"
               )}
-              onClick={() => onSelect(conv.id)}
+              onClick={() => { onSelect(conv.id); onClose(); }}
             >
               <MessageSquare
-                className="w-3.5 h-3.5 flex-shrink-0"
+                className="w-4 h-4 flex-shrink-0"
                 style={{ color: activeId === conv.id ? "#F5A623" : "rgba(255,255,255,0.4)" }}
               />
               <div className="flex-1 min-w-0">
                 <p
-                  className="text-xs font-medium truncate"
+                  className="text-[13px] font-medium truncate"
                   style={{ color: activeId === conv.id ? "#F5A623" : "rgba(255,255,255,0.75)" }}
                 >
                   {conv.title}
                 </p>
               </div>
               <button
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-red-500/20"
+                className="opacity-0 group-hover:opacity-100 sm:opacity-0 active:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20"
                 onClick={(e) => { e.stopPropagation(); onDelete(conv.id); }}
               >
-                <Trash2 className="w-3 h-3 text-red-400" />
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
               </button>
             </div>
           ))
@@ -193,46 +204,56 @@ function ConversationSidebar({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t flex-shrink-0" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+      <div className="p-3 flex-shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
         <p className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
-          Powered by Solvr AI · Trade-specific knowledge
+          Powered by Solvr AI
         </p>
       </div>
     </div>
   );
 }
 
-// ─── Message Bubble ───────────────────────────────────────────────────────────
+// ─── Message Bubble (Mobile-optimised) ───────────────────────────────────────
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   if (msg.role === "system") return null;
   const isUser = msg.role === "user";
   return (
-    <div className={cn("flex gap-3 mb-4", isUser ? "flex-row-reverse" : "flex-row")}>
+    <div className={cn("flex gap-2.5 mb-3", isUser ? "flex-row-reverse" : "flex-row")}>
+      {/* Avatar */}
       <div
-        className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
+        className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5"
         style={isUser
-          ? { background: "#F5A623", color: "#0F1F3D" }
+          ? { background: "#F5A623", color: "#0F1F3D", fontSize: "11px", fontWeight: 700 }
           : { background: "rgba(245,166,35,0.15)", color: "#F5A623" }
         }
       >
         {isUser ? "Y" : <Bot className="w-3.5 h-3.5" />}
       </div>
+      {/* Bubble */}
       <div
         className={cn(
-          "max-w-[80%] rounded-xl px-4 py-3 text-sm",
-          isUser
-            ? "rounded-tr-sm"
-            : "rounded-tl-sm"
+          "rounded-2xl px-3.5 py-2.5 min-w-0",
+          isUser ? "rounded-tr-md" : "rounded-tl-md"
         )}
-        style={isUser
-          ? { background: "#F5A623", color: "#0F1F3D" }
-          : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.9)" }
-        }
+        style={{
+          maxWidth: "calc(100% - 44px)",
+          ...(isUser
+            ? { background: "#F5A623", color: "#0F1F3D" }
+            : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.9)" }),
+        }}
       >
         {isUser ? (
-          <p className="whitespace-pre-wrap">{msg.content}</p>
+          <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
         ) : (
-          <div className="prose prose-invert prose-sm max-w-none">
+          <div
+            className="prose prose-invert prose-sm max-w-none"
+            style={{
+              fontSize: "14px",
+              lineHeight: "1.6",
+              wordBreak: "break-word",
+              overflowWrap: "anywhere",
+            }}
+          >
             <Streamdown>{msg.content}</Streamdown>
           </div>
         )}
@@ -246,7 +267,7 @@ export default function PortalAssistant() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false); // default closed on mobile
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isGeneratingDoc, setIsGeneratingDoc] = useState(false);
@@ -329,8 +350,8 @@ export default function PortalAssistant() {
   const generateDoc = trpc.assistant.generateDoc.useMutation({
     onSuccess: (data) => {
       setIsGeneratingDoc(false);
-      toast.success(`${data.title} generated — tap to open the document.`);
-      openUrl(data.url);
+      toast.success(`${data.title} generated — tap to open.`);
+      window.open(data.url, "_blank");
     },
     onError: (err) => {
       setIsGeneratingDoc(false);
@@ -400,7 +421,7 @@ export default function PortalAssistant() {
 
   const handleGenerateDoc = (docType: "swms" | "safety_cert" | "jsa" | "site_induction") => {
     if (!activeConversationId) {
-      toast.error("No active conversation — start a conversation first.");
+      toast.error("Start a conversation first.");
       return;
     }
     setIsGeneratingDoc(true);
@@ -413,17 +434,53 @@ export default function PortalAssistant() {
 
   const conversations: ConversationItem[] = convData?.conversations ?? [];
   const suggestedPrompts = getSuggestedPrompts(tradeType);
-  const isLoading = sendMessage.isPending || createConv.isPending;
+  const isSending = sendMessage.isPending || createConv.isPending;
 
   return (
-    <div className="flex" style={{ height: "calc(100vh - 120px)", minHeight: "500px", background: "#0F1F3D" }}>
-      {/* Sidebar */}
+    <div
+      className="flex relative"
+      style={{
+        height: "calc(100dvh - 64px)",
+        background: "#0F1F3D",
+      }}
+    >
+      {/* ── Mobile sidebar overlay ── */}
+      {showSidebar && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/50 sm:hidden"
+            onClick={() => setShowSidebar(false)}
+          />
+          {/* Drawer */}
+          <div
+            className="fixed inset-y-0 left-0 z-50 w-[280px] sm:hidden"
+            style={{ background: "#0A1628" }}
+          >
+            <ConversationDrawer
+              conversations={conversations}
+              activeId={activeConversationId}
+              onSelect={(id) => { setActiveConversationId(id); setMessages([]); }}
+              onNew={handleNewConversation}
+              onDelete={(id) => deleteConv.mutate({ conversationId: id })}
+              tradeType={tradeType}
+              isLoading={convLoading}
+              onClose={() => setShowSidebar(false)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* ── Desktop sidebar (hidden on mobile) ── */}
       <div
-        className="flex-shrink-0 transition-all duration-200 overflow-hidden"
-        style={{ width: showSidebar ? "256px" : "0px" }}
+        className="hidden sm:flex flex-shrink-0 transition-all duration-200 overflow-hidden"
+        style={{
+          width: showSidebar ? "256px" : "0px",
+          borderRight: showSidebar ? "1px solid rgba(255,255,255,0.08)" : "none",
+        }}
       >
         <div style={{ width: "256px" }}>
-          <ConversationSidebar
+          <ConversationDrawer
             conversations={conversations}
             activeId={activeConversationId}
             onSelect={(id) => { setActiveConversationId(id); setMessages([]); }}
@@ -431,91 +488,103 @@ export default function PortalAssistant() {
             onDelete={(id) => deleteConv.mutate({ conversationId: id })}
             tradeType={tradeType}
             isLoading={convLoading}
+            onClose={() => setShowSidebar(false)}
           />
         </div>
       </div>
 
-      {/* Main chat area */}
+      {/* ── Main chat area ── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <div
-          className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
-          style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.08)" }}
+          className="flex items-center justify-between px-3 sm:px-4 py-2.5 flex-shrink-0"
+          style={{ background: "#0F1F3D", borderBottom: "1px solid rgba(255,255,255,0.08)" }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={() => setShowSidebar((v) => !v)}
-              className="p-1.5 rounded-md hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded-md hover:bg-white/10 active:bg-white/20 transition-colors flex-shrink-0"
             >
-              <ChevronRight
-                className="w-4 h-4 text-white/60 transition-transform duration-200"
-                style={{ transform: showSidebar ? "rotate(180deg)" : "rotate(0deg)" }}
-              />
+              {showSidebar ? (
+                <ChevronLeft className="w-4 h-4 text-white/60" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-white/60" />
+              )}
             </button>
-            <div>
-              <h1 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
-                {tradeType
-                  ? `${tradeType.charAt(0).toUpperCase() + tradeType.slice(1)} AI Assistant`
-                  : "Trade AI Assistant"}
+            <div className="min-w-0">
+              <h1 className="text-[14px] font-semibold text-white flex items-center gap-1.5 truncate">
+                <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: "#F5A623" }} />
+                <span className="truncate">
+                  {tradeType
+                    ? `${tradeType.charAt(0).toUpperCase() + tradeType.slice(1)} AI`
+                    : "Trade AI"}
+                </span>
               </h1>
-              <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Pre-loaded with your business profile and trade knowledge
+              <p className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Trade knowledge + your business profile
               </p>
             </div>
           </div>
 
           {/* Quick doc generation */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             {(["swms", "safety_cert"] as const).map((docType) => (
               <Button
                 key={docType}
                 size="sm"
                 variant="outline"
-                className="text-xs gap-1.5 hidden sm:flex"
+                className="text-[11px] gap-1 h-7 px-2"
                 style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", background: "transparent" }}
                 onClick={() => handleGenerateDoc(docType)}
                 disabled={isGeneratingDoc || !activeConversationId}
               >
                 {isGeneratingDoc ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                {docType === "swms" ? "SWMS" : "Safety Cert"}
+                <span className="hidden xs:inline">{docType === "swms" ? "SWMS" : "Safety"}</span>
               </Button>
             ))}
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3">
           {messages.length === 0 ? (
-            /* Empty state with suggested prompts */
-            <div className="flex flex-col items-center justify-center h-full gap-6 pb-8">
-              <div className="text-center">
+            /* ── Empty state with horizontal scroll chips ── */
+            <div className="flex flex-col items-center justify-center h-full gap-5 pb-4">
+              <div className="text-center px-2">
                 <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3"
                   style={{ background: "rgba(245,166,35,0.15)" }}
                 >
-                  <Bot className="w-7 h-7" style={{ color: "#F5A623" }} />
+                  <Bot className="w-6 h-6" style={{ color: "#F5A623" }} />
                 </div>
-                <h2 className="text-white font-semibold mb-1">
+                <h2 className="text-white font-semibold text-[16px] mb-1">
                   {tradeType
-                    ? `Your ${tradeType.charAt(0).toUpperCase() + tradeType.slice(1)} AI Assistant`
-                    : "Your Trade AI Assistant"}
+                    ? `${tradeType.charAt(0).toUpperCase() + tradeType.slice(1)} AI Assistant`
+                    : "Trade AI Assistant"}
                 </h2>
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+                <p className="text-[13px] leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
                   Ask anything about your trade, generate compliance docs, or write job notes.
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                {suggestedPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    className="text-left px-4 py-3 rounded-xl text-xs transition-colors"
-                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)", border: "1px solid rgba(255,255,255,0.08)" }}
-                    onClick={() => handleSend(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                ))}
+
+              {/* Horizontal scroll chips */}
+              <div className="w-full overflow-x-auto scrollbar-hide -mx-3 px-3">
+                <div className="flex gap-2 w-max pb-1">
+                  {suggestedPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      className="flex-shrink-0 px-3.5 py-2.5 rounded-full text-[13px] leading-snug transition-colors whitespace-nowrap active:scale-95"
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        color: "rgba(255,255,255,0.75)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                      }}
+                      onClick={() => handleSend(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
@@ -523,8 +592,8 @@ export default function PortalAssistant() {
               {messages.map((msg, i) => (
                 <MessageBubble key={i} msg={msg} />
               ))}
-              {isLoading && (
-                <div className="flex gap-3 mb-4">
+              {isSending && (
+                <div className="flex gap-2.5 mb-3">
                   <div
                     className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center"
                     style={{ background: "rgba(245,166,35,0.15)" }}
@@ -532,11 +601,11 @@ export default function PortalAssistant() {
                     <Bot className="w-3.5 h-3.5" style={{ color: "#F5A623" }} />
                   </div>
                   <div
-                    className="px-4 py-3 rounded-xl rounded-tl-sm flex items-center gap-2"
+                    className="px-3.5 py-2.5 rounded-2xl rounded-tl-md flex items-center gap-2"
                     style={{ background: "rgba(255,255,255,0.06)" }}
                   >
                     <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#F5A623" }} />
-                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Thinking…</span>
+                    <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.5)" }}>Thinking…</span>
                   </div>
                 </div>
               )}
@@ -545,16 +614,20 @@ export default function PortalAssistant() {
           )}
         </div>
 
-        {/* Input bar */}
+        {/* ── Sticky input bar with safe-area padding ── */}
         <div
-          className="flex items-center gap-2 px-4 py-3 border-t flex-shrink-0"
-          style={{ background: "#0A1628", borderColor: "rgba(255,255,255,0.08)" }}
+          className="flex items-center gap-2 px-3 sm:px-4 py-2.5 flex-shrink-0"
+          style={{
+            background: "#0A1628",
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+            paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom, 0px))",
+          }}
         >
           {/* Voice button */}
           <button
             className={cn(
-              "flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all",
-              isRecording ? "bg-red-500" : isTranscribing ? "bg-amber-500/20" : "bg-white/10 hover:bg-white/20"
+              "flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95",
+              isRecording ? "bg-red-500" : isTranscribing ? "bg-amber-500/20" : "bg-white/10 active:bg-white/20"
             )}
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isTranscribing}
@@ -580,23 +653,23 @@ export default function PortalAssistant() {
               }
             }}
             placeholder={
-              isRecording ? "Recording… tap mic to stop" :
+              isRecording ? "Recording… tap to stop" :
               isTranscribing ? "Transcribing…" :
-              "Ask your trade assistant anything…"
+              "Ask anything…"
             }
-            className="flex-1 text-sm border-0 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-amber-500/50"
-            disabled={isRecording || isTranscribing || isLoading}
+            className="flex-1 text-[14px] h-9 border-0 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-amber-500/50 rounded-full px-3.5"
+            disabled={isRecording || isTranscribing || isSending}
           />
 
           {/* Send button */}
           <Button
             size="sm"
-            className="flex-shrink-0 w-9 h-9 p-0"
+            className="flex-shrink-0 w-9 h-9 p-0 rounded-full active:scale-95"
             style={{ background: "#F5A623", color: "#0F1F3D" }}
             onClick={() => handleSend(inputText)}
-            disabled={!inputText.trim() || isLoading}
+            disabled={!inputText.trim() || isSending}
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
       </div>

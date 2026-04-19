@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { ArrowLeft, Loader2, Save, Palette } from "lucide-react";
 
 export default function PortalQuoteSettings() {
@@ -91,7 +92,7 @@ export default function PortalQuoteSettings() {
         <span className="text-sm text-white/70">Branding Settings</span>
       </div>
 
-      <div className="max-w-xl">
+      <div className="sm:max-w-xl">
         <div className="flex items-center gap-3 mb-6">
           <Palette className="w-6 h-6 text-amber-400" />
           <div>
