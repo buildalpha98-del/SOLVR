@@ -54,6 +54,8 @@ import {
   createPaymentLink,
   listScheduleEntriesForJob,
   listTimeEntriesForJob,
+  checkJobFormCompliance,
+  listFormSubmissions,
 } from "../db";
 
 
@@ -315,6 +317,12 @@ export const portalJobsProcedures = {
         try {
           const profile = await getClientProfile(client.id);
           if (profile?.autoInvoiceOnCompletion) {
+            // Check form compliance before auto-invoicing
+            const compliance = await checkJobFormCompliance(job.id, client.id);
+            if (!compliance.canInvoice) {
+              console.log(`[AutoInvoice] Blocked for job ${job.id} — missing forms: ${compliance.missingTemplateNames.join(", ")}`);
+              return; // Skip auto-invoice, tradie must complete forms first
+            }
             const origin = (ctx.req as any)?.headers?.origin ?? process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";
             console.log(`[AutoInvoice] Generating invoice for job ${job.id} (client ${client.id})`);
             const result = await generateInvoiceForJob(
@@ -342,6 +350,39 @@ export const portalJobsProcedures = {
       return { success: true };
     }),
 
+  /** Check form compliance for a job (are all required forms completed?) */
+  formCompliance: publicProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      return checkJobFormCompliance(input.jobId, client.id);
+    }),
+
+  /** Update the required form template IDs for a job */
+  updateRequiredForms: publicProcedure
+    .input(z.object({ jobId: z.number(), requiredFormTemplateIds: z.array(z.number()) }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      await updatePortalJob(input.jobId, { requiredFormTemplateIds: input.requiredFormTemplateIds } as any);
+      return { success: true };
+    }),
+
+  /** List form submissions for a specific job */
+  jobForms: publicProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      const job = await getPortalJob(input.jobId);
+      if (!job || job.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+      return listFormSubmissions(client.id, input.jobId);
+    }),
+
   /**
    * Generate an invoice for a job — creates PDF, uploads to S3, optionally emails customer.
    * Sets invoiceStatus to 'sent' if email is provided, otherwise 'draft'.
@@ -363,6 +404,15 @@ export const portalJobsProcedures = {
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
+      }
+
+      // ── Invoice Blocking: check required forms are completed ──
+      const compliance = await checkJobFormCompliance(input.jobId, client.id);
+      if (!compliance.canInvoice) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Cannot invoice — required forms not completed: ${compliance.missingTemplateNames.join(", ")}`,
+        });
       }
 
       const origin = (ctx.req as any)?.headers?.origin ?? process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au";

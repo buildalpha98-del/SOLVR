@@ -3171,3 +3171,58 @@ export async function seedSystemFormTemplates() {
     { name: "Gas Compliance Certificate", category: "certificate", description: "Certificate of compliance for gas fitting work as required by Australian regulations.", isSystem: true, isActive: true, fields: gasFields },
   ]);
 }
+
+
+// ─── Invoice Blocking (Required Forms) ───────────────────────────────────────
+
+/** Check if all required forms for a job are completed. Returns { canInvoice, missing[] } */
+export async function checkJobFormCompliance(jobId: number, clientId: number): Promise<{
+  canInvoice: boolean;
+  requiredTemplateIds: number[];
+  completedTemplateIds: number[];
+  missingTemplateIds: number[];
+  missingTemplateNames: string[];
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the job's required form template IDs
+  const [job] = await db.select({ requiredFormTemplateIds: portalJobs.requiredFormTemplateIds })
+    .from(portalJobs)
+    .where(and(eq(portalJobs.id, jobId), eq(portalJobs.clientId, clientId)))
+    .limit(1);
+
+  const requiredIds = (job?.requiredFormTemplateIds as number[] | null) ?? [];
+  if (requiredIds.length === 0) {
+    return { canInvoice: true, requiredTemplateIds: [], completedTemplateIds: [], missingTemplateIds: [], missingTemplateNames: [] };
+  }
+
+  // Get completed submissions for this job
+  const completedSubs = await db.select({ templateId: formSubmissions.templateId })
+    .from(formSubmissions)
+    .where(and(
+      eq(formSubmissions.jobId, jobId),
+      eq(formSubmissions.clientId, clientId),
+      eq(formSubmissions.status, "completed"),
+    ));
+
+  const completedTemplateIds = Array.from(new Set(completedSubs.map(s => s.templateId)));
+  const missingTemplateIds = requiredIds.filter(id => !completedTemplateIds.includes(id));
+
+  // Get names for missing templates
+  let missingTemplateNames: string[] = [];
+  if (missingTemplateIds.length > 0) {
+    const templates = await db.select({ id: formTemplates.id, name: formTemplates.name })
+      .from(formTemplates)
+      .where(inArray(formTemplates.id, missingTemplateIds));
+    missingTemplateNames = templates.map(t => t.name);
+  }
+
+  return {
+    canInvoice: missingTemplateIds.length === 0,
+    requiredTemplateIds: requiredIds,
+    completedTemplateIds,
+    missingTemplateIds,
+    missingTemplateNames,
+  };
+}

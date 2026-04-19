@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 19 April 2026
-> **Test count:** 350 vitest tests passing (35 test files) · 0 TypeScript errors
+> **Test count:** 357 vitest tests passing (36 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -271,3 +271,11 @@ These are planned features that are not blocking the current launch. They will b
 - [x] PDF generation from completed form (server-side, S3 upload, pdfUrl stored on submission)
 - [x] Route + nav wired (/portal/forms, "Forms & Certs" in sidebar)
 - [x] 12 vitest tests (DB helpers, CRUD lifecycle, system template seeding, idempotency)
+
+### Sprint 5b — Forms Enhancements
+- [x] Invoice blocking: add requiredFormTemplateIds JSON field to portal_jobs schema
+- [x] Invoice blocking: checkJobFormCompliance DB helper + guard in generateInvoice + auto-invoice procedures
+- [x] Invoice blocking: UI warning on job detail when required forms are incomplete (Forms tab compliance badge)
+- [x] Forms tab on job detail page (list forms linked to job, start new form from job, compliance status)
+- [x] Branded form PDF (React-PDF FormCertificatePDF component — navy header, logo, ABN, amber accent bar, footer)
+- [x] Vitest tests: 7 new tests (checkJobFormCompliance, FormCertificatePDF renders valid PDF, invoice blocking, job-linked submissions)

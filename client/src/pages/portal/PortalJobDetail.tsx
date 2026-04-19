@@ -535,9 +535,20 @@ export default function PortalJobDetail() {
   const [sendInvoiceEmail, setSendInvoiceEmail] = useState("");
 
   // ── Tab state + swipe gestures ──────────────────────────────────────────────
-  type TabKey = "overview" | "money" | "work";
-  const TAB_ORDER: TabKey[] = ["overview", "money", "work"];
+  type TabKey = "overview" | "money" | "work" | "forms";
+  const TAB_ORDER: TabKey[] = ["overview", "money", "work", "forms"];
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+
+  // Forms data for the Forms tab
+  const jobFormsQuery = trpc.portal.jobForms.useQuery({ jobId }, { enabled: !!jobId });
+  const formComplianceQuery = trpc.portal.formCompliance.useQuery({ jobId }, { enabled: !!jobId });
+  const formTemplatesQuery = trpc.forms.listTemplates.useQuery(undefined, { enabled: activeTab === "forms" });
+  const updateRequiredForms = trpc.portal.updateRequiredForms.useMutation({
+    onSuccess: () => {
+      formComplianceQuery.refetch();
+      toast.success("Required forms updated");
+    },
+  });
 
   const swipeHandlers = useSwipe({
     onSwipeLeft: () => {
@@ -632,10 +643,10 @@ export default function PortalJobDetail() {
         {/* ── TABBED LAYOUT ── */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div {...swipeHandlers}>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "overview" | "money" | "work")} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} className="w-full">
           {/* Sticky tab bar — thumb-reachable on mobile */}
           <TabsList
-            className="w-full grid grid-cols-3 h-12 rounded-xl p-1 sticky top-0 z-30"
+            className="w-full grid grid-cols-4 h-12 rounded-xl p-1 sticky top-0 z-30"
             style={{ background: "rgba(15,31,61,0.97)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}
           >
             <TabsTrigger
@@ -658,6 +669,13 @@ export default function PortalJobDetail() {
               style={{ color: "rgba(255,255,255,0.45)" }}
             >
               Work
+            </TabsTrigger>
+            <TabsTrigger
+              value="forms"
+              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
+              style={{ color: "rgba(255,255,255,0.45)" }}
+            >
+              Forms
             </TabsTrigger>
           </TabsList>
 
@@ -1127,10 +1145,124 @@ export default function PortalJobDetail() {
               )}
             </SectionCard>
           </TabsContent>
+
+          {/* ─── TAB 4: Forms & Certificates ─── */}
+          <TabsContent value="forms" className="space-y-4 mt-4">
+            {/* Invoice Blocking Banner */}
+            {formComplianceQuery.data && !formComplianceQuery.data.canInvoice && (
+              <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
+                <FileText className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: "#ef4444" }} />
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>Invoice Blocked</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    Complete these forms before invoicing: {formComplianceQuery.data.missingTemplateNames.join(", ")}
+                  </p>
+                </div>
+              </div>
+            )}
+            {formComplianceQuery.data?.canInvoice && formComplianceQuery.data.requiredTemplateIds.length > 0 && (
+              <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)" }}>
+                <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: "#4ade80" }} />
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "#4ade80" }}>All Required Forms Completed</p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>This job is ready to invoice.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Required Forms Selector */}
+            <SectionCard title="Required Forms" action={
+              <span className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Must complete before invoicing</span>
+            }>
+              {formTemplatesQuery.data && formTemplatesQuery.data.length > 0 ? (
+                <div className="space-y-2">
+                  {formTemplatesQuery.data.map((t: any) => {
+                    const requiredIds = (formComplianceQuery.data?.requiredTemplateIds ?? []) as number[];
+                    const isRequired = requiredIds.includes(t.id);
+                    const isCompleted = (formComplianceQuery.data?.completedTemplateIds ?? []).includes(t.id);
+                    return (
+                      <label key={t.id} className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors hover:bg-white/5">
+                        <input
+                          type="checkbox"
+                          checked={isRequired}
+                          onChange={(e) => {
+                            const newIds = e.target.checked
+                              ? [...requiredIds, t.id]
+                              : requiredIds.filter((id: number) => id !== t.id);
+                            updateRequiredForms.mutate({ jobId, requiredFormTemplateIds: newIds });
+                          }}
+                          className="w-4 h-4 rounded accent-amber-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white">{t.name}</p>
+                          <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{t.category}</p>
+                        </div>
+                        {isRequired && isCompleted && (
+                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>Done</span>
+                        )}
+                        {isRequired && !isCompleted && (
+                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}>Pending</span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>No form templates available. Create templates in Forms & Certs.</p>
+              )}
+            </SectionCard>
+
+            {/* Submitted Forms */}
+            <SectionCard title="Job Forms" action={
+              <Button
+                variant="ghost" size="sm"
+                className="text-xs gap-1"
+                style={{ color: "#F5A623" }}
+                onClick={() => window.open(`/portal/forms?jobId=${jobId}`, "_blank")}
+              >
+                <Plus className="w-3.5 h-3.5" /> New Form
+              </Button>
+            }>
+              {jobFormsQuery.isLoading && (
+                <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} /></div>
+              )}
+              {jobFormsQuery.data && jobFormsQuery.data.length === 0 && (
+                <p className="text-xs text-center py-4" style={{ color: "rgba(255,255,255,0.4)" }}>No forms submitted for this job yet.</p>
+              )}
+              {jobFormsQuery.data && jobFormsQuery.data.length > 0 && (
+                <div className="space-y-2">
+                  {jobFormsQuery.data.map((sub: any) => (
+                    <div key={sub.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <FileText className="w-4 h-4 flex-shrink-0" style={{ color: sub.status === "completed" ? "#4ade80" : "#F5A623" }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">{sub.title}</p>
+                        <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                          {sub.status === "completed" ? `Completed ${sub.completedAt ? new Date(sub.completedAt).toLocaleDateString("en-AU") : ""}` : "Draft"}
+                          {sub.submittedBy && ` · ${sub.submittedBy}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded-full" style={{
+                          background: sub.status === "completed" ? "rgba(74,222,128,0.15)" : "rgba(245,166,35,0.15)",
+                          color: sub.status === "completed" ? "#4ade80" : "#F5A623",
+                        }}>{sub.status === "completed" ? "Completed" : "Draft"}</span>
+                        {sub.pdfUrl && (
+                          <a href={sub.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-white/5">
+                            <FileText className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          </TabsContent>
+
         </Tabs>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* ═════════════════════════════════════════════════════════════════ */}
         {/* ── MODALS (always rendered, outside tabs) ── */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
 

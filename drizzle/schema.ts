@@ -643,6 +643,8 @@ export const portalJobs = mysqlTable("portal_jobs", {
   /** FK to the original job in a recurring series (null if this IS the original) */
   parentJobId: int("parentJobId"),
   //  Smart Job Board (Sprint 2) 
+  /** JSON array of form template IDs that must be completed before invoicing */
+  requiredFormTemplateIds: json("requiredFormTemplateIds").$type<number[]>(),
   /** AI-generated next-action suggestion for this job card (cached, regenerated on job update) */
   nextActionSuggestion: text("nextActionSuggestion"),
   /** When the AI task template was last generated for this job */
