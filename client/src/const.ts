@@ -2,9 +2,8 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 /**
  * Returns true when running inside a Capacitor native app (iOS or Android).
- * Use this to gate any purchase UI — Apple Guideline 3.1.1 requires that
- * apps offering digital subscriptions use Apple IAP. Our approach is simpler:
- * we remove all purchase UI from the native build entirely.
+ * Used to switch between native RevenueCat SDK (Apple StoreKit for IAP)
+ * and web RevenueCat SDK (Stripe billing) based on platform.
  */
 export const isNativeApp = (): boolean => {
   const origin = window.location.origin;

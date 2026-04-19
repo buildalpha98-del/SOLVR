@@ -1,6 +1,6 @@
 require_relative '../../node_modules/.pnpm/@capacitor+ios@7.6.1_@capacitor+core@7.6.1/node_modules/@capacitor/ios/scripts/pods_helpers'
 
-platform :ios, '14.0'
+platform :ios, '16.0'
 use_frameworks!
 
 # workaround to avoid Xcode caching of Pods that requires
@@ -18,6 +18,8 @@ def capacitor_pods
   pod 'CapacitorPreferences', :path => '../../node_modules/.pnpm/@capacitor+preferences@7.0.4_@capacitor+core@7.6.1/node_modules/@capacitor/preferences'
   pod 'CapacitorSplashScreen', :path => '../../node_modules/.pnpm/@capacitor+splash-screen@7.0.5_@capacitor+core@7.6.1/node_modules/@capacitor/splash-screen'
   pod 'CapacitorStatusBar', :path => '../../node_modules/.pnpm/@capacitor+status-bar@7.0.6_@capacitor+core@7.6.1/node_modules/@capacitor/status-bar'
+  pod 'RevenuecatPurchasesCapacitor', :path => '../../node_modules/.pnpm/@revenuecat+purchases-capacitor@11.3.2_@capacitor+core@7.6.1/node_modules/@revenuecat/purchases-capacitor'
+  pod 'RevenuecatPurchasesCapacitorUi', :path => '../../node_modules/.pnpm/@revenuecat+purchases-capacitor-ui@11.3.2_@capacitor+core@7.6.1/node_modules/@revenuecat/purchases-capacitor-ui'
   pod 'CapacitorVoiceRecorder', :path => '../../node_modules/.pnpm/capacitor-voice-recorder@7.0.6_@capacitor+core@7.6.1_@capacitor+filesystem@7.1.8_@capacitor+core@7.6.1_/node_modules/capacitor-voice-recorder'
 end
 

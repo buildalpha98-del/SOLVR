@@ -56,6 +56,19 @@ if (isNative) {
       console.warn("[capacitor bootstrap] StatusBar/SplashScreen setup skipped:", err);
     }
   })();
+
+  // 4. Initialise RevenueCat native SDK for Apple IAP.
+  // Must be done early, before any paywall or entitlement check.
+  // We initialise anonymously here — the hook will identify the user later.
+  (async () => {
+    try {
+      const { configureRevenueCat } = await import("@/lib/revenuecat");
+      await configureRevenueCat(); // anonymous until user logs in
+      console.log("[capacitor bootstrap] RevenueCat native SDK initialised");
+    } catch (err) {
+      console.warn("[capacitor bootstrap] RevenueCat init skipped:", err);
+    }
+  })();
 }
 
 const queryClient = new QueryClient();
