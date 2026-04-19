@@ -33,8 +33,14 @@ class ErrorBoundary extends Component<Props, State> {
 
             <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
 
-            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
-              <pre className="text-sm text-muted-foreground whitespace-break-spaces">
+            <div className="p-3 w-full rounded bg-red-100 dark:bg-red-900/30 mb-3">
+              <p className="text-sm font-mono font-bold text-red-800 dark:text-red-300 break-all">
+                {this.state.error?.name}: {this.state.error?.message}
+              </p>
+            </div>
+
+            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6 max-h-60">
+              <pre className="text-xs text-muted-foreground whitespace-break-spaces">
                 {this.state.error?.stack}
               </pre>
             </div>
