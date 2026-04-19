@@ -114,6 +114,7 @@ import {
   upsertJobFeedback,
   getJobFeedback,
   listJobFeedbackForClient,
+  getRequiredFormsForJobType,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 import { getPortalClient, PORTAL_COOKIE, requirePortalAuth, requirePortalWrite } from "./portalAuth";
@@ -631,7 +632,16 @@ export const portalRouter = router({
       requireFeature((client.package ?? "setup-monthly") as SolvrPlan, "jobs");
 
       const customerStatusToken = randomBytes(32).toString("hex");
-      const { insertId } = await createPortalJob({ ...input, clientId: client.id, customerStatusToken });
+
+      // Auto-populate required forms from job type rules
+      const requiredFormTemplateIds = await getRequiredFormsForJobType(client.id, input.jobType);
+
+      const { insertId } = await createPortalJob({
+        ...input,
+        clientId: client.id,
+        customerStatusToken,
+        ...(requiredFormTemplateIds.length > 0 ? { requiredFormTemplateIds } : {}),
+      });
       return { success: true, id: insertId };
     }),
 

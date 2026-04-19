@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
-  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap,
+  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -584,6 +584,9 @@ export default function PortalSettings() {
 
         {/* ─── Google Reviews ───────────────────────────────────────────────────── */}
         <GoogleReviewSection />
+
+        {/* ─── Required Forms per Job Type ──────────────────────────────────── */}
+        <RequiredFormsConfigSection />
 
         {/* ─── Automation ──────────────────────────────────────────────────────── */}
         <AutomationSection />
@@ -1201,6 +1204,171 @@ function DeleteAccountSection() {
               )}
             </Button>
           </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+
+// ─── Required Forms per Job Type Section ─────────────────────────────────────
+function RequiredFormsConfigSection() {
+  const utils = trpc.useUtils();
+  const { data: rules, isLoading } = trpc.portal.listFormRequirements.useQuery();
+  const { data: templates } = trpc.forms.listTemplates.useQuery();
+  const { data: jobTypes } = trpc.portal.distinctJobTypes.useQuery();
+
+  const upsertMutation = trpc.portal.upsertFormRequirement.useMutation({
+    onSuccess: () => { utils.portal.listFormRequirements.invalidate(); toast.success("Rule saved"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteMutation = trpc.portal.deleteFormRequirement.useMutation({
+    onSuccess: () => { utils.portal.listFormRequirements.invalidate(); toast.success("Rule deleted"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [newJobType, setNewJobType] = useState("");
+  const [newTemplateIds, setNewTemplateIds] = useState<number[]>([]);
+
+  const activeTemplates = (templates ?? []).filter(t => t.isActive);
+  const templateMap = Object.fromEntries(activeTemplates.map(t => [t.id, t.name]));
+
+  const handleSave = () => {
+    if (!newJobType.trim()) { toast.error("Enter a job type"); return; }
+    if (newTemplateIds.length === 0) { toast.error("Select at least one form template"); return; }
+    upsertMutation.mutate({ jobType: newJobType.trim(), requiredFormTemplateIds: newTemplateIds });
+    setShowAdd(false);
+    setNewJobType("");
+    setNewTemplateIds([]);
+  };
+
+  const toggleTemplate = (id: number) => {
+    setNewTemplateIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  return (
+    <SectionCard
+      icon={ClipboardList}
+      title="Required Forms per Job Type"
+      subtitle="Automatically require specific forms/certificates when a job is created with a matching type."
+    >
+      {isLoading ? (
+        <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} /></div>
+      ) : (
+        <div className="space-y-3">
+          {/* Existing rules */}
+          {(rules ?? []).length === 0 && !showAdd && (
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              No rules configured yet. Add a rule to automatically require forms when jobs of a specific type are created.
+            </p>
+          )}
+
+          {(rules ?? []).map((rule) => (
+            <div
+              key={rule.id}
+              className="flex items-start gap-3 p-3 rounded-lg"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">{rule.jobType}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {((rule.requiredFormTemplateIds as number[]) ?? []).map(tid => (
+                    <span
+                      key={tid}
+                      className="text-[10px] px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                    >
+                      {templateMap[tid] ?? `Template #${tid}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={() => deleteMutation.mutate({ id: rule.id })}
+                className="p-1.5 rounded-lg hover:bg-white/5 flex-shrink-0"
+                title="Delete rule"
+              >
+                <X className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+              </button>
+            </div>
+          ))}
+
+          {/* Add new rule form */}
+          {showAdd && (
+            <div
+              className="p-4 rounded-lg space-y-3"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(245,166,35,0.2)" }}
+            >
+              <div>
+                <Label className="text-xs mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Job Type</Label>
+                <Input
+                  value={newJobType}
+                  onChange={e => setNewJobType(e.target.value)}
+                  placeholder="e.g. Electrical, Plumbing, Gas Fitting"
+                  style={inputStyle}
+                  list="job-type-suggestions"
+                />
+                <datalist id="job-type-suggestions">
+                  {(jobTypes ?? []).map(jt => <option key={jt} value={jt} />)}
+                </datalist>
+              </div>
+
+              <div>
+                <Label className="text-xs mb-2 block" style={{ color: "rgba(255,255,255,0.5)" }}>Required Form Templates</Label>
+                <div className="space-y-1.5">
+                  {activeTemplates.map(t => (
+                    <label
+                      key={t.id}
+                      className="flex items-center gap-2 p-2 rounded-lg cursor-pointer"
+                      style={{
+                        background: newTemplateIds.includes(t.id) ? "rgba(245,166,35,0.1)" : "transparent",
+                        border: `1px solid ${newTemplateIds.includes(t.id) ? "rgba(245,166,35,0.3)" : "rgba(255,255,255,0.06)"}`,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newTemplateIds.includes(t.id)}
+                        onChange={() => toggleTemplate(t.id)}
+                        className="accent-amber-500"
+                      />
+                      <span className="text-sm text-white">{t.name}</span>
+                    </label>
+                  ))}
+                  {activeTemplates.length === 0 && (
+                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>No active templates. Create templates in Forms & Certs first.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={upsertMutation.isPending}
+                  className="bg-[#F5A623] hover:bg-[#e09510] text-[#0F1F3D]"
+                >
+                  {upsertMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                  Save Rule
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowAdd(false); setNewJobType(""); setNewTemplateIds([]); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Add button */}
+          {!showAdd && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAdd(true)}
+              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add Rule
+            </Button>
+          )}
         </div>
       )}
     </SectionCard>

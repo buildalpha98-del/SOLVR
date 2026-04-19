@@ -177,8 +177,8 @@ describe("System template seeding", () => {
 
     const templates = await listFormTemplates(1);
     const systemTemplates = templates.filter((t: any) => t.isSystem);
-    // Should still be exactly 3, not 6
-    expect(systemTemplates.length).toBe(3);
+    // Should still be exactly 4 (electrical, SWMS, gas, handover), not 8
+    expect(systemTemplates.length).toBe(4);
   });
 });
 

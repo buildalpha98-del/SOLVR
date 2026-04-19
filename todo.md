@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 19 April 2026
-> **Test count:** 357 vitest tests passing (36 test files) · 0 TypeScript errors
+> **Test count:** 364 vitest tests passing (37 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -279,3 +279,13 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Forms tab on job detail page (list forms linked to job, start new form from job, compliance status)
 - [x] Branded form PDF (React-PDF FormCertificatePDF component — navy header, logo, ABN, amber accent bar, footer)
 - [x] Vitest tests: 7 new tests (checkJobFormCompliance, FormCertificatePDF renders valid PDF, invoice blocking, job-linked submissions)
+
+### Sprint 5c — Forms Enhancements (Round 2)
+- [x] Handover checklist template: 4th system-seeded template (30 fields — before/after photos, defects, warranty, dual sign-off)
+- [x] Incremental seeding: existing clients get new templates without duplicating old ones
+- [x] Form-to-job auto-link: jobId passed via URL param from job detail Forms tab, auto-opens template selector
+- [x] Required forms config UI: settings panel in PortalSettings with job type autocomplete, template checkboxes, upsert/delete
+- [x] Auto-populate requiredFormTemplateIds on job creation from job type rules
+- [x] DB schema: job_type_form_requirements table + 7 DB helpers (CRUD, distinct job types, upsert)
+- [x] 4 tRPC procedures: listFormRequirements, upsertFormRequirement, deleteFormRequirement, distinctJobTypes
+- [x] Vitest tests: 7 new tests (sprint5c.test.ts + portal.test.ts mock fix)

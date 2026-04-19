@@ -2028,3 +2028,22 @@ export const formSubmissions = mysqlTable("form_submissions", {
 });
 export type FormSubmission = typeof formSubmissions.$inferSelect;
 export type InsertFormSubmission = typeof formSubmissions.$inferInsert;
+
+
+/**
+ * Job Type Form Requirements — configures which form templates are required per job type.
+ * When a job is created with a matching jobType, the requiredFormTemplateIds are auto-populated.
+ */
+export const jobTypeFormRequirements = mysqlTable("job_type_form_requirements", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** The job type string (e.g. "Electrical", "Plumbing", "Gas Fitting") */
+  jobType: varchar("jobType", { length: 255 }).notNull(),
+  /** JSON array of form template IDs required for this job type */
+  requiredFormTemplateIds: json("requiredFormTemplateIds").$type<number[]>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JobTypeFormRequirement = typeof jobTypeFormRequirements.$inferSelect;
+export type InsertJobTypeFormRequirement = typeof jobTypeFormRequirements.$inferInsert;

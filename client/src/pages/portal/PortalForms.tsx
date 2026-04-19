@@ -288,6 +288,10 @@ export default function PortalForms() {
   const [tab, setTab] = useState<"templates" | "submissions">("submissions");
   const [search, setSearch] = useState("");
 
+  // Auto-link: read jobId from URL query params (e.g. /portal/forms?jobId=42)
+  const urlParams = new URLSearchParams(window.location.search);
+  const linkedJobId = urlParams.get("jobId") ? Number(urlParams.get("jobId")) : undefined;
+
   // Seed system templates on first load
   const seedMutation = trpc.forms.seedTemplates.useMutation();
   const [seeded, setSeeded] = useState(false);
@@ -338,7 +342,7 @@ export default function PortalForms() {
       {tab === "templates" ? (
         <TemplatesTab search={search} />
       ) : (
-        <SubmissionsTab search={search} />
+        <SubmissionsTab search={search} linkedJobId={linkedJobId} />
       )}
     </div>
   );
@@ -575,7 +579,7 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
 }
 
 // ─── Submissions Tab ──────────────────────────────────────────────────────────
-function SubmissionsTab({ search }: { search: string }) {
+function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?: number }) {
   const { data: submissions, isLoading } = trpc.forms.listSubmissions.useQuery();
   const { data: templates } = trpc.forms.listTemplates.useQuery();
   const utils = trpc.useUtils();
@@ -583,7 +587,7 @@ function SubmissionsTab({ search }: { search: string }) {
     onSuccess: () => { utils.forms.listSubmissions.invalidate(); toast.success("Form deleted"); },
   });
 
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = useState(!!linkedJobId);
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [fillingId, setFillingId] = useState<number | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
@@ -698,6 +702,7 @@ function SubmissionsTab({ search }: { search: string }) {
         <FormFillerDialog
           templateId={selectedTemplateId ?? undefined}
           submissionId={fillingId ?? undefined}
+          jobId={linkedJobId}
           onClose={() => { setSelectedTemplateId(null); setFillingId(null); }}
         />
       )}
@@ -714,10 +719,12 @@ function SubmissionsTab({ search }: { search: string }) {
 function FormFillerDialog({
   templateId,
   submissionId,
+  jobId,
   onClose,
 }: {
   templateId?: number;
   submissionId?: number;
+  jobId?: number;
   onClose: () => void;
 }) {
   const utils = trpc.useUtils();
@@ -797,6 +804,7 @@ function FormFillerDialog({
         values,
         signatures,
         status,
+        ...(jobId ? { jobId } : {}),
       });
     }
   };

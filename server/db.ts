@@ -3076,8 +3076,8 @@ export async function deleteFormSubmission(id: number, clientId: number) {
 export async function seedSystemFormTemplates() {
   const db = await getDb();
   if (!db) return;
-  const existing = await db.select().from(formTemplates).where(eq(formTemplates.isSystem, true));
-  if (existing.length > 0) return;
+  const existing = await db.select({ name: formTemplates.name }).from(formTemplates).where(eq(formTemplates.isSystem, true));
+  const existingNames = new Set(existing.map(t => t.name));
 
   const electricalFields: FormField[] = [
     { id: "heading_details", label: "Work Details", type: "heading" },
@@ -3165,11 +3165,55 @@ export async function seedSystemFormTemplates() {
     { id: "sign_date", label: "Date", type: "date", required: true },
   ];
 
-  await db.insert(formTemplates).values([
-    { name: "Electrical Certificate of Compliance", category: "certificate", description: "Certificate of compliance for electrical work as required by Australian regulations.", isSystem: true, isActive: true, fields: electricalFields },
-    { name: "Safe Work Method Statement (SWMS)", category: "safety", description: "SWMS for high-risk construction work as required under WHS regulations.", isSystem: true, isActive: true, fields: swmsFields },
-    { name: "Gas Compliance Certificate", category: "certificate", description: "Certificate of compliance for gas fitting work as required by Australian regulations.", isSystem: true, isActive: true, fields: gasFields },
-  ]);
+  const handoverFields: FormField[] = [
+    { id: "heading_project", label: "Project Details", type: "heading" },
+    { id: "job_address", label: "Job / Site Address", type: "textarea", required: true },
+    { id: "completion_date", label: "Completion Date", type: "date", required: true },
+    { id: "contractor_name", label: "Contractor / Tradesperson Name", type: "text", required: true },
+    { id: "customer_name", label: "Customer / Property Owner", type: "text", required: true },
+    { id: "divider_1", label: "", type: "divider" },
+    { id: "heading_scope", label: "Scope of Work Completed", type: "heading" },
+    { id: "work_summary", label: "Summary of Work Performed", type: "textarea", required: true, placeholder: "Describe all work completed as part of this job..." },
+    { id: "variations", label: "Variations / Additional Work", type: "textarea", placeholder: "List any variations from the original scope..." },
+    { id: "divider_2", label: "", type: "divider" },
+    { id: "heading_photos", label: "Before & After Documentation", type: "heading" },
+    { id: "before_photo_1", label: "Before Photo 1", type: "photo" },
+    { id: "before_photo_2", label: "Before Photo 2", type: "photo" },
+    { id: "after_photo_1", label: "After Photo 1", type: "photo" },
+    { id: "after_photo_2", label: "After Photo 2", type: "photo" },
+    { id: "photo_notes", label: "Photo Notes", type: "textarea", placeholder: "Any additional notes about the photos..." },
+    { id: "divider_3", label: "", type: "divider" },
+    { id: "heading_defects", label: "Defects & Outstanding Items", type: "heading" },
+    { id: "defects_found", label: "Were any defects or outstanding items identified?", type: "select", required: true, options: ["No defects — all work complete", "Minor defects — noted below", "Major defects — rectification required"] },
+    { id: "defect_list", label: "Defect / Outstanding Item Details", type: "textarea", placeholder: "Describe each defect or outstanding item, including location and proposed rectification timeline..." },
+    { id: "rectification_date", label: "Expected Rectification Date", type: "date" },
+    { id: "divider_4", label: "", type: "divider" },
+    { id: "heading_warranty", label: "Warranty & Maintenance", type: "heading" },
+    { id: "warranty_period", label: "Warranty Period", type: "select", options: ["3 months", "6 months", "12 months", "24 months", "As per contract", "N/A"] },
+    { id: "maintenance_notes", label: "Maintenance Instructions / Notes", type: "textarea", placeholder: "Any care or maintenance instructions for the customer..." },
+    { id: "divider_5", label: "", type: "divider" },
+    { id: "heading_signoff", label: "Customer Sign-Off", type: "heading" },
+    { id: "customer_satisfied", label: "Customer confirms the work has been completed to their satisfaction", type: "checkbox", required: true },
+    { id: "customer_accepts_defects", label: "Customer acknowledges any noted defects and agreed rectification timeline", type: "checkbox" },
+    { id: "customer_signature", label: "Customer Signature", type: "signature", required: true },
+    { id: "customer_sign_date", label: "Date", type: "date", required: true },
+    { id: "divider_6", label: "", type: "divider" },
+    { id: "heading_contractor_sign", label: "Contractor Sign-Off", type: "heading" },
+    { id: "contractor_signature", label: "Contractor Signature", type: "signature", required: true },
+    { id: "contractor_sign_date", label: "Date", type: "date", required: true },
+  ];
+
+  const systemTemplates = [
+    { name: "Electrical Certificate of Compliance", category: "certificate" as const, description: "Certificate of compliance for electrical work as required by Australian regulations.", isSystem: true, isActive: true, fields: electricalFields },
+    { name: "Safe Work Method Statement (SWMS)", category: "safety" as const, description: "SWMS for high-risk construction work as required under WHS regulations.", isSystem: true, isActive: true, fields: swmsFields },
+    { name: "Gas Compliance Certificate", category: "certificate" as const, description: "Certificate of compliance for gas fitting work as required by Australian regulations.", isSystem: true, isActive: true, fields: gasFields },
+    { name: "Job Handover Checklist", category: "inspection" as const, description: "Handover documentation with before/after photos, defects list, warranty info, and customer sign-off.", isSystem: true, isActive: true, fields: handoverFields },
+  ];
+
+  const toInsert = systemTemplates.filter(t => !existingNames.has(t.name));
+  if (toInsert.length > 0) {
+    await db.insert(formTemplates).values(toInsert);
+  }
 }
 
 
@@ -3225,4 +3269,87 @@ export async function checkJobFormCompliance(jobId: number, clientId: number): P
     missingTemplateIds,
     missingTemplateNames,
   };
+}
+
+
+// ─── Job Type Form Requirements ─────────────────────────────────────────────
+
+import { jobTypeFormRequirements } from "../drizzle/schema";
+
+/** List all job type form requirements for a client */
+export async function listJobTypeFormRequirements(clientId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(jobTypeFormRequirements).where(eq(jobTypeFormRequirements.clientId, clientId));
+}
+
+/** Get a single job type form requirement by ID */
+export async function getJobTypeFormRequirement(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [row] = await db.select().from(jobTypeFormRequirements)
+    .where(and(eq(jobTypeFormRequirements.id, id), eq(jobTypeFormRequirements.clientId, clientId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Get required form template IDs for a given job type */
+export async function getRequiredFormsForJobType(clientId: number, jobType: string): Promise<number[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const [row] = await db.select({ requiredFormTemplateIds: jobTypeFormRequirements.requiredFormTemplateIds })
+    .from(jobTypeFormRequirements)
+    .where(and(
+      eq(jobTypeFormRequirements.clientId, clientId),
+      eq(jobTypeFormRequirements.jobType, jobType),
+    ))
+    .limit(1);
+  return (row?.requiredFormTemplateIds as number[] | null) ?? [];
+}
+
+/** Create or update a job type form requirement (upsert by clientId + jobType) */
+export async function upsertJobTypeFormRequirement(data: {
+  clientId: number;
+  jobType: string;
+  requiredFormTemplateIds: number[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Check if one already exists for this client + jobType
+  const [existing] = await db.select({ id: jobTypeFormRequirements.id })
+    .from(jobTypeFormRequirements)
+    .where(and(
+      eq(jobTypeFormRequirements.clientId, data.clientId),
+      eq(jobTypeFormRequirements.jobType, data.jobType),
+    ))
+    .limit(1);
+
+  if (existing) {
+    await db.update(jobTypeFormRequirements)
+      .set({ requiredFormTemplateIds: data.requiredFormTemplateIds })
+      .where(eq(jobTypeFormRequirements.id, existing.id));
+    return existing.id;
+  } else {
+    const result = await db.insert(jobTypeFormRequirements).values(data);
+    return Number(result[0].insertId);
+  }
+}
+
+/** Delete a job type form requirement */
+export async function deleteJobTypeFormRequirement(id: number, clientId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(jobTypeFormRequirements)
+    .where(and(eq(jobTypeFormRequirements.id, id), eq(jobTypeFormRequirements.clientId, clientId)));
+}
+
+/** Get distinct job types for a client (from existing jobs) */
+export async function getDistinctJobTypes(clientId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.selectDistinct({ jobType: portalJobs.jobType })
+    .from(portalJobs)
+    .where(eq(portalJobs.clientId, clientId));
+  return rows.map(r => r.jobType).filter(Boolean);
 }

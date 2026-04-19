@@ -56,6 +56,11 @@ import {
   listTimeEntriesForJob,
   checkJobFormCompliance,
   listFormSubmissions,
+  listJobTypeFormRequirements,
+  upsertJobTypeFormRequirement,
+  deleteJobTypeFormRequirement,
+  getDistinctJobTypes,
+  getRequiredFormsForJobType,
 } from "../db";
 
 
@@ -381,6 +386,47 @@ export const portalJobsProcedures = {
         throw new TRPCError({ code: "NOT_FOUND", message: "Job not found." });
       }
       return listFormSubmissions(client.id, input.jobId);
+    }),
+
+  // ─── Job Type Form Requirements (Settings) ────────────────────────────────
+
+  /** List all job type form requirement rules for this client */
+  listFormRequirements: publicProcedure
+    .query(async ({ ctx }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      return listJobTypeFormRequirements(client.id);
+    }),
+
+  /** Create or update a job type form requirement rule */
+  upsertFormRequirement: publicProcedure
+    .input(z.object({
+      jobType: z.string().min(1),
+      requiredFormTemplateIds: z.array(z.number()),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const id = await upsertJobTypeFormRequirement({
+        clientId: client.id,
+        jobType: input.jobType,
+        requiredFormTemplateIds: input.requiredFormTemplateIds,
+      });
+      return { id };
+    }),
+
+  /** Delete a job type form requirement rule */
+  deleteFormRequirement: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      await deleteJobTypeFormRequirement(input.id, client.id);
+      return { success: true };
+    }),
+
+  /** Get distinct job types from existing jobs (for autocomplete) */
+  distinctJobTypes: publicProcedure
+    .query(async ({ ctx }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      return getDistinctJobTypes(client.id);
     }),
 
   /**
