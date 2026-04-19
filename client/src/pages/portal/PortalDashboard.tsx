@@ -1,3 +1,4 @@
+import { getSolvrOrigin } from "@/const";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -567,7 +568,7 @@ export default function PortalDashboard() {
   const { data: referralStats } = trpc.portal.getReferralStats.useQuery(undefined, { staleTime: 60 * 1000 });
   const [copied, setCopied] = useState(false);
   const referralLink = referralCode?.referralCode
-    ? `${window.location.origin}/portal/login?ref=${referralCode.referralCode}`
+    ? `${getSolvrOrigin()}/portal/login?ref=${referralCode.referralCode}`
     : null;
   const copyReferralLink = () => {
     if (!referralLink) return;

@@ -1,3 +1,4 @@
+import { getSolvrOrigin } from "@/const";
 /**
  * SOLVR — Free AI Audit Quiz Page
  * Design: Navy #0F1F3D | Amber #F5A623 | Warm White #FAFAF8
@@ -600,7 +601,7 @@ export default function AiAudit() {
                       {/* Copy link */}
                       <button
                         onClick={() => {
-                          const shareText = `I just took the Solvr AI Audit and found I could save ${result.weeklyHours} hours/week on admin. Find out how much time AI could save YOUR business → ${window.location.origin}/ai-audit`;
+                          const shareText = `I just took the Solvr AI Audit and found I could save ${result.weeklyHours} hours/week on admin. Find out how much time AI could save YOUR business → ${getSolvrOrigin()}/ai-audit`;
                           navigator.clipboard.writeText(shareText).then(() => {
                             const btn = document.getElementById('copy-btn');
                             if (btn) { btn.textContent = '✓ Copied!'; setTimeout(() => { btn.textContent = '🔗 Copy Link'; }, 2000); }
@@ -624,7 +625,7 @@ export default function AiAudit() {
                       </a>
                       {/* Share to LinkedIn */}
                       <a
-                        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/ai-audit')}`}
+                        href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(getSolvrOrigin() + '/ai-audit')}`}
                         target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-body text-sm font-semibold transition-all"
                         style={{ background: "#0077B5", color: "#fff", textDecoration: "none" }}>
@@ -634,7 +635,7 @@ export default function AiAudit() {
                       {/* Native share (mobile) */}
                       {typeof navigator !== 'undefined' && 'share' in navigator && (
                         <button
-                          onClick={() => navigator.share({ title: 'My Solvr AI Audit Results', text: `I could save ${result.weeklyHours} hours/week on admin with AI. Take the free audit:`, url: window.location.origin + '/ai-audit' })}
+                          onClick={() => navigator.share({ title: 'My Solvr AI Audit Results', text: `I could save ${result.weeklyHours} hours/week on admin with AI. Take the free audit:`, url: getSolvrOrigin() + '/ai-audit' })}
                           className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-body text-sm font-semibold"
                           style={{ background: "#F5A623", color: "#0F1F3D" }}>
                           📱 Share

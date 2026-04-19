@@ -1,3 +1,4 @@
+import { getSolvrOrigin } from "@/const";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -691,18 +692,18 @@ export default function PortalQuoteDetail() {
               <h3 className="font-semibold text-white mb-2 text-sm">Customer Link</h3>
               <div className="flex items-center gap-2">
                 <a
-                  href={`${window.location.origin}/quote/${quote.customerToken}`}
+                  href={`${getSolvrOrigin()}/quote/${quote.customerToken}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 text-xs text-amber-400 hover:text-amber-300 break-all flex-1 min-w-0"
                 >
                   <ExternalLink className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{window.location.origin}/quote/{quote.customerToken?.slice(0, 16)}…</span>
+                  <span className="truncate">{getSolvrOrigin()}/quote/{quote.customerToken?.slice(0, 16)}…</span>
                 </a>
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/quote/${quote.customerToken}`);
+                    navigator.clipboard.writeText(`${getSolvrOrigin()}/quote/${quote.customerToken}`);
                     toast.success("Link copied to clipboard");
                   }}
                   className="shrink-0 p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"

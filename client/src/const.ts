@@ -20,14 +20,23 @@ export const getSolvrOrigin = (): string => {
 };
 
 // Generate login URL at runtime so redirect URI reflects the current origin.
+// On Capacitor, env vars like VITE_OAUTH_PORTAL_URL are undefined — fall back
+// to the portal login page on solvr.com.au.
 export const getLoginUrl = () => {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
+  const origin = getSolvrOrigin();
+
+  // On Capacitor (or when env vars aren't set), redirect to portal login directly
+  if (!oauthPortalUrl || isNativeApp()) {
+    return `${origin}/portal/login`;
+  }
+
+  const redirectUri = `${origin}/api/oauth/callback`;
   const state = btoa(redirectUri);
 
   const url = new URL(`${oauthPortalUrl}/app-auth`);
-  url.searchParams.set("appId", appId);
+  url.searchParams.set("appId", appId ?? "");
   url.searchParams.set("redirectUri", redirectUri);
   url.searchParams.set("state", state);
   url.searchParams.set("type", "signIn");

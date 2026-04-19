@@ -542,14 +542,14 @@ export default function OnboardingChecklist() {
               {(checklist as unknown as ChecklistData).formToken && (
                 <div className="flex items-center gap-2 mt-1">
                   <code className="text-xs text-slate-400 bg-slate-700/40 rounded px-2 py-1 font-mono truncate max-w-xs">
-                    {window.location.origin}/onboarding?token={(checklist as unknown as ChecklistData).formToken}
+                    {getSolvrOrigin()}/onboarding?token={(checklist as unknown as ChecklistData).formToken}
                   </code>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 text-slate-400 hover:text-slate-200"
                     onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/onboarding?token=${(checklist as unknown as ChecklistData).formToken}`);
+                      navigator.clipboard.writeText(`${getSolvrOrigin()}/onboarding?token=${(checklist as unknown as ChecklistData).formToken}`);
                       toast.success("Form URL copied");
                     }}
                   >

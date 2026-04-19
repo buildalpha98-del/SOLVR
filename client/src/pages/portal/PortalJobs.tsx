@@ -1,3 +1,4 @@
+import { getSolvrOrigin } from "@/const";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -179,7 +180,7 @@ function JobCard({
         <button
           onClick={e => {
             e.stopPropagation();
-            const url = `${window.location.origin}/job/${job.customerStatusToken}`;
+            const url = `${getSolvrOrigin()}/job/${job.customerStatusToken}`;
             navigator.clipboard.writeText(url).then(
               () => toast.success("Tracking link copied — send it to your customer"),
               () => toast.error("Could not copy link"),

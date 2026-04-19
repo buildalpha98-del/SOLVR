@@ -128,9 +128,10 @@ export default function QuoteListContent() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("activated") === "1") {
       toast.success("Quote Engine activated! You can now create quotes.", { duration: 6000 });
-      const url = new URL(window.location.href);
-      url.searchParams.delete("activated");
-      window.history.replaceState({}, "", url.toString());
+      const params = new URLSearchParams(window.location.search);
+      params.delete("activated");
+      const qs = params.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
     }
   }, []);
 
@@ -140,9 +141,10 @@ export default function QuoteListContent() {
     if (params.get("record") !== "1") return;
     setShowNewModal(true);
     setNewMode("voice");
-    const url = new URL(window.location.href);
-    url.searchParams.delete("record");
-    window.history.replaceState({}, "", url.toString());
+    const rp = new URLSearchParams(window.location.search);
+    rp.delete("record");
+    const rqs = rp.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${rqs ? `?${rqs}` : ""}`);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -166,9 +168,10 @@ export default function QuoteListContent() {
     if (name || phone || address) {
       toast.success("Quote pre-filled from your last call.", { duration: 4000 });
     }
-    const url = new URL(window.location.href);
-    ["prefill", "name", "phone", "address", "jobType"].forEach((k) => url.searchParams.delete(k));
-    window.history.replaceState({}, "", url.toString());
+    const pp = new URLSearchParams(window.location.search);
+    ["prefill", "name", "phone", "address", "jobType"].forEach((k) => pp.delete(k));
+    const pqs = pp.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${pqs ? `?${pqs}` : ""}`);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

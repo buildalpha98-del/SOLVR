@@ -1,3 +1,4 @@
+import { getSolvrOrigin } from "@/const";
 /**
  * Console Portal Clients — Admin page for managing client portal access.
  *
@@ -350,7 +351,7 @@ export default function ConsolePortalClients() {
     setNewClient(emptyNewClient);
   }
 
-  const baseUrl = window.location.origin;
+  const baseUrl = getSolvrOrigin();
 
   const filteredClients = (clients ?? []).filter((c: Client) => {
     const q = searchQuery.toLowerCase();
