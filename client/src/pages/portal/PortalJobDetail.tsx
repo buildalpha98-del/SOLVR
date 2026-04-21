@@ -571,6 +571,10 @@ export default function PortalJobDetail() {
     threshold: 50,
   });
 
+  // useOfflineMutation MUST be called before early returns (React Rules of Hooks)
+  // — else "Rendered fewer hooks than expected" crash on Capacitor
+  const offlineAware = useOfflineMutation();
+
   if (isLoading) {
     return (
       <PortalLayout>
@@ -605,8 +609,6 @@ export default function PortalJobDetail() {
   const beforePhotos = photos.filter(p => p.photoType === "before");
   const afterPhotos = photos.filter(p => p.photoType === "after");
   const staffPhotos = photos.filter(p => p.photoType === "during" || p.photoType === "other");
-
-  const offlineAware = useOfflineMutation();
 
   function save(field: string, value: string | number | null) {
     const input = { id: jobId, [field]: value };
