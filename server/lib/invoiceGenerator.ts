@@ -95,8 +95,26 @@ export async function generateInvoiceForJob(
   // Fetch progress payments
   const progressPayments = await listJobProgressPayments(jobId);
 
-  // Calculate totals
-  const totalCents = options.invoicedAmount ?? (job.actualValue ? Math.round(job.actualValue * 100) : 0);
+  // Calculate totals — fallback chain: explicit invoicedAmount → actualValue → estimatedValue → quote line items sum → 0
+  let computedTotalCents = 0;
+  if (options.invoicedAmount) {
+    computedTotalCents = options.invoicedAmount;
+  } else if (job.actualValue) {
+    computedTotalCents = Math.round(job.actualValue * 100);
+  } else if ((job as any).estimatedValue) {
+    computedTotalCents = Math.round((job as any).estimatedValue * 100);
+  } else if (lineItems.length > 0) {
+    // Sum line item totals as last resort
+    computedTotalCents = lineItems.reduce((sum, li) => {
+      return sum + Math.round(parseFloat(li.lineTotal ?? "0") * 100);
+    }, 0);
+  }
+  const totalCents = computedTotalCents;
+  if (totalCents <= 0) {
+    throw new Error(
+      "Cannot generate invoice — no amount set. Please set the Actual Value on the job, or create a quote with line items first."
+    );
+  }
   const gstCents = Math.round(totalCents / 11); // GST inclusive (10% of 110%)
   const subtotalCents = totalCents - gstCents;
   const amountPaidCents = progressPayments.reduce((sum, p) => sum + p.amountCents, 0);

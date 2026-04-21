@@ -447,7 +447,6 @@ export default function PortalSubscription() {
                   <ExternalLink className="w-4 h-4" />
                   {isNativeApp() ? "Change Plan" : "Manage Subscription"}
                 </Button>
-                {/* Show upgrade CTA if on a lower tier */}
                 {(sub.plan === "solvr_quotes" || sub.plan === "starter") && (
                   <Button
                     variant="outline"
@@ -490,19 +489,21 @@ export default function PortalSubscription() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <Button
-                onClick={handleOpenPaywall}
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
-              >
-                View Plans & Subscribe
-              </Button>
-              <Button
-                variant="outline"
-                className="border-white/20 text-white/60 hover:bg-white/5"
-                onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
-              >
-                Contact Support
-              </Button>
+              <>
+                <Button
+                  onClick={handleOpenPaywall}
+                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                >
+                  View Plans & Subscribe
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-white/20 text-white/60 hover:bg-white/5"
+                  onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
+                >
+                  Contact Support
+                </Button>
+              </>
             </div>
           </div>
         )}

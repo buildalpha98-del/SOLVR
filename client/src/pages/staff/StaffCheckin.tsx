@@ -9,6 +9,7 @@ import StaffLayout from "./StaffLayout";
 import { Loader2, MapPin, Clock, LogIn, LogOut, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { openMaps } from "@/lib/openMaps";
 
 function formatTime(date: Date | string) {
   return new Date(date).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true });
@@ -172,15 +173,13 @@ function CheckInCard({ entry, isLoading, onCheckIn, onCheckOut }: {
       </div>
 
       {entry.job?.location && (
-        <a
-          href={`https://maps.google.com/?q=${encodeURIComponent(entry.job.location)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 text-blue-400 text-sm hover:text-blue-300 transition-colors"
+        <button
+          onClick={() => openMaps(entry.job.location)}
+          className="flex items-center gap-2 text-blue-400 text-sm hover:text-blue-300 transition-colors text-left"
         >
           <MapPin size={13} />
           <span className="line-clamp-1">{entry.job.location}</span>
-        </a>
+        </button>
       )}
 
       {isCheckedIn && checkInTime && (

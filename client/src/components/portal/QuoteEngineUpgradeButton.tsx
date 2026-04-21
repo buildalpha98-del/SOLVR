@@ -1,4 +1,3 @@
-import { openUrl } from "@/lib/openUrl";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -43,7 +42,7 @@ export function QuoteEngineUpgradeButton({
         origin: getSolvrOrigin(),
       });
       toast.success("Redirecting to secure checkout…");
-      openUrl(result.url);
+      window.open(result.url, "_blank");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
       toast.error(msg);

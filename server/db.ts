@@ -2438,7 +2438,13 @@ export async function getRevenueMetrics(clientId: number, monthsBack = 12, start
   // ── Average job value (from completed + paid jobs) ──
   const completedJobs = allJobs.filter(j => j.stage === "completed" || j.paidAt);
   const totalCompletedRevenue = completedJobs.reduce(
-    (sum, j) => sum + ((j.amountPaid ?? j.invoicedAmount ?? j.actualValue ?? 0) / 100), 0
+    (sum, j) => {
+      // amountPaid and invoicedAmount are in cents; actualValue is in dollars
+      if (j.amountPaid) return sum + j.amountPaid / 100;
+      if (j.invoicedAmount) return sum + j.invoicedAmount / 100;
+      if (j.actualValue) return sum + j.actualValue; // already dollars
+      return sum;
+    }, 0
   );
   const avgJobValue = completedJobs.length > 0
     ? Math.round(totalCompletedRevenue / completedJobs.length)

@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +25,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
+import { ErrorState } from "@/components/portal/ErrorState";
 import {
-  Users, Search, MessageSquare, ChevronRight, Phone,
+  Users, Search, MessageSquare, ChevronRight, Phone, UserPlus,
   MapPin, Loader2, CheckSquare, Square, Download, DollarSign, Briefcase,
   History, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, BellOff,
   RefreshCw, CalendarClock, BookOpen, Plus, Trash2, X, UserMinus,
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 function fmtDate(val: Date | string | null | undefined) {
   if (!val) return "—";
@@ -290,9 +293,16 @@ export default function PortalCustomers() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [newTplName, setNewTplName] = useState("");
   const [newTplBody, setNewTplBody] = useState("");
+  // Add customer state
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustFirst, setNewCustFirst] = useState("");
+  const [newCustLast, setNewCustLast] = useState("");
+  const [newCustEmail, setNewCustEmail] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustAddress, setNewCustAddress] = useState("");
 
-  const { data: customers = [], isLoading } = trpc.portalCustomers.list.useQuery(undefined, {
-    retry: false,
+  const { data: customers = [], isLoading, error: custError, refetch: refetchCust } = trpc.portalCustomers.list.useQuery(undefined, {
+    retry: 2,
     staleTime: 60_000,
   });
 
@@ -313,6 +323,18 @@ export default function PortalCustomers() {
     onError: (err) => toast.error(err.message),
   });
   const utils = trpc.useUtils();
+
+  const createCustomerMutation = trpc.portalCustomers.createCustomer.useMutation({
+    onSuccess: (data) => {
+      hapticSuccess();
+      toast.success(`Customer "${data.name}" added`);
+      setShowAddCustomer(false);
+      setNewCustFirst(""); setNewCustLast(""); setNewCustEmail(""); setNewCustPhone(""); setNewCustAddress("");
+      utils.portalCustomers.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const toggleOptOutMutation = trpc.portalCustomers.toggleSmsOptOut.useMutation({
     onSuccess: (data) => {
       toast.success(data.optedOutSms ? "Customer opted out of SMS" : "Customer re-enabled for SMS");
@@ -450,9 +472,19 @@ export default function PortalCustomers() {
             Auto-populated from accepted quotes and paid invoices.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {activeTab === "customers" && (
             <>
+              <WriteGuard>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowAddCustomer(true)}
+                  className="border-white/10 text-white/60 hover:text-white"
+                >
+                  <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Add
+                </Button>
+              </WriteGuard>
               <Button
                 size="sm"
                 variant="outline"
@@ -470,7 +502,9 @@ export default function PortalCustomers() {
                   style={selected.size > 0 ? { background: "#F5A623", color: "#0F1F3D" } : {}}
                 >
                   <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-                  Bulk SMS {selected.size > 0 && `(${selected.size})`}
+                  <span className="hidden sm:inline">Bulk SMS</span>
+                  <span className="sm:hidden">SMS</span>
+                  {selected.size > 0 && ` (${selected.size})`}
                 </Button>
               </WriteGuard>
             </>
@@ -549,6 +583,8 @@ export default function PortalCustomers() {
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
             </div>
+          ) : custError ? (
+            <ErrorState error={custError} onRetry={() => refetchCust()} />
           ) : filtered.length === 0 ? (
             <div className="rounded-xl border p-12 text-center" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
               <Users className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
@@ -688,7 +724,7 @@ export default function PortalCustomers() {
 
       {/* Bulk SMS Modal */}
       <Dialog open={showBulkSms} onOpenChange={setShowBulkSms}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto max-h-[85vh] overflow-y-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
           <DialogHeader>
             <DialogTitle className="text-white">
               Bulk SMS — {selected.size} customer{selected.size !== 1 ? "s" : ""}
@@ -911,6 +947,93 @@ export default function PortalCustomers() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add Customer Dialog ── */}
+      <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <DialogHeader>
+            <DialogTitle className="text-white">Add Customer</DialogTitle>
+            <DialogDescription style={{ color: "rgba(255,255,255,0.5)" }}>
+              Manually add a customer to your CRM.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-white/60">First Name *</Label>
+                <Input
+                  value={newCustFirst}
+                  onChange={(e) => setNewCustFirst(e.target.value)}
+                  placeholder="Jay"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-white/60">Last Name</Label>
+                <Input
+                  value={newCustLast}
+                  onChange={(e) => setNewCustLast(e.target.value)}
+                  placeholder="Smith"
+                  className="bg-white/5 border-white/10 text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-white/60">Phone</Label>
+              <Input
+                value={newCustPhone}
+                onChange={(e) => setNewCustPhone(e.target.value)}
+                placeholder="0412 345 678"
+                className="bg-white/5 border-white/10 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-white/60">Email</Label>
+              <Input
+                value={newCustEmail}
+                onChange={(e) => setNewCustEmail(e.target.value)}
+                placeholder="jay@example.com"
+                className="bg-white/5 border-white/10 text-white"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-white/60">Address</Label>
+              <AddressAutocomplete
+                value={newCustAddress}
+                onChange={setNewCustAddress}
+                placeholder="123 Main St, Sydney NSW 2000"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddCustomer(false)}
+              className="w-full sm:w-auto border-white/10 text-white/60"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newCustFirst.trim()) { toast.error("First name is required"); return; }
+                createCustomerMutation.mutate({
+                  firstName: newCustFirst.trim(),
+                  lastName: newCustLast.trim() || undefined,
+                  email: newCustEmail.trim() || undefined,
+                  phone: newCustPhone.trim() || undefined,
+                  address: newCustAddress.trim() || undefined,
+                });
+              }}
+              disabled={createCustomerMutation.isPending || !newCustFirst.trim()}
+              className="w-full sm:w-auto"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              {createCustomerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Customer"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </PortalLayout>

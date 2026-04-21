@@ -647,6 +647,44 @@ export const portalRouter = router({
         customerStatusToken,
         ...(requiredFormTemplateIds.length > 0 ? { requiredFormTemplateIds } : {}),
       });
+      // Auto-upsert into tradie customer database (fire-and-forget)
+      void (async () => {
+        try {
+          const name = input.callerName ?? "Unknown Customer";
+          const phone = input.callerPhone ?? undefined;
+          const email = undefined; // customerEmail not in createJob input; will be populated later via quote acceptance
+          // Try to match by phone first, then by email
+          let existing = phone ? await getTradieCustomerByPhone(client.id, phone) : null;
+          if (!existing && email) {
+            existing = await getTradieCustomerByEmail(client.id, email);
+          }
+          if (existing) {
+            await updateTradieCustomer(existing.id, {
+              lastJobType: input.jobType,
+              lastJobAt: new Date(),
+              jobCount: (existing.jobCount ?? 0) + 1,
+              ...(input.location && !existing.address ? { address: input.location } : {}),
+              ...(email && !existing.email ? { email } : {}),
+              ...(phone && !existing.phone ? { phone } : {}),
+            });
+          } else if (phone || email) {
+            await createTradieCustomer({
+              clientId: client.id,
+              name,
+              phone: phone ?? null,
+              email: email ?? null,
+              address: input.location ?? undefined,
+              jobCount: 1,
+              totalSpentCents: 0,
+              firstJobAt: new Date(),
+              lastJobAt: new Date(),
+              lastJobType: input.jobType,
+            });
+          }
+        } catch (e) {
+          console.error("[CreateJob] CRM customer upsert failed:", e);
+        }
+      })();
       return { success: true, id: insertId };
     }),
 

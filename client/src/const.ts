@@ -2,8 +2,9 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 /**
  * Returns true when running inside a Capacitor native app (iOS or Android).
- * Used to switch between native RevenueCat SDK (Apple StoreKit for IAP)
- * and web RevenueCat SDK (Stripe billing) based on platform.
+ * Use this to gate any purchase UI — Apple Guideline 3.1.1 requires that
+ * apps offering digital subscriptions use Apple IAP. Our approach is simpler:
+ * we remove all purchase UI from the native build entirely.
  */
 export const isNativeApp = (): boolean => {
   const origin = window.location.origin;
@@ -20,12 +21,11 @@ export const getSolvrOrigin = (): string => {
 };
 
 // Generate login URL at runtime so redirect URI reflects the current origin.
-// On Capacitor, env vars like VITE_OAUTH_PORTAL_URL are undefined — fall back
-// to the portal login page on solvr.com.au.
+// On Capacitor, returns relative /portal/login so the WKWebView stays in-app.
+// On web without env vars, returns an origin-relative login path.
 export const getLoginUrl = () => {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
-  const origin = getSolvrOrigin();
 
   // On Capacitor, use relative path — absolute https:// URLs would navigate
   // the WKWebView away from capacitor://localhost to the real website (→ Safari).
@@ -33,12 +33,12 @@ export const getLoginUrl = () => {
     return "/portal/login";
   }
 
-  // On web without env vars, use origin-relative URL
+  // On web without env vars, use origin-relative URL (avoids new URL crash)
   if (!oauthPortalUrl) {
-    return `${origin}/portal/login`;
+    return `${window.location.origin}/portal/login`;
   }
 
-  const redirectUri = `${origin}/api/oauth/callback`;
+  const redirectUri = `${window.location.origin}/api/oauth/callback`;
   const state = btoa(redirectUri);
 
   const url = new URL(`${oauthPortalUrl}/app-auth`);

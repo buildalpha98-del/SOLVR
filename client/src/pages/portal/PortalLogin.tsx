@@ -32,9 +32,10 @@ const FEATURES = [
 export default function PortalLogin() {
   const [mode, setMode] = useState<"form" | "magic-link-pending" | "success" | "error">("form");
   const [errorMsg, setErrorMsg] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem("solvr_remember_email") ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("solvr_remember_email"));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
 
@@ -87,6 +88,8 @@ export default function PortalLogin() {
     if (!email || !password) return;
     setIsSubmitting(true);
     setErrorMsg("");
+    if (rememberMe) localStorage.setItem("solvr_remember_email", email);
+    else localStorage.removeItem("solvr_remember_email");
     passwordLoginMutation.mutate({ email, password });
   };
 
@@ -251,6 +254,17 @@ export default function PortalLogin() {
                 </div>
               </div>
 
+              <div className="flex items-center gap-2">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 bg-white/5 accent-amber-500"
+                />
+                <label htmlFor="remember" className="text-white/50 text-sm select-none cursor-pointer">Remember me</label>
+              </div>
+
               <Button
                 type="submit"
                 disabled={isSubmitting || !email || !password}
@@ -278,7 +292,7 @@ export default function PortalLogin() {
                 {isNativeApp() ? (
                   <>
                     <p className="text-white/40 text-xs">
-                      New to Solvr? Log in to get started, or visit solvr.com.au to learn more.
+                      New to Solvr? Subscribe at solvr.com.au on your browser, then log in here.
                     </p>
                   </>
                 ) : (

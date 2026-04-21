@@ -3,6 +3,8 @@ PODS:
     - CapacitorCordova
   - CapacitorApp (7.1.2):
     - Capacitor
+  - CapacitorBrowser (7.0.5):
+    - Capacitor
   - CapacitorCamera (7.0.5):
     - Capacitor
   - CapacitorCordova (7.6.1)
@@ -38,6 +40,7 @@ PODS:
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@7.6.1_@capacitor+core@7.6.1/node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/.pnpm/@capacitor+app@7.1.2_@capacitor+core@7.6.1/node_modules/@capacitor/app`)"
+  - "CapacitorBrowser (from `../../node_modules/.pnpm/@capacitor+browser@7.0.5_@capacitor+core@7.6.1/node_modules/@capacitor/browser`)"
   - "CapacitorCamera (from `../../node_modules/.pnpm/@capacitor+camera@7.0.5_@capacitor+core@7.6.1/node_modules/@capacitor/camera`)"
   - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@7.6.1_@capacitor+core@7.6.1/node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.6.1/node_modules/@capacitor/filesystem`)"
@@ -62,6 +65,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor+ios@7.6.1_@capacitor+core@7.6.1/node_modules/@capacitor/ios"
   CapacitorApp:
     :path: "../../node_modules/.pnpm/@capacitor+app@7.1.2_@capacitor+core@7.6.1/node_modules/@capacitor/app"
+  CapacitorBrowser:
+    :path: "../../node_modules/.pnpm/@capacitor+browser@7.0.5_@capacitor+core@7.6.1/node_modules/@capacitor/browser"
   CapacitorCamera:
     :path: "../../node_modules/.pnpm/@capacitor+camera@7.0.5_@capacitor+core@7.6.1/node_modules/@capacitor/camera"
   CapacitorCordova:
@@ -86,6 +91,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Capacitor: b8dd0e1151c953171b0e02d04aa57f3389edcd97
   CapacitorApp: f01a913211780e0718dae9750442c3e23f96e106
+  CapacitorBrowser: 6d09f59655e89aede71654ef08b98de55cf032b6
   CapacitorCamera: 9e952270be355797f769aa835bb7643a96c871fe
   CapacitorCordova: 6ab7337f25a2c9ce7a3fdc2f249c480f447853e0
   CapacitorFilesystem: c63fc54df41e5a6761785a7f3c49dc696c22e296
@@ -102,6 +108,6 @@ SPEC CHECKSUMS:
   RevenuecatPurchasesCapacitorUi: 969baeb81228e051e2b9e3e764f86f577e73a4b9
   RevenueCatUI: c6acb3648fa58ccb4f0f178556ed0278b796234f
 
-PODFILE CHECKSUM: 619a411b381771623c1ff00f68e55766ebe468e6
+PODFILE CHECKSUM: 8d38bb708a29c6ce311a65df513389bbc593d09e
 
 COCOAPODS: 1.16.2

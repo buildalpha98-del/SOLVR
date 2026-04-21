@@ -139,15 +139,15 @@ function getProspectFromUrl(): string | null {
 }
 
 function buildShareUrl(persona: PersonaConfig, prospect?: string): string {
-  const params = new URLSearchParams();
+  const url = new URL(window.location.href);
+  url.search = "";
   if (persona.businessName) {
-    params.set("business", persona.businessName);
+    url.searchParams.set("business", persona.businessName);
   }
   if (prospect) {
-    params.set("prospect", prospect);
+    url.searchParams.set("prospect", prospect);
   }
-  const qs = params.toString();
-  return `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+  return url.toString();
 }
 
 // ── Missed Call Scenario ───────────────────────────────────────
@@ -455,18 +455,17 @@ export default function Home() {
 
   // Update URL + localStorage when persona changes
   useEffect(() => {
-    const dp = new URLSearchParams(window.location.search);
+    const url = new URL(window.location.href);
     if (persona.businessName) {
-      dp.set("business", persona.businessName);
+      url.searchParams.set("business", persona.businessName);
     } else {
-      dp.delete("business");
+      url.searchParams.delete("business");
     }
     // Preserve prospect param
     if (prospect) {
-      dp.set("prospect", prospect);
+      url.searchParams.set("prospect", prospect);
     }
-    const dqs = dp.toString();
-    window.history.replaceState({}, "", `${window.location.pathname}${dqs ? `?${dqs}` : ""}`);
+    window.history.replaceState({}, "", url.toString());
     // Persist selection so returning visitors see their last persona
     savePersona(persona);
   }, [persona, prospect]);

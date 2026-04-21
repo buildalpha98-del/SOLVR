@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
-> **Last updated:** 19 April 2026
-> **Test count:** 376 vitest tests passing (38 test files) · 0 TypeScript errors
+> **Last updated:** 21 April 2026 (batch 3)
+> **Test count:** 394 vitest tests passing (39 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -214,9 +214,9 @@ These are planned features that are not blocking the current launch. They will b
 
 ### Polish & QoL (Low Priority)
 - [ ] Regenerate 6 Instagram posts with diamond circuit icon
-- [ ] Notification preferences toggle in portal settings
+- [x] Notification preferences toggle in portal settings (already implemented — 5 event types, email + push)
 - [ ] Default markup % per category on price list
-- [ ] Quote list: tappable rows, always-visible total + action buttons on mobile
+- [x] Quote list: tappable rows, always-visible total + action buttons on mobile (already implemented)
 
 ### Device Testing (Requires Physical Devices)
 - [ ] Verify deep link handling on Android (solvr.com.au/portal/* paths)
@@ -381,3 +381,55 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Wired haptics into all 22 portal pages with toast.success callbacks
 - [x] hapticSuccess on saves/creates, hapticWarning on deletes
 - [x] Pages: Forms, Compliance, PurchaseOrders, Settings, Customers, Invoices, PriceList, QuoteDetail, QuoteSettings, Referral, Reporting, Reviews, Schedule, Staff, StaffCheckIn, Subscription, Team, Assistant, Calendar, Calls, CustomerDetail, Dashboard
+
+### Sprint 10 — iOS Smoke Test Fixes (21 April 2026)
+
+#### CRITICAL — blocks feature completeness
+- [x] #1 Customers DB — Bulk SMS overflow fixed (max-h-[85vh]), auto-upsert enhanced (email fallback + jobCount increment)
+- [x] #2 Apple reviewer demo account broken — re-seed apple.review@solvr.com.au / AppleReview2026!
+- [x] #3 Reports PDF — added granular error handling (data fetch / PDF render / S3 upload), frontend shows actual error message
+- [x] #4 Invoice PDF total — fixed reporting unit mismatch (actualValue dollars vs cents), zero-total guard, frontend warning
+- [x] #5 Quote PDF Accept link — generatePdf now saves pdfUrl to quote record, send procedure also persists pdfUrl
+
+#### HIGH — UX issues on mobile
+- [x] #6 AI Assistant — fixed height calc for tab bar clearance, safe-area-inset-top, proper bottom padding
+- [x] #7 Forms page — full dark theme restyle (STATUS_COLORS, signature pad, labels, inputs, cards, table, dialogs)
+- [x] #8 PO delivery address presets — already implemented (chips + AddressAutocomplete)
+- [x] #9 Job detail active tab — className overrides with !important to beat shadcn data-state styles
+- [x] #10 Inline edit fields — already implemented (Enter saves, Escape cancels, save/cancel buttons)
+- [x] #11 Quote/job photos — already implemented (multi-select, before/after sections, lightbox, delete)
+- [x] #12 Settings page — already implemented (SectionCard with collapsible sections, ChevronDown rotation)
+- [x] #13 Remember Me — already implemented (ONE_YEAR_MS = 365 days session cookie)
+- [x] #14 Jobs page filter chips + filter persistence via localStorage (viewMode, search, stageFilter)
+- [x] #15 Address autocomplete — Google Places AddressAutocomplete component wired into Add Job modal
+
+#### MEDIUM — Infrastructure
+- [x] #16 Maps links open native Maps app on Capacitor (openMaps utility, wired into JobDetail, StaffCheckin, StaffToday)
+- [x] #17 Offline/error states — ErrorState component + retry buttons on Dashboard, Jobs, Calls, Customers pages
+- [x] #18 Staff portal demo data — seed staff with hashed PINs, hourlyRate, licenceNumber + 8 job_schedule entries
+
+#### Seed script
+- [x] Update seed-apple-upgrade.mjs with staff PINs, hourlyRate, job_schedule entries
+- [x] Update seed-demo.mjs with staff PINs, hourlyRate, job_schedule entries for Jay's account
+
+### Sprint 10 batch 3 — CRITICAL fixes + seed + autocomplete (21 April 2026)
+- [x] Run seed-apple-upgrade.mjs against live DB — staff PINs, hourlyRate, schedule entries, SWMS form all populated
+- [x] #1 Customers DB — Bulk SMS overflow fixed, auto-upsert enhanced (email fallback + jobCount increment)
+- [x] #3 Reports PDF — granular error handling (data fetch / PDF render / S3 upload), frontend shows actual error
+- [x] #4 Invoice PDF total — fixed reporting unit mismatch, zero-total guard, frontend warning for missing values
+- [x] #5 Quote PDF Accept link — generatePdf saves pdfUrl to DB, send procedure also persists pdfUrl
+- [x] AddressAutocomplete wired into: Add Customer dialog, PO delivery address field
+- 0 TypeScript errors, 376 vitest tests passing
+
+### Sprint 10 batch 4 — HIGH UX fixes + autocomplete + tests (21 April 2026)
+- [x] #6 AI Assistant — fixed height calc for tab bar clearance + safe-area-inset-top
+- [x] #7 Forms page — full dark theme restyle to match portal navy theme
+- [x] #8 PO delivery address presets — already implemented
+- [x] #9 Job detail active tab — className overrides with !important for amber active state
+- [x] #10 Inline edit fields — already implemented (Enter/Escape + save/cancel buttons)
+- [x] #11 Quote/job photos — already implemented (multi-select, before/after, lightbox)
+- [x] #12 Settings page — already implemented (collapsible SectionCard)
+- [x] #13 Remember Me — already implemented (365-day session cookie)
+- [x] AddressAutocomplete wired into quote builder manual form
+- [x] Vitest: 18 new tests (sprint10.test.ts — invoice guard, revenue units, pdfUrl, GST calc)
+- 0 TypeScript errors, 394 vitest tests passing (39 test files)

@@ -13,6 +13,7 @@
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +28,7 @@ import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import {
   Plus, Search, Building2, FileText, Send, Download, Trash2, Package, Edit,
-  ChevronRight,
+  ChevronRight, MapPin,
 } from "lucide-react";
 
 const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -387,9 +388,11 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
   const { data: suppliers } = trpc.purchaseOrders.listSuppliers.useQuery();
   const [supplierId, setSupplierId] = useState<string>("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [addressPresetKey, setAddressPresetKey] = useState<string>("");
   const [requiredByDate, setRequiredByDate] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState([{ description: "", quantity: "1.00", unit: "each", unitPriceCents: "" }]);
+  const { data: addressPresets } = trpc.purchaseOrders.deliveryAddressPresets.useQuery();
 
   const createMut = trpc.purchaseOrders.create.useMutation({
     onSuccess: (data) => {
@@ -447,15 +450,42 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Delivery address</label>
-              <Input value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} placeholder="Job site address" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Required by</label>
-              <Input type="date" value={requiredByDate} onChange={e => setRequiredByDate(e.target.value)} />
-            </div>
+          {/* Delivery address with presets */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              <MapPin className="h-3.5 w-3.5 inline mr-1" />Delivery address
+            </label>
+            {addressPresets && addressPresets.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {addressPresets.map(p => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setAddressPresetKey(p.key);
+                      if (p.key !== "custom") setDeliveryAddress(p.address);
+                      else setDeliveryAddress("");
+                    }}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      addressPresetKey === p.key
+                        ? "bg-amber-100 border-amber-400 text-amber-800 font-medium"
+                        : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <AddressAutocomplete
+              value={deliveryAddress}
+              onChange={(val: string) => { setDeliveryAddress(val); setAddressPresetKey("custom"); }}
+              placeholder="Enter delivery address"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Required by</label>
+            <Input type="date" value={requiredByDate} onChange={e => setRequiredByDate(e.target.value)} />
           </div>
 
           {/* Line items — mobile-friendly stacked layout */}

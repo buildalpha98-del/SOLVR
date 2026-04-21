@@ -1,4 +1,3 @@
-import { getSolvrOrigin } from "@/const";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -26,6 +25,9 @@ import { FileText } from "lucide-react";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { getSolvrOrigin } from "@/const";
 
 const QuoteListContent = lazy(() => import("./QuoteListContent"));
 
@@ -351,7 +353,6 @@ function AddJobModal({
             { label: "Description", value: description, setter: setDescription, placeholder: "e.g. Hot water system replacement at rear of house" },
             { label: "Caller name", value: callerName, setter: setCallerName, placeholder: "e.g. John Smith" },
             { label: "Phone", value: callerPhone, setter: setCallerPhone, placeholder: "e.g. 0412 345 678" },
-            { label: "Location", value: location, setter: setLocation, placeholder: "e.g. Parramatta, 123 Main St" },
             { label: "Estimated value ($)", value: estimatedValue, setter: setEstimatedValue, placeholder: "e.g. 1200", type: "number" },
           ].map(field => (
             <div key={field.label}>
@@ -366,6 +367,15 @@ function AddJobModal({
               />
             </div>
           ))}
+          {/* Location with Google Places autocomplete */}
+          <div>
+            <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Location</label>
+            <AddressAutocomplete
+              value={location}
+              onChange={setLocation}
+              placeholder="e.g. 123 Main St, Parramatta NSW"
+            />
+          </div>
           <button
             type="submit"
             className="w-full py-2.5 rounded-lg text-sm font-semibold mt-2"
@@ -382,11 +392,32 @@ function AddJobModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 type PageTab = "jobs" | "quotes";
 
+const JOBS_FILTER_KEY = "solvr_jobs_filters";
+
+function loadSavedFilters(): { viewMode: ViewMode; search: string; stageFilter: JobStage | "all" } {
+  try {
+    const raw = localStorage.getItem(JOBS_FILTER_KEY);
+    if (!raw) return { viewMode: "board", search: "", stageFilter: "all" };
+    const parsed = JSON.parse(raw);
+    return {
+      viewMode: parsed.viewMode === "list" ? "list" : "board",
+      search: typeof parsed.search === "string" ? parsed.search : "",
+      stageFilter: typeof parsed.stageFilter === "string" ? parsed.stageFilter as JobStage | "all" : "all",
+    };
+  } catch {
+    return { viewMode: "board", search: "", stageFilter: "all" };
+  }
+}
+
+function saveFilters(filters: { viewMode: ViewMode; search: string; stageFilter: JobStage | "all" }) {
+  try { localStorage.setItem(JOBS_FILTER_KEY, JSON.stringify(filters)); } catch { /* quota exceeded — ignore */ }
+}
+
 export default function PortalJobs() {
   const [showAdd, setShowAdd] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("board");
-  const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState<JobStage | "all">("all");
+  const [viewMode, setViewMode] = useState<ViewMode>(() => loadSavedFilters().viewMode);
+  const [search, setSearch] = useState(() => loadSavedFilters().search);
+  const [stageFilter, setStageFilter] = useState<JobStage | "all">(() => loadSavedFilters().stageFilter);
   const [, navigate] = useLocation();
   const searchString = useSearch();
   const utils = trpc.useUtils();
@@ -414,9 +445,10 @@ export default function PortalJobs() {
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const features = me?.features ?? [];
 
-  const { data: rawJobs, isLoading } = trpc.portal.listJobs.useQuery(undefined, {
+  const { data: rawJobs, isLoading, error: jobsError, refetch: refetchJobs } = trpc.portal.listJobs.useQuery(undefined, {
     staleTime: 60 * 1000,
     enabled: features.includes("jobs"),
+    retry: 2,
   });
 
   const updateJobMutation = trpc.portal.updateJob.useMutation({
@@ -434,6 +466,11 @@ export default function PortalJobs() {
 
   const jobs = (rawJobs ?? []) as Job[];
 
+  // Persist filters to localStorage whenever they change
+  useEffect(() => {
+    saveFilters({ viewMode, search, stageFilter });
+  }, [viewMode, search, stageFilter]);
+
   const filteredJobs = useMemo(() => {
     const q = search.toLowerCase().trim();
     return jobs.filter(j => {
@@ -449,18 +486,6 @@ export default function PortalJobs() {
       );
     });
   }, [jobs, search, stageFilter]);
-
-  // Pull-to-refresh MUST be before any early returns (React Rules of Hooks)
-  const handlePullRefresh = useCallback(async () => {
-    await Promise.all([
-      utils.portal.listJobs.invalidate(),
-      utils.quotes.list.invalidate(),
-    ]);
-  }, [utils]);
-
-  const { containerRef: jobsContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
-    onRefresh: handlePullRefresh,
-  });
 
   if (!features.includes("jobs")) {
     const jobFeatures = [
@@ -549,6 +574,17 @@ export default function PortalJobs() {
   const wonValue = jobs
     .filter(j => j.stage === "completed")
     .reduce((sum, j) => sum + (j.actualValue ?? j.estimatedValue ?? 0), 0);
+
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.listJobs.invalidate(),
+      utils.quotes.list.invalidate(),
+    ]);
+  }, [utils]);
+
+  const { containerRef: jobsContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
 
   return (
     <PortalLayout activeTab="jobs">
@@ -706,6 +742,8 @@ export default function PortalJobs() {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
           </div>
+        ) : jobsError ? (
+          <ErrorState error={jobsError} onRetry={() => refetchJobs()} />
         ) : viewMode === "board" ? (
           <>
             {/* Board view */}

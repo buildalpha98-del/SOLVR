@@ -47,30 +47,24 @@ export function UpgradeButton({
   const { user } = useAuth();
 
   const handleClick = useCallback(async () => {
-    // On native iOS — present the native RevenueCat paywall (Apple StoreKit)
+    // On native iOS — use native RevenueCat paywall (Apple StoreKit IAP)
     if (isNativeApp()) {
       setLoading(true);
       try {
         const result = await presentNativePaywall();
         if (result.success) {
-          toast.success("Subscription updated!", {
-            description: "Your plan has been upgraded. Refreshing…",
-          });
+          toast.success("Subscription updated!", { description: "Your plan has been upgraded. Refreshing..." });
           setTimeout(() => window.location.reload(), 2000);
         } else if (result.error) {
           toast.error("Upgrade failed", { description: result.error });
         }
       } catch {
-        toast.error("Something went wrong", {
-          description: "Please try again or contact hello@solvr.com.au",
-        });
-      } finally {
-        setLoading(false);
-      }
+        toast.error("Something went wrong");
+      } finally { setLoading(false); }
       return;
     }
 
-    // On web — use embedded RevenueCat web paywall (Stripe)
+    // Web — use embedded paywall
     if (!isRevenueCatConfigured() && user?.id) {
       configureRevenueCat(`rc_${user.id}`);
     }

@@ -170,7 +170,7 @@ export default function Pricing() {
     }
   }, []);
 
-  // Native iOS/Android — present native RevenueCat paywall (Apple StoreKit)
+  // Native iOS/Android — use native RevenueCat paywall (Apple StoreKit IAP)
   if (isNativeApp()) {
     const handleNativeSubscribe = async () => {
       setPaywallLoading(true);
@@ -182,31 +182,18 @@ export default function Pricing() {
         } else if (result.error) {
           toast.error("Purchase failed", { description: result.error });
         }
-      } catch {
-        toast.error("Something went wrong");
-      } finally {
-        setPaywallLoading(false);
-      }
+      } catch { toast.error("Something went wrong"); }
+      finally { setPaywallLoading(false); }
     };
-
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#0A1628" }}>
         <div className="text-center max-w-sm">
           <h2 className="font-bold text-2xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Choose Your Plan</h2>
-          <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Subscribe to unlock Solvr's full power for your trade business.
-          </p>
-          <button
-            onClick={handleNativeSubscribe}
-            disabled={paywallLoading}
-            className="w-full font-semibold px-8 py-4 rounded-xl text-lg disabled:opacity-50"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-          >
+          <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.55)" }}>Subscribe to unlock Solvr.</p>
+          <button onClick={handleNativeSubscribe} disabled={paywallLoading} className="w-full font-semibold px-8 py-4 rounded-xl text-lg disabled:opacity-50" style={{ background: "#F5A623", color: "#0F1F3D" }}>
             {paywallLoading ? "Loading..." : "View Plans & Subscribe"}
           </button>
-          <Link href="/portal" className="block mt-4 text-sm" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>
-            Back to Portal
-          </Link>
+          <Link href="/portal" className="block mt-4 text-sm" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>Back to Portal</Link>
         </div>
       </div>
     );

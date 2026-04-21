@@ -1,4 +1,3 @@
-import { getSolvrOrigin } from "@/const";
 /**
  * Console → Referrals
  * Admin view for managing referral partners, viewing conversions, and marking payouts.
@@ -19,7 +18,7 @@ import {
 import { toast } from "sonner";
 import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail, History, AlertTriangle, ToggleLeft, ToggleRight } from "lucide-react";
 
-const APP_ORIGIN = getSolvrOrigin();
+const APP_ORIGIN = window.location.origin;
 
 function fmtCents(cents: number) {
   return `$${(cents / 100).toFixed(0)}`;

@@ -1,4 +1,3 @@
-import { openUrl } from "@/lib/openUrl";
 /**
  * Copyright (c) 2025-2026 ClearPath AI Agency Pty Ltd. All rights reserved.
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
@@ -29,6 +28,7 @@ import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgrade
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
 import { useSwipe } from "@/hooks/useSwipe";
 import { hapticLight, hapticMedium, hapticSuccess, hapticWarning } from "@/lib/haptics";
+import { openMapsLatLng } from "@/lib/openMaps";
 import { useOfflineMutation } from "@/hooks/useOfflineMutation";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -197,18 +197,26 @@ function PhotoSection({
   const removePhoto = trpc.portal.removeJobPhoto.useMutation({ onSuccess: () => { onRefresh(); }, onError: (e) => toast.error(e.message) });
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>, photoType: "before" | "after") {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB"); return; }
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    // Validate all files first
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > 10 * 1024 * 1024) { toast.error(`"${files[i].name}" exceeds 10MB limit`); return; }
+    }
     setUploading(photoType);
+    let uploaded = 0;
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("photoType", photoType);
-      const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
-      const { url } = await res.json() as { url: string };
-      addPhoto.mutate({ jobId, photoType, imageUrl: url, imageKey: url.split("/").pop() ?? url });
+      for (let i = 0; i < files.length; i++) {
+        const fd = new FormData();
+        fd.append("file", files[i]);
+        fd.append("photoType", photoType);
+        const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
+        const { url } = await res.json() as { url: string };
+        addPhoto.mutate({ jobId, photoType, imageUrl: url, imageKey: url.split("/").pop() ?? url });
+        uploaded++;
+      }
+      if (uploaded > 1) toast.success(`${uploaded} photos uploaded`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -223,7 +231,7 @@ function PhotoSection({
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>{type === "before" ? "Before" : "After"} ({photos.length})</p>
           <label className="cursor-pointer">
-            <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
+            <input type="file" accept="image/*" multiple className="hidden" onChange={e => handleUpload(e, type)} />
             {uploading === type ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#F5A623" }} />
             ) : (
@@ -233,7 +241,7 @@ function PhotoSection({
         </div>
         {photos.length === 0 ? (
           <label className="cursor-pointer block">
-            <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
+            <input type="file" accept="image/*" multiple className="hidden" onChange={e => handleUpload(e, type)} />
             <div className="rounded-lg flex flex-col items-center justify-center h-24 gap-1 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.25)" }}>
               <Camera className="w-4 h-4" />Click to upload
             </div>
@@ -420,7 +428,7 @@ function JobCostingSection({
 // ─── Copy Link Buttons ───────────────────────────────────────────────────────
 function CopyStatusLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
-  const publicUrl = `${getSolvrOrigin()}/job/${token}`;
+  const publicUrl = `${window.location.origin}/job/${token}`;
   const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
   return (
     <Button size="sm" onClick={handleCopy} title="Copy customer status link"
@@ -432,7 +440,7 @@ function CopyStatusLinkButton({ token }: { token: string }) {
 
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
-  const publicUrl = `${getSolvrOrigin()}/report/${token}`;
+  const publicUrl = `${window.location.origin}/report/${token}`;
   const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
   return (
     <Button size="sm" onClick={handleCopy}
@@ -497,7 +505,7 @@ export default function PortalJobDetail() {
     onSuccess: (res) => {
       utils.portal.getJobDetail.invalidate({ id: jobId });
       toast.success("Completion report generated");
-      if (res.pdfUrl) openUrl(res.pdfUrl);
+      if (res.pdfUrl) window.open(res.pdfUrl, "_blank");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -551,8 +559,6 @@ export default function PortalJobDetail() {
     },
   });
 
-  const offlineAware = useOfflineMutation();
-
   const swipeHandlers = useSwipe({
     onSwipeLeft: () => {
       const idx = TAB_ORDER.indexOf(activeTab);
@@ -599,6 +605,8 @@ export default function PortalJobDetail() {
   const beforePhotos = photos.filter(p => p.photoType === "before");
   const afterPhotos = photos.filter(p => p.photoType === "after");
   const staffPhotos = photos.filter(p => p.photoType === "during" || p.photoType === "other");
+
+  const offlineAware = useOfflineMutation();
 
   function save(field: string, value: string | number | null) {
     const input = { id: jobId, [field]: value };
@@ -650,34 +658,17 @@ export default function PortalJobDetail() {
             className="w-full grid grid-cols-4 h-12 rounded-xl p-1 sticky top-0 z-30"
             style={{ background: "rgba(15,31,61,0.97)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}
           >
-            <TabsTrigger
-              value="overview"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="money"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Money
-            </TabsTrigger>
-            <TabsTrigger
-              value="work"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Work
-            </TabsTrigger>
-            <TabsTrigger
-              value="forms"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Forms
-            </TabsTrigger>
+            {(["overview", "money", "work", "forms"] as const).map((tab) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                className={`rounded-lg text-sm font-semibold min-h-[44px] capitalize data-[state=active]:shadow-none data-[state=active]:!bg-[#F5A623] data-[state=active]:!text-[#0F1F3D] ${
+                  activeTab !== tab ? "!text-white/45" : ""
+                }`}
+              >
+                {tab}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* ─── TAB 1: Overview ─── */}
@@ -871,6 +862,9 @@ export default function PortalJobDetail() {
                   {hasQuoteEngine ? (
                     <>
                       <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>No invoice generated yet. Generate one from the accepted quote or job value.</p>
+                      {!job.actualValue && !job.estimatedValue && !job.sourceQuoteId && (
+                        <p className="text-xs text-center px-3 py-1.5 rounded-md" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>Set an Actual Value above before generating an invoice.</p>
+                      )}
                       <Button onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })} disabled={generateInvoice.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
                         {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
                         Generate Invoice
@@ -899,7 +893,7 @@ export default function PortalJobDetail() {
                     {job.paidAt && <><span>·</span><span>Paid {formatDate(job.paidAt)}</span></>}
                   </div>
                   {(job as any).invoicePdfUrl && (
-                    <Button size="sm" onClick={() => openUrl((job as any).invoicePdfUrl)} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                    <Button size="sm" onClick={() => window.open((job as any).invoicePdfUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
                       <FileText className="w-3.5 h-3.5 mr-1.5" /> View PDF
                     </Button>
                   )}
@@ -1041,8 +1035,8 @@ export default function PortalJobDetail() {
                         const durationMins = te.checkOutAt
                           ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
                           : null;
-                        const checkInMapUrl = te.checkInLat && te.checkInLng ? `https://www.google.com/maps?q=${te.checkInLat},${te.checkInLng}` : null;
-                        const checkOutMapUrl = te.checkOutLat && te.checkOutLng ? `https://www.google.com/maps?q=${te.checkOutLat},${te.checkOutLng}` : null;
+                        const hasCheckInCoords = !!(te.checkInLat && te.checkInLng);
+                        const hasCheckOutCoords = !!(te.checkOutLat && te.checkOutLng);
                         return (
                           <div key={te.id} className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                             <p className="text-sm font-medium text-white">{te.staffName ?? `Staff #${te.staffId}`}</p>
@@ -1051,10 +1045,10 @@ export default function PortalJobDetail() {
                                 <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked in</p>
                                 <p style={{ color: "rgba(255,255,255,0.7)" }}>
                                   {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                                  {checkInMapUrl && (
-                                    <a href={checkInMapUrl} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                  {hasCheckInCoords && (
+                                    <button onClick={() => openMapsLatLng(te.checkInLat, te.checkInLng)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
                                       <MapPin className="w-2.5 h-2.5" /> Map
-                                    </a>
+                                    </button>
                                   )}
                                 </p>
                               </div>
@@ -1063,10 +1057,10 @@ export default function PortalJobDetail() {
                                 {te.checkOutAt ? (
                                   <p style={{ color: "rgba(255,255,255,0.7)" }}>
                                     {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                                    {checkOutMapUrl && (
-                                      <a href={checkOutMapUrl} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                    {hasCheckOutCoords && (
+                                      <button onClick={() => openMapsLatLng(te.checkOutLat, te.checkOutLng)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
                                         <MapPin className="w-2.5 h-2.5" /> Map
-                                      </a>
+                                      </button>
                                     )}
                                   </p>
                                 ) : (
@@ -1094,7 +1088,7 @@ export default function PortalJobDetail() {
                 <div className="space-y-3">
                   <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report generated and ready to send to your customer.</p>
                   <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => openUrl((job as any).completionReportUrl)} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                    <Button size="sm" onClick={() => window.open((job as any).completionReportUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
                       <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
                     </Button>
                     {(job as any).completionReportToken && <CopyReportLinkButton token={(job as any).completionReportToken} />}
@@ -1219,7 +1213,7 @@ export default function PortalJobDetail() {
                 variant="ghost" size="sm"
                 className="text-xs gap-1"
                 style={{ color: "#F5A623" }}
-                onClick={() => navigate(`/portal/forms?jobId=${jobId}`)}
+                onClick={() => window.open(`/portal/forms?jobId=${jobId}`, "_blank")}
               >
                 <Plus className="w-3.5 h-3.5" /> New Form
               </Button>

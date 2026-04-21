@@ -716,6 +716,9 @@ export const quotesRouter = router({
         "application/pdf",
       );
 
+      // Persist the PDF URL on the quote so the public page can show it
+      await updateQuote(input.id, { pdfUrl: url });
+
       return { pdfUrl: url };
     }),
 
@@ -811,6 +814,7 @@ export const quotesRouter = router({
         issuedAt: new Date(),
         customerEmail: input.recipientEmail,
         customerName: input.recipientName ?? quote.customerName,
+        ...(input.pdfUrl ? { pdfUrl: input.pdfUrl } : {}),
       });
 
       return { success: true, acceptUrl };
