@@ -28,7 +28,7 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -54,6 +54,8 @@
 	<string>Solvr needs permission to save generated quote PDFs to your photo library.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Solvr uses the camera so you can take photos of job sites to attach to quotes.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Solvr uses your location to log GPS check-in and check-out for job sites so your team's hours are verified.</string>
 	<!-- ─── Export compliance: declare no non-exempt encryption so App Store review doesn't ask ─── -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>

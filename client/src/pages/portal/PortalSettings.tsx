@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { getSolvrOrigin } from "@/const";
+import { getSolvrOrigin, isNativeApp } from "@/const";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -901,22 +901,42 @@ function BillingSection() {
             </div>
           )}
 
-          {/* Manage button */}
-          <Button
-            onClick={() => billingPortal.mutate({ origin: getSolvrOrigin() })}
-            disabled={billingPortal.isPending}
-            className="w-full flex items-center justify-center gap-2"
-            style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
-          >
-            {billingPortal.isPending ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" /> Opening...</>
-            ) : (
-              <><ExternalLink className="w-4 h-4" /> Manage Billing &amp; Invoices</>
-            )}
-          </Button>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-            Opens the Stripe billing portal in a new tab. Update your card, download invoices, or cancel your subscription.
-          </p>
+          {/* Manage button — on iOS, route to Apple's subscription management (required by Apple Guideline 3.1.1) */}
+          {isNativeApp() ? (
+            <>
+              <Button
+                onClick={() => {
+                  // itms-apps:// opens the Subscriptions page in Settings app on iOS
+                  window.location.href = "itms-apps://apps.apple.com/account/subscriptions";
+                }}
+                className="w-full flex items-center justify-center gap-2"
+                style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
+              >
+                <ExternalLink className="w-4 h-4" /> Manage in Apple Settings
+              </Button>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                Subscriptions billed via Apple are managed in your Apple ID settings. Tap to open the iOS Subscriptions page.
+              </p>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={() => billingPortal.mutate({ origin: getSolvrOrigin() })}
+                disabled={billingPortal.isPending}
+                className="w-full flex items-center justify-center gap-2"
+                style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
+              >
+                {billingPortal.isPending ? (
+                  <><RefreshCw className="w-4 h-4 animate-spin" /> Opening...</>
+                ) : (
+                  <><ExternalLink className="w-4 h-4" /> Manage Billing &amp; Invoices</>
+                )}
+              </Button>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                Opens the Stripe billing portal in a new tab. Update your card, download invoices, or cancel your subscription.
+              </p>
+            </>
+          )}
         </div>
       )}
     </SectionCard>

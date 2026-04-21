@@ -37,7 +37,7 @@ export interface PersonaConfig {
   emergencyFee: string;
 }
 
-const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "26262b83-7035-44ba-b786-c28038667c0d";
+const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || "";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRODUCTION SYSTEM PROMPT BUILDER

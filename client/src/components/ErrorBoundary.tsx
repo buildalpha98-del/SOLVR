@@ -31,19 +31,26 @@ class ErrorBoundary extends Component<Props, State> {
               className="text-destructive mb-6 flex-shrink-0"
             />
 
-            <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
+            <h2 className="text-xl mb-4">Something went wrong.</h2>
+            <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
+              We've been notified of the issue. Try reloading the page, and if the problem persists, contact hello@solvr.com.au.
+            </p>
 
-            <div className="p-3 w-full rounded bg-red-100 dark:bg-red-900/30 mb-3">
-              <p className="text-sm font-mono font-bold text-red-800 dark:text-red-300 break-all">
-                {this.state.error?.name}: {this.state.error?.message}
-              </p>
-            </div>
-
-            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6 max-h-60">
-              <pre className="text-xs text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.stack}
-              </pre>
-            </div>
+            {/* Dev-only debug details — stack traces leak PII / infrastructure and never ship to production */}
+            {import.meta.env.DEV && (
+              <>
+                <div className="p-3 w-full rounded bg-red-100 dark:bg-red-900/30 mb-3">
+                  <p className="text-sm font-mono font-bold text-red-800 dark:text-red-300 break-all">
+                    {this.state.error?.name}: {this.state.error?.message}
+                  </p>
+                </div>
+                <div className="p-4 w-full rounded bg-muted overflow-auto mb-6 max-h-60">
+                  <pre className="text-xs text-muted-foreground whitespace-break-spaces">
+                    {this.state.error?.stack}
+                  </pre>
+                </div>
+              </>
+            )}
 
             <button
               onClick={() => window.location.reload()}

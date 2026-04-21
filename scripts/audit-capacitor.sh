@@ -157,6 +157,91 @@ else
   echo -e "${GREEN}✓ PASS: No isNativeApp() returns before hooks${NC}"
 fi
 
+# ── 7. Stripe billing / external payment buttons on Capacitor ──
+echo ""
+echo "[7/10] Checking for Stripe-only 'Manage Billing' buttons not gated by isNativeApp()..."
+BAD=$(grep -rn 'billingPortal\.mutate\|Manage Billing' client/src/pages/portal --include='*.tsx' 2>/dev/null | grep -v 'isNativeApp' | head -5 || true)
+# Only flag if the file has the call but no isNativeApp check nearby
+if [ -n "$BAD" ]; then
+  # Recheck by looking 10 lines before each match for isNativeApp
+  REAL_BAD=""
+  while IFS= read -r line; do
+    file=$(echo "$line" | cut -d: -f1)
+    linenum=$(echo "$line" | cut -d: -f2)
+    start=$((linenum - 15))
+    if [ $start -lt 1 ]; then start=1; fi
+    context=$(sed -n "${start},${linenum}p" "$file" 2>/dev/null)
+    if ! echo "$context" | grep -q 'isNativeApp'; then
+      REAL_BAD="$REAL_BAD\n$line"
+    fi
+  done <<< "$BAD"
+  if [ -n "$REAL_BAD" ]; then
+    echo -e "${YELLOW}⚠ WARN: Stripe billing button may not be gated for native iOS (App Guideline 3.1.1):${NC}"
+    echo -e "$REAL_BAD"
+  else
+    echo -e "${GREEN}✓ PASS: Stripe billing properly gated${NC}"
+  fi
+else
+  echo -e "${GREEN}✓ PASS: No ungated Stripe billing buttons${NC}"
+fi
+
+# ── 8. "visit solvr.com.au" / "subscribe at" copy pushing external purchase ──
+echo ""
+echo "[8/10] Checking for copy that directs to external purchase (3.1.1 rejection)..."
+BAD=$(grep -rn -i 'subscribe at solvr\.com\.au\|visit solvr\.com\.au.*subscribe\|visit solvr\.com\.au.*browser' client/src/pages/portal --include='*.tsx' 2>/dev/null || true)
+if [ -n "$BAD" ]; then
+  echo -e "${RED}✗ FAIL: Copy directs users to subscribe outside the app (App Guideline 3.1.1):${NC}"
+  echo "$BAD"
+  EXIT_CODE=1
+else
+  echo -e "${GREEN}✓ PASS: No 'subscribe at website' copy in portal${NC}"
+fi
+
+# ── 9. Info.plist required permission strings ──
+echo ""
+echo "[9/10] Checking Info.plist permission strings..."
+PLIST="ios/App/App/Info.plist"
+if [ -f "$PLIST" ]; then
+  MISSING=""
+  # Check if geolocation is used anywhere in src
+  if grep -rq 'navigator\.geolocation' client/src --include='*.tsx' --include='*.ts' 2>/dev/null; then
+    if ! grep -q 'NSLocationWhenInUseUsageDescription' "$PLIST"; then
+      MISSING="$MISSING\n  NSLocationWhenInUseUsageDescription (geolocation used in src)"
+    fi
+  fi
+  # Check microphone
+  if grep -rq 'getUserMedia.*audio\|MediaRecorder' client/src --include='*.tsx' --include='*.ts' 2>/dev/null; then
+    if ! grep -q 'NSMicrophoneUsageDescription' "$PLIST"; then
+      MISSING="$MISSING\n  NSMicrophoneUsageDescription (microphone used in src)"
+    fi
+  fi
+  # Check armv7 (old, invalid for modern builds)
+  if grep -q '<string>armv7</string>' "$PLIST"; then
+    MISSING="$MISSING\n  UIRequiredDeviceCapabilities still includes armv7 (will reject IPA — use arm64)"
+  fi
+  if [ -n "$MISSING" ]; then
+    echo -e "${RED}✗ FAIL: Info.plist issues:${NC}"
+    echo -e "$MISSING"
+    EXIT_CODE=1
+  else
+    echo -e "${GREEN}✓ PASS: Info.plist has required keys${NC}"
+  fi
+else
+  echo -e "${YELLOW}⚠ WARN: Info.plist not found at $PLIST${NC}"
+fi
+
+# ── 10. Secret keys hardcoded in client (should be env vars) ──
+echo ""
+echo "[10/10] Checking for hardcoded secret-looking fallbacks in client code..."
+BAD=$(grep -rn '|| "[a-z0-9]\{8,\}-[a-z0-9]\{4\}-[a-z0-9]\{4\}-[a-z0-9]\{4\}-[a-z0-9]\{12\}"\|import\.meta\.env\..*|| "pk_\|import\.meta\.env\..*|| "sk_\|import\.meta\.env\..*|| "appl_' client/src --include='*.tsx' --include='*.ts' 2>/dev/null | grep -v 'node_modules' || true)
+if [ -n "$BAD" ]; then
+  echo -e "${RED}✗ FAIL: Hardcoded secret fallbacks in client code:${NC}"
+  echo "$BAD"
+  EXIT_CODE=1
+else
+  echo -e "${GREEN}✓ PASS: No hardcoded secret fallbacks${NC}"
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
 if [ $EXIT_CODE -eq 0 ]; then

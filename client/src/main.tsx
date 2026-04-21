@@ -86,7 +86,18 @@ if (isNative) {
   })();
 }
 
-const queryClient = new QueryClient();
+// QueryClient defaults per CLAUDE.md standards:
+// - retry: 2 for transient failure recovery on mobile networks
+// - staleTime: 30s to avoid refetching on every mount (saves cellular data)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false, // Annoying on mobile when switching apps
+    },
+  },
+});
 
 // Track whether we're already redirecting to prevent multiple redirects
 let isRedirecting = false;
