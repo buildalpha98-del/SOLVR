@@ -110,6 +110,11 @@ export async function generateInvoiceForJob(
     }, 0);
   }
   const totalCents = computedTotalCents;
+  if (totalCents <= 0) {
+    throw new Error(
+      "Cannot generate invoice — no amount set. Please set the Actual Value on the job, or create a quote with line items first."
+    );
+  }
   const gstCents = Math.round(totalCents / 11); // GST inclusive (10% of 110%)
   const subtotalCents = totalCents - gstCents;
   const amountPaidCents = progressPayments.reduce((sum, p) => sum + p.amountCents, 0);

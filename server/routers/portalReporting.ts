@@ -4,6 +4,7 @@
  * Unauthorised copying or distribution is strictly prohibited.
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../_core/trpc";
 import { requirePortalAuth } from "./portalAuth";
 import React from "react";
@@ -73,26 +74,45 @@ export const portalReportingRouter = router({
 
       // Fetch the data for the requested tab
       let data: Record<string, unknown> = {};
-      if (input.tab === "revenue") {
-        data = await getRevenueMetrics(clientId, input.monthsBack, input.startDate, input.endDate);
-      } else if (input.tab === "quoteConversion") {
-        data = await getQuoteConversionMetrics(clientId, input.monthsBack, input.startDate, input.endDate);
-      } else {
-        data = await getJobCostingReport(clientId);
+      try {
+        if (input.tab === "revenue") {
+          data = await getRevenueMetrics(clientId, input.monthsBack, input.startDate, input.endDate);
+        } else if (input.tab === "quoteConversion") {
+          data = await getQuoteConversionMetrics(clientId, input.monthsBack, input.startDate, input.endDate);
+        } else {
+          data = await getJobCostingReport(clientId);
+        }
+      } catch (dbErr: any) {
+        console.error(`[ReportPDF] Data fetch failed for ${input.tab}:`, dbErr);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to fetch report data: ${dbErr.message}` });
       }
 
-      const element = React.createElement(ReportPDFDocument, {
-        tab: input.tab,
-        businessName,
-        data,
-        dateRange: input.startDate && input.endDate
-          ? `${new Date(input.startDate).toLocaleDateString("en-AU")} – ${new Date(input.endDate).toLocaleDateString("en-AU")}`
-          : `Last ${input.monthsBack} months`,
-      }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+      // Generate the PDF
+      let pdfBuffer: Buffer;
+      try {
+        const element = React.createElement(ReportPDFDocument, {
+          tab: input.tab,
+          businessName,
+          data,
+          dateRange: input.startDate && input.endDate
+            ? `${new Date(input.startDate).toLocaleDateString("en-AU")} – ${new Date(input.endDate).toLocaleDateString("en-AU")}`
+            : `Last ${input.monthsBack} months`,
+        }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+        pdfBuffer = Buffer.from(await renderToBuffer(element));
+        console.log(`[ReportPDF] Generated ${input.tab} PDF: ${pdfBuffer.length} bytes`);
+      } catch (pdfErr: any) {
+        console.error(`[ReportPDF] PDF render failed for ${input.tab}:`, pdfErr);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PDF generation failed: ${pdfErr.message}` });
+      }
 
-      const pdfBuffer = Buffer.from(await renderToBuffer(element));
-      const fileKey = `reports/${clientId}/${input.tab}-${Date.now()}.pdf`;
-      const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
-      return { url };
+      // Upload to S3
+      try {
+        const fileKey = `reports/${clientId}/${input.tab}-${Date.now()}.pdf`;
+        const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+        return { url };
+      } catch (uploadErr: any) {
+        console.error(`[ReportPDF] S3 upload failed for ${input.tab}:`, uploadErr);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Report upload failed: ${uploadErr.message}` });
+      }
     }),
 });

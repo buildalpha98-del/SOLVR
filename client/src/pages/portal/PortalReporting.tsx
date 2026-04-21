@@ -69,7 +69,7 @@ export default function PortalReporting() {
       window.open(result.url, "_blank");
       toast.success("Report downloaded");
     },
-    onError: () => toast.error("Failed to generate PDF"),
+    onError: (err) => toast.error(err.message || "Failed to generate PDF"),
   });
 
   const handleExport = () => {

@@ -1,6 +1,6 @@
 # Solvr — Project TODO
 
-> **Last updated:** 21 April 2026
+> **Last updated:** 21 April 2026 (batch 3)
 > **Test count:** 376 vitest tests passing (38 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
@@ -385,11 +385,11 @@ These are planned features that are not blocking the current launch. They will b
 ### Sprint 10 — iOS Smoke Test Fixes (21 April 2026)
 
 #### CRITICAL — blocks feature completeness
-- [ ] #1 Customers DB not linked to jobs — auto-upsert tradieCustomers from jobs, manual "+ Add Customer", fix Bulk SMS overflow
+- [x] #1 Customers DB — Bulk SMS overflow fixed (max-h-[85vh]), auto-upsert enhanced (email fallback + jobCount increment)
 - [x] #2 Apple reviewer demo account broken — re-seed apple.review@solvr.com.au / AppleReview2026!
-- [ ] #3 Reports cannot be generated — investigate PDF rendering / S3 upload failure
-- [ ] #4 Invoice PDF total blank/zero — fix total calculation in InvoicePDF or generateInvoice
-- [ ] #5 Quote PDF "Accept Quote" link broken — fix acceptUrl using QUOTE_PUBLIC_BASE_URL
+- [x] #3 Reports PDF — added granular error handling (data fetch / PDF render / S3 upload), frontend shows actual error message
+- [x] #4 Invoice PDF total — fixed reporting unit mismatch (actualValue dollars vs cents), zero-total guard, frontend warning
+- [x] #5 Quote PDF Accept link — generatePdf now saves pdfUrl to quote record, send procedure also persists pdfUrl
 
 #### HIGH — UX issues on mobile
 - [ ] #6 AI Assistant hides tab bar + no safe-area-inset-top + chips should be vertical stacked list
@@ -411,3 +411,12 @@ These are planned features that are not blocking the current launch. They will b
 #### Seed script
 - [x] Update seed-apple-upgrade.mjs with staff PINs, hourlyRate, job_schedule entries
 - [x] Update seed-demo.mjs with staff PINs, hourlyRate, job_schedule entries for Jay's account
+
+### Sprint 10 batch 3 — CRITICAL fixes + seed + autocomplete (21 April 2026)
+- [x] Run seed-apple-upgrade.mjs against live DB — staff PINs, hourlyRate, schedule entries, SWMS form all populated
+- [x] #1 Customers DB — Bulk SMS overflow fixed, auto-upsert enhanced (email fallback + jobCount increment)
+- [x] #3 Reports PDF — granular error handling (data fetch / PDF render / S3 upload), frontend shows actual error
+- [x] #4 Invoice PDF total — fixed reporting unit mismatch, zero-total guard, frontend warning for missing values
+- [x] #5 Quote PDF Accept link — generatePdf saves pdfUrl to DB, send procedure also persists pdfUrl
+- [x] AddressAutocomplete wired into: Add Customer dialog, PO delivery address field
+- 0 TypeScript errors, 376 vitest tests passing

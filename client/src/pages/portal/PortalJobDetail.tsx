@@ -861,6 +861,9 @@ export default function PortalJobDetail() {
                   {hasQuoteEngine ? (
                     <>
                       <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>No invoice generated yet. Generate one from the accepted quote or job value.</p>
+                      {!job.actualValue && !job.estimatedValue && !job.sourceQuoteId && (
+                        <p className="text-xs text-center px-3 py-1.5 rounded-md" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>Set an Actual Value above before generating an invoice.</p>
+                      )}
                       <Button onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })} disabled={generateInvoice.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
                         {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
                         Generate Invoice

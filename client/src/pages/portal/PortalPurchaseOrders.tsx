@@ -13,6 +13,7 @@
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -476,9 +477,9 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             )}
-            <Input
+            <AddressAutocomplete
               value={deliveryAddress}
-              onChange={e => { setDeliveryAddress(e.target.value); setAddressPresetKey("custom"); }}
+              onChange={(val: string) => { setDeliveryAddress(val); setAddressPresetKey("custom"); }}
               placeholder="Enter delivery address"
             />
           </div>

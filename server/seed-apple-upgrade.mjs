@@ -585,8 +585,8 @@ if (completedJob) {
       }
 
       await conn.execute(
-        "INSERT INTO form_submissions (clientId, templateId, jobId, status, `values`, templateSnapshot, createdAt, updatedAt) VALUES (?, ?, ?, 'completed', ?, ?, NOW(), NOW())",
-        [clientId, swmsTemplate.id, completedJob.id, JSON.stringify(values), JSON.stringify({ name: 'Safe Work Method Statement (SWMS)', fields })]
+        "INSERT INTO form_submissions (clientId, templateId, jobId, title, form_status, formValues, signatures, templateSnapshot, createdAt, updatedAt) VALUES (?, ?, ?, 'Safe Work Method Statement (SWMS)', 'completed', ?, '{}', ?, NOW(), NOW())",
+        [clientId, swmsTemplate.id, completedJob.id, JSON.stringify(values), JSON.stringify(fields)]
       );
       console.log(`  \u2705 Completed SWMS form submission seeded for job #${completedJob.id}`);
     } else {

@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -723,7 +724,7 @@ export default function PortalCustomers() {
 
       {/* Bulk SMS Modal */}
       <Dialog open={showBulkSms} onOpenChange={setShowBulkSms}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto max-h-[85vh] overflow-y-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
           <DialogHeader>
             <DialogTitle className="text-white">
               Bulk SMS — {selected.size} customer{selected.size !== 1 ? "s" : ""}
@@ -999,11 +1000,11 @@ export default function PortalCustomers() {
             </div>
             <div>
               <Label className="text-xs text-white/60">Address</Label>
-              <Input
+              <AddressAutocomplete
                 value={newCustAddress}
-                onChange={(e) => setNewCustAddress(e.target.value)}
+                onChange={setNewCustAddress}
                 placeholder="123 Main St, Sydney NSW 2000"
-                className="bg-white/5 border-white/10 text-white"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
               />
             </div>
           </div>
