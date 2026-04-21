@@ -1,6 +1,6 @@
 # Changelog — Solvr
 
-All notable changes to the Solvr platform are documented here, organised by sprint. Each entry reflects the actual state of the feature at the time of writing (20 April 2026), not aspirational scope.
+All notable changes to the Solvr platform are documented here, organised by sprint. Each entry reflects the actual state of the feature at the time of writing (21 April 2026), not aspirational scope.
 
 **Status key:**
 
@@ -236,6 +236,40 @@ Systematic mobile audit of every portal page for the Capacitor iOS app. No new f
 
 ---
 
+## Sprint 10 — iOS Smoke Test Fixes — 21 April 2026
+
+Systematic bug-fix sprint driven by a full iOS smoke test of every portal feature. 18 issues identified and resolved across four batches, plus 18 new vitest tests.
+
+**21 April (batch 1)** — Jobs filter persistence: viewMode, search term, and stage filter now persist to `localStorage` so users don’t lose their filter state when navigating away. Google Places `AddressAutocomplete` component created and wired into the Add Job modal for Australian address suggestions. `openMaps` utility created for Capacitor-native Maps app links (falls back to Google Maps web) — wired into `PortalJobDetail`, `StaffCheckin`, and `StaffToday`. Reusable `ErrorState` component with retry buttons added to Dashboard, Jobs, Calls, and Customers pages. `OfflineBanner` was already wired into `PortalLayout`. Seed scripts (`seed-apple-upgrade.mjs` and `seed-demo.mjs`) updated with bcrypt-hashed staff PINs, hourly rates, licence numbers, and 8 `job_schedule` entries per staff member so the Staff Portal login, Today, Roster, and Check-in pages all work out of the box.
+
+**21 April (batch 2)** — Ran `seed-apple-upgrade.mjs` against the live database — Apple reviewer account now has full staff data, schedule entries, and a completed SWMS form submission. Customers auto-upsert enhanced: email-only fallback when phone is missing, `jobCount` incremented on each new job, missing email/address backfilled on existing records. Bulk SMS dialog overflow fixed (`max-h-[85vh]` + `overflow-y-auto`). Reports PDF export hardened with granular error handling — separate try/catch for data fetch, PDF render, and S3 upload, with the actual error message surfaced in the frontend toast. Invoice PDF total fix: `actualValue` (stored in dollars) was being divided by 100 again in the revenue metrics calculation; corrected with a unit-aware fallback chain. Zero-total guard added to `generateInvoiceForJob` — throws a user-friendly error instead of silently generating a $0 invoice. Frontend warning on job detail when no value source exists. Quote PDF accept link fix: `generatePdf` now saves `pdfUrl` back to the quote record in the database, and the `send` procedure also persists `pdfUrl` if provided. `AddressAutocomplete` wired into Add Customer dialog and PO delivery address field.
+
+**21 April (batch 3)** — AI Assistant layout fix: removed negative-margin hack, recalculated height to properly account for PortalLayout header (`h-14` + `safe-area-inset-top`) and tab bar (`60px` + `safe-area-inset-bottom`). Input bar now clears the tab bar on all iPhone models. Forms page full dark-theme restyle: `STATUS_COLORS` updated to dark variants, signature pad restyled, all labels/inputs/cards/tables/dialogs converted from light (bg-white/text-gray-900) to the portal’s navy theme (#0B1629/#0F1F3D). Job detail active tab fix: replaced inline `style` with `className` overrides using `!important` to beat shadcn’s `data-[state=active]:bg-background` specificity — active tab now shows amber (#F5A623) background with dark text. `AddressAutocomplete` wired into the manual quote creation form in `QuoteListContent`.
+
+**21 April (batch 4)** — 18 new vitest tests in `sprint10.test.ts` covering: invoice zero-total guard (7 tests — throws on $0, handles null line items, converts dollars to cents correctly), revenue metrics unit handling (4 tests — actualValue not divided, invoicedAmount/amountPaid divided, fallback chain), quote pdfUrl persistence (4 tests — URL format, send with/without pdfUrl), and GST calculation (3 tests — inclusive GST, rounding, small amounts).
+
+Verified that issues #8 (PO delivery address presets), #10 (inline edit Enter/Escape), #11 (multi-select photos + before/after), #12 (Settings collapsible sections), and #13 (Remember Me — 365-day session cookie) were already implemented in prior sprints.
+
+| Deliverable | Status | Notes |
+|---|---|---|
+| Jobs filter persistence (localStorage) | **LIVE** | viewMode, search, stageFilter saved |
+| AddressAutocomplete (Google Places) | **LIVE** | Wired into Add Job, Add Customer, PO delivery, Quote creation |
+| Native Maps links (Capacitor) | **LIVE** | `openMaps` utility, 3 pages updated |
+| ErrorState + retry buttons | **LIVE** | Dashboard, Jobs, Calls, Customers |
+| Staff seed data (PINs, schedules) | **LIVE** | Both seed scripts updated and run |
+| Customer auto-upsert (enhanced) | **LIVE** | Email fallback, jobCount, backfill |
+| Bulk SMS dialog overflow | **LIVE** | max-h-[85vh] + overflow-y-auto |
+| Reports PDF error handling | **LIVE** | Granular try/catch, frontend error toast |
+| Invoice total unit fix | **LIVE** | actualValue (dollars) no longer double-divided |
+| Invoice zero-total guard | **LIVE** | Throws error, frontend warning |
+| Quote pdfUrl persistence | **LIVE** | generatePdf + send both save to DB |
+| AI Assistant layout fix | **LIVE** | Proper height calc, tab bar clearance |
+| Forms dark theme restyle | **LIVE** | Full page converted to navy theme |
+| Job detail active tab fix | **LIVE** | Amber background with !important override |
+| Sprint 10 regression tests (18 tests) | **LIVE** | 394 total tests, 39 files |
+
+---
+
 ## Known Blockers and Incomplete Items
 
 The following items are built in code but **will not function** until the corresponding environment variables or external configuration steps are completed.
@@ -251,7 +285,7 @@ The following items are built in code but **will not function** until the corres
 
 ---
 
-## Codebase Stats (as of 20 April 2026)
+## Codebase Stats (as of 21 April 2026)
 
 | Metric | Count |
 |---|---|
@@ -260,8 +294,8 @@ The following items are built in code but **will not function** until the corres
 | tRPC router files | 27 |
 | Portal pages | 33 |
 | Cron jobs | 14 |
-| Test files | 38 |
-| Passing tests | 376 |
+| Test files | 39 |
+| Passing tests | 394 |
 | TypeScript errors | 0 |
 | Public routes | 28 |
 | Blog articles | 13 |

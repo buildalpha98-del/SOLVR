@@ -214,9 +214,9 @@ These are planned features that are not blocking the current launch. They will b
 
 ### Polish & QoL (Low Priority)
 - [ ] Regenerate 6 Instagram posts with diamond circuit icon
-- [ ] Notification preferences toggle in portal settings
+- [x] Notification preferences toggle in portal settings (already implemented — 5 event types, email + push)
 - [ ] Default markup % per category on price list
-- [ ] Quote list: tappable rows, always-visible total + action buttons on mobile
+- [x] Quote list: tappable rows, always-visible total + action buttons on mobile (already implemented)
 
 ### Device Testing (Requires Physical Devices)
 - [ ] Verify deep link handling on Android (solvr.com.au/portal/* paths)
