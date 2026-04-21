@@ -456,4 +456,12 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Create APP_STORE_CONNECT_SETUP.md with step-by-step instructions
 - [x] Document all 6 product IDs, pricing, and subscription group setup
 - [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
+- [x] Save checkpoint (version 4bf4d9eb)
+
+### Data Export Before Account Deletion (22 April 2026)
+- [x] Build `portal.exportMyData` procedure (16 parallel queries: profile, jobs, quotes, customers, staff, calendar, compliance, price list, reviews, subcontractors, suppliers, POs, form templates, form submissions, SMS templates, SMS campaigns)
+- [x] Return JSON payload with all user data (lightweight, no file storage needed)
+- [x] Add "Download My Data" button to DeleteAccountSection in PortalSettings.tsx
+- [x] Wire frontend: refetch on click → Blob → download as solvr-data-export-YYYY-MM-DD.json
+- [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
 - [ ] Save checkpoint

@@ -128,6 +128,11 @@ import {
   getFormTemplate,
   createFormSubmission,
   updateFormSubmission,
+  listSubcontractors,
+  listSuppliers,
+  listPurchaseOrders,
+  listSmsTemplates,
+  listSmsCampaigns,
 } from "../db";
 import { scheduleGoogleReviewRequest } from "../googleReview";
 import { getPortalClient, PORTAL_COOKIE, requirePortalAuth, requirePortalWrite } from "./portalAuth";
@@ -2870,5 +2875,85 @@ export const portalRouter = router({
       }
 
       return { success: true };
+    }),
+
+  /**
+   * exportMyData — Lightweight GDPR/Apple-friendly data export.
+   * Returns a JSON blob of all user-owned data so they can download before deletion.
+   */
+  exportMyData: publicProcedure
+    .query(async ({ ctx }) => {
+      const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
+
+      // Fetch all user-owned data in parallel
+      const [
+        profile,
+        jobs,
+        quotes,
+        customers,
+        staff,
+        calendarEvents,
+        complianceDocs,
+        priceList,
+        reviewRequests,
+        subcontractors,
+        suppliers,
+        purchaseOrders,
+        formTemplatesRaw,
+        formSubmissionsRaw,
+        smsTemplates,
+        smsCampaigns,
+      ] = await Promise.all([
+        getClientProfile(client.id),
+        listPortalJobsWithQuote(client.id),
+        listQuotesByClient(client.id),
+        listTradieCustomers(client.id),
+        listStaffMembers(client.id),
+        listPortalCalendarEvents(client.id),
+        listComplianceDocuments(client.id),
+        listPriceListItems(client.id),
+        listReviewRequests(client.id),
+        listSubcontractors(client.id),
+        listSuppliers(client.id),
+        listPurchaseOrders(client.id),
+        listFormTemplates(client.id),
+        listFormSubmissions(client.id),
+        listSmsTemplates(client.id),
+        listSmsCampaigns(client.id),
+      ]);
+
+      return {
+        exportedAt: new Date().toISOString(),
+        account: {
+          id: client.id,
+          businessName: client.businessName,
+          contactName: client.contactName,
+          contactEmail: client.contactEmail,
+          contactPhone: client.contactPhone,
+          tradeType: client.tradeType,
+          serviceArea: client.serviceArea,
+          website: client.website,
+          abn: client.quoteAbn,
+          address: client.quoteAddress,
+          tradingName: client.quoteTradingName,
+          createdAt: client.createdAt,
+        },
+        profile,
+        jobs,
+        quotes,
+        customers,
+        staff: staff.map(s => ({ ...s, pinHash: undefined })),
+        calendarEvents,
+        complianceDocs,
+        priceList,
+        reviewRequests,
+        subcontractors,
+        suppliers,
+        purchaseOrders,
+        formTemplates: formTemplatesRaw,
+        formSubmissions: formSubmissionsRaw,
+        smsTemplates,
+        smsCampaigns,
+      };
     }),
 });

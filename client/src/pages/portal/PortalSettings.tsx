@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
   Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X, ChevronDown,
+  Download,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -1160,6 +1161,33 @@ function DeleteAccountSection() {
   const [, navigate] = useLocation();
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportData = trpc.portal.exportMyData.useQuery(undefined, { enabled: false });
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportData.refetch();
+      if (result.data) {
+        const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `solvr-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        hapticSuccess();
+        toast.success("Data exported successfully.");
+      }
+    } catch {
+      toast.error("Failed to export data. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const deleteAccount = trpc.portal.deleteAccount.useMutation({
     onSuccess: () => {
@@ -1184,6 +1212,32 @@ function DeleteAccountSection() {
       <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
         Deleting your account will permanently remove your business profile, call recordings, uploaded files, staff accounts, and all associated data from Solvr's systems. Any active subscriptions will be cancelled. This action cannot be undone.
       </p>
+
+      {/* Data export — let users download before deleting */}
+      <div className="rounded-lg border border-white/10 p-4 mb-4" style={{ background: "rgba(255,255,255,0.03)" }}>
+        <div className="flex items-start gap-3">
+          <Download className="w-5 h-5 mt-0.5 shrink-0" style={{ color: "rgba(255,255,255,0.5)" }} />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/80 mb-1">Export Your Data</p>
+            <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Download a copy of all your business data (jobs, quotes, customers, staff, and more) as a JSON file before deleting your account.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/20 text-white/70 hover:bg-white/5 hover:text-white"
+              onClick={handleExport}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Exporting...</>
+              ) : (
+                <><Download className="w-4 h-4 mr-2" />Download My Data</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
       {!showConfirm ? (
         <Button
           variant="outline"
