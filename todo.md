@@ -442,4 +442,18 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Audit + fix: no relative fetch URLs (Rule 3) — 1 violation fixed
 - [x] Audit + fix: isNativeApp() guards after hooks (Rule 4) — 0 violations found
 - [x] Verify tsc + vitest pass with 0 errors (394 tests, 39 files)
+- [x] Save checkpoint (version 8f42c4ab)
+
+### Apple 5.1.1(v) Account Deletion + RevenueCat Capacitor SDK (22 April 2026)
+- [x] Create `accountDeletionLogs` schema table + db:push
+- [x] Build `portal.deleteAccount` procedure (anonymise, revoke sessions, cancel Stripe, delete staff, audit log)
+- [x] Update PortalSettings.tsx: type-DELETE confirmation dialog
+- [x] On success: logout + redirect /portal/login + toast
+- [x] Install @revenuecat/purchases-capacitor
+- [x] Create client/src/lib/revenuecat-native.ts wrapper
+- [x] Replace isNativeApp() purchase-hide with presentNativePaywall() in 6 files
+- [x] Move hooks before isNativeApp() guards in SubscriptionExpired.tsx
+- [x] Create APP_STORE_CONNECT_SETUP.md with step-by-step instructions
+- [x] Document all 6 product IDs, pricing, and subscription group setup
+- [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
 - [ ] Save checkpoint

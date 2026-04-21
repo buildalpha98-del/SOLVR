@@ -66,6 +66,14 @@ import { invokeLLM } from "../_core/llm";
 import Stripe from "stripe";
 import { getPaymentLinkByToken, getPaymentLinkByJobId, updatePaymentLink } from "../db";
 import {
+  anonymiseClient,
+  deletePortalSessionsForClient,
+  deleteStaffForClient,
+  deletePushSubscriptionsForClient,
+  logAccountDeletion,
+  getActiveSubscriptionForClient,
+} from "../db";
+import {
   createComplianceDocument,
   getComplianceDocument,
   listComplianceDocuments,
@@ -2794,6 +2802,73 @@ export const portalRouter = router({
       await updateClientProfile(result.client.id, {
         activationChecklistDismissedAt: new Date(),
       } as any);
+      return { success: true };
+    }),
+
+  /**
+   * deleteAccount — Apple Guideline 5.1.1(v) compliant in-app account deletion.
+   *
+   * Steps:
+   * 1. Log audit record (before anonymising)
+   * 2. Cancel Stripe subscription (if any)
+   * 3. Delete push subscriptions
+   * 4. Delete all staff members + sessions
+   * 5. Delete all portal sessions (revoke access)
+   * 6. Anonymise the CRM client record (blank PII)
+   * 7. Clear session cookie
+   */
+  deleteAccount: publicProcedure
+    .input(z.object({
+      confirmText: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.confirmText !== "DELETE") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You must type DELETE to confirm account deletion.",
+        });
+      }
+
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
+
+      // 1. Audit log (capture PII before we wipe it)
+      await logAccountDeletion({
+        clientId: client.id,
+        businessName: client.businessName,
+        contactEmail: client.contactEmail,
+        deletedBy: "self",
+        reason: "In-app account deletion (Apple 5.1.1(v))",
+      });
+
+      // 2. Cancel Stripe subscription if active
+      const activeSub = await getActiveSubscriptionForClient(client.id);
+      if (activeSub?.stripeSubscriptionId) {
+        try {
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", { apiVersion: "2025-03-31.basil" as any });
+          await stripe.subscriptions.cancel(activeSub.stripeSubscriptionId);
+        } catch (err) {
+          console.error("[deleteAccount] Stripe cancel failed (non-blocking):", err);
+        }
+      }
+
+      // 3. Delete push subscriptions
+      await deletePushSubscriptionsForClient(client.id);
+
+      // 4. Delete staff members + sessions
+      await deleteStaffForClient(client.id);
+
+      // 5. Delete portal sessions
+      await deletePortalSessionsForClient(client.id);
+
+      // 6. Anonymise client record
+      await anonymiseClient(client.id);
+
+      // 7. Clear session cookie
+      const res = ctx.res as any;
+      if (res?.clearCookie) {
+        res.clearCookie(PORTAL_COOKIE, getSessionCookieOptions(ctx.req as any));
+      }
+
       return { success: true };
     }),
 });

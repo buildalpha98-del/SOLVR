@@ -5,15 +5,22 @@
  */
 /**
  * QuoteEngineUpgradeButton — CTA for upgrading to the Quote Engine add-on.
- * Calls portal.createQuoteEngineCheckout and opens Stripe checkout in a new tab.
- * $97/mo AUD (founding member rate).
+ *
+ * Web: Calls portal.createQuoteEngineCheckout and opens Stripe checkout in a new tab.
+ * iOS (Capacitor): Triggers Apple IAP via presentNativePaywall() for solvr_quotes.
  */
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getSolvrOrigin, isNativeApp } from "@/const";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 interface QuoteEngineUpgradeButtonProps {
   billingCycle?: "monthly" | "annual";
@@ -28,13 +35,34 @@ export function QuoteEngineUpgradeButton({
   className = "",
   size = "default",
 }: QuoteEngineUpgradeButtonProps) {
+  // ALL hooks at the top, before any conditional return (Capacitor Rule 1)
   const [loading, setLoading] = useState(false);
   const checkout = trpc.portal.createQuoteEngineCheckout.useMutation();
+  const { user } = useAuth();
 
-  // Apple Guideline 3.1.1 — no purchase UI inside native app
-  if (isNativeApp()) return null;
+  const handleNativeClick = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (!isNativeRevenueCatConfigured() && user?.id) {
+        await configureNativeRevenueCat(`rc_${user.id}`);
+      }
+      const result = await presentNativePaywall("solvr_quotes");
+      if (result.success) {
+        toast.success("Quote Engine unlocked!", {
+          description: "Refreshing your account…",
+        });
+        setTimeout(() => window.location.reload(), 2000);
+      } else if (!result.cancelled && result.error) {
+        toast.error("Purchase failed", { description: result.error });
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
 
-  const handleClick = async () => {
+  const handleWebClick = useCallback(async () => {
     setLoading(true);
     try {
       const result = await checkout.mutateAsync({
@@ -49,20 +77,33 @@ export function QuoteEngineUpgradeButton({
     } finally {
       setLoading(false);
     }
-  };
+  }, [billingCycle, checkout]);
 
+  // Native iOS — use Apple IAP
+  if (isNativeApp()) {
+    return (
+      <Button
+        onClick={handleNativeClick}
+        disabled={loading}
+        size={size}
+        className={`gap-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold ${className}`}
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+        {loading ? "Processing…" : label}
+        {!loading && <ArrowRight className="w-3 h-3" />}
+      </Button>
+    );
+  }
+
+  // Web — Stripe checkout
   return (
     <Button
-      onClick={handleClick}
+      onClick={handleWebClick}
       disabled={loading}
       size={size}
       className={`gap-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold ${className}`}
     >
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <FileText className="w-4 h-4" />
-      )}
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
       {loading ? "Preparing checkout…" : label}
       {!loading && <ArrowRight className="w-3 h-3" />}
     </Button>

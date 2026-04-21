@@ -3380,3 +3380,97 @@ export async function backfillJobTypeFormRequirements(
     );
   return result[0].affectedRows ?? 0;
 }
+
+
+// ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
+import { accountDeletionLogs, pushSubscriptions } from "../drizzle/schema";
+
+/**
+ * Anonymise a portal client record — blanks PII fields.
+ * The record itself is kept for referential integrity but all personal data is wiped.
+ */
+export async function anonymiseClient(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .update(crmClients)
+    .set({
+      contactName: "[deleted]",
+      contactEmail: `deleted_${clientId}@removed.local`,
+      contactPhone: null,
+      businessName: "[deleted]",
+      serviceArea: null,
+      website: null,
+      summary: null,
+      aiBrief: null,
+      pushToken: null,
+      portalPasswordHash: null,
+      referralCode: null,
+      isActive: false,
+      stage: "churned",
+    })
+    .where(eq(crmClients.id, clientId));
+}
+
+/**
+ * Delete all portal sessions for a given client (revoke access).
+ */
+export async function deletePortalSessionsForClient(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.delete(portalSessions).where(eq(portalSessions.clientId, clientId));
+}
+
+/**
+ * Delete all staff members and their sessions for a given client.
+ */
+export async function deleteStaffForClient(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // First get all staff IDs for this client
+  const staffRows = await db
+    .select({ id: staffMembers.id })
+    .from(staffMembers)
+    .where(eq(staffMembers.clientId, clientId));
+
+  if (staffRows.length > 0) {
+    const staffIds = staffRows.map((s) => s.id);
+    // Delete staff sessions
+    for (const sid of staffIds) {
+      await db.delete(staffSessions).where(eq(staffSessions.staffId, sid));
+    }
+    // Delete staff members
+    await db.delete(staffMembers).where(eq(staffMembers.clientId, clientId));
+  }
+  return staffRows.length;
+}
+
+/**
+ * Delete push subscriptions for a given client.
+ */
+export async function deletePushSubscriptionsForClient(clientId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.delete(pushSubscriptions).where(eq(pushSubscriptions.clientId, clientId));
+}
+
+/**
+ * Log an account deletion for audit compliance.
+ */
+export async function logAccountDeletion(data: {
+  clientId: number;
+  businessName: string | null;
+  contactEmail: string;
+  deletedBy: string;
+  reason?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.insert(accountDeletionLogs).values({
+    clientId: data.clientId,
+    businessName: data.businessName,
+    contactEmail: data.contactEmail,
+    deletedBy: data.deletedBy,
+    reason: data.reason ?? null,
+  });
+}

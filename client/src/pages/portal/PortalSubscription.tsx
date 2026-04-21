@@ -31,6 +31,11 @@ import {
   presentPaywall,
   type PurchaseOutcome,
 } from "@/lib/revenuecat";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 
 const PLAN_LABELS: Record<string, string> = {
   // New plans
@@ -439,9 +444,25 @@ export default function PortalSubscription() {
 
               {/* Manage billing CTA — hidden on native iOS (Apple Guideline 3.1.1) */}
               {isNativeApp() ? (
-                <p className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  To manage your subscription, visit solvr.com.au on your browser.
-                </p>
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={async () => {
+                      if (!isNativeRevenueCatConfigured() && user?.id) {
+                        await configureNativeRevenueCat(`rc_${user.id}`);
+                      }
+                      const result = await presentNativePaywall("solvr_ai");
+                      if (result.success) {
+                        toast.success("Subscription updated!");
+                        setTimeout(() => window.location.reload(), 2000);
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Manage Subscription
+                  </Button>
+                </div>
               ) : (
                 <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   {/* Manage Subscription — opens RevenueCat paywall for plan changes */}
@@ -498,9 +519,21 @@ export default function PortalSubscription() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               {isNativeApp() ? (
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  Visit solvr.com.au on your browser to subscribe.
-                </p>
+                <Button
+                  onClick={async () => {
+                    if (!isNativeRevenueCatConfigured() && user?.id) {
+                      await configureNativeRevenueCat(`rc_${user.id}`);
+                    }
+                    const result = await presentNativePaywall("solvr_ai");
+                    if (result.success) {
+                      toast.success("Subscription activated!");
+                      setTimeout(() => window.location.reload(), 2000);
+                    }
+                  }}
+                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                >
+                  View Plans & Subscribe
+                </Button>
               ) : (
                 <>
                   <Button

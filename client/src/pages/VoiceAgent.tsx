@@ -8,6 +8,11 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getSolvrOrigin, isNativeApp } from "@/const";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
@@ -269,26 +274,49 @@ const testimonials = [
 
 // ─── Pricing Section Component ──────────────────────────────────────────────────────────────────
 function PricingSection() {
-  // Apple Guideline 3.1.1 — no purchase UI inside native app
-  if (isNativeApp()) {
-    return (
-      <section id="pricing" style={{ background: "#0F1F3D", padding: "4rem 0" }}>
-        <div className="container mx-auto px-6 text-center max-w-sm">
-          <div className="text-4xl mb-4">📱</div>
-          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Subscribe at solvr.com.au</h2>
-          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
-            To start a subscription, visit solvr.com.au on your browser.
-          </p>
-        </div>
-      </section>
-    );
-  }
-
+  // ALL hooks at the top, before any conditional return (Capacitor Rule 1)
   const [isAnnual, setIsAnnual] = useState(false);
   const [missedCalls, setMissedCalls] = useState(3);
   const [avgJobValue, setAvgJobValue] = useState(800);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const createCheckout = trpc.stripe.createCheckout.useMutation();
+  const [nativeLoading, setNativeLoading] = useState(false);
+
+  // Native iOS — show Apple IAP pricing
+  if (isNativeApp()) {
+    const handleNativePurchase = async () => {
+      setNativeLoading(true);
+      try {
+        if (!isNativeRevenueCatConfigured()) {
+          const anonId = `rc_ios_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          await configureNativeRevenueCat(anonId);
+        }
+        const result = await presentNativePaywall("solvr_ai");
+        if (result.success) {
+          window.location.href = "/portal";
+        }
+      } catch { /* handled in presentNativePaywall */ }
+      finally { setNativeLoading(false); }
+    };
+    return (
+      <section id="pricing" style={{ background: "#0F1F3D", padding: "4rem 0" }}>
+        <div className="container mx-auto px-6 text-center max-w-sm">
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Choose Your Plan</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Subscribe via your Apple account. Cancel anytime.
+          </p>
+          <button
+            onClick={handleNativePurchase}
+            disabled={nativeLoading}
+            className="w-full font-bold text-base py-4 rounded-xl"
+            style={{ background: "#F5A623", color: "#0F1F3D", border: "none", cursor: nativeLoading ? "not-allowed" : "pointer" }}
+          >
+            {nativeLoading ? "Processing…" : "Subscribe Now →"}
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   // Map display plan names to Stripe plan keys
   const planKeyMap: Record<string, "starter" | "professional"> = {
