@@ -16,9 +16,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
+import { getSolvrOrigin } from "@/const";
 import { Copy, Plus, Users, DollarSign, TrendingUp, CheckCircle, Gift, Clock, Award, Loader2, Mail, History, AlertTriangle, ToggleLeft, ToggleRight } from "lucide-react";
 
-const APP_ORIGIN = window.location.origin;
+const APP_ORIGIN = getSolvrOrigin();
 
 function fmtCents(cents: number) {
   return `$${(cents / 100).toFixed(0)}`;

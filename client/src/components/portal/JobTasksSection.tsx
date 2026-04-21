@@ -15,6 +15,7 @@
  */
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import { toast } from "sonner";
 import {
   Sparkles, Plus, Trash2, Mic, MicOff, Loader2,
@@ -306,7 +307,7 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
         const formData = new FormData();
         formData.append("file", blob, "voice-tasks.webm");
         try {
-          const res = await fetch("/api/upload-audio", { method: "POST", body: formData, credentials: "include" });
+          const res = await fetch(`${getSolvrOrigin()}/api/upload-audio`, { method: "POST", body: formData, credentials: "include" });
           if (!res.ok) throw new Error("Upload failed");
           const { url } = await res.json() as { url: string };
           voiceToTasks.mutate({ jobId, audioUrl: url });

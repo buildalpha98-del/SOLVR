@@ -12,6 +12,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import {
   Plus, DollarSign, X, Loader2, Lock, ChevronRight,
   LayoutGrid, List, Search, MapPin, Phone, Calendar,
@@ -181,7 +182,7 @@ function JobCard({
         <button
           onClick={e => {
             e.stopPropagation();
-            const url = `${window.location.origin}/job/${job.customerStatusToken}`;
+            const url = `${getSolvrOrigin()}/job/${job.customerStatusToken}`;
             navigator.clipboard.writeText(url).then(
               () => toast.success("Tracking link copied — send it to your customer"),
               () => toast.error("Could not copy link"),

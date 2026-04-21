@@ -9,6 +9,7 @@
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -293,7 +294,7 @@ export default function PortalStaff() {
   const [copied, setCopied] = useState(false);
 
   const staffLoginUrl = me?.clientId
-    ? `${window.location.origin}/staff?c=${me.clientId}`
+    ? `${getSolvrOrigin()}/staff?c=${me.clientId}`
     : null;
 
   function copyStaffLink() {
