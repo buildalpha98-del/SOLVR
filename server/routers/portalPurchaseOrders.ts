@@ -439,4 +439,36 @@ ${po.notes ? `<p style="color:#6B7280"><em>${po.notes}</em></p>` : ""}
       await acknowledgePurchaseOrder(po.id);
       return { success: true, alreadyAcknowledged: false };
     }),
+
+  // ─── Delivery Address Presets ─────────────────────────────────────────────
+  deliveryAddressPresets: publicProcedure
+    .input(z.object({ jobId: z.number().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalAuth(ctx.req);
+      const client = await getCrmClientById(clientId);
+      const presets: { key: string; label: string; address: string }[] = [];
+
+      // Job site address (if jobId provided)
+      if (input?.jobId) {
+        const job = await getPortalJob(input.jobId);
+        if (job && job.clientId === clientId && job.customerAddress) {
+          presets.push({ key: "job_site", label: "Job site address", address: job.customerAddress });
+        }
+      }
+
+      // Head office (from quoteAddress on crmClients)
+      if (client?.quoteAddress) {
+        presets.push({ key: "head_office", label: "Head office", address: client.quoteAddress });
+      }
+
+      // Warehouse (from warehouseAddress on crmClients)
+      if (client?.warehouseAddress) {
+        presets.push({ key: "warehouse", label: "Warehouse", address: client.warehouseAddress });
+      }
+
+      // Always include custom option
+      presets.push({ key: "custom", label: "Custom address", address: "" });
+
+      return presets;
+    }),
 });

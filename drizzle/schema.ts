@@ -153,6 +153,8 @@ export const crmClients = mysqlTable("crm_clients", {
   quotePhone: varchar("quotePhone", { length: 50 }),
   /** Business address displayed on quote PDFs */
   quoteAddress: varchar("quoteAddress", { length: 512 }),
+  /** Warehouse / depot address for PO delivery presets */
+  warehouseAddress: varchar("warehouseAddress", { length: 512 }),
   /** Default notes / terms appended to every quote */
   quoteDefaultNotes: text("quoteDefaultNotes"),
   /** bcrypt hash of the client's portal password (null = password not set yet) */

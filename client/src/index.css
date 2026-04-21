@@ -314,3 +314,34 @@
 .amber-glow {
   box-shadow: 0 0 40px rgba(245,166,35,0.25), 0 0 80px rgba(245,166,35,0.1);
 }
+
+/* ── Google Places autocomplete dropdown — must sit above z-50 modals ── */
+.pac-container {
+  z-index: 9999 !important;
+  background: #0F1F3D !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  border-radius: 0.5rem !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+  font-family: "DM Sans", sans-serif !important;
+}
+.pac-item {
+  padding: 8px 12px !important;
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+  color: rgba(255,255,255,0.8) !important;
+  cursor: pointer !important;
+}
+.pac-item:hover,
+.pac-item-selected {
+  background: rgba(245,166,35,0.12) !important;
+}
+.pac-item-query {
+  color: #fff !important;
+  font-size: 14px !important;
+}
+.pac-matched {
+  color: #F5A623 !important;
+  font-weight: 600 !important;
+}
+.pac-icon {
+  display: none !important;
+}

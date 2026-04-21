@@ -28,6 +28,7 @@ import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgrade
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
 import { useSwipe } from "@/hooks/useSwipe";
 import { hapticLight, hapticMedium, hapticSuccess, hapticWarning } from "@/lib/haptics";
+import { openMapsLatLng } from "@/lib/openMaps";
 import { useOfflineMutation } from "@/hooks/useOfflineMutation";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -196,18 +197,26 @@ function PhotoSection({
   const removePhoto = trpc.portal.removeJobPhoto.useMutation({ onSuccess: () => { onRefresh(); }, onError: (e) => toast.error(e.message) });
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>, photoType: "before" | "after") {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB"); return; }
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    // Validate all files first
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size > 10 * 1024 * 1024) { toast.error(`"${files[i].name}" exceeds 10MB limit`); return; }
+    }
     setUploading(photoType);
+    let uploaded = 0;
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("photoType", photoType);
-      const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
-      const { url } = await res.json() as { url: string };
-      addPhoto.mutate({ jobId, photoType, imageUrl: url, imageKey: url.split("/").pop() ?? url });
+      for (let i = 0; i < files.length; i++) {
+        const fd = new FormData();
+        fd.append("file", files[i]);
+        fd.append("photoType", photoType);
+        const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
+        const { url } = await res.json() as { url: string };
+        addPhoto.mutate({ jobId, photoType, imageUrl: url, imageKey: url.split("/").pop() ?? url });
+        uploaded++;
+      }
+      if (uploaded > 1) toast.success(`${uploaded} photos uploaded`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -222,7 +231,7 @@ function PhotoSection({
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>{type === "before" ? "Before" : "After"} ({photos.length})</p>
           <label className="cursor-pointer">
-            <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
+            <input type="file" accept="image/*" multiple className="hidden" onChange={e => handleUpload(e, type)} />
             {uploading === type ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#F5A623" }} />
             ) : (
@@ -232,7 +241,7 @@ function PhotoSection({
         </div>
         {photos.length === 0 ? (
           <label className="cursor-pointer block">
-            <input type="file" accept="image/*" className="hidden" onChange={e => handleUpload(e, type)} />
+            <input type="file" accept="image/*" multiple className="hidden" onChange={e => handleUpload(e, type)} />
             <div className="rounded-lg flex flex-col items-center justify-center h-24 gap-1 text-xs" style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.25)" }}>
               <Camera className="w-4 h-4" />Click to upload
             </div>
@@ -649,34 +658,16 @@ export default function PortalJobDetail() {
             className="w-full grid grid-cols-4 h-12 rounded-xl p-1 sticky top-0 z-30"
             style={{ background: "rgba(15,31,61,0.97)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}
           >
-            <TabsTrigger
-              value="overview"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="money"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Money
-            </TabsTrigger>
-            <TabsTrigger
-              value="work"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Work
-            </TabsTrigger>
-            <TabsTrigger
-              value="forms"
-              className="rounded-lg text-sm font-semibold min-h-[44px] data-[state=active]:text-white data-[state=active]:shadow-none"
-              style={{ color: "rgba(255,255,255,0.45)" }}
-            >
-              Forms
-            </TabsTrigger>
+            {(["overview", "money", "work", "forms"] as const).map((tab) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                className="rounded-lg text-sm font-semibold min-h-[44px] capitalize data-[state=active]:shadow-none"
+                style={activeTab === tab ? { background: "#F5A623", color: "#0F1F3D" } : { color: "rgba(255,255,255,0.45)" }}
+              >
+                {tab}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* ─── TAB 1: Overview ─── */}
@@ -1040,8 +1031,8 @@ export default function PortalJobDetail() {
                         const durationMins = te.checkOutAt
                           ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
                           : null;
-                        const checkInMapUrl = te.checkInLat && te.checkInLng ? `https://www.google.com/maps?q=${te.checkInLat},${te.checkInLng}` : null;
-                        const checkOutMapUrl = te.checkOutLat && te.checkOutLng ? `https://www.google.com/maps?q=${te.checkOutLat},${te.checkOutLng}` : null;
+                        const hasCheckInCoords = !!(te.checkInLat && te.checkInLng);
+                        const hasCheckOutCoords = !!(te.checkOutLat && te.checkOutLng);
                         return (
                           <div key={te.id} className="rounded-xl p-3 space-y-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                             <p className="text-sm font-medium text-white">{te.staffName ?? `Staff #${te.staffId}`}</p>
@@ -1050,10 +1041,10 @@ export default function PortalJobDetail() {
                                 <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Checked in</p>
                                 <p style={{ color: "rgba(255,255,255,0.7)" }}>
                                   {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                                  {checkInMapUrl && (
-                                    <a href={checkInMapUrl} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                  {hasCheckInCoords && (
+                                    <button onClick={() => openMapsLatLng(te.checkInLat, te.checkInLng)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
                                       <MapPin className="w-2.5 h-2.5" /> Map
-                                    </a>
+                                    </button>
                                   )}
                                 </p>
                               </div>
@@ -1062,10 +1053,10 @@ export default function PortalJobDetail() {
                                 {te.checkOutAt ? (
                                   <p style={{ color: "rgba(255,255,255,0.7)" }}>
                                     {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                                    {checkOutMapUrl && (
-                                      <a href={checkOutMapUrl} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                    {hasCheckOutCoords && (
+                                      <button onClick={() => openMapsLatLng(te.checkOutLat, te.checkOutLng)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
                                         <MapPin className="w-2.5 h-2.5" /> Map
-                                      </a>
+                                      </button>
                                     )}
                                   </p>
                                 ) : (

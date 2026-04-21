@@ -15,6 +15,7 @@ import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
+import { ErrorState } from "@/components/portal/ErrorState";
 
 // Job type tag colours
 const JOB_TYPE_COLORS: Record<string, string> = {
@@ -272,9 +273,9 @@ export default function PortalCalls() {
     (window as unknown as { _searchTimer?: ReturnType<typeof setTimeout> })._searchTimer = setTimeout(() => setDebouncedSearch(val), 300);
   };
 
-  const { data, isLoading } = trpc.portal.listCalls.useQuery(
+  const { data, isLoading, error: callsError, refetch: refetchCalls } = trpc.portal.listCalls.useQuery(
     { search: debouncedSearch || undefined, limit: 50, offset: 0 },
-    { staleTime: 60 * 1000 }
+    { staleTime: 60 * 1000, retry: 2 }
   );
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
@@ -320,6 +321,8 @@ export default function PortalCalls() {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
           </div>
+        ) : callsError ? (
+          <ErrorState error={callsError} onRetry={() => refetchCalls()} />
         ) : data?.calls.length === 0 ? (
           <div className="text-center py-16">
             <Phone className="w-12 h-12 mx-auto mb-4 opacity-20" style={{ color: "rgba(255,255,255,0.3)" }} />

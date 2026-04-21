@@ -7,6 +7,7 @@
  */
 import mysql from "mysql2/promise";
 import { randomUUID } from "crypto";
+import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -172,28 +173,31 @@ if (existingSub) {
 console.log("✓ Voice agent subscription set to active/professional");
 
 // ── 6. Seed staff members ─────────────────────────────────────────────────────
+// Staff members with PIN auth and hourly rates
+const staffPin1 = await bcrypt.hash("1234", 12);
+const staffPin2 = await bcrypt.hash("5678", 12);
 const staff = [
-  { name: "Tom Bradley", trade: "Senior Plumber", mobile: "0411 222 333" },
-  { name: "Raj Patel", trade: "Apprentice Plumber", mobile: "0422 444 555" },
+  { name: "Tom Bradley", trade: "Senior Plumber", mobile: "0411 222 333", pin: staffPin1, hourlyRate: "85.00", licence: "PL54321" },
+  { name: "Raj Patel", trade: "Apprentice Plumber", mobile: "0422 444 555", pin: staffPin2, hourlyRate: "45.00", licence: null },
 ];
+
+// Clear existing staff for clean re-seed
+await conn.execute("DELETE FROM staff_sessions WHERE clientId = ?", [clientId]);
+await conn.execute("DELETE FROM time_entries WHERE clientId = ?", [clientId]);
+await conn.execute("DELETE FROM job_schedule WHERE clientId = ?", [clientId]);
+await conn.execute("DELETE FROM staff_availability WHERE clientId = ?", [clientId]);
+await conn.execute("DELETE FROM staff_members WHERE clientId = ?", [clientId]);
 
 const staffIds = [];
 for (const s of staff) {
-  const [[existing]] = await conn.execute(
-    "SELECT id FROM staff_members WHERE clientId = ? AND name = ?",
-    [clientId, s.name]
+  const [result] = await conn.execute(
+    `INSERT INTO staff_members (clientId, name, trade, mobile, staffPin, hourlyRate, licenceNumber, isActive, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+    [clientId, s.name, s.trade, s.mobile, s.pin, s.hourlyRate, s.licence]
   );
-  if (existing) {
-    staffIds.push(existing.id);
-  } else {
-    const [result] = await conn.execute(
-      "INSERT INTO staff_members (clientId, name, trade, mobile, isActive, createdAt) VALUES (?, ?, ?, ?, 1, NOW())",
-      [clientId, s.name, s.trade, s.mobile]
-    );
-    staffIds.push(result.insertId);
-  }
+  staffIds.push(result.insertId);
 }
-console.log(`✓ ${staffIds.length} staff members seeded`);
+console.log(`✓ ${staffIds.length} staff members seeded (PINs: Tom=1234, Raj=5678)`);
 
 // ── 7. Seed CRM interactions (calls) ─────────────────────────────────────────
 // Calls use crm_interactions with type='call', title='Call: JobType — CallerName', body=transcript
@@ -470,6 +474,50 @@ for (const event of calendarEvents) {
 }
 console.log(`✓ ${calendarEvents.length} calendar events seeded`);
 
+// ── 10b. Seed job_schedule entries for staff portal ──────────────────────────
+// These drive the Staff Today / Roster / Check-in pages.
+// Assign booked/completed jobs to staff members across the current week.
+console.log("\n📋 Seeding job schedule entries for staff portal ...");
+
+const scheduleEntries = [
+  // Past completed — Tom did the blocked drain
+  { staffIdx: 0, jobIdx: 0, daysOffset: -5, startHour: 9, endHour: 11, status: "completed", notes: "Drain cleared. CCTV confirmed no further blockage." },
+  // Past completed — Tom did the burst pipe emergency
+  { staffIdx: 0, jobIdx: 3, daysOffset: -3, startHour: 8, endHour: 11, status: "completed", notes: "Emergency attendance. Pipe repaired and tested." },
+  // Yesterday — Raj on bathroom reno (in_progress)
+  { staffIdx: 1, jobIdx: 4, daysOffset: -1, startHour: 7, endHour: 17, status: "in_progress", notes: "Day 1 demolition and rough-in." },
+  // Today — Tom: HWS replacement (pending — can confirm/decline)
+  { staffIdx: 0, jobIdx: 1, daysOffset: 0, startHour: 8, endHour: 12, status: "pending", notes: "Rheem 250L removal + Rinnai Infinity 26 install." },
+  // Today — Raj: Leaking tap (confirmed — can check in)
+  { staffIdx: 1, jobIdx: 2, daysOffset: 0, startHour: 14, endHour: 15, status: "confirmed", notes: "Bathroom tap washer replacement." },
+  // Tomorrow — Tom: Pipe lagging
+  { staffIdx: 0, jobIdx: 5, daysOffset: 1, startHour: 9, endHour: 13, status: "pending", notes: "15m pipe lagging — laundry and underfloor." },
+  // Day after tomorrow — Raj: Annual inspection
+  { staffIdx: 1, jobIdx: 6, daysOffset: 2, startHour: 10, endHour: 12, status: "pending", notes: "Full plumbing inspection and report." },
+  // Next week — Tom: Follow-up inspection
+  { staffIdx: 0, jobIdx: 7, daysOffset: 7, startHour: 10, endHour: 11, status: "pending", notes: "30-day follow-up check." },
+];
+
+for (const sched of scheduleEntries) {
+  const staffId = staffIds[sched.staffIdx];
+  const jobId = jobIds[sched.jobIdx];
+  if (!staffId || !jobId) continue;
+
+  const sign = sched.daysOffset >= 0 ? '+' : '-';
+  const absDays = Math.abs(sched.daysOffset);
+  await conn.execute(`
+    INSERT INTO job_schedule (
+      clientId, jobId, staffId, startTime, endTime, sched_status, notes, createdAt, updatedAt
+    ) VALUES (
+      ?, ?, ?, 
+      DATE_${sign === '+' ? 'ADD' : 'SUB'}(CURDATE(), INTERVAL ${absDays} DAY) + INTERVAL ${sched.startHour} HOUR,
+      DATE_${sign === '+' ? 'ADD' : 'SUB'}(CURDATE(), INTERVAL ${absDays} DAY) + INTERVAL ${sched.endHour} HOUR,
+      ?, ?, NOW(), NOW()
+    )
+  `, [clientId, jobId, staffId, sched.status, sched.notes]);
+}
+console.log(`✓ ${scheduleEntries.length} job schedule entries seeded for staff portal`);
+
 // ── 11. Seed Google review requests ──────────────────────────────────────────
 await conn.execute("DELETE FROM google_review_requests WHERE clientId = ?", [clientId]);
 
@@ -559,10 +607,12 @@ console.log(`Email:    apple.review@solvr.com.au`);
 console.log(`Password: AppleReview2026!`);
 console.log(`Plan:     full-managed`);
 console.log(`Features: ai-receptionist, quote-engine, automation (all live)`);
+console.log(`Staff login: /staff/login?c=<clientId>  Tom PIN=1234, Raj PIN=5678`);
 console.log(`Subscription: professional / active`);
 console.log(`Data seeded:`);
 console.log(`  - 15 calls (crm_interactions type=call)`);
-console.log(`  - 2 staff members`);
+console.log(`  - 2 staff members (Tom PIN=1234, Raj PIN=5678)`);
+console.log(`  - 8 job schedule entries (staff Today/Roster/Check-in)`);
 console.log(`  - 8 portal jobs (mix of new_lead/booked/completed)`);
 console.log(`  - 6 quotes with line items`);
 console.log(`  - 7 calendar events`);

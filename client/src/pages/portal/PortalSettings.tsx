@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
-  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X,
+  Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X, ChevronDown,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -40,30 +40,41 @@ function SectionCard({
   title,
   subtitle,
   children,
+  defaultOpen = false,
 }: {
   icon: React.ElementType;
   title: string;
   subtitle: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div
-      className="rounded-xl p-4 sm:p-6 mb-4 sm:mb-6"
+      className="rounded-xl mb-4 sm:mb-6 overflow-hidden"
       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
-      <div className="flex items-center gap-3 mb-4 sm:mb-5">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-3 p-4 sm:p-6 sm:pb-0 text-left"
+      >
         <div
           className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
           style={{ background: "rgba(245,166,35,0.12)" }}
         >
           <Icon className="w-4 h-4" style={{ color: "#F5A623" }} />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold text-white">{title}</h2>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{subtitle}</p>
         </div>
-      </div>
-      {children}
+        <ChevronDown
+          className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          style={{ color: "rgba(255,255,255,0.3)" }}
+        />
+      </button>
+      {open && <div className="p-4 sm:p-6 pt-4">{children}</div>}
     </div>
   );
 }
@@ -217,6 +228,7 @@ export default function PortalSettings() {
           icon={Building2}
           title="Business Profile"
           subtitle="These details appear on your quotes and invoices."
+          defaultOpen
         >
           {profileQuery.isLoading ? (
             <div className="flex items-center justify-center py-8">

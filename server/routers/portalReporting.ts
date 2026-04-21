@@ -4,8 +4,8 @@
  * Unauthorised copying or distribution is strictly prohibited.
  */
 import { z } from "zod";
-import { router } from "../_core/trpc";
-import { protectedProcedure } from "../_core/trpc";
+import { router, publicProcedure } from "../_core/trpc";
+import { requirePortalAuth } from "./portalAuth";
 import React from "react";
 import { renderToBuffer, Document } from "@react-pdf/renderer";
 import { storagePut } from "../storage";
@@ -28,10 +28,10 @@ export const portalReportingRouter = router({
    * Revenue metrics: monthly revenue chart, outstanding invoices,
    * avg job value, total revenue, job counts.
    */
-  getRevenueMetrics: protectedProcedure
+  getRevenueMetrics: publicProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const clientId = ctx.user.id;
+      const { clientId } = await requirePortalAuth(ctx.req);
       const monthsBack = input?.monthsBack ?? 12;
       return getRevenueMetrics(clientId, monthsBack, input?.startDate, input?.endDate);
     }),
@@ -39,10 +39,10 @@ export const portalReportingRouter = router({
    * Quote conversion funnel: total → sent → accepted → declined → expired
    * Plus monthly volume, avg quote value, conversion rate, avg days to accept.
    */
-  getQuoteConversion: protectedProcedure
+  getQuoteConversion: publicProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const clientId = ctx.user.id;
+      const { clientId } = await requirePortalAuth(ctx.req);
       const monthsBack = input?.monthsBack ?? 6;
       return getQuoteConversionMetrics(clientId, monthsBack, input?.startDate, input?.endDate);
     }),
@@ -50,16 +50,16 @@ export const portalReportingRouter = router({
    * Job costing report: per-job margin analysis with cost breakdown.
    * Sorted by margin (worst first) so tradies can fix problem jobs.
    */
-  getJobCosting: protectedProcedure
+  getJobCosting: publicProcedure
     .query(async ({ ctx }) => {
-      const clientId = ctx.user.id;
+      const { clientId } = await requirePortalAuth(ctx.req);
       return getJobCostingReport(clientId);
     }),
   /**
    * Generate a branded PDF report and upload to S3.
    * Returns the public URL for download.
    */
-  exportPdf: protectedProcedure
+  exportPdf: publicProcedure
     .input(z.object({
       tab: z.enum(["revenue", "quoteConversion", "jobCosting"]),
       monthsBack: z.number().min(1).max(24).default(12),
@@ -67,7 +67,7 @@ export const portalReportingRouter = router({
       endDate: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const clientId = ctx.user.id;
+      const { clientId } = await requirePortalAuth(ctx.req);
       const client = await getCrmClientById(clientId);
       const businessName = client?.businessName ?? "Your Business";
 

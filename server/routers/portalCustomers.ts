@@ -21,6 +21,9 @@ import { requirePortalAuth, requirePortalWrite } from "../_core/portalAuth";
 import {
   listTradieCustomers,
   getTradieCustomer,
+  getTradieCustomerByPhone,
+  createTradieCustomer,
+  updateTradieCustomer,
   getJobsByCustomerPhone,
   updateTradieCustomerNotes,
   createSmsCampaign,
@@ -39,16 +42,120 @@ import {
   listSmsTemplates as dbListSmsTemplates,
   createSmsTemplate as dbCreateSmsTemplate,
   deleteSmsTemplate as dbDeleteSmsTemplate,
+  listPortalJobs,
 } from "../db";
 import { sendSms } from "../lib/sms";
+
+/**
+ * Retroactively create tradieCustomer records from existing jobs.
+ * Groups by phone (or callerPhone), deduplicates, and creates missing records.
+ * Returns the number of new customers created.
+ */
+async function backfillCustomersFromJobs(clientId: number): Promise<number> {
+  const jobs = await listPortalJobs(clientId);
+  const seen = new Map<string, { name: string; email: string | null; phone: string; address: string | null; jobCount: number; lastJobAt: Date | null }>();
+
+  for (const job of jobs) {
+    const phone = job.customerPhone || job.callerPhone;
+    if (!phone) continue;
+    const name = job.callerName || job.customerEmail || phone;
+    const existing = seen.get(phone);
+    if (existing) {
+      existing.jobCount++;
+      if (job.createdAt && (!existing.lastJobAt || job.createdAt > existing.lastJobAt)) {
+        existing.lastJobAt = job.createdAt;
+      }
+    } else {
+      seen.set(phone, {
+        name,
+        email: job.customerEmail ?? null,
+        phone,
+        address: job.customerAddress ?? null,
+        jobCount: 1,
+        lastJobAt: job.createdAt ?? null,
+      });
+    }
+  }
+
+  let created = 0;
+  const entries = Array.from(seen.entries());
+  for (const [phone, data] of entries) {
+    const exists = await getTradieCustomerByPhone(clientId, phone);
+    if (!exists) {
+      await createTradieCustomer({
+        clientId,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        jobCount: data.jobCount,
+        lastJobAt: data.lastJobAt,
+      });
+      created++;
+    }
+  }
+  return created;
+}
 
 export const portalCustomersRouter = router({
   /**
    * List all customers for the authenticated tradie, ordered by most recent job.
+   * Auto-backfills from existing jobs if the customer table is empty.
    */
   list: publicProcedure.query(async ({ ctx }) => {
     const { clientId } = await requirePortalAuth(ctx.req);
-    return listTradieCustomers(clientId);
+    const customers = await listTradieCustomers(clientId);
+    // Auto-backfill on first access if no customers exist yet
+    if (customers.length === 0) {
+      await backfillCustomersFromJobs(clientId);
+      return listTradieCustomers(clientId);
+    }
+    return customers;
+  }),
+
+  /**
+   * Manually add a customer (bypass the job flow).
+   */
+  createCustomer: publicProcedure
+    .input(
+      z.object({
+        firstName: z.string().min(1).max(100),
+        lastName: z.string().max(100).optional(),
+        email: z.string().email().max(320).optional(),
+        phone: z.string().max(50).optional(),
+        address: z.string().max(512).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { clientId } = await requirePortalWrite(ctx.req);
+      const name = input.lastName ? `${input.firstName} ${input.lastName}` : input.firstName;
+      // Check for duplicate by phone
+      if (input.phone) {
+        const existing = await getTradieCustomerByPhone(clientId, input.phone);
+        if (existing) {
+          throw new TRPCError({ code: "CONFLICT", message: "A customer with this phone number already exists" });
+        }
+      }
+      const { insertId } = await createTradieCustomer({
+        clientId,
+        name,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
+        address: input.address ?? null,
+        jobCount: 0,
+        totalSpentCents: 0,
+      });
+      return { id: insertId, name };
+    }),
+
+  /**
+   * Force-backfill customers from existing jobs (manual trigger).
+   * Useful when the auto-backfill on list didn't catch new jobs.
+   */
+  backfillFromJobs: publicProcedure.mutation(async ({ ctx }) => {
+    const { clientId } = await requirePortalWrite(ctx.req);
+    const count = await backfillCustomersFromJobs(clientId);
+    return { created: count };
   }),
 
   /**

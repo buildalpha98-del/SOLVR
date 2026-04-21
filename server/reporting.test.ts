@@ -9,7 +9,12 @@
  * - reporting.getQuoteConversion
  * - reporting.getJobCosting
  *
- * Strategy: mock the 3 DB helper functions at module level, then call via tRPC caller.
+ * Strategy: mock the 3 DB helper functions + requirePortalAuth at module level,
+ * then call via tRPC caller.
+ *
+ * The reporting router uses publicProcedure + requirePortalAuth (portal JWT),
+ * NOT protectedProcedure (Manus OAuth). So we mock portalAuth to return a
+ * clientId without needing a real session cookie.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -28,24 +33,65 @@ vi.mock("./db", async (importOriginal) => {
   };
 });
 
+// ─── Mock portalAuth ──────────────────────────────────────────────────────────
+// The router imports from "./portalAuth" (relative to server/routers/).
+// The _core/portalAuth re-exports from ../routers/portalAuth.
+// We mock both paths to cover all resolution scenarios.
+// NOTE: vi.mock is hoisted — cannot reference variables declared below.
+// Use literal 42 inline instead of a const.
+
+vi.mock("./routers/portalAuth", () => ({
+  requirePortalAuth: vi.fn().mockResolvedValue({
+    clientId: 42,
+    role: "owner",
+    memberId: null,
+    memberName: null,
+  }),
+  requirePortalWrite: vi.fn().mockResolvedValue({
+    clientId: 42,
+    role: "owner",
+    memberId: null,
+    memberName: null,
+  }),
+  PORTAL_COOKIE: "solvr_portal",
+  TEAM_COOKIE: "solvr_team",
+  getPortalClient: vi.fn(),
+  getPortalClientOrTeamMember: vi.fn(),
+}));
+
+vi.mock("./_core/portalAuth", () => ({
+  requirePortalAuth: vi.fn().mockResolvedValue({
+    clientId: 42,
+    role: "owner",
+    memberId: null,
+    memberName: null,
+  }),
+  requirePortalWrite: vi.fn().mockResolvedValue({
+    clientId: 42,
+    role: "owner",
+    memberId: null,
+    memberName: null,
+  }),
+  PORTAL_COOKIE: "solvr_portal",
+  TEAM_COOKIE: "solvr_team",
+  getPortalClient: vi.fn(),
+  getPortalClientOrTeamMember: vi.fn(),
+}));
+
+const MOCK_CLIENT_ID = 42;
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
-// ─── Auth context helper ──────────────────────────────────────────────────────
-function createAuthContext(): TrpcContext {
+// ─── Minimal context — no real user needed, auth comes from portalAuth mock ──
+function createMinimalContext(): TrpcContext {
   return {
-    user: {
-      id: 42,
-      openId: "test-user",
-      email: "tradie@test.com",
-      name: "Test Tradie",
-      loginMethod: "manus",
-      role: "user",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastSignedIn: new Date(),
-    },
-    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    user: null,
+    req: {
+      protocol: "https",
+      headers: {},
+      cookies: { solvr_portal: "fake-session-token" },
+    } as unknown as TrpcContext["req"],
     res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
   };
 }
@@ -70,7 +116,7 @@ describe("reporting.getRevenueMetrics", () => {
     };
     mockGetRevenueMetrics.mockResolvedValueOnce(emptyResult);
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getRevenueMetrics({ monthsBack: 6 });
 
     expect(result.totalRevenue).toBe(0);
@@ -79,7 +125,7 @@ describe("reporting.getRevenueMetrics", () => {
     expect(result.completedCount).toBe(0);
     expect(result.activeCount).toBe(0);
     expect(result.lostCount).toBe(0);
-    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 6, undefined, undefined);
+    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(MOCK_CLIENT_ID, 6, undefined, undefined);
   });
 
   it("passes correct clientId and monthsBack to DB helper", async () => {
@@ -95,10 +141,10 @@ describe("reporting.getRevenueMetrics", () => {
       lostCount: 2,
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getRevenueMetrics({ monthsBack: 12 });
 
-    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 12, undefined, undefined);
+    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(MOCK_CLIENT_ID, 12, undefined, undefined);
     expect(result.totalRevenue).toBe(15000);
     expect(result.avgJobValue).toBe(800);
     expect(result.monthlyRevenue).toHaveLength(1);
@@ -118,10 +164,10 @@ describe("reporting.getRevenueMetrics", () => {
       lostCount: 0,
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     await caller.reporting.getRevenueMetrics();
 
-    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(42, 12, undefined, undefined);
+    expect(mockGetRevenueMetrics).toHaveBeenCalledWith(MOCK_CLIENT_ID, 12, undefined, undefined);
   });
 
   it("returns revenue with outstanding invoices", async () => {
@@ -140,7 +186,7 @@ describe("reporting.getRevenueMetrics", () => {
       lostCount: 1,
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getRevenueMetrics({ monthsBack: 3 });
 
     expect(result.totalOutstanding).toBeCloseTo(2500.5);
@@ -160,13 +206,13 @@ describe("reporting.getQuoteConversion", () => {
       monthlyQuotes: [],
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getQuoteConversion({ monthsBack: 6 });
 
     expect(result.funnel.total).toBe(0);
     expect(result.funnel.sent).toBe(0);
     expect(result.conversionRate).toBe(0);
-    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(42, 6, undefined, undefined);
+    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(MOCK_CLIENT_ID, 6, undefined, undefined);
   });
 
   it("returns correct conversion funnel metrics", async () => {
@@ -181,7 +227,7 @@ describe("reporting.getQuoteConversion", () => {
       ],
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getQuoteConversion({ monthsBack: 3 });
 
     expect(result.funnel.total).toBe(20);
@@ -206,10 +252,10 @@ describe("reporting.getQuoteConversion", () => {
       monthlyQuotes: [],
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     await caller.reporting.getQuoteConversion();
 
-    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(42, 6, undefined, undefined);
+    expect(mockGetQuoteConversionMetrics).toHaveBeenCalledWith(MOCK_CLIENT_ID, 6, undefined, undefined);
   });
 });
 
@@ -222,7 +268,7 @@ describe("reporting.getJobCosting", () => {
       overallCostBreakdown: {},
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getJobCosting();
 
     expect(result.jobs).toHaveLength(0);
@@ -230,7 +276,7 @@ describe("reporting.getJobCosting", () => {
     expect(result.summary.totalCosts).toBe(0);
     expect(result.summary.totalMargin).toBe(0);
     expect(result.summary.jobCount).toBe(0);
-    expect(mockGetJobCostingReport).toHaveBeenCalledWith(42);
+    expect(mockGetJobCostingReport).toHaveBeenCalledWith(MOCK_CLIENT_ID);
   });
 
   it("returns per-job margin analysis", async () => {
@@ -243,7 +289,7 @@ describe("reporting.getJobCosting", () => {
       overallCostBreakdown: { materials: 1550, labour: 1000 },
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getJobCosting();
 
     expect(result.jobs).toHaveLength(2);
@@ -267,7 +313,7 @@ describe("reporting.getJobCosting", () => {
       overallCostBreakdown: { labour: 500, materials: 300 },
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getJobCosting();
 
     expect(result.summary.profitableJobs).toBe(1);
@@ -288,7 +334,7 @@ describe("reporting.getJobCosting", () => {
       overallCostBreakdown: { materials: 300, labour: 200, equipment: 100 },
     });
 
-    const caller = appRouter.createCaller(createAuthContext());
+    const caller = appRouter.createCaller(createMinimalContext());
     const result = await caller.reporting.getJobCosting();
 
     expect(Object.keys(result.overallCostBreakdown)).toHaveLength(3);

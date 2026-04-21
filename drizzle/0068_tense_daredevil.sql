@@ -1,0 +1,1 @@
+ALTER TABLE `crm_clients` ADD `warehouseAddress` varchar(512);

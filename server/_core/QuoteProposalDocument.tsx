@@ -5,6 +5,7 @@ import {
   View,
   Text,
   Image,
+  Link,
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
@@ -604,10 +605,12 @@ function QuotePage({ input }: { input: QuoteProposalPdfInput }) {
 
         {/* Accept online CTA */}
         {input.acceptUrl && (
-          <View style={isRTL(lang) ? [styles.acceptBox, { backgroundColor: accent, flexDirection: "row-reverse" }] : [styles.acceptBox, { backgroundColor: accent }]}>
-            <Text style={[styles.acceptBoxText, rtlBoldStyle(lang)]}>{L.acceptOnline}</Text>
-            <Text style={styles.acceptBoxUrl}>{input.acceptUrl}</Text>
-          </View>
+          <Link src={input.acceptUrl} style={{ textDecoration: "none" }}>
+            <View style={isRTL(lang) ? [styles.acceptBox, { backgroundColor: accent, flexDirection: "row-reverse" }] : [styles.acceptBox, { backgroundColor: accent }]}>
+              <Text style={[styles.acceptBoxText, rtlBoldStyle(lang)]}>{L.acceptOnline}</Text>
+              <Text style={styles.acceptBoxUrl}>{input.acceptUrl}</Text>
+            </View>
+          </Link>
         )}
       </View>
 

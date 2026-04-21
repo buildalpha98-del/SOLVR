@@ -41,6 +41,7 @@ import { Waveform } from "@/components/Waveform";
 import { TranscriptFeed } from "@/components/TranscriptFeed";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
+import { ErrorState } from "@/components/portal/ErrorState";
 
 // ─── Quick Job Button ────────────────────────────────────────────────────────
 function QuickJobButton() {
@@ -509,8 +510,9 @@ export default function PortalDashboard() {
     }
   }, [subStatus, navigate]);
 
-  const { data, isLoading } = trpc.portal.getDashboard.useQuery(undefined, {
+  const { data, isLoading, error: dashError, refetch: refetchDash } = trpc.portal.getDashboard.useQuery(undefined, {
     staleTime: 2 * 60 * 1000,
+    retry: 2,
   });
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
@@ -814,6 +816,8 @@ export default function PortalDashboard() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
           </div>
+        ) : dashError ? (
+          <ErrorState error={dashError} onRetry={() => refetchDash()} />
         ) : data ? (
           <>
             {/* KPI cards */}

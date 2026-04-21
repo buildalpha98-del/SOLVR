@@ -1,6 +1,6 @@
 # Solvr — Project TODO
 
-> **Last updated:** 19 April 2026
+> **Last updated:** 21 April 2026
 > **Test count:** 376 vitest tests passing (38 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
@@ -381,3 +381,33 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Wired haptics into all 22 portal pages with toast.success callbacks
 - [x] hapticSuccess on saves/creates, hapticWarning on deletes
 - [x] Pages: Forms, Compliance, PurchaseOrders, Settings, Customers, Invoices, PriceList, QuoteDetail, QuoteSettings, Referral, Reporting, Reviews, Schedule, Staff, StaffCheckIn, Subscription, Team, Assistant, Calendar, Calls, CustomerDetail, Dashboard
+
+### Sprint 10 — iOS Smoke Test Fixes (21 April 2026)
+
+#### CRITICAL — blocks feature completeness
+- [ ] #1 Customers DB not linked to jobs — auto-upsert tradieCustomers from jobs, manual "+ Add Customer", fix Bulk SMS overflow
+- [x] #2 Apple reviewer demo account broken — re-seed apple.review@solvr.com.au / AppleReview2026!
+- [ ] #3 Reports cannot be generated — investigate PDF rendering / S3 upload failure
+- [ ] #4 Invoice PDF total blank/zero — fix total calculation in InvoicePDF or generateInvoice
+- [ ] #5 Quote PDF "Accept Quote" link broken — fix acceptUrl using QUOTE_PUBLIC_BASE_URL
+
+#### HIGH — UX issues on mobile
+- [ ] #6 AI Assistant hides tab bar + no safe-area-inset-top + chips should be vertical stacked list
+- [ ] #7 Forms page mobile UX still broken — full rework needed
+- [ ] #8 PO delivery address presets — dropdown: job site / head office / warehouse / custom
+- [ ] #9 Job detail active tab white-on-white — use amber or bold with underline
+- [ ] #10 Inline edit fields auto-save on Enter key (PortalJobDetail)
+- [ ] #11 Quote/job photos — multi-select file picker + before/after photo sections
+- [ ] #12 Settings page collapsible sections
+- [ ] #13 "Remember Me" / stay signed in 30 days
+- [x] #14 Jobs page filter chips + filter persistence via localStorage (viewMode, search, stageFilter)
+- [x] #15 Address autocomplete — Google Places AddressAutocomplete component wired into Add Job modal
+
+#### MEDIUM — Infrastructure
+- [x] #16 Maps links open native Maps app on Capacitor (openMaps utility, wired into JobDetail, StaffCheckin, StaffToday)
+- [x] #17 Offline/error states — ErrorState component + retry buttons on Dashboard, Jobs, Calls, Customers pages
+- [x] #18 Staff portal demo data — seed staff with hashed PINs, hourlyRate, licenceNumber + 8 job_schedule entries
+
+#### Seed script
+- [x] Update seed-apple-upgrade.mjs with staff PINs, hourlyRate, job_schedule entries
+- [x] Update seed-demo.mjs with staff PINs, hourlyRate, job_schedule entries for Jay's account

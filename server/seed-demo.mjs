@@ -680,6 +680,78 @@ if (appleJobCount.cnt < 2) {
   console.log("  ✅ 2 demo jobs seeded for Apple reviewer.");
 }
 
+// ─── 9. Seed Staff Members for Jay ────────────────────────────────────────────
+console.log("\n👷 Seeding staff members for Jay …");
+
+const staffPin1 = await bcrypt.hash("1234", 12);
+const staffPin2 = await bcrypt.hash("5678", 12);
+
+const staffData = [
+  { name: "Mike Chen", trade: "Senior Plumber", mobile: "0411 222 333", pin: staffPin1, hourlyRate: "85.00", licence: "PL12345" },
+  { name: "Jake Wilson", trade: "Apprentice Plumber", mobile: "0422 444 555", pin: staffPin2, hourlyRate: "45.00", licence: null },
+];
+
+const jayStaffIds = [];
+for (const s of staffData) {
+  const [existing] = await q("SELECT id FROM staff_members WHERE clientId=? AND name=? LIMIT 1", [jayId, s.name]);
+  if (existing) {
+    // Update PIN + hourlyRate in case they were missing
+    await q("UPDATE staff_members SET staffPin=?, hourlyRate=?, licenceNumber=?, updatedAt=NOW() WHERE id=?", [s.pin, s.hourlyRate, s.licence, existing.id]);
+    jayStaffIds.push(existing.id);
+    console.log(`  Staff "${s.name}" already exists (id=${existing.id}) — updated PIN.`);
+  } else {
+    const [res] = await db.execute(
+      `INSERT INTO staff_members (clientId, name, trade, mobile, staffPin, hourlyRate, licenceNumber, isActive, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+      [jayId, s.name, s.trade, s.mobile, s.pin, s.hourlyRate, s.licence]
+    );
+    jayStaffIds.push(res.insertId);
+    console.log(`  ✅ Created staff "${s.name}" (id=${res.insertId}).`);
+  }
+}
+
+// ─── 10. Seed Job Schedule for Jay's staff ───────────────────────────────────
+console.log("\n📋 Seeding job schedule entries for Jay's staff …");
+
+const [existingSched] = await q("SELECT COUNT(*) as cnt FROM job_schedule WHERE clientId=?", [jayId]);
+if (existingSched.cnt < 4) {
+  // Assign booked jobs to staff
+  const jaySchedule = [
+    // Today — Mike: HWS replacement
+    { staffIdx: 0, jobIdx: 3, daysOffset: 0, startHour: 8, endHour: 11, status: "pending", notes: "Rinnai Infinity 26 install." },
+    // Today — Jake: Leaking tap
+    { staffIdx: 1, jobIdx: 6, daysOffset: 0, startHour: 14, endHour: 15, status: "confirmed", notes: "Tap washer replacement." },
+    // Tomorrow — Mike: Rental compliance
+    { staffIdx: 0, jobIdx: 7, daysOffset: 1, startHour: 10, endHour: 12, status: "pending", notes: "Full plumbing compliance inspection." },
+    // Day after — Jake: Backflow test
+    { staffIdx: 1, jobIdx: 4, daysOffset: 2, startHour: 11, endHour: 13, status: "pending", notes: "Annual backflow test and certificate." },
+    // Next week — Mike: Bathroom reno
+    { staffIdx: 0, jobIdx: 5, daysOffset: 7, startHour: 7, endHour: 15, status: "pending", notes: "Full bathroom re-pipe and rough-in." },
+  ];
+
+  for (const sched of jaySchedule) {
+    const staffId = jayStaffIds[sched.staffIdx];
+    const jobId = jobIds[sched.jobIdx];
+    if (!staffId || !jobId) continue;
+
+    const sign = sched.daysOffset >= 0 ? '+' : '-';
+    const absDays = Math.abs(sched.daysOffset);
+    await db.execute(`
+      INSERT INTO job_schedule (
+        clientId, jobId, staffId, startTime, endTime, sched_status, notes, createdAt, updatedAt
+      ) VALUES (
+        ?, ?, ?,
+        DATE_${sign === '+' ? 'ADD' : 'SUB'}(CURDATE(), INTERVAL ${absDays} DAY) + INTERVAL ${sched.startHour} HOUR,
+        DATE_${sign === '+' ? 'ADD' : 'SUB'}(CURDATE(), INTERVAL ${absDays} DAY) + INTERVAL ${sched.endHour} HOUR,
+        ?, ?, NOW(), NOW()
+      )
+    `, [jayId, jobId, staffId, sched.status, sched.notes]);
+  }
+  console.log(`  ✅ ${jaySchedule.length} schedule entries seeded.`);
+} else {
+  console.log(`  Already have ${existingSched.cnt} schedule entries — skipping.`);
+}
+
 // ─── Done ─────────────────────────────────────────────────────────────────────
 console.log("\n🎉 Seeding complete!\n");
 console.log("┌─────────────────────────────────────────────────────────┐");
@@ -690,6 +762,10 @@ console.log("├─────────────────────�
 console.log("│  Apple reviewer login                                   │");
 console.log("│  Email:    apple.review@solvr.com.au                    │");
 console.log("│  Password: AppleReview2026!                             │");
+console.log("├─────────────────────────────────────────────────────────┤");
+console.log("│  Staff login (Jay's account)                            │");
+console.log("│  Mike Chen  PIN: 1234                                   │");
+console.log("│  Jake Wilson PIN: 5678                                  │");
 console.log("├─────────────────────────────────────────────────────────┤");
 console.log("│  Portal URL: https://solvr.com.au/portal                │");
 console.log("└─────────────────────────────────────────────────────────┘");
