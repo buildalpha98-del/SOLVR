@@ -8,6 +8,7 @@
  * Tabs: Team (staff list + PIN management) | Labour Costs (monthly cost report)
  */
 import { useState, useMemo } from "react";
+import { getSolvrOrigin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
@@ -293,7 +294,7 @@ export default function PortalStaff() {
   const [copied, setCopied] = useState(false);
 
   const staffLoginUrl = me?.clientId
-    ? `${window.location.origin}/staff?c=${me.clientId}`
+    ? `${getSolvrOrigin()}/staff?c=${me.clientId}`
     : null;
 
   function copyStaffLink() {

@@ -428,7 +428,7 @@ function JobCostingSection({
 // ─── Copy Link Buttons ───────────────────────────────────────────────────────
 function CopyStatusLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
-  const publicUrl = `${window.location.origin}/job/${token}`;
+  const publicUrl = `${getSolvrOrigin()}/job/${token}`;
   const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
   return (
     <Button size="sm" onClick={handleCopy} title="Copy customer status link"
@@ -440,7 +440,7 @@ function CopyStatusLinkButton({ token }: { token: string }) {
 
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
-  const publicUrl = `${window.location.origin}/report/${token}`;
+  const publicUrl = `${getSolvrOrigin()}/report/${token}`;
   const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
   return (
     <Button size="sm" onClick={handleCopy}
