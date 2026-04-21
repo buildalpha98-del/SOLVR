@@ -437,35 +437,28 @@ export default function PortalSubscription() {
                 </ul>
               )}
 
-              {/* Manage billing CTA — hidden on native iOS (Apple Guideline 3.1.1) */}
-              {isNativeApp() ? (
-                <p className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  To manage your subscription, visit solvr.com.au on your browser.
-                </p>
-              ) : (
-                <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                  {/* Manage Subscription — opens RevenueCat paywall for plan changes */}
+              {/* Manage billing / Upgrade CTAs — native paywall on iOS, web paywall on browser */}
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={handleOpenPaywall}
+                  className="flex items-center gap-2"
+                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {isNativeApp() ? "Change Plan" : "Manage Subscription"}
+                </Button>
+                {/* Show upgrade CTA if on a lower tier */}
+                {(sub.plan === "solvr_quotes" || sub.plan === "starter") && (
                   <Button
+                    variant="outline"
+                    className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
                     onClick={handleOpenPaywall}
-                    className="flex items-center gap-2"
-                    style={{ background: "#F5A623", color: "#0F1F3D" }}
                   >
-                    <ExternalLink className="w-4 h-4" />
-                    Manage Subscription
+                    <Zap className="w-4 h-4" />
+                    Upgrade Plan
                   </Button>
-                  {/* Show upgrade CTA if on a lower tier */}
-                  {(sub.plan === "solvr_quotes" || sub.plan === "starter") && (
-                    <Button
-                      variant="outline"
-                      className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                      onClick={handleOpenPaywall}
-                    >
-                      <Zap className="w-4 h-4" />
-                      Upgrade Plan
-                    </Button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Source indicator */}
               {sub.subscriptionSource && (
@@ -497,27 +490,19 @@ export default function PortalSubscription() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              {isNativeApp() ? (
-                <p className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  Visit solvr.com.au on your browser to subscribe.
-                </p>
-              ) : (
-                <>
-                  <Button
-                    onClick={handleOpenPaywall}
-                    style={{ background: "#F5A623", color: "#0F1F3D" }}
-                  >
-                    View Plans & Subscribe
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-white/20 text-white/60 hover:bg-white/5"
-                    onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
-                  >
-                    Contact Support
-                  </Button>
-                </>
-              )}
+              <Button
+                onClick={handleOpenPaywall}
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+              >
+                View Plans & Subscribe
+              </Button>
+              <Button
+                variant="outline"
+                className="border-white/20 text-white/60 hover:bg-white/5"
+                onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
+              >
+                Contact Support
+              </Button>
             </div>
           </div>
         )}
