@@ -662,8 +662,9 @@ export default function PortalJobDetail() {
               <TabsTrigger
                 key={tab}
                 value={tab}
-                className="rounded-lg text-sm font-semibold min-h-[44px] capitalize data-[state=active]:shadow-none"
-                style={activeTab === tab ? { background: "#F5A623", color: "#0F1F3D" } : { color: "rgba(255,255,255,0.45)" }}
+                className={`rounded-lg text-sm font-semibold min-h-[44px] capitalize data-[state=active]:shadow-none data-[state=active]:!bg-[#F5A623] data-[state=active]:!text-[#0F1F3D] ${
+                  activeTab !== tab ? "!text-white/45" : ""
+                }`}
               >
                 {tab}
               </TabsTrigger>

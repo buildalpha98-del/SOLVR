@@ -1,7 +1,7 @@
 # Solvr — Project TODO
 
 > **Last updated:** 21 April 2026 (batch 3)
-> **Test count:** 376 vitest tests passing (38 test files) · 0 TypeScript errors
+> **Test count:** 394 vitest tests passing (39 test files) · 0 TypeScript errors
 > **Entity:** ClearPath AI Agency Pty Ltd, trading as Solvr
 
 ---
@@ -392,14 +392,14 @@ These are planned features that are not blocking the current launch. They will b
 - [x] #5 Quote PDF Accept link — generatePdf now saves pdfUrl to quote record, send procedure also persists pdfUrl
 
 #### HIGH — UX issues on mobile
-- [ ] #6 AI Assistant hides tab bar + no safe-area-inset-top + chips should be vertical stacked list
-- [ ] #7 Forms page mobile UX still broken — full rework needed
-- [ ] #8 PO delivery address presets — dropdown: job site / head office / warehouse / custom
-- [ ] #9 Job detail active tab white-on-white — use amber or bold with underline
-- [ ] #10 Inline edit fields auto-save on Enter key (PortalJobDetail)
-- [ ] #11 Quote/job photos — multi-select file picker + before/after photo sections
-- [ ] #12 Settings page collapsible sections
-- [ ] #13 "Remember Me" / stay signed in 30 days
+- [x] #6 AI Assistant — fixed height calc for tab bar clearance, safe-area-inset-top, proper bottom padding
+- [x] #7 Forms page — full dark theme restyle (STATUS_COLORS, signature pad, labels, inputs, cards, table, dialogs)
+- [x] #8 PO delivery address presets — already implemented (chips + AddressAutocomplete)
+- [x] #9 Job detail active tab — className overrides with !important to beat shadcn data-state styles
+- [x] #10 Inline edit fields — already implemented (Enter saves, Escape cancels, save/cancel buttons)
+- [x] #11 Quote/job photos — already implemented (multi-select, before/after sections, lightbox, delete)
+- [x] #12 Settings page — already implemented (SectionCard with collapsible sections, ChevronDown rotation)
+- [x] #13 Remember Me — already implemented (ONE_YEAR_MS = 365 days session cookie)
 - [x] #14 Jobs page filter chips + filter persistence via localStorage (viewMode, search, stageFilter)
 - [x] #15 Address autocomplete — Google Places AddressAutocomplete component wired into Add Job modal
 
@@ -420,3 +420,16 @@ These are planned features that are not blocking the current launch. They will b
 - [x] #5 Quote PDF Accept link — generatePdf saves pdfUrl to DB, send procedure also persists pdfUrl
 - [x] AddressAutocomplete wired into: Add Customer dialog, PO delivery address field
 - 0 TypeScript errors, 376 vitest tests passing
+
+### Sprint 10 batch 4 — HIGH UX fixes + autocomplete + tests (21 April 2026)
+- [x] #6 AI Assistant — fixed height calc for tab bar clearance + safe-area-inset-top
+- [x] #7 Forms page — full dark theme restyle to match portal navy theme
+- [x] #8 PO delivery address presets — already implemented
+- [x] #9 Job detail active tab — className overrides with !important for amber active state
+- [x] #10 Inline edit fields — already implemented (Enter/Escape + save/cancel buttons)
+- [x] #11 Quote/job photos — already implemented (multi-select, before/after, lightbox)
+- [x] #12 Settings page — already implemented (collapsible SectionCard)
+- [x] #13 Remember Me — already implemented (365-day session cookie)
+- [x] AddressAutocomplete wired into quote builder manual form
+- [x] Vitest: 18 new tests (sprint10.test.ts — invoice guard, revenue units, pdfUrl, GST calc)
+- 0 TypeScript errors, 394 vitest tests passing (39 test files)

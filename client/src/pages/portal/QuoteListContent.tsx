@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -747,11 +748,10 @@ export default function QuoteListContent() {
                 </div>
                 <div>
                   <Label className="text-white/70 text-xs mb-1 block">Address</Label>
-                  <Input
+                  <AddressAutocomplete
                     value={manualForm.customerAddress}
-                    onChange={(e) => setManualForm((f) => ({ ...f, customerAddress: e.target.value }))}
-                    placeholder="123 Main St, Sydney NSW 2000"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                    onChange={(val: string) => setManualForm((f) => ({ ...f, customerAddress: val }))}
+                    placeholder="Start typing an address…"
                   />
                 </div>
                 {/* Line items */}

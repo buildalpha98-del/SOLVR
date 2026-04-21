@@ -442,8 +442,15 @@ export default function PortalAssistant() {
       <div
         className="flex relative -mx-4 -mt-4"
         style={{
-          /* Fill the remaining viewport: subtract top header (~56px on mobile) + tab bar (~60px + safe area) */
-          height: "calc(100dvh - 56px - 60px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px))",
+          /*
+           * Height calc breakdown:
+           * - 100dvh (full viewport including dynamic toolbar)
+           * - 56px (PortalLayout header h-14)
+           * - env(safe-area-inset-top) (Dynamic Island / notch)
+           * - 72px (mobile tab bar ~48px + extra padding that PortalLayout adds)
+           * - env(safe-area-inset-bottom) (home indicator)
+           */
+          height: "calc(100dvh - 56px - 72px - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px))",
           background: "#0F1F3D",
         }}
       >

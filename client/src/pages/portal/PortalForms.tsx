@@ -50,9 +50,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  completed: "bg-green-100 text-green-700",
-  archived: "bg-blue-100 text-blue-700",
+  draft: "bg-white/10 text-white/60",
+  completed: "bg-emerald-500/20 text-emerald-400",
+  archived: "bg-blue-500/20 text-blue-400",
 };
 
 // ─── Signature Pad Component (mobile-optimised) ─────────────────────────────
@@ -135,7 +135,7 @@ function SignaturePad({
     <div>
       <canvas
         ref={canvasRef}
-        className="w-full h-32 sm:h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-crosshair bg-white touch-none"
+        className="w-full h-32 sm:h-24 border-2 border-dashed border-white/20 rounded-lg cursor-crosshair bg-white/5 touch-none"
         onMouseDown={startDraw}
         onMouseMove={draw}
         onMouseUp={endDraw}
@@ -145,8 +145,8 @@ function SignaturePad({
         onTouchEnd={endDraw}
       />
       <div className="flex items-center justify-between mt-1.5">
-        <span className="text-xs text-gray-400">Sign above with your finger</span>
-        <button onClick={clear} className="text-xs text-gray-500 hover:text-red-500 font-medium">
+        <span className="text-xs text-white/40">Sign above with your finger</span>
+        <button onClick={clear} className="text-xs text-white/50 hover:text-red-400 font-medium">
           Clear
         </button>
       </div>
@@ -170,19 +170,19 @@ function FormFieldRenderer({
 }) {
   if (field.type === "heading") {
     return (
-      <h3 className="text-base font-bold text-[#0F1F3D] border-b border-gray-200 pb-1 pt-3 col-span-1 sm:col-span-2">
+      <h3 className="text-base font-bold text-white border-b border-white/10 pb-1 pt-3 col-span-1 sm:col-span-2">
         {field.label}
       </h3>
     );
   }
   if (field.type === "divider") {
-    return <hr className="border-gray-200 col-span-1 sm:col-span-2 my-1" />;
+    return <hr className="border-white/10 col-span-1 sm:col-span-2 my-1" />;
   }
 
   // On mobile, everything is full-width (col-span-1 in a 1-col grid)
   const wrapClass = field.width === "half" ? "sm:col-span-1" : "col-span-1 sm:col-span-2";
   const label = (
-    <label className="block text-sm font-medium text-gray-700 mb-1">
+    <label className="block text-sm font-medium text-white/80 mb-1">
       {field.label}
       {field.required && <span className="text-red-500 ml-0.5">*</span>}
     </label>
@@ -258,9 +258,9 @@ function FormFieldRenderer({
             type="checkbox"
             checked={value === true || value === "true"}
             onChange={e => onChange(e.target.checked)}
-            className="mt-1 h-5 w-5 rounded border-gray-300 text-[#F5A623] focus:ring-[#F5A623]"
+            className="mt-1 h-5 w-5 rounded border-white/30 text-[#F5A623] focus:ring-[#F5A623]"
           />
-          <span className="text-sm text-gray-700">
+          <span className="text-sm text-white/70">
             {field.label}
             {field.required && <span className="text-red-500 ml-0.5">*</span>}
           </span>
@@ -322,18 +322,18 @@ export default function PortalForms() {
     <div className="space-y-4 pb-24">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Forms & Certificates</h1>
-        <p className="text-[13px] text-gray-500 mt-0.5">Digital forms, certificates, and SWMS with signature capture</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Forms & Certificates</h1>
+        <p className="text-[13px] text-white/50 mt-0.5">Digital forms, certificates, and SWMS with signature capture</p>
       </div>
 
       {/* Tabs — full width on mobile */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+      <div className="flex gap-1 bg-white/5 p-1 rounded-lg">
         {(["submissions", "templates"] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              tab === t ? "bg-white/15 text-white shadow-sm" : "text-white/50 hover:text-white/80"
             }`}
           >
             {t === "submissions" ? "Completed Forms" : "Templates"}
@@ -343,7 +343,7 @@ export default function PortalForms() {
 
       {/* Search — full width on mobile */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
         <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -384,16 +384,16 @@ function TemplatesTab({ search }: { search: string }) {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <ClipboardList className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+        <div className="text-center py-12 text-white/40">
+          <ClipboardList className="w-12 h-12 mx-auto mb-3 text-white/20" />
           <p>No templates found</p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(t => (
-            <div key={t.id} className="bg-white rounded-lg border border-gray-200 p-4 sm:p-5 hover:shadow-md transition-shadow">
+            <div key={t.id} className="rounded-lg border border-white/10 p-4 sm:p-5 hover:border-white/20 transition-colors" style={{ background: 'rgba(255,255,255,0.04)' }}>
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <FileCheck className="w-5 h-5 text-[#F5A623] flex-shrink-0" />
@@ -403,9 +403,9 @@ function TemplatesTab({ search }: { search: string }) {
                   {t.isSystem && <Badge variant="secondary" className="text-xs">System</Badge>}
                 </div>
               </div>
-              <h3 className="font-semibold text-gray-900 mb-1 text-[15px]">{t.name}</h3>
-              <p className="text-sm text-gray-500 mb-2 line-clamp-2">{t.description || "No description"}</p>
-              <p className="text-xs text-gray-400 mb-3">
+              <h3 className="font-semibold text-white mb-1 text-[15px]">{t.name}</h3>
+              <p className="text-sm text-white/50 mb-2 line-clamp-2">{t.description || "No description"}</p>
+              <p className="text-xs text-white/30 mb-3">
                 {(t.fields as FormField[])?.filter(f => f.type !== "heading" && f.type !== "divider").length ?? 0} fields
               </p>
               <div className="flex gap-2">
@@ -414,7 +414,7 @@ function TemplatesTab({ search }: { search: string }) {
                     <Button size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={() => { setEditingId(t.id); setShowBuilder(true); }}>
                       <Edit className="w-3.5 h-3.5 mr-1" /> Edit
                     </Button>
-                    <Button size="sm" variant="outline" className="flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => {
+                    <Button size="sm" variant="outline" className="flex-1 sm:flex-none text-red-400 hover:text-red-300" onClick={() => {
                       if (confirm("Delete this template?")) deleteMutation.mutate({ id: t.id });
                     }}>
                       <Trash2 className="w-3.5 h-3.5 mr-1" />
@@ -505,12 +505,12 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
         <div className="space-y-4">
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Template Name</label>
+              <label className="block text-sm font-medium text-white/80 mb-1">Template Name</label>
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Electrical Certificate" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-white/80 mb-1">Category</label>
                 <Select value={category} onValueChange={v => setCategory(v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -522,7 +522,7 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-white/80 mb-1">Description</label>
                 <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description..." />
               </div>
             </div>
@@ -530,12 +530,12 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
 
           {/* Fields List */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Fields</label>
+            <label className="block text-sm font-medium text-white/80 mb-2">Fields</label>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {fields.map((f, i) => (
-                <div key={f.id} className="bg-gray-50 rounded-lg p-2.5">
+                <div key={f.id} className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.05)' }}>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 w-5 flex-shrink-0">{i + 1}</span>
+                    <span className="text-xs text-white/30 w-5 flex-shrink-0">{i + 1}</span>
                     <Badge variant="outline" className="text-xs shrink-0">{f.type}</Badge>
                     <div className="flex-1 min-w-0">
                       {f.type !== "divider" && (
@@ -554,7 +554,7 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
                   {/* Required + options on second row for mobile */}
                   <div className="flex items-center gap-2 mt-1.5 ml-7">
                     {f.type !== "heading" && f.type !== "divider" && (
-                      <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
+                      <label className="flex items-center gap-1 text-xs text-white/50 shrink-0">
                         <input
                           type="checkbox"
                           checked={f.required ?? false}
@@ -629,40 +629,40 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-white/40" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+        <div className="text-center py-12 text-white/40">
+          <FileText className="w-12 h-12 mx-auto mb-3 text-white/20" />
           <p>No forms completed yet</p>
           <p className="text-sm mt-1">Start a new form from a template</p>
         </div>
       ) : (
         <>
           {/* Desktop table (hidden on mobile) */}
-          <div className="hidden sm:block bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="hidden sm:block rounded-lg border border-white/10 overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-700">Form</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-700">Template</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-700">Date</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+                <tr className="border-b border-white/10" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <th className="text-left px-4 py-3 font-medium text-white/60">Form</th>
+                  <th className="text-left px-4 py-3 font-medium text-white/60">Template</th>
+                  <th className="text-left px-4 py-3 font-medium text-white/60">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-white/60">Date</th>
+                  <th className="text-right px-4 py-3 font-medium text-white/60">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(s => (
-                  <tr key={s.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{s.title}</td>
-                    <td className="px-4 py-3 text-gray-600">
+                  <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
+                    <td className="px-4 py-3 font-medium text-white">{s.title}</td>
+                    <td className="px-4 py-3 text-white/50">
                       {templateMap[s.templateId]?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge className={STATUS_COLORS[s.status] ?? "bg-gray-100"}>
+                      <Badge className={STATUS_COLORS[s.status] ?? "bg-white/10"}>
                         {s.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-white/40">
                       {new Date(s.createdAt).toLocaleDateString("en-AU")}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -675,7 +675,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
                         <Button size="sm" variant="outline" onClick={() => setViewingId(s.id)}>
                           <Eye className="w-3.5 h-3.5 mr-1" /> View
                         </Button>
-                        <Button size="sm" variant="outline" className="text-red-600" onClick={() => {
+                        <Button size="sm" variant="outline" className="text-red-400" onClick={() => {
                           if (confirm("Delete this form?")) deleteMutation.mutate({ id: s.id });
                         }}>
                           <Trash2 className="w-3.5 h-3.5" />
@@ -693,20 +693,20 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
             {filtered.map(s => (
               <div
                 key={s.id}
-                className="bg-white rounded-lg border border-gray-200 p-4 active:bg-gray-50 transition-colors"
+                className="rounded-lg border border-white/10 p-4 active:bg-white/5 transition-colors" style={{ background: 'rgba(255,255,255,0.04)' }}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900 text-[15px] truncate">{s.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    <p className="font-semibold text-white text-[15px] truncate">{s.title}</p>
+                    <p className="text-xs text-white/40 mt-0.5 truncate">
                       {templateMap[s.templateId]?.name ?? "—"}
                     </p>
                   </div>
-                  <Badge className={`${STATUS_COLORS[s.status] ?? "bg-gray-100"} text-[11px] flex-shrink-0`}>
+                  <Badge className={`${STATUS_COLORS[s.status] ?? "bg-white/10"} text-[11px] flex-shrink-0`}>
                     {s.status}
                   </Badge>
                 </div>
-                <p className="text-xs text-gray-400 mb-3">
+                <p className="text-xs text-white/30 mb-3">
                   {new Date(s.createdAt).toLocaleDateString("en-AU")}
                 </p>
                 <div className="flex gap-2">
@@ -718,7 +718,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
                   <Button size="sm" variant="outline" className="flex-1" onClick={() => setViewingId(s.id)}>
                     <Eye className="w-3.5 h-3.5 mr-1" /> View
                   </Button>
-                  <Button size="sm" variant="outline" className="text-red-600 px-3" onClick={() => {
+                  <Button size="sm" variant="outline" className="text-red-400 px-3" onClick={() => {
                     if (confirm("Delete this form?")) deleteMutation.mutate({ id: s.id });
                   }}>
                     <Trash2 className="w-3.5 h-3.5" />
@@ -737,14 +737,14 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
             <DialogHeader>
               <DialogTitle>Start New Form</DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-gray-600 mb-3">Choose a template to start filling out:</p>
+            <p className="text-sm text-white/60 mb-3">Choose a template to start filling out:</p>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {(templates ?? []).filter(t => t.isActive).map(t => (
                 <button
                   key={t.id}
                   onClick={() => { setSelectedTemplateId(t.id); setShowNew(false); }}
                   className={`w-full text-left p-3 rounded-lg border transition-colors hover:border-[#F5A623] ${
-                    selectedTemplateId === t.id ? "border-[#F5A623] bg-amber-50" : "border-gray-200"
+                    selectedTemplateId === t.id ? "border-[#F5A623] bg-amber-500/10" : "border-white/10"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -754,7 +754,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
                       {CATEGORY_LABELS[t.category] ?? t.category}
                     </Badge>
                   </div>
-                  {t.description && <p className="text-xs text-gray-500 mt-1 ml-6">{t.description}</p>}
+                  {t.description && <p className="text-xs text-white/40 mt-1 ml-6">{t.description}</p>}
                 </button>
               ))}
             </div>
@@ -879,11 +879,11 @@ function FormFillerDialog({
   return (
     <>
       {/* Mobile: full-screen overlay */}
-      <div className="sm:hidden fixed inset-0 z-50 bg-white flex flex-col">
+      <div className="sm:hidden fixed inset-0 z-50 flex flex-col" style={{ background: '#0B1629' }}>
         {/* Sticky header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white sticky top-0 z-10">
-          <h2 className="font-semibold text-gray-900 text-[16px] truncate flex-1 mr-2">{title || "Fill Form"}</h2>
-          <button onClick={onClose} className="p-2 -mr-2 text-gray-500">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 sticky top-0 z-10" style={{ background: '#0F1F3D' }}>
+          <h2 className="font-semibold text-white text-[16px] truncate flex-1 mr-2">{title || "Fill Form"}</h2>
+          <button onClick={onClose} className="p-2 -mr-2 text-white/50">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -905,8 +905,8 @@ function FormFillerDialog({
         </div>
 
         {/* Sticky bottom actions */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3 space-y-2"
-          style={{ paddingBottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))` }}
+        <div className="sticky bottom-0 border-t border-white/10 px-4 py-3 space-y-2"
+          style={{ background: '#0F1F3D', paddingBottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))` }}
         >
           <Button
             onClick={() => save("completed")}
@@ -1010,22 +1010,22 @@ function FormViewerDialog({ submissionId, onClose }: { submissionId: number; onC
           {fields.map(field => {
             if (field.type === "heading") {
               return (
-                <h3 key={field.id} className="text-base font-bold text-[#0F1F3D] border-b border-gray-200 pb-1 pt-2">
+                <h3 key={field.id} className="text-base font-bold text-white border-b border-white/10 pb-1 pt-2">
                   {field.label}
                 </h3>
               );
             }
             if (field.type === "divider") {
-              return <hr key={field.id} className="border-gray-200" />;
+              return <hr key={field.id} className="border-white/10" />;
             }
             if (field.type === "signature") {
               return (
                 <div key={field.id}>
-                  <p className="text-sm font-medium text-gray-700">{field.label}</p>
+                  <p className="text-sm font-medium text-white/70">{field.label}</p>
                   {signatures[field.id] ? (
                     <img src={signatures[field.id]} alt="Signature" className="h-16 border rounded mt-1" />
                   ) : (
-                    <p className="text-sm text-gray-400 italic">Not signed</p>
+                    <p className="text-sm text-white/30 italic">Not signed</p>
                   )}
                 </div>
               );
@@ -1034,15 +1034,15 @@ function FormViewerDialog({ submissionId, onClose }: { submissionId: number; onC
               const checked = values[field.id] === true || values[field.id] === "true";
               return (
                 <div key={field.id} className="flex items-center gap-2 text-sm">
-                  {checked ? <CheckCircle className="w-4 h-4 text-green-600" /> : <AlertTriangle className="w-4 h-4 text-gray-300" />}
-                  <span className={checked ? "text-gray-900" : "text-gray-400"}>{field.label}</span>
+                  {checked ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-white/20" />}
+                  <span className={checked ? "text-white" : "text-white/40"}>{field.label}</span>
                 </div>
               );
             }
             return (
               <div key={field.id}>
-                <p className="text-sm font-medium text-gray-700">{field.label}</p>
-                <p className="text-sm text-gray-900">{(values[field.id] as string) || "—"}</p>
+                <p className="text-sm font-medium text-white/70">{field.label}</p>
+                <p className="text-sm text-white">{(values[field.id] as string) || "—"}</p>
               </div>
             );
           })}
