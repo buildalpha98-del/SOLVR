@@ -472,4 +472,10 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Register storage proxy in server/_core/index.ts
 - [x] Replace video placeholder in Home.tsx with actual <video> element
 - [x] Verify video plays in browser preview (readyState:4, autoPlay, 35s duration)
+- [x] Save checkpoint (version 231accec)
+
+### Hero Video Poster Frame (22 April 2026)
+- [x] Extract first frame from demo video as poster-frame.jpg
+- [x] Upload poster frame to manus-storage
+- [x] Add poster attribute to <video> element in Home.tsx
 - [ ] Save checkpoint

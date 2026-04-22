@@ -536,6 +536,7 @@ export default function Home() {
             >
               <video
                 src="/manus-storage/solvr-voice-to-quote-demo_1d0a1ceb.mp4"
+                poster="/manus-storage/poster-frame_13afa86b.jpg"
                 autoPlay
                 muted
                 loop
