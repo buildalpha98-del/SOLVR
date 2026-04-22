@@ -108,21 +108,21 @@ export const portalJobsProcedures = {
   updateJobDetail: publicProcedure
     .input(z.object({
       id: z.number(),
-      customerName: z.string().optional(),
-      customerEmail: z.string().optional(),
-      customerPhone: z.string().optional(),
-      customerAddress: z.string().optional(),
-      jobType: z.string().optional(),
-      description: z.string().optional(),
-      location: z.string().optional(),
-      notes: z.string().optional(),
+      customerName: z.string().nullish(),
+      customerEmail: z.string().nullish(),
+      customerPhone: z.string().nullish(),
+      customerAddress: z.string().nullish(),
+      jobType: z.string().nullish(),
+      description: z.string().nullish(),
+      location: z.string().nullish(),
+      notes: z.string().nullish(),
       stage: z.enum(["new_lead", "quoted", "booked", "in_progress", "completed", "lost"]).optional(),
       estimatedValue: z.number().optional(),
       actualValue: z.number().optional(),
-      preferredDate: z.string().optional(),
-      completionNotes: z.string().optional(),
-      variationNotes: z.string().optional(),
-      actualHours: z.string().optional(),
+      preferredDate: z.string().nullish(),
+      completionNotes: z.string().nullish(),
+      variationNotes: z.string().nullish(),
+      actualHours: z.string().nullish(),
       invoiceStatus: z.enum(["not_invoiced", "draft", "sent", "paid", "overdue"]).optional(),
       paymentMethod: z.enum(["bank_transfer", "cash", "stripe", "other"]).optional(),
     }))
@@ -177,8 +177,8 @@ export const portalJobsProcedures = {
       jobId: z.number(),
       amountCents: z.number().int().positive(),
       method: z.enum(["bank_transfer", "cash", "stripe", "cheque", "other"]),
-      label: z.string().optional(),
-      note: z.string().optional(),
+      label: z.string().nullish(),
+      note: z.string().nullish(),
       receivedAt: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -233,7 +233,7 @@ export const portalJobsProcedures = {
       // when the image is fetched/displayed.
       imageUrl: z.string().min(1),
       imageKey: z.string(),
-      caption: z.string().optional(),
+      caption: z.string().nullish(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
@@ -267,9 +267,9 @@ export const portalJobsProcedures = {
   markJobComplete: publicProcedure
     .input(z.object({
       id: z.number(),
-      completionNotes: z.string().optional(),
-      variationNotes: z.string().optional(),
-      actualHours: z.string().optional(),
+      completionNotes: z.string().nullish(),
+      variationNotes: z.string().nullish(),
+      actualHours: z.string().nullish(),
       actualValue: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -446,13 +446,13 @@ export const portalJobsProcedures = {
   generateInvoice: publicProcedure
     .input(z.object({
       jobId: z.number(),
-      customerName: z.string().optional(),
-      customerEmail: z.string().optional(),
+      customerName: z.string().nullish(),
+      customerEmail: z.string().nullish(),
       invoicedAmount: z.number().int().optional(), // total in cents
       paymentMethod: z.enum(["bank_transfer", "cash", "stripe", "other"]).optional(),
       isCashPaid: z.boolean().optional(),
-      notes: z.string().optional(),
-      dueDate: z.string().optional(), // ISO date string
+      notes: z.string().nullish(),
+      dueDate: z.string().nullish(), // ISO date string
       sendEmail: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -477,13 +477,13 @@ export const portalJobsProcedures = {
         client.businessName,
         input.jobId,
         {
-          customerName: input.customerName,
-          customerEmail: input.customerEmail,
+          customerName: input.customerName ?? undefined,
+          customerEmail: input.customerEmail ?? undefined,
           invoicedAmount: input.invoicedAmount,
           paymentMethod: input.paymentMethod,
           isCashPaid: input.isCashPaid,
-          notes: input.notes,
-          dueDate: input.dueDate,
+          notes: input.notes ?? undefined,
+          dueDate: input.dueDate ?? undefined,
           sendEmail: input.sendEmail,
         },
         origin,
@@ -601,9 +601,10 @@ export const portalJobsProcedures = {
     .input(z.object({
       jobId: z.number(),
       sendEmail: z.boolean().optional().default(false),
-      customerEmail: z.string().optional(),
+      customerEmail: z.string().nullish(),
     }))
     .mutation(async ({ input, ctx }) => {
+      console.log(`[generateCompletionReport] START jobId=${input.jobId} sendEmail=${input.sendEmail} customerEmail=${JSON.stringify(input.customerEmail)}`);
       const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
       const job = await getPortalJob(input.jobId);
       if (!job || job.clientId !== client.id) {
@@ -631,7 +632,14 @@ export const portalJobsProcedures = {
 
       // Fetch logo buffer
       let logoBuffer: Buffer | null = null;
-      if (profile?.logoUrl) logoBuffer = await fetchImageBuffer(profile.logoUrl);
+      if (profile?.logoUrl) {
+        try {
+          logoBuffer = await fetchImageBuffer(profile.logoUrl);
+        } catch (e) {
+          console.error(`[generateCompletionReport] fetchImageBuffer failed for logoUrl=${profile.logoUrl}:`, e);
+          // Continue without logo — non-fatal
+        }
+      }
 
       const now = new Date();
       const totalCents = job.invoicedAmount ?? (job.actualValue ? Math.round(job.actualValue * 100) : 0);
@@ -668,32 +676,55 @@ export const portalJobsProcedures = {
       };
 
       // Render PDF
-      const element = React.createElement(CompletionReportDocument, { input: reportInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
-      const pdfBuffer = Buffer.from(await renderToBuffer(element));
+      let pdfBuffer: Buffer;
+      try {
+        console.log(`[generateCompletionReport] Rendering PDF for jobId=${input.jobId}...`);
+        const element = React.createElement(CompletionReportDocument, { input: reportInput }) as unknown as React.ReactElement<React.ComponentProps<typeof Document>>;
+        pdfBuffer = Buffer.from(await renderToBuffer(element));
+        console.log(`[generateCompletionReport] PDF rendered: ${pdfBuffer.length} bytes`);
+      } catch (e) {
+        console.error(`[generateCompletionReport] renderToBuffer FAILED for jobId=${input.jobId}:`, e);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to render completion report PDF: ${e instanceof Error ? e.message : String(e)}` });
+      }
 
       // Upload to S3
+      let pdfUrl: string;
       const reportRef = `CR-${String(Date.now()).slice(-6)}`;
-      const { url: pdfUrl } = await storagePut(
-        `completion-reports/${client.id}/${reportRef}-${Date.now()}.pdf`,
-        pdfBuffer,
-        "application/pdf",
-      );
+      try {
+        const result = await storagePut(
+          `completion-reports/${client.id}/${reportRef}-${Date.now()}.pdf`,
+          pdfBuffer,
+          "application/pdf",
+        );
+        pdfUrl = result.url;
+        console.log(`[generateCompletionReport] S3 upload OK: url.length=${pdfUrl.length} url=${pdfUrl.substring(0, 120)}...`);
+      } catch (e) {
+        console.error(`[generateCompletionReport] storagePut FAILED for jobId=${input.jobId}:`, e);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to upload completion report: ${e instanceof Error ? e.message : String(e)}` });
+      }
 
       // Generate a public token for the read-only customer view
       const reportToken = randomUUID().replace(/-/g, "");
 
       // Save URL and token to job record
-      await updatePortalJob(input.jobId, { completionReportUrl: pdfUrl, completionReportToken: reportToken } as any);
+      try {
+        await updatePortalJob(input.jobId, { completionReportUrl: pdfUrl, completionReportToken: reportToken } as any);
+        console.log(`[generateCompletionReport] DB updated: jobId=${input.jobId} reportToken=${reportToken}`);
+      } catch (e) {
+        console.error(`[generateCompletionReport] updatePortalJob FAILED: jobId=${input.jobId} pdfUrl.length=${pdfUrl.length}`, e);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Failed to save report URL to database: ${e instanceof Error ? e.message : String(e)}` });
+      }
 
       // Send email if requested
       const recipientEmail = input.customerEmail ?? job.customerEmail ?? null;
       const shouldSendEmail = input.sendEmail && !!recipientEmail;
       if (shouldSendEmail && recipientEmail) {
-        const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
-        // Build the public view URL — origin comes from the request headers
-        const origin = (ctx.req as any)?.headers?.origin ?? "https://solvr.com.au";
-        const publicViewUrl = `${origin}/report/${reportToken}`;
-        const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
+        try {
+          const businessName = profile?.tradingName ?? client.businessName ?? "Your Service Provider";
+          // Build the public view URL — origin comes from the request headers
+          const origin = (ctx.req as any)?.headers?.origin ?? "https://solvr.com.au";
+          const publicViewUrl = `${origin}/report/${reportToken}`;
+          const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1F2937;max-width:600px;margin:0 auto;padding:20px">
 <h2 style="color:#1F2937">Job Completion Report</h2>
 <p>Hi ${reportInput.job.customerName ?? "there"},</p>
 <p>Please find your job completion report for <strong>${reportInput.job.jobTitle}</strong>.</p>
@@ -704,15 +735,21 @@ export const portalJobsProcedures = {
 <p style="color:#6B7280;font-size:13px">Or download the PDF attached to this email.</p>
 <p style="color:#6B7280;font-size:13px">Powered by <a href="https://solvr.com.au" style="color:#6B7280">Solvr</a></p>
 </body></html>`;
-        await sendEmail({
-          to: recipientEmail,
-          subject: `Job Completion Report from ${businessName}`,
-          html,
-          fromName: businessName,
-          attachments: [{ filename: `completion-report-${reportRef}.pdf`, content: pdfBuffer }],
-        });
+          await sendEmail({
+            to: recipientEmail,
+            subject: `Job Completion Report from ${businessName}`,
+            html,
+            fromName: businessName,
+            attachments: [{ filename: `completion-report-${reportRef}.pdf`, content: pdfBuffer }],
+          });
+          console.log(`[generateCompletionReport] Email sent to ${recipientEmail}`);
+        } catch (e) {
+          console.error(`[generateCompletionReport] sendEmail FAILED: to=${recipientEmail}`, e);
+          // Non-fatal — report was still generated and saved
+        }
       }
 
+      console.log(`[generateCompletionReport] DONE jobId=${input.jobId} sent=${shouldSendEmail}`);
       return { success: true, pdfUrl, reportToken, sent: shouldSendEmail };
     }),
 
@@ -773,12 +810,12 @@ export const portalJobsProcedures = {
   updateTradieCustomer: publicProcedure
     .input(z.object({
       id: z.number(),
-      notes: z.string().optional(),
+      notes: z.string().nullish(),
       tags: z.array(z.string()).optional(),
-      name: z.string().optional(),
-      email: z.string().optional(),
-      phone: z.string().optional(),
-      address: z.string().optional(),
+      name: z.string().nullish(),
+      email: z.string().nullish(),
+      phone: z.string().nullish(),
+      address: z.string().nullish(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
@@ -786,8 +823,12 @@ export const portalJobsProcedures = {
       if (!customer || customer.clientId !== client.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found." });
       }
-      const { id, ...data } = input;
-      await updateTradieCustomer(id, data);
+      const { id, ...rawData } = input;
+      // Strip null values to undefined for DB compatibility
+      const data = Object.fromEntries(
+        Object.entries(rawData).map(([k, v]) => [k, v === null ? undefined : v])
+      ) as Partial<typeof rawData>;
+      await updateTradieCustomer(id, data as any);
       return { success: true };
     }),
 

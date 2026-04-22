@@ -130,7 +130,7 @@ export const crmClients = mysqlTable("crm_clients", {
   aiBriefUpdatedAt: timestamp("aiBriefUpdatedAt"),
   //  Quote branding (used on PDF quotes sent to customers) 
   /** Business logo URL (S3) for quote PDF header */
-  quoteBrandLogoUrl: varchar("quoteBrandLogoUrl", { length: 512 }),
+  quoteBrandLogoUrl: text("quoteBrandLogoUrl"),
   /** Primary brand colour hex (e.g. #1E3A5F) */
   quoteBrandPrimaryColor: varchar("quoteBrandPrimaryColor", { length: 16 }),
   /** Secondary brand colour hex (e.g. #F59E0B) */
@@ -620,10 +620,10 @@ export const portalJobs = mysqlTable("portal_jobs", {
   invoicedAt: timestamp("invoicedAt"),
   /** When the job was fully paid */
   paidAt: timestamp("paidAt"),
-  /** S3 URL of the generated invoice PDF */
-  invoicePdfUrl: varchar("invoicePdfUrl", { length: 512 }),
-  /** S3 URL of the generated job completion report PDF */
-  completionReportUrl: varchar("completionReportUrl", { length: 512 }),
+  /** S3 URL of the generated invoice PDF (text — S3/CloudFront URLs can exceed 512 chars) */
+  invoicePdfUrl: text("invoicePdfUrl"),
+  /** S3 URL of the generated job completion report PDF (text — S3/CloudFront URLs can exceed 512 chars) */
+  completionReportUrl: text("completionReportUrl"),
   /** Public token for read-only customer view of the completion report (no auth required) */
   completionReportToken: varchar("completionReportToken", { length: 64 }),
   /** Public token for the customer job status page (no auth required) */
@@ -738,7 +738,7 @@ export const quoteVoiceRecordings = mysqlTable("quote_voice_recordings", {
   /** FK to crmClients.id */
   clientId: int("clientId").notNull(),
   /** S3 URL of the uploaded audio file */
-  audioUrl: varchar("audioUrl", { length: 512 }).notNull(),
+  audioUrl: text("audioUrl").notNull(),
   /** Duration in seconds */
   durationSeconds: int("durationSeconds"),
   /** Processing pipeline status */
@@ -806,9 +806,9 @@ export const quotes = mysqlTable("quotes", {
   convertedJobId: int("convertedJobId"),
   //  PDF 
   /** S3 URL of the generated PDF */
-  pdfUrl: varchar("pdfUrl", { length: 512 }),
-  /** S3 key of the generated PDF */
-  pdfKey: varchar("pdfKey", { length: 512 }),
+  pdfUrl: text("pdfUrl"),
+  /** S3 key for the PDF file */
+  pdfKey: text("pdfKey"),
   //  Language 
   /** ISO-639-1 code detected by Whisper (e.g. "ar", "zh", "hi"). Null means English or undetected. */
   detectedLanguage: varchar("detectedLanguage", { length: 10 }),
@@ -852,9 +852,9 @@ export const quotePhotos = mysqlTable("quote_photos", {
   /** FK to quotes.id */
   quoteId: varchar("quoteId", { length: 36 }).notNull(),
   /** S3 URL of the full-resolution photo */
-  imageUrl: varchar("imageUrl", { length: 512 }).notNull(),
-  /** S3 URL of the resized thumbnail */
-  thumbnailUrl: varchar("thumbnailUrl", { length: 512 }),
+  imageUrl: text("imageUrl").notNull(),
+  /** Thumbnail URL for quick loading */
+  thumbnailUrl: text("thumbnailUrl"),
   caption: varchar("caption", { length: 255 }),
   /** AI-generated description from vision model */
   aiDescription: text("aiDescription"),
@@ -990,7 +990,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
   emergencyFee: decimal("emergencyFee", { precision: 10, scale: 2 }),
 
   //  Section 3: Branding & Identity 
-  logoUrl: varchar("logoUrl", { length: 512 }),
+  logoUrl: text("logoUrl"),
   primaryColor: varchar("primaryColor", { length: 16 }),
   secondaryColor: varchar("secondaryColor", { length: 16 }),
   brandFont: mysqlEnum("brandFont", ["professional", "modern", "classic"]),
@@ -1074,7 +1074,7 @@ export const clientProfiles = mysqlTable("client_profiles", {
 
   // ── Google Review Automation ─────────────────────────────────────────────────
   /** Direct Google Maps review link (e.g. https://g.page/r/xxx/review) */
-  googleReviewLink: varchar("googleReviewLink", { length: 512 }),
+  googleReviewLink: text("googleReviewLink"),
   /** Whether to auto-send a review request when a job is marked complete */
   reviewRequestEnabled: boolean("reviewRequestEnabled").default(true).notNull(),
   /** Delay in minutes before the review request is sent after job completion (default 30) */
@@ -1165,9 +1165,9 @@ export const jobPhotos = mysqlTable("job_photos", {
   /** Whether this is a before or after photo */
   photoType: mysqlEnum("photoType", ["before", "after", "during", "other"]).notNull(),
   /** S3 URL of the full-resolution photo */
-  imageUrl: varchar("imageUrl", { length: 512 }).notNull(),
+  imageUrl: text("imageUrl").notNull(),
   /** S3 key (for deletion) */
-  imageKey: varchar("imageKey", { length: 512 }).notNull(),
+  imageKey: text("imageKey").notNull(),
   /** Optional caption */
   caption: varchar("caption", { length: 255 }),
   sortOrder: int("sortOrder").default(0).notNull(),
@@ -1927,7 +1927,7 @@ export const purchaseOrders = mysqlTable("purchase_orders", {
   /** Internal notes */
   notes: text("notes"),
   /** S3 URL of the generated PO PDF */
-  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  pdfUrl: text("pdfUrl"),
   /** Magic-link token for supplier to view/acknowledge this PO (no auth required) */
   supplierAccessToken: varchar("supplierAccessToken", { length: 64 }).unique(),
   /** When the PO was sent to the supplier */
@@ -2020,7 +2020,7 @@ export const formSubmissions = mysqlTable("form_submissions", {
   /** Snapshot of template fields at submission time (form versioning) */
   templateSnapshot: json("templateSnapshot").$type<FormField[]>(),
   /** S3 URL of the generated PDF */
-  pdfUrl: varchar("pdfUrl", { length: 512 }),
+  pdfUrl: text("pdfUrl"),
   /** Submission status */
   status: mysqlEnum("form_status", ["draft", "completed", "archived"]).default("draft").notNull(),
   /** Who submitted (name or email) */
