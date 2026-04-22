@@ -528,23 +528,20 @@ export default function Home() {
 
         {/* Right column: video + quote card */}
         <div className="flex flex-col gap-6">
-          {/* ── VIDEO PLACEHOLDER ── Replace src with your mp4 CDN URL when ready */}
+          {/* ── VOICE-TO-QUOTE DEMO VIDEO ── */}
           <Reveal>
             <div
               className="rounded-2xl overflow-hidden relative"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", aspectRatio: "16/9" }}
             >
-              {/* Swap this div for: <video src="YOUR_CDN_URL.mp4" autoPlay muted loop playsInline className="w-full h-full object-cover" /> */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(245,166,35,0.15)", border: "1.5px solid rgba(245,166,35,0.3)" }}
-                >
-                  <span style={{ fontSize: 28 }}>▶</span>
-                </div>
-                <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>Voice-to-quote demo</p>
-                <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>15-second screen recording goes here</p>
-              </div>
+              <video
+                src="/manus-storage/solvr-voice-to-quote-demo_1d0a1ceb.mp4"
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full h-full object-cover"
+              />
             </div>
           </Reveal>
 

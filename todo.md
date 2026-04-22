@@ -464,4 +464,12 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Add "Download My Data" button to DeleteAccountSection in PortalSettings.tsx
 - [x] Wire frontend: refetch on click → Blob → download as solvr-data-export-YYYY-MM-DD.json
 - [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
+- [x] Save checkpoint (version 3e8ef40a)
+
+### Hero Video Upload (22 April 2026)
+- [x] Upload demo video to manus-storage via manus-upload-file --webdev
+- [x] Create server/_core/storageProxy.ts for /manus-storage/* route
+- [x] Register storage proxy in server/_core/index.ts
+- [x] Replace video placeholder in Home.tsx with actual <video> element
+- [x] Verify video plays in browser preview (readyState:4, autoPlay, 35s duration)
 - [ ] Save checkpoint
