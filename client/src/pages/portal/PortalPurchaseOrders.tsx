@@ -12,6 +12,7 @@
  * vertical sections in PO detail, pb-24 for tab bar clearance.
  */
 import { useState, useMemo } from "react";
+import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ import {
 const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
+  draft: "bg-white/10 text-white/80",
   sent: "bg-blue-100 text-blue-700",
   acknowledged: "bg-amber-100 text-amber-700",
   received: "bg-green-100 text-green-700",
@@ -46,21 +47,22 @@ export default function PortalPurchaseOrders() {
   const [search, setSearch] = useState("");
 
   return (
+    <PortalLayout>
     <div className="space-y-4 pb-24">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Purchase Orders</h1>
-        <p className="text-[13px] text-gray-500 mt-0.5">Manage suppliers and send purchase orders</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Purchase Orders</h1>
+        <p className="text-[13px] text-white/50 mt-0.5">Manage suppliers and send purchase orders</p>
       </div>
 
       {/* Tabs — full width on mobile */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+      <div className="flex gap-1 bg-white/10 p-1 rounded-lg">
         {(["orders", "suppliers"] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              tab === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              tab === t ? "bg-[#0F1F3D] text-white shadow-sm" : "text-white/50 hover:text-white/80"
             }`}
           >
             {t === "orders" ? "Purchase Orders" : "Suppliers"}
@@ -70,7 +72,7 @@ export default function PortalPurchaseOrders() {
 
       {/* Search — full width on mobile */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
         <Input
           placeholder={`Search ${tab}...`}
           value={search}
@@ -85,6 +87,7 @@ export default function PortalPurchaseOrders() {
         <OrdersTab search={search} />
       )}
     </div>
+    </PortalLayout>
   );
 }
 
@@ -109,7 +112,7 @@ function SuppliersTab({ search }: { search: string }) {
     onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticWarning(); toast.success("Supplier removed"); },
   });
 
-  if (isLoading) return <div className="text-center py-12 text-gray-400">Loading suppliers...</div>;
+  if (isLoading) return <div className="text-center py-12 text-white/40">Loading suppliers...</div>;
 
   return (
     <>
@@ -120,7 +123,7 @@ function SuppliersTab({ search }: { search: string }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-white/40">
           <Building2 className="h-12 w-12 mx-auto mb-3 opacity-40" />
           <p className="font-medium">No suppliers yet</p>
           <p className="text-sm mt-1">Add your first supplier to start creating purchase orders</p>
@@ -128,22 +131,22 @@ function SuppliersTab({ search }: { search: string }) {
       ) : (
         <div className="grid gap-3">
           {filtered.map(s => (
-            <div key={s.id} className="bg-white border border-gray-200 rounded-lg p-4">
+            <div key={s.id} className="bg-[#0F1F3D] border border-white/10 rounded-lg p-4">
               {/* Supplier info */}
               <div className="min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <span className="font-semibold text-gray-900 text-[15px] block truncate">{s.name}</span>
-                    {s.abn && <span className="text-xs text-gray-400 block mt-0.5">ABN: {s.abn}</span>}
+                    <span className="font-semibold text-white text-[15px] block truncate">{s.name}</span>
+                    {s.abn && <span className="text-xs text-white/40 block mt-0.5">ABN: {s.abn}</span>}
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 mt-2 text-sm text-gray-500">
+                <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 mt-2 text-sm text-white/50">
                   {s.contactName && <span className="truncate">{s.contactName}</span>}
                   {s.email && <span className="truncate">{s.email}</span>}
                   {s.phone && <span>{s.phone}</span>}
                 </div>
                 {s.paymentTerms && (
-                  <span className="text-xs text-gray-400 mt-1.5 block">Terms: {s.paymentTerms}</span>
+                  <span className="text-xs text-white/40 mt-1.5 block">Terms: {s.paymentTerms}</span>
                 )}
               </div>
               {/* Actions — stacked on mobile */}
@@ -298,7 +301,7 @@ function OrdersTab({ search }: { search: string }) {
     onError: (err) => toast.error(err.message),
   });
 
-  if (isLoading) return <div className="text-center py-12 text-gray-400">Loading purchase orders...</div>;
+  if (isLoading) return <div className="text-center py-12 text-white/40">Loading purchase orders...</div>;
 
   return (
     <>
@@ -315,7 +318,7 @@ function OrdersTab({ search }: { search: string }) {
       )}
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-white/40">
           <Package className="h-12 w-12 mx-auto mb-3 opacity-40" />
           <p className="font-medium">No purchase orders yet</p>
           <p className="text-sm mt-1">Create your first PO to track material costs</p>
@@ -325,26 +328,26 @@ function OrdersTab({ search }: { search: string }) {
           {filtered.map(o => (
             <div
               key={o.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 active:bg-gray-50 transition-colors cursor-pointer"
+              className="bg-[#0F1F3D] border border-white/10 rounded-lg p-4 active:bg-white/5 transition-colors cursor-pointer"
               onClick={() => setViewId(o.id)}
             >
               {/* Card header: PO number + status */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-semibold text-gray-900 text-[15px]">{o.poNumber}</span>
+                    <span className="font-mono font-semibold text-white text-[15px]">{o.poNumber}</span>
                     <Badge className={`${STATUS_COLORS[o.status] ?? ""} text-[11px]`}>{o.status}</Badge>
                   </div>
-                  <span className="text-sm text-gray-500 block mt-0.5 truncate">
+                  <span className="text-sm text-white/50 block mt-0.5 truncate">
                     {supplierMap.get(o.supplierId) ?? "Unknown supplier"}
                   </span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
+                <ChevronRight className="w-4 h-4 text-white/30 flex-shrink-0 mt-1" />
               </div>
 
               {/* Card meta: total + date */}
-              <div className="flex items-center gap-3 text-sm text-gray-400">
-                <span className="font-semibold text-gray-700">{fmt(o.totalCents)}</span>
+              <div className="flex items-center gap-3 text-sm text-white/40">
+                <span className="font-semibold text-white/80">{fmt(o.totalCents)}</span>
                 <span>{new Date(o.createdAt).toLocaleDateString("en-AU")}</span>
                 {o.sentAt && <span className="text-green-600">Sent {new Date(o.sentAt).toLocaleDateString("en-AU")}</span>}
               </div>
@@ -440,7 +443,7 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Supplier *</label>
+            <label className="text-sm font-medium text-white/80 mb-1 block">Supplier *</label>
             <Select value={supplierId} onValueChange={setSupplierId}>
               <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
               <SelectContent>
@@ -452,7 +455,7 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
           </div>
           {/* Delivery address with presets */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
+            <label className="text-sm font-medium text-white/80 mb-1 block">
               <MapPin className="h-3.5 w-3.5 inline mr-1" />Delivery address
             </label>
             {addressPresets && addressPresets.length > 1 && (
@@ -469,7 +472,7 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
                     className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                       addressPresetKey === p.key
                         ? "bg-amber-100 border-amber-400 text-amber-800 font-medium"
-                        : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                        : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
                     }`}
                   >
                     {p.label}
@@ -484,19 +487,19 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Required by</label>
+            <label className="text-sm font-medium text-white/80 mb-1 block">Required by</label>
             <Input type="date" value={requiredByDate} onChange={e => setRequiredByDate(e.target.value)} />
           </div>
 
           {/* Line items — mobile-friendly stacked layout */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Line Items</label>
+              <label className="text-sm font-medium text-white/80">Line Items</label>
               <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" /> Add</Button>
             </div>
             <div className="space-y-3">
               {items.map((item, idx) => (
-                <div key={idx} className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <div key={idx} className="bg-white/5 rounded-lg p-3 space-y-2">
                   <Input
                     placeholder="Description"
                     value={item.description}
@@ -532,7 +535,7 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
             </div>
-            <div className="text-right mt-2 text-sm font-semibold text-gray-700">
+            <div className="text-right mt-2 text-sm font-semibold text-white/80">
               Total: {fmt(totalCents)}
             </div>
           </div>
@@ -591,17 +594,17 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
         <div className="space-y-4">
           {/* PO details — stacked vertically on mobile */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <span className="text-gray-500 block text-xs mb-0.5">Supplier</span>
+            <div className="bg-white/5 rounded-lg p-3">
+              <span className="text-white/50 block text-xs mb-0.5">Supplier</span>
               <span className="font-medium">{supplierName}</span>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <span className="text-gray-500 block text-xs mb-0.5">Created</span>
+            <div className="bg-white/5 rounded-lg p-3">
+              <span className="text-white/50 block text-xs mb-0.5">Created</span>
               <span className="font-medium">{new Date(po.createdAt).toLocaleDateString("en-AU")}</span>
             </div>
             {po.deliveryAddress && (
-              <div className="sm:col-span-2 bg-gray-50 rounded-lg p-3">
-                <span className="text-gray-500 block text-xs mb-0.5">Delivery Address</span>
+              <div className="sm:col-span-2 bg-white/5 rounded-lg p-3">
+                <span className="text-white/50 block text-xs mb-0.5">Delivery Address</span>
                 <span className="font-medium">{po.deliveryAddress}</span>
               </div>
             )}
@@ -609,16 +612,16 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
 
           {/* Items — card-based instead of table on mobile */}
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Items</h4>
+            <h4 className="text-sm font-medium text-white/80 mb-2">Items</h4>
 
             {/* Desktop table (hidden on mobile) */}
             <div className="hidden sm:block border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-white/5">
                   <tr>
-                    <th className="text-left px-3 py-2 font-medium text-gray-600">Description</th>
-                    <th className="text-center px-3 py-2 font-medium text-gray-600">Qty</th>
-                    <th className="text-right px-3 py-2 font-medium text-gray-600">Total</th>
+                    <th className="text-left px-3 py-2 font-medium text-white/70">Description</th>
+                    <th className="text-center px-3 py-2 font-medium text-white/70">Qty</th>
+                    <th className="text-right px-3 py-2 font-medium text-white/70">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -636,11 +639,11 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
             {/* Mobile card list */}
             <div className="sm:hidden space-y-2">
               {(po as any).items?.map((item: any, i: number) => (
-                <div key={i} className="bg-gray-50 rounded-lg p-3">
-                  <p className="font-medium text-gray-900 text-[14px]">{item.description}</p>
-                  <div className="flex justify-between mt-1 text-sm text-gray-500">
+                <div key={i} className="bg-white/5 rounded-lg p-3">
+                  <p className="font-medium text-white text-[14px]">{item.description}</p>
+                  <div className="flex justify-between mt-1 text-sm text-white/50">
                     <span>{item.quantity} {item.unit}</span>
-                    <span className="font-semibold text-gray-700">{item.lineTotalCents ? fmt(item.lineTotalCents) : "—"}</span>
+                    <span className="font-semibold text-white/80">{item.lineTotalCents ? fmt(item.lineTotalCents) : "—"}</span>
                   </div>
                 </div>
               ))}
@@ -650,12 +653,12 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
           </div>
 
           {po.notes && (
-            <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">{po.notes}</div>
+            <div className="bg-white/5 rounded-lg p-3 text-sm text-white/70">{po.notes}</div>
           )}
 
           {/* Status update */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Update Status</label>
+            <label className="text-sm font-medium text-white/80 mb-1 block">Update Status</label>
             <Select value={po.status} onValueChange={(v) => updateStatus.mutate({ id: po.id, status: v as any })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>

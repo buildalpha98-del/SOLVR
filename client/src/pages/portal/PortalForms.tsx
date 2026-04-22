@@ -12,6 +12,7 @@
  * canvas for touch, full-width dialogs, stacked buttons, pb-24.
  */
 import { useState, useRef, useCallback, useEffect } from "react";
+import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,6 +320,7 @@ export default function PortalForms() {
   }, [seeded]);
 
   return (
+    <PortalLayout>
     <div className="space-y-4 pb-24">
       {/* Header */}
       <div>
@@ -358,6 +360,7 @@ export default function PortalForms() {
         <SubmissionsTab search={search} linkedJobId={linkedJobId} />
       )}
     </div>
+    </PortalLayout>
   );
 }
 

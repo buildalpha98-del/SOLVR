@@ -259,7 +259,11 @@ export const portalJobTasksRouter = router({
     .input(
       z.object({
         jobId: z.number().int().positive(),
-        audioUrl: z.string().url(),
+        // z.string().url() intentionally NOT used — Zod v4 rejects S3 presigned
+        // URLs that contain X-Amz-Signature query params. The Capacitor iOS app
+        // uploads audio to S3 and sends back the presigned URL, which would
+        // fail .url() validation and produce "Invalid string" error on iOS.
+        audioUrl: z.string().min(1),
       }),
     )
     .mutation(async ({ ctx, input }) => {
