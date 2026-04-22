@@ -16,7 +16,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, publicProcedure } from "../_core/trpc";
 import { requirePortalAuth, requirePortalWrite } from "./portalAuth";
 import { getDb } from "../db";
 import { jobTemplates, jobTasks } from "../../drizzle/schema";
@@ -31,7 +31,7 @@ export const portalJobTemplatesRouter = router({
   /**
    * List all templates for the current client, ordered by most recently used.
    */
-  list: protectedProcedure
+  list: publicProcedure
     .input(z.object({ tradeType: z.string().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const { client } = await requirePortalAuth(ctx.req);
@@ -53,7 +53,7 @@ export const portalJobTemplatesRouter = router({
   /**
    * Get a single template by ID.
    */
-  get: protectedProcedure
+  get: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const { client } = await requirePortalAuth(ctx.req);
@@ -73,7 +73,7 @@ export const portalJobTemplatesRouter = router({
   /**
    * Create a new template from scratch.
    */
-  create: protectedProcedure
+  create: publicProcedure
     .input(
       z.object({
         name: z.string().min(1).max(255),
@@ -102,7 +102,7 @@ export const portalJobTemplatesRouter = router({
    * Save a completed job's task list as a new template.
    * Extracts all tasks from the specified job and creates a template.
    */
-  saveFromJob: protectedProcedure
+  saveFromJob: publicProcedure
     .input(
       z.object({
         jobId: z.number().int().positive(),
@@ -144,7 +144,7 @@ export const portalJobTemplatesRouter = router({
    * Apply a template to a job — creates tasks from the template's task list.
    * Increments the template's useCount.
    */
-  applyToJob: protectedProcedure
+  applyToJob: publicProcedure
     .input(
       z.object({
         templateId: z.number().int().positive(),
@@ -202,7 +202,7 @@ export const portalJobTemplatesRouter = router({
   /**
    * Update a template (name, description, tasks).
    */
-  update: protectedProcedure
+  update: publicProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -236,7 +236,7 @@ export const portalJobTemplatesRouter = router({
   /**
    * Delete a template.
    */
-  delete: protectedProcedure
+  delete: publicProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(ctx.req);

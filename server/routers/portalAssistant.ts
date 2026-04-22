@@ -17,7 +17,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, publicProcedure } from "../_core/trpc";
 import { requirePortalAuth, requirePortalWrite } from "./portalAuth";
 import {
   listChatMessages,
@@ -257,7 +257,7 @@ export const portalAssistantRouter = router({
   /**
    * Create a new conversation with a given title.
    */
-  createConversation: protectedProcedure
+  createConversation: publicProcedure
     .input(z.object({ title: z.string().min(1).max(120) }))
     .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(ctx.req);
@@ -276,7 +276,7 @@ export const portalAssistantRouter = router({
   /**
    * List recent conversations for the sidebar.
    */
-  listConversations: protectedProcedure
+  listConversations: publicProcedure
     .query(async ({ ctx }) => {
       const { client } = await requirePortalAuth(ctx.req);
       const raw = await listRecentConversations(client.id, 20);
@@ -294,7 +294,7 @@ export const portalAssistantRouter = router({
   /**
    * Get messages for a specific conversation.
    */
-  getMessages: protectedProcedure
+  getMessages: publicProcedure
     .input(z.object({ conversationId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const { client } = await requirePortalAuth(ctx.req);
@@ -305,7 +305,7 @@ export const portalAssistantRouter = router({
    * Send a message and get an AI response.
    * Saves both user message and assistant response to the database.
    */
-  chat: protectedProcedure
+  chat: publicProcedure
     .input(
       z.object({
         conversationId: z.string().min(1),
@@ -390,7 +390,7 @@ export const portalAssistantRouter = router({
   /**
    * Voice-to-chat: transcribe audio and send as a chat message.
    */
-  voiceChat: protectedProcedure
+  voiceChat: publicProcedure
     .input(
       z.object({
         conversationId: z.string().min(1),
@@ -460,7 +460,7 @@ export const portalAssistantRouter = router({
    * Generate a compliance document from the assistant's tool-call suggestion.
    * Called by the frontend when the user confirms the doc generation.
    */
-  generateDoc: protectedProcedure
+  generateDoc: publicProcedure
     .input(
       z.object({
         conversationId: z.string().min(1),
@@ -510,7 +510,7 @@ export const portalAssistantRouter = router({
    * Transcribe a base64-encoded audio blob to text.
    * Used by the frontend voice input button.
    */
-  transcribeVoice: protectedProcedure
+  transcribeVoice: publicProcedure
     .input(
       z.object({
         audioBase64: z.string().min(1),
@@ -531,7 +531,7 @@ export const portalAssistantRouter = router({
   /**
    * Delete a conversation and all its messages.
    */
-  deleteConversation: protectedProcedure
+  deleteConversation: publicProcedure
     .input(z.object({ conversationId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(ctx.req);

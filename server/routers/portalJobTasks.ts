@@ -13,7 +13,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, publicProcedure } from "../_core/trpc";
 import { requirePortalAuth, requirePortalWrite } from "./portalAuth";
 import {
   listJobTasks,
@@ -58,7 +58,7 @@ export const portalJobTasksRouter = router({
   /**
    * List all tasks for a job, ordered by sortOrder.
    */
-  list: protectedProcedure
+  list: publicProcedure
     .input(z.object({ jobId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const { client } = await requirePortalAuth(ctx.req);
@@ -70,7 +70,7 @@ export const portalJobTasksRouter = router({
   /**
    * Create a single task manually.
    */
-  create: protectedProcedure
+  create: publicProcedure
     .input(
       z.object({
         jobId: z.number().int().positive(),
@@ -104,7 +104,7 @@ export const portalJobTasksRouter = router({
   /**
    * Update a task's status, title, notes, or other fields.
    */
-  update: protectedProcedure
+  update: publicProcedure
     .input(
       z.object({
         id: z.number().int().positive(),
@@ -129,7 +129,7 @@ export const portalJobTasksRouter = router({
   /**
    * Reorder tasks by providing the full ordered list of task IDs.
    */
-  reorder: protectedProcedure
+  reorder: publicProcedure
     .input(
       z.object({
         jobId: z.number().int().positive(),
@@ -150,7 +150,7 @@ export const portalJobTasksRouter = router({
   /**
    * Delete a single task.
    */
-  delete: protectedProcedure
+  delete: publicProcedure
     .input(z.object({ id: z.number().int().positive(), jobId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(ctx.req);
@@ -164,7 +164,7 @@ export const portalJobTasksRouter = router({
    * Can also be triggered manually from the job card.
    * Clears existing AI-generated tasks before inserting new ones.
    */
-  generateFromTemplate: protectedProcedure
+  generateFromTemplate: publicProcedure
     .input(
       z.object({
         jobId: z.number().int().positive(),
@@ -231,7 +231,7 @@ export const portalJobTasksRouter = router({
    * Get (or generate) the next-action suggestion for a job card.
    * Returns cached value if available and < 1 hour old.
    */
-  getNextAction: protectedProcedure
+  getNextAction: publicProcedure
     .input(z.object({ jobId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
       const { client } = await requirePortalAuth(ctx.req);
@@ -255,7 +255,7 @@ export const portalJobTasksRouter = router({
    * Voice-to-tasks: transcribe a voice note and extract tasks from it.
    * Returns a list of suggested tasks for the user to confirm before adding.
    */
-  voiceToTasks: protectedProcedure
+  voiceToTasks: publicProcedure
     .input(
       z.object({
         jobId: z.number().int().positive(),
@@ -339,7 +339,7 @@ Return ONLY the JSON array, no other text.`,
   /**
    * Confirm and add voice-extracted tasks to a job.
    */
-  addVoiceTasks: protectedProcedure
+  addVoiceTasks: publicProcedure
     .input(
       z.object({
         jobId: z.number().int().positive(),

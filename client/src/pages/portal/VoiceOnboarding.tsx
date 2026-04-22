@@ -173,7 +173,7 @@ function SectionReRecorder({
         setStatus("uploading");
         const fd = new FormData();
         fd.append("file", blob, "section.webm");
-        const up = await fetch(`${getSolvrOrigin()}/api/upload-audio`, { method: "POST", body: fd, credentials: "include" });
+        const up = await fetch(`${getSolvrOrigin()}/api/portal/upload-audio`, { method: "POST", body: fd, credentials: "include" });
         if (!up.ok) throw new Error("Upload failed");
         const { url } = await up.json();
 
@@ -420,7 +420,7 @@ export default function VoiceOnboarding() {
       setStage("uploading");
       const formData = new FormData();
       formData.append("file", blob, "onboarding.webm");
-      const uploadRes = await fetch(`${getSolvrOrigin()}/api/upload-audio`, { method: "POST", body: formData, credentials: "include" });
+      const uploadRes = await fetch(`${getSolvrOrigin()}/api/portal/upload-audio`, { method: "POST", body: formData, credentials: "include" });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
         throw new Error(err.error ?? "Upload failed");

@@ -307,7 +307,7 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
         const formData = new FormData();
         formData.append("file", blob, "voice-tasks.webm");
         try {
-          const res = await fetch(`${getSolvrOrigin()}/api/upload-audio`, { method: "POST", body: formData, credentials: "include" });
+          const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-audio`, { method: "POST", body: formData, credentials: "include" });
           if (!res.ok) throw new Error("Upload failed");
           const { url } = await res.json() as { url: string };
           voiceToTasks.mutate({ jobId, audioUrl: url });
