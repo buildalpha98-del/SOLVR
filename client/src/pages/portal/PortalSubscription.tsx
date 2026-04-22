@@ -31,6 +31,11 @@ import {
   presentPaywall,
   type PurchaseOutcome,
 } from "@/lib/revenuecat";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 
 const PLAN_LABELS: Record<string, string> = {
   // New plans
@@ -437,27 +442,51 @@ export default function PortalSubscription() {
                 </ul>
               )}
 
-              {/* Manage billing / Upgrade CTAs — native paywall on iOS, web paywall on browser */}
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={handleOpenPaywall}
-                  className="flex items-center gap-2"
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  {isNativeApp() ? "Change Plan" : "Manage Subscription"}
-                </Button>
-                {(sub.plan === "solvr_quotes" || sub.plan === "starter") && (
+              {/* Manage billing CTA — hidden on native iOS (Apple Guideline 3.1.1) */}
+              {isNativeApp() ? (
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
                   <Button
-                    variant="outline"
-                    className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                    onClick={handleOpenPaywall}
+                    onClick={async () => {
+                      if (!isNativeRevenueCatConfigured() && user?.id) {
+                        await configureNativeRevenueCat(`rc_${user.id}`);
+                      }
+                      const result = await presentNativePaywall("solvr_ai");
+                      if (result.success) {
+                        toast.success("Subscription updated!");
+                        setTimeout(() => window.location.reload(), 2000);
+                      }
+                    }}
+                    className="flex items-center gap-2"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
                   >
-                    <Zap className="w-4 h-4" />
-                    Upgrade Plan
+                    <CreditCard className="w-4 h-4" />
+                    Manage Subscription
                   </Button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  {/* Manage Subscription — opens RevenueCat paywall for plan changes */}
+                  <Button
+                    onClick={handleOpenPaywall}
+                    className="flex items-center gap-2"
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Manage Subscription
+                  </Button>
+                  {/* Show upgrade CTA if on a lower tier */}
+                  {(sub.plan === "solvr_quotes" || sub.plan === "starter") && (
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                      onClick={handleOpenPaywall}
+                    >
+                      <Zap className="w-4 h-4" />
+                      Upgrade Plan
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* Source indicator */}
               {sub.subscriptionSource && (
@@ -489,21 +518,39 @@ export default function PortalSubscription() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <>
+              {isNativeApp() ? (
                 <Button
-                  onClick={handleOpenPaywall}
+                  onClick={async () => {
+                    if (!isNativeRevenueCatConfigured() && user?.id) {
+                      await configureNativeRevenueCat(`rc_${user.id}`);
+                    }
+                    const result = await presentNativePaywall("solvr_ai");
+                    if (result.success) {
+                      toast.success("Subscription activated!");
+                      setTimeout(() => window.location.reload(), 2000);
+                    }
+                  }}
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
                 >
                   View Plans & Subscribe
                 </Button>
-                <Button
-                  variant="outline"
-                  className="border-white/20 text-white/60 hover:bg-white/5"
-                  onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
-                >
-                  Contact Support
-                </Button>
-              </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleOpenPaywall}
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  >
+                    View Plans & Subscribe
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white/60 hover:bg-white/5"
+                    onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
+                  >
+                    Contact Support
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}

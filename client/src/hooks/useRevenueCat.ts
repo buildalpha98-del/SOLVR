@@ -1,37 +1,31 @@
 /**
- * useRevenueCat — React hook for RevenueCat integration (native + web).
+ * useRevenueCat — React hook for RevenueCat Web SDK integration.
  *
  * Provides:
  *   - Auto-initialisation on login (using portal client ID)
  *   - Customer info with entitlement checks
- *   - Purchase flow (native StoreKit on iOS, Stripe on web)
- *   - Paywall presentation (native paywall on iOS, web paywall on browser)
- *   - Active plan detection with tier hierarchy
- *   - Real-time subscription change listener (iOS)
- *   - Restore purchases support (iOS)
+ *   - Purchase flow (package-based)
+ *   - Paywall presentation
+ *   - Active plan detection
  *
  * @copyright ClearPath AI Agency Pty Ltd. All rights reserved.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { isNativeApp } from "@/const";
+import type { CustomerInfo, Package } from "@revenuecat/purchases-js";
 import {
   configureRevenueCat,
   isRevenueCatConfigured,
   getCustomerInfo,
   getOfferings,
   purchasePackage,
-  presentNativePaywall,
-  presentWebPaywall,
-  restorePurchases,
-  addCustomerInfoListener,
+  presentPaywall,
   getActivePlan,
   isSubscribed,
   hasEntitlement,
   planHasAccess,
   resetRevenueCat,
   RC_ENTITLEMENTS,
-  type SimpleCustomerInfo,
   type SolvrOffering,
   type SolvrEntitlement,
   type PurchaseOutcome,
@@ -43,25 +37,21 @@ export interface UseRevenueCatReturn {
   /** Whether we're currently loading customer info or offerings */
   loading: boolean;
   /** Current customer info from RevenueCat */
-  customerInfo: SimpleCustomerInfo | null;
+  customerInfo: CustomerInfo | null;
   /** Available offerings grouped by plan tier */
   offerings: Record<string, SolvrOffering> | null;
   /** The highest active plan (null if no subscription) */
   activePlan: SolvrEntitlement | null;
   /** Whether the user has any active subscription */
   hasSubscription: boolean;
-  /** Whether we're running on native (iOS/Android) */
-  isNative: boolean;
   /** Check if the user's plan has access to a specific tier */
   checkAccess: (requiredPlan: SolvrEntitlement) => boolean;
   /** Check if the user has a specific entitlement */
   checkEntitlement: (entitlementId: string) => boolean;
   /** Purchase a specific package */
-  purchase: (pkg: any, email?: string) => Promise<PurchaseOutcome>;
-  /** Show the paywall (native on iOS, web on browser) */
-  showPaywall: (targetElementOrEntitlementId?: HTMLElement | string) => Promise<PurchaseOutcome>;
-  /** Restore previous purchases (iOS only) */
-  restore: () => Promise<PurchaseOutcome>;
+  purchase: (pkg: Package, email?: string) => Promise<PurchaseOutcome>;
+  /** Present the RevenueCat paywall in a target element */
+  showPaywall: (targetElement: HTMLElement) => Promise<PurchaseOutcome>;
   /** Refresh customer info */
   refresh: () => Promise<void>;
   /** Reset SDK state (call on logout) */
@@ -71,7 +61,7 @@ export interface UseRevenueCatReturn {
 }
 
 /**
- * Hook to manage RevenueCat state across native and web.
+ * Hook to manage RevenueCat Web SDK state.
  *
  * @param clientId — the portal client ID (will be prefixed with "rc_" for RC user ID)
  * @param autoInit — whether to auto-initialise on mount (default: true)
@@ -82,35 +72,29 @@ export function useRevenueCat(
 ): UseRevenueCatReturn {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [customerInfo, setCustomerInfo] = useState<SimpleCustomerInfo | null>(null);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [offerings, setOfferings] = useState<Record<string, SolvrOffering> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const initRef = useRef(false);
-  const listenerCleanupRef = useRef<(() => void) | null>(null);
 
-  const isNative = isNativeApp();
+  // Derive subscription state from customer info
   const activePlan = customerInfo ? getActivePlan(customerInfo) : null;
   const hasSubscription = customerInfo ? isSubscribed(customerInfo) : false;
 
   // Initialise SDK when clientId is available
   useEffect(() => {
-    if (!autoInit || initRef.current) return;
-    // On native, we can initialise even without a clientId (anonymous)
-    // On web, we need a clientId
-    if (!isNative && !clientId) return;
-
+    if (!autoInit || !clientId || initRef.current) return;
     initRef.current = true;
 
-    (async () => {
-      try {
-        await configureRevenueCat(clientId?.toString());
-        setReady(true);
-      } catch (err) {
-        console.error("[useRevenueCat] init error:", err);
-        setError(err instanceof Error ? err.message : "Failed to initialise RevenueCat");
-      }
-    })();
-  }, [clientId, autoInit, isNative]);
+    const appUserId = `rc_${clientId}`;
+    try {
+      configureRevenueCat(appUserId);
+      setReady(true);
+    } catch (err) {
+      console.error("[useRevenueCat] init error:", err);
+      setError(err instanceof Error ? err.message : "Failed to initialise RevenueCat");
+    }
+  }, [clientId, autoInit]);
 
   // Fetch customer info and offerings once ready
   useEffect(() => {
@@ -138,26 +122,8 @@ export function useRevenueCat(
     }
 
     load();
-
-    // Set up native listener for real-time subscription changes
-    if (isNative) {
-      addCustomerInfoListener((updatedInfo) => {
-        if (!cancelled) setCustomerInfo(updatedInfo);
-      }).then((cleanup) => {
-        if (!cancelled && cleanup) {
-          listenerCleanupRef.current = cleanup;
-        }
-      });
-    }
-
-    return () => {
-      cancelled = true;
-      if (listenerCleanupRef.current) {
-        listenerCleanupRef.current();
-        listenerCleanupRef.current = null;
-      }
-    };
-  }, [ready, isNative]);
+    return () => { cancelled = true; };
+  }, [ready]);
 
   // Refresh customer info
   const refresh = useCallback(async () => {
@@ -175,7 +141,7 @@ export function useRevenueCat(
   }, [ready]);
 
   // Purchase a package
-  const purchase = useCallback(async (pkg: any, email?: string): Promise<PurchaseOutcome> => {
+  const purchase = useCallback(async (pkg: Package, email?: string): Promise<PurchaseOutcome> => {
     setLoading(true);
     try {
       const result = await purchasePackage(pkg, email);
@@ -188,41 +154,11 @@ export function useRevenueCat(
     }
   }, []);
 
-  // Show paywall — platform-aware
-  const showPaywall = useCallback(async (
-    targetElementOrEntitlementId?: HTMLElement | string,
-  ): Promise<PurchaseOutcome> => {
+  // Present paywall
+  const showPaywall = useCallback(async (targetElement: HTMLElement): Promise<PurchaseOutcome> => {
     setLoading(true);
     try {
-      let result: PurchaseOutcome;
-      if (isNative) {
-        // Native iOS — present native RevenueCat paywall
-        const entitlementId = typeof targetElementOrEntitlementId === "string"
-          ? targetElementOrEntitlementId
-          : undefined;
-        result = await presentNativePaywall(entitlementId);
-      } else {
-        // Web — present embedded web paywall
-        if (targetElementOrEntitlementId instanceof HTMLElement) {
-          result = await presentWebPaywall(targetElementOrEntitlementId);
-        } else {
-          result = { success: false, customerInfo: null, cancelled: false, error: "No target element for web paywall" };
-        }
-      }
-      if (result.success && result.customerInfo) {
-        setCustomerInfo(result.customerInfo);
-      }
-      return result;
-    } finally {
-      setLoading(false);
-    }
-  }, [isNative]);
-
-  // Restore purchases (iOS)
-  const restore = useCallback(async (): Promise<PurchaseOutcome> => {
-    setLoading(true);
-    try {
-      const result = await restorePurchases();
+      const result = await presentPaywall(targetElement);
       if (result.success && result.customerInfo) {
         setCustomerInfo(result.customerInfo);
       }
@@ -252,10 +188,6 @@ export function useRevenueCat(
     setOfferings(null);
     setError(null);
     initRef.current = false;
-    if (listenerCleanupRef.current) {
-      listenerCleanupRef.current();
-      listenerCleanupRef.current = null;
-    }
   }, []);
 
   return {
@@ -265,18 +197,16 @@ export function useRevenueCat(
     offerings,
     activePlan,
     hasSubscription,
-    isNative,
     checkAccess,
     checkEntitlement,
     purchase,
     showPaywall,
-    restore,
     refresh,
     reset,
     error,
   };
 }
 
-// Re-export for convenience
+// Re-export entitlement constants for convenience
 export { RC_ENTITLEMENTS };
-export type { SolvrEntitlement, SolvrOffering, SimpleCustomerInfo };
+export type { SolvrEntitlement, SolvrOffering };

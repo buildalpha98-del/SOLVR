@@ -5,10 +5,9 @@
  */
 /**
  * UpgradeButton — shared CTA for portal upgrade flows.
- * Opens the RevenueCat paywall for plan upgrades.
  *
- * Apple Guideline 3.1.1: Returns null on native iOS/Android builds.
- * Subscriptions must be purchased at solvr.com.au, not inside the app.
+ * Web: Opens the RevenueCat web paywall.
+ * iOS (Capacitor): Triggers Apple IAP via presentNativePaywall().
  */
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,9 +18,13 @@ import {
   configureRevenueCat,
   isRevenueCatConfigured,
   presentPaywall,
-  presentNativePaywall,
   type PurchaseOutcome,
 } from "@/lib/revenuecat";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 import { useAuth } from "@/_core/hooks/useAuth";
 
 interface UpgradeButtonProps {
@@ -41,45 +44,53 @@ export function UpgradeButton({
   variant = "amber",
   size = "default",
 }: UpgradeButtonProps) {
+  // ALL hooks MUST be at the top, before any conditional return (Capacitor Rule 1)
   const [loading, setLoading] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const paywallRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
-  const handleClick = useCallback(async () => {
-    // On native iOS — use native RevenueCat paywall (Apple StoreKit IAP)
-    if (isNativeApp()) {
-      setLoading(true);
-      try {
-        const result = await presentNativePaywall();
-        if (result.success) {
-          toast.success("Subscription updated!", { description: "Your plan has been upgraded. Refreshing..." });
-          setTimeout(() => window.location.reload(), 2000);
-        } else if (result.error) {
-          toast.error("Upgrade failed", { description: result.error });
-        }
-      } catch {
-        toast.error("Something went wrong");
-      } finally { setLoading(false); }
-      return;
-    }
+  // Map plan prop to RevenueCat tier
+  const rcTier = plan === "professional" ? "solvr_ai" : "solvr_jobs";
 
-    // Web — use embedded paywall
+  const handleNativeClick = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (!isNativeRevenueCatConfigured() && user?.id) {
+        await configureNativeRevenueCat(`rc_${user.id}`);
+      }
+      const result = await presentNativePaywall(rcTier as "solvr_quotes" | "solvr_jobs" | "solvr_ai");
+      if (result.success) {
+        toast.success("Subscription updated!", {
+          description: "Your plan has been upgraded. Refreshing…",
+        });
+        setTimeout(() => window.location.reload(), 2000);
+      } else if (result.cancelled) {
+        // User dismissed — no toast needed
+      } else if (result.error) {
+        toast.error("Upgrade failed", { description: result.error });
+      }
+    } catch {
+      toast.error("Something went wrong", {
+        description: "Please try again or contact hello@solvr.com.au",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, rcTier]);
+
+  const handleWebClick = useCallback(async () => {
     if (!isRevenueCatConfigured() && user?.id) {
       configureRevenueCat(`rc_${user.id}`);
     }
-
     setPaywallOpen(true);
     setLoading(true);
-
     await new Promise((resolve) => setTimeout(resolve, 100));
-
     if (!paywallRef.current) {
       setLoading(false);
       toast.error("Could not open checkout. Please try again.");
       return;
     }
-
     try {
       const result: PurchaseOutcome = await presentPaywall(paywallRef.current);
       if (result.success) {
@@ -105,29 +116,42 @@ export function UpgradeButton({
 
   const defaultLabel = plan === "professional" ? "Upgrade to Solvr AI" : "Upgrade to Solvr Jobs";
   const displayLabel = label ?? defaultLabel;
-
   const amberClass = "bg-amber-500 hover:bg-amber-600 text-black font-semibold";
   const btnClass = variant === "amber" ? amberClass : "";
 
-  return (
-    <>
+  // Native iOS — use Apple IAP via presentNativePaywall()
+  if (isNativeApp()) {
+    return (
       <Button
-        onClick={handleClick}
+        onClick={handleNativeClick}
         disabled={loading}
         size={size}
         variant={variant === "amber" ? "default" : variant}
         className={`gap-2 ${btnClass} ${className}`}
       >
-        {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Zap className="w-4 h-4" />
-        )}
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+        {loading ? "Processing…" : displayLabel}
+        {!loading && <ArrowRight className="w-3 h-3" />}
+      </Button>
+    );
+  }
+
+  // Web — use RevenueCat web paywall
+  return (
+    <>
+      <Button
+        onClick={handleWebClick}
+        disabled={loading}
+        size={size}
+        variant={variant === "amber" ? "default" : variant}
+        className={`gap-2 ${btnClass} ${className}`}
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
         {loading ? "Opening checkout…" : displayLabel}
         {!loading && <ArrowRight className="w-3 h-3" />}
       </Button>
 
-      {/* RevenueCat Paywall Modal */}
+      {/* RevenueCat Web Paywall Modal */}
       {paywallOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center"

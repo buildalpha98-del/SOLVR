@@ -571,8 +571,7 @@ export default function PortalJobDetail() {
     threshold: 50,
   });
 
-  // useOfflineMutation MUST be called before early returns (React Rules of Hooks)
-  // — else "Rendered fewer hooks than expected" crash on Capacitor
+  // useOfflineMutation MUST be before early returns (React Rules of Hooks)
   const offlineAware = useOfflineMutation();
 
   if (isLoading) {

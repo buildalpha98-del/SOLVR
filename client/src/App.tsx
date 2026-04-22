@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AnnouncementBanner from "./components/AnnouncementBanner";
@@ -266,24 +266,14 @@ function Router() {
   );
 }
 
-/**
- * Dismissible marketing announcement banner — shown on the public marketing
- * site only. Hidden on /portal/*, /staff/*, and /supplier/* routes because
- * those users are existing customers or their staff/suppliers.
- */
-function ConditionalAnnouncementBanner() {
-  const [location] = useLocation();
-  if (location.startsWith("/portal") || location.startsWith("/staff") || location.startsWith("/supplier")) return null;
-  return <AnnouncementBanner />;
-}
-
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <ConditionalAnnouncementBanner />
+          {/* Dismissible announcement banner — shown site-wide until dismissed */}
+          <AnnouncementBanner />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

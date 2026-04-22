@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
   Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X, ChevronDown,
+  Download,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -901,21 +902,18 @@ function BillingSection() {
             </div>
           )}
 
-          {/* Manage button — on iOS, route to Apple's subscription management (required by Apple Guideline 3.1.1) */}
+          {/* Manage button — iOS routes to Apple Settings (Apple Guideline 3.1.1) */}
           {isNativeApp() ? (
             <>
               <Button
-                onClick={() => {
-                  // itms-apps:// opens the Subscriptions page in Settings app on iOS
-                  window.location.href = "itms-apps://apps.apple.com/account/subscriptions";
-                }}
+                onClick={() => { window.location.href = "itms-apps://apps.apple.com/account/subscriptions"; }}
                 className="w-full flex items-center justify-center gap-2"
                 style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)" }}
               >
                 <ExternalLink className="w-4 h-4" /> Manage in Apple Settings
               </Button>
               <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                Subscriptions billed via Apple are managed in your Apple ID settings. Tap to open the iOS Subscriptions page.
+                Apple subscriptions are managed in your Apple ID settings.
               </p>
             </>
           ) : (
@@ -1175,29 +1173,88 @@ function AutomationSection() {
   );
 }
 
-// ─── Delete Account Section ──────────────────────────────────────────────────
+// ─── Delete Account Section (Apple 5.1.1(v) compliant) ──────────────────────
 function DeleteAccountSection() {
+  const [, navigate] = useLocation();
   const [showConfirm, setShowConfirm] = useState(false);
-  const requestDeletion = trpc.portal.requestDeletion.useMutation({
+  const [confirmText, setConfirmText] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportData = trpc.portal.exportMyData.useQuery(undefined, { enabled: false });
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const result = await exportData.refetch();
+      if (result.data) {
+        const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `solvr-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        hapticSuccess();
+        toast.success("Data exported successfully.");
+      }
+    } catch {
+      toast.error("Failed to export data. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const deleteAccount = trpc.portal.deleteAccount.useMutation({
     onSuccess: () => {
       hapticWarning();
-      toast.success("Deletion request sent. We will action it within 30 days.");
-      setShowConfirm(false);
+      toast.success("Account deleted successfully.");
+      // Redirect to login after short delay
+      setTimeout(() => navigate("/portal/login"), 1500);
     },
     onError: (err) => {
-      toast.error(err.message || "Failed to send deletion request. Please email hello@solvr.com.au.");
+      toast.error(err.message || "Failed to delete account. Please try again or email hello@solvr.com.au.");
     },
   });
+
+  const canDelete = confirmText === "DELETE";
 
   return (
     <SectionCard
       icon={Trash2}
-      title="Delete My Account"
-      subtitle="Permanently remove your account and all data"
+      title="Delete Account"
+      subtitle="Permanently delete your account and all data"
     >
       <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
-        Requesting account deletion will permanently remove your business profile, call recordings, uploaded files, and all associated data from Solvr's systems. This action cannot be undone.
+        Deleting your account will permanently remove your business profile, call recordings, uploaded files, staff accounts, and all associated data from Solvr's systems. Any active subscriptions will be cancelled. This action cannot be undone.
       </p>
+
+      {/* Data export — let users download before deleting */}
+      <div className="rounded-lg border border-white/10 p-4 mb-4" style={{ background: "rgba(255,255,255,0.03)" }}>
+        <div className="flex items-start gap-3">
+          <Download className="w-5 h-5 mt-0.5 shrink-0" style={{ color: "rgba(255,255,255,0.5)" }} />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/80 mb-1">Export Your Data</p>
+            <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Download a copy of all your business data (jobs, quotes, customers, staff, and more) as a JSON file before deleting your account.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/20 text-white/70 hover:bg-white/5 hover:text-white"
+              onClick={handleExport}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Exporting...</>
+              ) : (
+                <><Download className="w-4 h-4 mr-2" />Download My Data</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
       {!showConfirm ? (
         <Button
           variant="outline"
@@ -1205,17 +1262,29 @@ function DeleteAccountSection() {
           onClick={() => setShowConfirm(true)}
         >
           <Trash2 className="w-4 h-4 mr-2" />
-          Request Account Deletion
+          Delete Account
         </Button>
       ) : (
         <div className="rounded-lg border border-red-500/30 p-4" style={{ background: "rgba(239,68,68,0.07)" }}>
           <div className="flex items-start gap-3 mb-4">
             <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-red-300 mb-1">Are you sure?</p>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-                This will send a deletion request to Solvr support. We will email you a confirmation and complete the deletion within 30 days. Your subscription will also need to be cancelled separately via the Billing page.
+              <p className="text-sm font-semibold text-red-300 mb-1">This permanently deletes your account and all data.</p>
+              <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.5)" }}>
+                This action cannot be undone. Your subscription will be cancelled, all staff accounts removed, and all business data permanently erased.
               </p>
+              <label className="text-xs font-medium text-red-300 block mb-1.5">
+                Type <span className="font-mono font-bold">DELETE</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="w-full sm:w-48 px-3 py-1.5 rounded-md text-sm font-mono bg-black/30 border border-red-500/30 text-white placeholder:text-white/20 focus:outline-none focus:border-red-500/60"
+                autoComplete="off"
+                spellCheck={false}
+              />
             </div>
           </div>
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
@@ -1223,21 +1292,21 @@ function DeleteAccountSection() {
               variant="outline"
               size="sm"
               className="border-white/20 text-white/60 hover:bg-white/5 w-full sm:w-auto"
-              onClick={() => setShowConfirm(false)}
-              disabled={requestDeletion.isPending}
+              onClick={() => { setShowConfirm(false); setConfirmText(""); }}
+              disabled={deleteAccount.isPending}
             >
               Cancel
             </Button>
             <Button
               size="sm"
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto"
-              onClick={() => requestDeletion.mutate()}
-              disabled={requestDeletion.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold w-full sm:w-auto disabled:opacity-40"
+              onClick={() => deleteAccount.mutate({ confirmText })}
+              disabled={!canDelete || deleteAccount.isPending}
             >
-              {requestDeletion.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</>
+              {deleteAccount.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Deleting...</>
               ) : (
-                "Yes, Request Deletion"
+                "Delete My Account"
               )}
             </Button>
           </div>

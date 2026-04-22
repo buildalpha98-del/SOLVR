@@ -2051,3 +2051,25 @@ export const jobTypeFormRequirements = mysqlTable("job_type_form_requirements", 
 });
 export type JobTypeFormRequirement = typeof jobTypeFormRequirements.$inferSelect;
 export type InsertJobTypeFormRequirement = typeof jobTypeFormRequirements.$inferInsert;
+
+/**
+ * Account Deletion Audit Log — Apple Guideline 5.1.1(v) compliance.
+ * Records who deleted their account and when, for regulatory audit trail.
+ */
+export const accountDeletionLogs = mysqlTable("account_deletion_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The portal client ID that was deleted */
+  clientId: int("clientId").notNull(),
+  /** Business name at time of deletion (for audit) */
+  businessName: varchar("businessName", { length: 255 }),
+  /** Contact email at time of deletion (for audit) */
+  contactEmail: varchar("contactEmail", { length: 255 }),
+  /** Who initiated the deletion: "self" (client) or admin user ID */
+  deletedBy: varchar("deletedBy", { length: 100 }).notNull(),
+  /** Reason for deletion (optional) */
+  reason: varchar("reason", { length: 500 }),
+  /** Timestamp of deletion */
+  deletedAt: timestamp("deletedAt").defaultNow().notNull(),
+});
+export type AccountDeletionLog = typeof accountDeletionLogs.$inferSelect;
+export type InsertAccountDeletionLog = typeof accountDeletionLogs.$inferInsert;

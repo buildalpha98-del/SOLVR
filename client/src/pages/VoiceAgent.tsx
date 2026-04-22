@@ -8,6 +8,11 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getSolvrOrigin, isNativeApp } from "@/const";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const CALENDLY_URL = (import.meta.env.VITE_CALENDLY_URL as string | undefined) || "https://calendly.com/hello-solvr/30min";
@@ -269,31 +274,44 @@ const testimonials = [
 
 // ─── Pricing Section Component ──────────────────────────────────────────────────────────────────
 function PricingSection() {
-  // ALL hooks MUST be before any conditional returns (React Rules of Hooks)
+  // ALL hooks at the top, before any conditional return (Capacitor Rule 1)
   const [isAnnual, setIsAnnual] = useState(false);
   const [missedCalls, setMissedCalls] = useState(3);
   const [avgJobValue, setAvgJobValue] = useState(800);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const createCheckout = trpc.stripe.createCheckout.useMutation();
+  const [nativeLoading, setNativeLoading] = useState(false);
 
-  // Native iOS — show native RevenueCat paywall
+  // Native iOS — show Apple IAP pricing
   if (isNativeApp()) {
     const handleNativePurchase = async () => {
-      setCheckoutLoading("native");
+      setNativeLoading(true);
       try {
-        const { presentNativePaywall } = await import("@/lib/revenuecat");
-        const result = await presentNativePaywall();
-        if (result.success) window.location.href = "/portal/dashboard";
-      } catch { /* cancelled or error */ }
-      finally { setCheckoutLoading(null); }
+        if (!isNativeRevenueCatConfigured()) {
+          const anonId = `rc_ios_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          await configureNativeRevenueCat(anonId);
+        }
+        const result = await presentNativePaywall("solvr_ai");
+        if (result.success) {
+          window.location.href = "/portal";
+        }
+      } catch { /* handled in presentNativePaywall */ }
+      finally { setNativeLoading(false); }
     };
     return (
       <section id="pricing" style={{ background: "#0F1F3D", padding: "4rem 0" }}>
         <div className="container mx-auto px-6 text-center max-w-sm">
-          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Get Started</h2>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>Choose the plan that fits your trade business.</p>
-          <button onClick={handleNativePurchase} disabled={!!checkoutLoading} className="w-full font-semibold px-8 py-4 rounded-xl text-lg disabled:opacity-50" style={{ background: "#F5A623", color: "#0F1F3D" }}>
-            {checkoutLoading ? "Loading..." : "View Plans & Subscribe"}
+          <h2 className="font-bold text-xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Choose Your Plan</h2>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "rgba(255,255,255,0.55)" }}>
+            Subscribe via your Apple account. Cancel anytime.
+          </p>
+          <button
+            onClick={handleNativePurchase}
+            disabled={nativeLoading}
+            className="w-full font-bold text-base py-4 rounded-xl"
+            style={{ background: "#F5A623", color: "#0F1F3D", border: "none", cursor: nativeLoading ? "not-allowed" : "pointer" }}
+          >
+            {nativeLoading ? "Processing…" : "Subscribe Now →"}
           </button>
         </div>
       </section>

@@ -8,7 +8,12 @@ import { Link } from "wouter";
 import { toast } from "sonner";
 import { isNativeApp } from "@/const";
 import { Check, X, Zap, Wrench, Bot, Loader2 } from "lucide-react";
-import { configureRevenueCat, isRevenueCatConfigured, presentPaywall, presentNativePaywall, type PurchaseOutcome } from "@/lib/revenuecat";
+import { configureRevenueCat, isRevenueCatConfigured, presentPaywall, type PurchaseOutcome } from "@/lib/revenuecat";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CALENDLY_URL = import.meta.env.VITE_CALENDLY_URL ?? "https://calendly.com/solvr";
@@ -118,11 +123,35 @@ const COMPETITORS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Pricing() {
-  // ALL hooks MUST be before any conditional returns (React Rules of Hooks)
+  // ALL hooks at the top, before any conditional return (Capacitor Rule 1)
   const [isAnnual, setIsAnnual] = useState(false);
   const [paywallLoading, setPaywallLoading] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const paywallRef = useRef<HTMLDivElement>(null);
+  const [nativeLoading, setNativeLoading] = useState(false);
+
+  const handleNativeSubscribe = useCallback(async (tier: "solvr_quotes" | "solvr_jobs" | "solvr_ai" = "solvr_ai") => {
+    setNativeLoading(true);
+    try {
+      if (!isNativeRevenueCatConfigured()) {
+        const anonId = `rc_ios_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await configureNativeRevenueCat(anonId);
+      }
+      const result = await presentNativePaywall(tier);
+      if (result.success) {
+        toast.success("Subscription activated!", {
+          description: "Welcome to Solvr. Redirecting to your portal…",
+        });
+        setTimeout(() => { window.location.href = "/portal"; }, 2000);
+      } else if (!result.cancelled && result.error) {
+        toast.error("Purchase failed", { description: result.error });
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setNativeLoading(false);
+    }
+  }, []);
 
   const handleSubscribe = useCallback(async () => {
     // Ensure RC is configured with a temporary anonymous ID for public pricing page
@@ -170,30 +199,55 @@ export default function Pricing() {
     }
   }, []);
 
-  // Native iOS/Android — use native RevenueCat paywall (Apple StoreKit IAP)
+  // Native iOS — show native pricing with Apple IAP buttons
   if (isNativeApp()) {
-    const handleNativeSubscribe = async () => {
-      setPaywallLoading(true);
-      try {
-        const result = await presentNativePaywall();
-        if (result.success) {
-          toast.success("Subscription activated!", { description: "Welcome to Solvr. Redirecting..." });
-          setTimeout(() => { window.location.href = "/portal/dashboard"; }, 2000);
-        } else if (result.error) {
-          toast.error("Purchase failed", { description: result.error });
-        }
-      } catch { toast.error("Something went wrong"); }
-      finally { setPaywallLoading(false); }
-    };
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#0A1628" }}>
-        <div className="text-center max-w-sm">
-          <h2 className="font-bold text-2xl mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Choose Your Plan</h2>
-          <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.55)" }}>Subscribe to unlock Solvr.</p>
-          <button onClick={handleNativeSubscribe} disabled={paywallLoading} className="w-full font-semibold px-8 py-4 rounded-xl text-lg disabled:opacity-50" style={{ background: "#F5A623", color: "#0F1F3D" }}>
-            {paywallLoading ? "Loading..." : "View Plans & Subscribe"}
-          </button>
-          <Link href="/portal" className="block mt-4 text-sm" style={{ color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>Back to Portal</Link>
+      <div className="min-h-screen" style={{ background: "#0A1628", fontFamily: "'DM Sans', sans-serif" }}>
+        <nav
+          className="sticky top-0 z-50 flex items-center justify-between px-6 py-4"
+          style={{ background: "rgba(10,22,40,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(12px)" }}
+        >
+          <Link href="/" style={{ textDecoration: "none" }}>
+            <span className="font-bold text-xl" style={{ color: "#F5A623", fontFamily: "'Syne', sans-serif" }}>Solvr</span>
+          </Link>
+          <Link href="/portal" className="text-sm" style={{ color: "rgba(255,255,255,0.6)", textDecoration: "none" }}>Client Login</Link>
+        </nav>
+        <div className="container mx-auto px-6 py-12">
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold mb-3" style={{ color: "#FAFAF8", fontFamily: "'Syne', sans-serif" }}>Choose Your Plan</h1>
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>Subscribe via your Apple account. Cancel anytime.</p>
+          </div>
+          <div className="grid gap-4 max-w-md mx-auto">
+            {PLANS.map((plan) => (
+              <button
+                key={plan.key}
+                onClick={() => handleNativeSubscribe(plan.key as "solvr_quotes" | "solvr_jobs" | "solvr_ai")}
+                disabled={nativeLoading}
+                className="w-full text-left rounded-xl p-5 transition-all"
+                style={{
+                  background: plan.highlight ? "rgba(245,166,35,0.08)" : "rgba(255,255,255,0.04)",
+                  border: plan.highlight ? "1px solid rgba(245,166,35,0.3)" : "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold" style={{ color: "#FAFAF8" }}>{plan.name}</span>
+                  {plan.badge && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}>{plan.badge}</span>
+                  )}
+                </div>
+                <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.5)" }}>{plan.tagline}</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-bold" style={{ color: "#F5A623" }}>${plan.price}</span>
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>/month</span>
+                </div>
+              </button>
+            ))}
+          </div>
+          {nativeLoading && (
+            <div className="flex justify-center mt-6">
+              <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
+            </div>
+          )}
         </div>
       </div>
     );

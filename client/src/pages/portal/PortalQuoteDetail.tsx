@@ -14,9 +14,9 @@
  * - Send section (email recipient, custom message, PDF link)
  */
 import { useState, useRef } from "react";
-import { getSolvrOrigin } from "@/const";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

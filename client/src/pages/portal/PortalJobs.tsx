@@ -12,6 +12,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import {
   Plus, DollarSign, X, Loader2, Lock, ChevronRight,
   LayoutGrid, List, Search, MapPin, Phone, Calendar,
@@ -27,7 +28,6 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { ErrorState } from "@/components/portal/ErrorState";
-import { getSolvrOrigin } from "@/const";
 
 const QuoteListContent = lazy(() => import("./QuoteListContent"));
 

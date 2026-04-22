@@ -292,7 +292,7 @@ export default function PortalLogin() {
                 {isNativeApp() ? (
                   <>
                     <p className="text-white/40 text-xs">
-                      New to Solvr? Log in to get started. Your Solvr team will set up your account and send you login details.
+                      New to Solvr? Log in with the credentials your Solvr team provided.
                     </p>
                   </>
                 ) : (

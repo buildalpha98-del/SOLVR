@@ -73,15 +73,15 @@ if (isNative) {
   }, true);
 
   // 5. Initialise RevenueCat native SDK for Apple IAP.
-  // Must be done early, before any paywall or entitlement check.
-  // We initialise anonymously here — the hook will identify the user later.
+  // Anonymous user ID for boot — the hook will re-identify on login.
   (async () => {
     try {
-      const { configureRevenueCat } = await import("@/lib/revenuecat");
-      await configureRevenueCat(); // anonymous until user logs in
-      console.log("[capacitor bootstrap] RevenueCat native SDK initialised");
+      const { configureNativeRevenueCat } = await import("@/lib/revenuecat-native");
+      const anonId = `rc_ios_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await configureNativeRevenueCat(anonId);
+      if (import.meta.env.DEV) console.log("[capacitor bootstrap] RevenueCat native SDK initialised");
     } catch (err) {
-      console.warn("[capacitor bootstrap] RevenueCat init skipped:", err);
+      if (import.meta.env.DEV) console.warn("[capacitor bootstrap] RevenueCat init skipped:", err);
     }
   })();
 }

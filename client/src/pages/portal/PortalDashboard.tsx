@@ -15,8 +15,8 @@
  * - Upgrade prompt for locked features
  */
 import PortalLayout from "./PortalLayout";
-import { getSolvrOrigin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { getSolvrOrigin } from "@/const";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell,

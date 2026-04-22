@@ -19,9 +19,13 @@ import {
   configureRevenueCat,
   isRevenueCatConfigured,
   presentPaywall,
-  presentNativePaywall,
   type PurchaseOutcome,
 } from "@/lib/revenuecat";
+import {
+  configureNativeRevenueCat,
+  isNativeRevenueCatConfigured,
+  presentNativePaywall,
+} from "@/lib/revenuecat-native";
 
 // Hardcoded — window.location.origin returns "capacitor://localhost" on iOS Capacitor.
 const SOLVR_ORIGIN = "https://solvr.com.au";
@@ -73,11 +77,13 @@ function ReferralNudge() {
 }
 
 export default function SubscriptionExpired() {
+  // ALL hooks at the top, before any conditional return (Capacitor Rule 1)
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const paywallRef = useRef<HTMLDivElement>(null);
+  const [nativeLoading, setNativeLoading] = useState(false);
 
   const handleReactivate = useCallback(async () => {
     // Ensure RC is configured
@@ -105,7 +111,7 @@ export default function SubscriptionExpired() {
       const result: PurchaseOutcome = await presentPaywall(paywallRef.current);
       if (result.success) {
         toast.success("Account reactivated!", {
-          description: "Welcome back to Solvr. Redirecting to your portal…",
+          description: "Welcome back to Solvr. Redirecting to your portal\u2026",
         });
         setTimeout(() => {
           window.location.href = "/portal";
@@ -124,21 +130,33 @@ export default function SubscriptionExpired() {
     }
   }, [user?.id]);
 
-  // Native iOS — show native RevenueCat paywall instead of "visit solvr.com.au" message
+  const handleNativeReactivate = useCallback(async () => {
+    setNativeLoading(true);
+    try {
+      if (!isNativeRevenueCatConfigured() && user?.id) {
+        await configureNativeRevenueCat(`rc_${user.id}`);
+      } else if (!isNativeRevenueCatConfigured()) {
+        const anonId = `rc_ios_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await configureNativeRevenueCat(anonId);
+      }
+      const result = await presentNativePaywall("solvr_ai");
+      if (result.success) {
+        toast.success("Account reactivated!", {
+          description: "Welcome back to Solvr. Redirecting to your portal\u2026",
+        });
+        setTimeout(() => { window.location.href = "/portal"; }, 2000);
+      } else if (!result.cancelled && result.error) {
+        toast.error("Purchase failed", { description: result.error });
+      }
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setNativeLoading(false);
+    }
+  }, [user?.id]);
+
+  // Native iOS — show reactivation with Apple IAP
   if (isNativeApp()) {
-    const handleNativeReactivate = async () => {
-      setLoading(true);
-      try {
-        const result = await presentNativePaywall();
-        if (result.success) {
-          toast.success("Subscription reactivated!", { description: "Welcome back. Redirecting..." });
-          setTimeout(() => { window.location.href = "/portal/dashboard"; }, 2000);
-        } else if (result.error) {
-          setError(result.error);
-        }
-      } catch { setError("Something went wrong. Please try again."); }
-      finally { setLoading(false); }
-    };
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#FAFAF8" }}>
         <div className="text-center max-w-sm">
@@ -146,13 +164,24 @@ export default function SubscriptionExpired() {
           <div className="text-4xl mb-4">⏰</div>
           <h2 className="font-bold text-xl mb-3" style={{ color: "#0F1F3D" }}>Your free trial has ended</h2>
           <p className="text-sm leading-relaxed mb-4" style={{ color: "#718096" }}>
-            Reactivate your subscription to continue using Solvr.
+            Choose a plan to reactivate your account instantly.
           </p>
-          {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
-          <button onClick={handleNativeReactivate} disabled={loading} className="w-full font-semibold px-6 py-4 rounded-xl text-base mb-3 disabled:opacity-50" style={{ background: "#F5A623", color: "#0F1F3D" }}>
-            {loading ? "Loading..." : "Reactivate Subscription"}
+          <button
+            onClick={handleNativeReactivate}
+            disabled={nativeLoading}
+            className="w-full font-bold text-base py-4 rounded-xl mb-3"
+            style={{
+              background: nativeLoading ? "rgba(245,166,35,0.6)" : "#F5A623",
+              color: "#0F1F3D",
+              border: "none",
+              cursor: nativeLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {nativeLoading ? "Processing…" : "Choose a Plan & Reactivate →"}
           </button>
-          <Link href="/portal" className="block text-sm" style={{ color: "#718096", textDecoration: "none" }}>Back to Portal</Link>
+          <Link href="/portal" className="inline-block text-sm mt-2" style={{ color: "#718096", textDecoration: "none" }}>
+            Back to Portal
+          </Link>
         </div>
       </div>
     );

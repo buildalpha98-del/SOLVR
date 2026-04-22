@@ -132,7 +132,7 @@ All items below are live in production. Grouped by domain for reference.
 - [x] Create RevenueCat webhook endpoint (/api/revenuecat/webhook)
 - [x] Handle INITIAL_PURCHASE, RENEWAL, CANCELLATION, BILLING_ISSUE events
 - [x] Update unified subscription check to support both Stripe and Apple sources
-- [ ] Add REVENUECAT_WEBHOOK_SECRET env variable
+- [x] Add REVENUECAT_WEBHOOK_SECRET env variable (set 21 April 2026)
 - [x] Write vitest tests for RevenueCat webhook handler (19 tests passing)
 - [x] Write vitest tests for unified subscription check
 - [x] Save checkpoint
@@ -433,3 +433,35 @@ These are planned features that are not blocking the current launch. They will b
 - [x] AddressAutocomplete wired into quote builder manual form
 - [x] Vitest: 18 new tests (sprint10.test.ts — invoice guard, revenue units, pdfUrl, GST calc)
 - 0 TypeScript errors, 394 vitest tests passing (39 test files)
+
+### Capacitor Stability Rules (22 April 2026)
+- [x] Save 5 Capacitor rules to AGENTS.md
+- [x] Create scripts/audit-capacitor.sh
+- [x] Audit + fix: hooks before early returns (Rule 1) — 0 violations found
+- [x] Audit + fix: no window.location.origin (Rule 2) — 15 violations fixed
+- [x] Audit + fix: no relative fetch URLs (Rule 3) — 1 violation fixed
+- [x] Audit + fix: isNativeApp() guards after hooks (Rule 4) — 0 violations found
+- [x] Verify tsc + vitest pass with 0 errors (394 tests, 39 files)
+- [x] Save checkpoint (version 8f42c4ab)
+
+### Apple 5.1.1(v) Account Deletion + RevenueCat Capacitor SDK (22 April 2026)
+- [x] Create `accountDeletionLogs` schema table + db:push
+- [x] Build `portal.deleteAccount` procedure (anonymise, revoke sessions, cancel Stripe, delete staff, audit log)
+- [x] Update PortalSettings.tsx: type-DELETE confirmation dialog
+- [x] On success: logout + redirect /portal/login + toast
+- [x] Install @revenuecat/purchases-capacitor
+- [x] Create client/src/lib/revenuecat-native.ts wrapper
+- [x] Replace isNativeApp() purchase-hide with presentNativePaywall() in 6 files
+- [x] Move hooks before isNativeApp() guards in SubscriptionExpired.tsx
+- [x] Create APP_STORE_CONNECT_SETUP.md with step-by-step instructions
+- [x] Document all 6 product IDs, pricing, and subscription group setup
+- [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
+- [x] Save checkpoint (version 4bf4d9eb)
+
+### Data Export Before Account Deletion (22 April 2026)
+- [x] Build `portal.exportMyData` procedure (16 parallel queries: profile, jobs, quotes, customers, staff, calendar, compliance, price list, reviews, subcontractors, suppliers, POs, form templates, form submissions, SMS templates, SMS campaigns)
+- [x] Return JSON payload with all user data (lightweight, no file storage needed)
+- [x] Add "Download My Data" button to DeleteAccountSection in PortalSettings.tsx
+- [x] Wire frontend: refetch on click → Blob → download as solvr-data-export-YYYY-MM-DD.json
+- [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
+- [ ] Save checkpoint

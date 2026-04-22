@@ -21,19 +21,17 @@ export const getSolvrOrigin = (): string => {
 };
 
 // Generate login URL at runtime so redirect URI reflects the current origin.
-// On Capacitor, returns relative /portal/login so the WKWebView stays in-app.
-// On web without env vars, returns an origin-relative login path.
 export const getLoginUrl = () => {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
 
-  // On Capacitor, use relative path — absolute https:// URLs would navigate
-  // the WKWebView away from capacitor://localhost to the real website (→ Safari).
+  // On Capacitor, use relative path — absolute https:// URLs navigate the
+  // WKWebView away from capacitor://localhost and can trigger Safari.
   if (isNativeApp()) {
     return "/portal/login";
   }
 
-  // On web without env vars, use origin-relative URL (avoids new URL crash)
+  // Without OAuth env vars, use origin-relative path (avoids new URL crash)
   if (!oauthPortalUrl) {
     return `${window.location.origin}/portal/login`;
   }
