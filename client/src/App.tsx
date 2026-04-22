@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AnnouncementBanner from "./components/AnnouncementBanner";
@@ -266,14 +266,30 @@ function Router() {
   );
 }
 
+/**
+ * Banner is shown on marketing site only. Hidden on /portal/*, /staff/*,
+ * and /supplier/* — those users are paying customers or their staff and
+ * should not see "book a free call" CTAs aimed at prospects.
+ */
+function ConditionalAnnouncementBanner() {
+  const [location] = useLocation();
+  if (
+    location.startsWith("/portal") ||
+    location.startsWith("/staff") ||
+    location.startsWith("/supplier")
+  ) {
+    return null;
+  }
+  return <AnnouncementBanner />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          {/* Dismissible announcement banner — shown site-wide until dismissed */}
-          <AnnouncementBanner />
+          <ConditionalAnnouncementBanner />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
