@@ -4,32 +4,27 @@
  * Unauthorised copying or distribution is strictly prohibited.
  */
 /**
- * Portal Reporting — 3-tab reporting dashboard for Solvr clients.
- *
- * Tabs:
- * 1. Revenue Dashboard — monthly revenue chart, KPI cards, job summary
- * 2. Quote Conversion — funnel metrics, monthly volume chart, conversion rate
- * 3. Job Costing — per-job margin table, cost breakdown, summary stats
- *
- * Features:
- * - Custom date range picker (replaces fixed 6/12-month windows)
- * - Download Report button (generates branded PDF via S3)
+ * Portal Reporting — tradie-native reporting dashboard.
+ * Tabs: Money in (revenue), Quotes accepted (conversion), Job profit (costing).
+ * Mobile-first: scroll-snap chart carousel, card list for per-job margins,
+ * bottom-anchored full-width Download button. Defaults to "This week".
  */
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { useState, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from "recharts";
 import {
-  DollarSign, TrendingUp, TrendingDown, FileText, AlertTriangle,
-  CheckCircle, XCircle, Clock, ArrowRight, Loader2, BarChart3,
+  DollarSign, TrendingUp, TrendingDown, FileText,
+  XCircle, Clock, Loader2, BarChart3,
   Download, Calendar,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
+import { hapticLight } from "@/lib/haptics";
+import { openUrl } from "@/lib/openUrl";
+import ReportingCardList, { MarginBadge, type ReportingJob } from "@/components/portal/ReportingCardList";
 
 const AMBER = "#F5A623";
 const NAVY = "#0F1F3D";
@@ -38,6 +33,8 @@ const RED = "#ef4444";
 const BLUE = "#3b82f6";
 const GRAY = "#94a3b8";
 const COST_COLORS = ["#F5A623", "#3b82f6", "#22c55e", "#ef4444", "#a855f7", "#ec4899", "#14b8a6"];
+
+const TAP_TARGET = "min-h-[44px]";
 
 type Tab = "revenue" | "quotes" | "costing";
 type TabApi = "revenue" | "quoteConversion" | "jobCosting";
@@ -48,10 +45,14 @@ const TAB_TO_API: Record<Tab, TabApi> = {
   costing: "jobCosting",
 };
 
-function getDefaultRange(): { start: string; end: string } {
+type RangePreset = "week" | "month" | "year" | "custom";
+
+function getRange(preset: RangePreset): { start: string; end: string } {
   const end = new Date();
   const start = new Date();
-  start.setMonth(start.getMonth() - 12);
+  if (preset === "week") start.setDate(start.getDate() - 7);
+  else if (preset === "month") start.setMonth(start.getMonth() - 1);
+  else start.setMonth(start.getMonth() - 12);
   return {
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10),
@@ -60,16 +61,27 @@ function getDefaultRange(): { start: string; end: string } {
 
 export default function PortalReporting() {
   const [tab, setTab] = useState<Tab>("revenue");
-  const defaults = useMemo(() => getDefaultRange(), []);
-  const [startDate, setStartDate] = useState(defaults.start);
-  const [endDate, setEndDate] = useState(defaults.end);
+  const [preset, setPreset] = useState<RangePreset>("week");
+  const initial = useMemo(() => getRange("week"), []);
+  const [startDate, setStartDate] = useState(initial.start);
+  const [endDate, setEndDate] = useState(initial.end);
+
+  const applyPreset = (p: RangePreset) => {
+    setPreset(p);
+    hapticLight();
+    if (p !== "custom") {
+      const r = getRange(p);
+      setStartDate(r.start);
+      setEndDate(r.end);
+    }
+  };
 
   const exportPdf = trpc.reporting.exportPdf.useMutation({
     onSuccess: (result) => {
-      window.open(result.url, "_blank");
+      void openUrl(result.url);
       toast.success("Report downloaded");
     },
-    onError: (err) => toast.error(err.message || "Failed to generate PDF"),
+    onError: (err) => toast.error(err.message || "Could not generate report"),
   });
 
   const handleExport = () => {
@@ -83,79 +95,112 @@ export default function PortalReporting() {
 
   return (
     <PortalLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-amber-500" />
-              Reporting
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track revenue, quote conversion, and job profitability
-            </p>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Date range picker */}
-            <div className="flex items-center gap-2 bg-card border rounded-lg px-3 py-1.5">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-sm text-foreground outline-none w-[120px]"
-              />
-              <span className="text-muted-foreground text-xs">to</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="bg-transparent text-sm text-foreground outline-none w-[120px]"
-              />
-            </div>
-            {/* Download PDF */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={exportPdf.isPending}
-              className="gap-2"
-            >
-              {exportPdf.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Download Report
-            </Button>
-          </div>
+      <div className="space-y-5 pb-24">
+        <div>
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" style={{ color: AMBER }} />
+            Reporting
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.6)" }}>
+            How's your week? Money in, quotes accepted, profit per job.
+          </p>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex gap-1 bg-muted/50 rounded-lg p-1">
+        {/* Date range preset chips */}
+        <div className="flex items-center gap-2 flex-wrap">
           {([
-            { key: "revenue" as Tab, label: "Revenue" },
-            { key: "quotes" as Tab, label: "Quote Conversion" },
-            { key: "costing" as Tab, label: "Job Costing" },
+            { key: "week" as RangePreset, label: "This week" },
+            { key: "month" as RangePreset, label: "This month" },
+            { key: "year" as RangePreset, label: "Last 12 months" },
+          ]).map(p => (
+            <button
+              key={p.key}
+              onClick={() => applyPreset(p.key)}
+              className={`px-3 rounded-full text-xs font-semibold transition-colors ${TAP_TARGET}`}
+              style={preset === p.key
+                ? { background: "rgba(245,166,35,0.15)", color: AMBER, border: "1px solid rgba(245,166,35,0.4)" }
+                : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom date range — collapsed by default */}
+        <details
+          className="rounded-xl"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <summary
+            className={`flex items-center gap-2 px-3 cursor-pointer select-none text-xs font-semibold ${TAP_TARGET}`}
+            style={{ color: "rgba(255,255,255,0.6)" }}
+          >
+            <Calendar className="w-3.5 h-3.5" /> Custom range
+          </summary>
+          <div className="flex items-center gap-2 px-3 pb-3 flex-wrap sm:flex-nowrap">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setPreset("custom"); }}
+              className={`flex-1 min-w-[140px] px-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+            />
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setPreset("custom"); }}
+              className={`flex-1 min-w-[140px] px-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+            />
+          </div>
+        </details>
+
+        {/* Tab bar — tradie language */}
+        <div
+          className="flex gap-1 p-1 rounded-xl"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          {([
+            { key: "revenue" as Tab, label: "Money in" },
+            { key: "quotes" as Tab, label: "Quotes accepted" },
+            { key: "costing" as Tab, label: "Job profit" },
           ]).map(t => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                tab === t.key
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              onClick={() => { setTab(t.key); hapticLight(); }}
+              className={`flex-1 px-2 rounded-lg text-xs font-semibold transition-colors ${TAP_TARGET}`}
+              style={tab === t.key
+                ? { background: "rgba(245,166,35,0.15)", color: AMBER }
+                : { background: "transparent", color: "rgba(255,255,255,0.4)" }
+              }
             >
               {t.label}
             </button>
           ))}
         </div>
 
-        {/* Tab content */}
         {tab === "revenue" && <RevenueTab startDate={startDate} endDate={endDate} />}
         {tab === "quotes" && <QuoteConversionTab startDate={startDate} endDate={endDate} />}
         {tab === "costing" && <JobCostingTab />}
+
+        {/* Download Report — bottom-anchored, full-width on mobile, amber primary */}
+        <button
+          onClick={handleExport}
+          disabled={exportPdf.isPending}
+          className={`w-full sm:w-auto sm:self-end flex items-center justify-center gap-2 px-6 rounded-xl text-sm font-semibold ${TAP_TARGET} disabled:opacity-50 transition-colors`}
+          style={{ background: AMBER, color: NAVY }}
+          onMouseEnter={(e) => {
+            if (!exportPdf.isPending) (e.currentTarget as HTMLButtonElement).style.background = "#e09510";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = AMBER;
+          }}
+        >
+          {exportPdf.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Download report
+        </button>
       </div>
     </PortalLayout>
   );
@@ -164,68 +209,48 @@ export default function PortalReporting() {
 // ─── Revenue Tab ──────────────────────────────────────────────────────────────
 function RevenueTab({ startDate, endDate }: { startDate: string; endDate: string }) {
   const input = useMemo(() => ({ monthsBack: 12, startDate, endDate }), [startDate, endDate]);
-  const { data, isLoading } = trpc.reporting.getRevenueMetrics.useQuery(input);
+  const { data, isLoading } = trpc.reporting.getRevenueMetrics.useQuery(input, {
+    retry: 2,
+    staleTime: 30_000,
+  });
 
   if (isLoading || !data) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: AMBER }} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          label="Total Revenue"
-          value={`$${data.totalRevenue.toLocaleString()}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          color="text-green-500"
-        />
-        <KpiCard
-          label="Avg Job Value"
-          value={`$${data.avgJobValue.toLocaleString()}`}
-          icon={<TrendingUp className="w-4 h-4" />}
-          color="text-amber-500"
-        />
-        <KpiCard
-          label="Outstanding"
-          value={`$${data.totalOutstanding.toLocaleString()}`}
-          sub={`${data.outstandingCount} invoices`}
-          icon={<Clock className="w-4 h-4" />}
-          color="text-red-500"
-        />
-        <KpiCard
-          label="Total Jobs"
-          value={data.totalJobCount.toString()}
-          sub={`${data.completedCount} completed · ${data.activeCount} active · ${data.lostCount} lost`}
-          icon={<FileText className="w-4 h-4" />}
-          color="text-blue-500"
-        />
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Money in" value={`$${data.totalRevenue.toLocaleString()}`} icon={<DollarSign className="w-4 h-4" />} color={GREEN} />
+        <KpiCard label="Avg job value" value={`$${data.avgJobValue.toLocaleString()}`} icon={<TrendingUp className="w-4 h-4" />} color={AMBER} />
+        <KpiCard label="Outstanding" value={`$${data.totalOutstanding.toLocaleString()}`} sub={`${data.outstandingCount} invoices`} icon={<Clock className="w-4 h-4" />} color={RED} />
+        <KpiCard label="Total jobs" value={data.totalJobCount.toString()} sub={`${data.completedCount} done · ${data.activeCount} active`} icon={<FileText className="w-4 h-4" />} color={BLUE} />
       </div>
 
-      {/* Monthly revenue chart */}
-      <div className="bg-card rounded-xl border p-6">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Monthly Revenue</h3>
-        {data.monthlyRevenue.length > 0 ? (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={data.monthlyRevenue}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
-              <Tooltip
-                formatter={(v: number) => [`$${v.toLocaleString()}`, "Revenue"]}
-                contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8 }}
-              />
-              <Bar dataKey="amount" fill={AMBER} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-10">No revenue data yet</p>
-        )}
-      </div>
+      <ChartStrip>
+        <ChartCard title="Monthly money in">
+          {data.monthlyRevenue.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={data.monthlyRevenue}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.5)" }} />
+                <YAxis tick={{ fontSize: 11, fill: "rgba(255,255,255,0.5)" }} tickFormatter={v => `$${v}`} />
+                <Tooltip
+                  formatter={(v: number) => [`$${v.toLocaleString()}`, "Money in"]}
+                  contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8 }}
+                />
+                <Bar dataKey="amount" fill={AMBER} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.4)" }}>No revenue data yet</p>
+          )}
+        </ChartCard>
+      </ChartStrip>
     </div>
   );
 }
@@ -233,12 +258,15 @@ function RevenueTab({ startDate, endDate }: { startDate: string; endDate: string
 // ─── Quote Conversion Tab ─────────────────────────────────────────────────────
 function QuoteConversionTab({ startDate, endDate }: { startDate: string; endDate: string }) {
   const input = useMemo(() => ({ monthsBack: 6, startDate, endDate }), [startDate, endDate]);
-  const { data, isLoading } = trpc.reporting.getQuoteConversion.useQuery(input);
+  const { data, isLoading } = trpc.reporting.getQuoteConversion.useQuery(input, {
+    retry: 2,
+    staleTime: 30_000,
+  });
 
   if (isLoading || !data) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: AMBER }} />
       </div>
     );
   }
@@ -247,96 +275,68 @@ function QuoteConversionTab({ startDate, endDate }: { startDate: string; endDate
     { label: "Created", value: data.funnel.total, color: GRAY },
     { label: "Sent", value: data.funnel.sent, color: BLUE },
     { label: "Accepted", value: data.funnel.accepted, color: GREEN },
-    { label: "Converted", value: data.funnel.convertedToJob, color: AMBER },
+    { label: "Booked", value: data.funnel.convertedToJob, color: AMBER },
     { label: "Paid", value: data.funnel.paidFromQuote, color: GREEN },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          label="Conversion Rate"
-          value={`${data.conversionRate}%`}
-          icon={<TrendingUp className="w-4 h-4" />}
-          color="text-green-500"
-        />
-        <KpiCard
-          label="Avg Quote Value"
-          value={`$${data.avgQuoteValue.toLocaleString()}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          color="text-amber-500"
-        />
-        <KpiCard
-          label="Avg Days to Accept"
-          value={data.avgDaysToAccept.toString()}
-          sub="days"
-          icon={<Clock className="w-4 h-4" />}
-          color="text-blue-500"
-        />
-        <KpiCard
-          label="Declined"
-          value={data.funnel.declined.toString()}
-          sub={`${data.funnel.expired} expired`}
-          icon={<XCircle className="w-4 h-4" />}
-          color="text-red-500"
-        />
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Accept rate" value={`${data.conversionRate}%`} icon={<TrendingUp className="w-4 h-4" />} color={GREEN} />
+        <KpiCard label="Avg quote value" value={`$${data.avgQuoteValue.toLocaleString()}`} icon={<DollarSign className="w-4 h-4" />} color={AMBER} />
+        <KpiCard label="Avg days to accept" value={data.avgDaysToAccept.toString()} sub="days" icon={<Clock className="w-4 h-4" />} color={BLUE} />
+        <KpiCard label="Declined" value={data.funnel.declined.toString()} sub={`${data.funnel.expired} expired`} icon={<XCircle className="w-4 h-4" />} color={RED} />
       </div>
 
-      {/* Funnel */}
-      <div className="bg-card rounded-xl border p-6">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Quote Funnel</h3>
-        <div className="flex items-end gap-2 justify-around">
-          {funnelSteps.map((step, i) => {
-            const maxVal = Math.max(...funnelSteps.map(s => s.value), 1);
-            const height = Math.max((step.value / maxVal) * 160, 20);
-            return (
-              <div key={step.label} className="flex flex-col items-center gap-2">
-                <span className="text-lg font-bold text-foreground">{step.value}</span>
-                <div
-                  className="rounded-t-md w-14 transition-all"
-                  style={{ height, backgroundColor: step.color }}
-                />
-                <span className="text-xs text-muted-foreground">{step.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Monthly quote volume */}
-      <div className="bg-card rounded-xl border p-6">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Monthly Quote Volume</h3>
-        {data.monthlyQuotes.length > 0 ? (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={data.monthlyQuotes}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8 }}
-              />
-              <Bar dataKey="sent" fill={BLUE} name="Sent" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="accepted" fill={GREEN} name="Accepted" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="declined" fill={RED} name="Declined" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-10">No quote data yet</p>
-        )}
-      </div>
+      <ChartStrip>
+        <ChartCard title="Quote funnel">
+          <div className="flex items-end gap-2 justify-around py-2 min-h-[200px]">
+            {funnelSteps.map((step) => {
+              const maxVal = Math.max(...funnelSteps.map(s => s.value), 1);
+              const height = Math.max((step.value / maxVal) * 160, 20);
+              return (
+                <div key={step.label} className="flex flex-col items-center gap-2">
+                  <span className="text-base font-bold text-white">{step.value}</span>
+                  <div className="rounded-t-md w-10 transition-all" style={{ height, backgroundColor: step.color }} />
+                  <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.5)" }}>{step.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </ChartCard>
+        <ChartCard title="Quotes per month">
+          {data.monthlyQuotes.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={data.monthlyQuotes}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.5)" }} />
+                <YAxis tick={{ fontSize: 11, fill: "rgba(255,255,255,0.5)" }} />
+                <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8 }} />
+                <Bar dataKey="sent" fill={BLUE} name="Sent" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="accepted" fill={GREEN} name="Accepted" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="declined" fill={RED} name="Declined" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.4)" }}>No quote data yet</p>
+          )}
+        </ChartCard>
+      </ChartStrip>
     </div>
   );
 }
 
 // ─── Job Costing Tab ──────────────────────────────────────────────────────────
 function JobCostingTab() {
-  const { data, isLoading } = trpc.reporting.getJobCosting.useQuery();
+  const { data, isLoading } = trpc.reporting.getJobCosting.useQuery(undefined, {
+    retry: 2,
+    staleTime: 30_000,
+  });
 
   if (isLoading || !data) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: AMBER }} />
       </div>
     );
   }
@@ -345,116 +345,116 @@ function JobCostingTab() {
   const pieData = costEntries.map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="space-y-6">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Money in" value={`$${data.summary.totalRevenue.toLocaleString()}`} icon={<DollarSign className="w-4 h-4" />} color={GREEN} />
+        <KpiCard label="Total costs" value={`$${data.summary.totalCosts.toLocaleString()}`} icon={<TrendingDown className="w-4 h-4" />} color={RED} />
         <KpiCard
-          label="Total Revenue"
-          value={`$${data.summary.totalRevenue.toLocaleString()}`}
-          icon={<DollarSign className="w-4 h-4" />}
-          color="text-green-500"
-        />
-        <KpiCard
-          label="Total Costs"
-          value={`$${data.summary.totalCosts.toLocaleString()}`}
-          icon={<TrendingDown className="w-4 h-4" />}
-          color="text-red-500"
-        />
-        <KpiCard
-          label="Total Margin"
+          label="Money made"
           value={`$${data.summary.totalMargin.toLocaleString()}`}
           sub={`${data.summary.avgMarginPercent}% avg`}
           icon={<TrendingUp className="w-4 h-4" />}
-          color={data.summary.totalMargin >= 0 ? "text-green-500" : "text-red-500"}
+          color={data.summary.totalMargin >= 0 ? GREEN : RED}
         />
         <KpiCard
-          label="Jobs Analysed"
+          label="Jobs analysed"
           value={data.summary.jobCount.toString()}
           sub={`${data.summary.profitableJobs} profitable · ${data.summary.lossJobs} loss`}
           icon={<FileText className="w-4 h-4" />}
-          color="text-blue-500"
+          color={BLUE}
         />
       </div>
 
-      {/* Cost breakdown pie chart */}
       {pieData.length > 0 && (
-        <div className="bg-card rounded-xl border p-6">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Cost Breakdown</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={2}
-                dataKey="value"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-              >
-                {pieData.map((_, i) => (
-                  <Cell key={i} fill={COST_COLORS[i % COST_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v: number) => [`$${v.toLocaleString()}`, "Cost"]} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartStrip>
+          <ChartCard title="Where the money goes">
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={COST_COLORS[i % COST_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(v: number) => [`$${v.toLocaleString()}`, "Cost"]}
+                  contentStyle={{ background: "#1a1a2e", border: "1px solid #333", borderRadius: 8 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </ChartStrip>
       )}
 
-      {/* Job table */}
-      <div className="bg-card rounded-xl border overflow-hidden">
-        <div className="p-4 border-b">
-          <h3 className="text-sm font-semibold text-foreground">Per-Job Margin Analysis</h3>
-          <p className="text-xs text-muted-foreground mt-1">Sorted by margin — worst first so you can fix problem jobs</p>
+      {/* Money made per job — card list on mobile, table on desktop */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+          <h3 className="text-sm font-semibold text-white">Money made per job</h3>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Worst margin first — fix these first.
+          </p>
         </div>
         {data.jobs.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-muted-foreground text-xs">
-                  <th className="text-left p-3">Job</th>
-                  <th className="text-left p-3">Customer</th>
-                  <th className="text-right p-3">Revenue</th>
-                  <th className="text-right p-3">Costs</th>
-                  <th className="text-right p-3">Margin</th>
-                  <th className="text-right p-3">Margin %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.jobs.map((job: any) => (
-                  <tr key={job.jobId} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="p-3 font-medium text-foreground">{job.jobTitle}</td>
-                    <td className="p-3 text-muted-foreground">{job.customerName ?? "—"}</td>
-                    <td className="p-3 text-right text-foreground">${job.revenue.toLocaleString()}</td>
-                    <td className="p-3 text-right text-muted-foreground">${job.totalCost.toLocaleString()}</td>
-                    <td className={`p-3 text-right font-medium ${job.margin >= 0 ? "text-green-500" : "text-red-500"}`}>
-                      ${job.margin.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        job.marginPercent >= 30
-                          ? "bg-green-500/10 text-green-500"
-                          : job.marginPercent >= 0
-                          ? "bg-amber-500/10 text-amber-500"
-                          : "bg-red-500/10 text-red-500"
-                      }`}>
-                        {job.marginPercent >= 0 ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : (
-                          <AlertTriangle className="w-3 h-3" />
-                        )}
-                        {job.marginPercent}%
-                      </span>
-                    </td>
+          <>
+            <div className="sm:hidden">
+              <ReportingCardList jobs={data.jobs as ReportingJob[]} />
+            </div>
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr
+                    className="text-xs"
+                    style={{ color: "rgba(255,255,255,0.5)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+                  >
+                    <th className="text-left p-3">Job</th>
+                    <th className="text-left p-3">Customer</th>
+                    <th className="text-right p-3">Money in</th>
+                    <th className="text-right p-3">Costs</th>
+                    <th className="text-right p-3">Made</th>
+                    <th className="text-right p-3">Margin %</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {(data.jobs as ReportingJob[]).map((job) => (
+                    <tr key={job.jobId} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <td className="p-3 font-medium text-white">{job.jobTitle}</td>
+                      <td className="p-3" style={{ color: "rgba(255,255,255,0.6)" }}>
+                        {job.customerName ?? "—"}
+                      </td>
+                      <td className="p-3 text-right text-white">${job.revenue.toLocaleString()}</td>
+                      <td className="p-3 text-right" style={{ color: "rgba(255,255,255,0.6)" }}>
+                        ${job.totalCost.toLocaleString()}
+                      </td>
+                      <td
+                        className="p-3 text-right font-medium"
+                        style={{ color: job.margin >= 0 ? GREEN : RED }}
+                      >
+                        ${job.margin.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right">
+                        <MarginBadge pct={job.marginPercent} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-10">
-            No completed or invoiced jobs yet. Complete some jobs to see margin analysis.
+          <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.45)" }}>
+            No completed or invoiced jobs yet. Complete some jobs to see profit.
           </p>
         )}
       </div>
@@ -462,7 +462,7 @@ function JobCostingTab() {
   );
 }
 
-// ─── Shared KPI Card ──────────────────────────────────────────────────────────
+// ─── Shared components ────────────────────────────────────────────────────────
 function KpiCard({
   label,
   value,
@@ -477,13 +477,42 @@ function KpiCard({
   color: string;
 }) {
   return (
-    <div className="bg-card rounded-xl border p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className={color}>{icon}</span>
-        <span className="text-xs text-muted-foreground">{label}</span>
+    <div
+      className="rounded-2xl p-3"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        <span style={{ color }}>{icon}</span>
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
+          {label}
+        </span>
       </div>
-      <div className="text-xl font-bold text-foreground">{value}</div>
-      {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
+      <div className="text-lg font-bold text-white">{value}</div>
+      {sub && (
+        <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChartStrip({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="-mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto snap-x snap-mandatory sm:overflow-visible">
+      <div className="flex gap-3 sm:flex-col sm:gap-4">{children}</div>
+    </div>
+  );
+}
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-2xl p-4 sm:p-5 snap-start shrink-0 w-[85vw] sm:w-auto sm:shrink"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+    >
+      <h3 className="text-sm font-semibold text-white mb-3">{title}</h3>
+      {children}
     </div>
   );
 }
