@@ -14,10 +14,14 @@
  *
  * Auto-saves on every step transition. Dictation prompts for text areas.
  * Smart defaults based on industry type.
+ *
+ * Mobile-first: one step = one full-height screen. `OnboardingStepShell`
+ * owns the back chevron, dot progress indicator, and bottom CTA; this
+ * module owns the form state and tRPC calls.
  */
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,19 +34,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Loader2, CheckCircle2, Building2, Wrench, Palette, Rocket,
-  ChevronRight, ChevronLeft, Mic, Plus, Trash2, Info,
+  Loader2, CheckCircle2, Mic, Plus, Trash2, Info, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
-
-const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
+import { OnboardingStepShell } from "@/components/portal/OnboardingStepShell";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
 
 const STEPS = [
-  { id: 0, title: "Business Basics", icon: Building2, desc: "Tell us about your business" },
-  { id: 1, title: "Services & Pricing", icon: Wrench, desc: "What you do and what you charge" },
-  { id: 2, title: "Branding & AI", icon: Palette, desc: "Your brand and how AI should represent you" },
-  { id: 3, title: "Review & Activate", icon: Rocket, desc: "Check everything and go live" },
+  { id: 0, title: "Business Basics", desc: "Tell us about your business" },
+  { id: 1, title: "Services & Pricing", desc: "What you do and what you charge" },
+  { id: 2, title: "Branding & AI", desc: "Your brand and how AI should represent you" },
+  { id: 3, title: "Review & Activate", desc: "Check everything and go live" },
 ];
+
+const TOTAL_STEPS = STEPS.length;
+
+// Minimum 44×44pt tap target — Apple HIG.
+const TAP_TARGET = "min-h-[44px]";
 
 const INDUSTRY_OPTIONS = [
   { value: "plumber", label: "Plumber" },
@@ -197,7 +205,10 @@ export default function PortalOnboarding() {
   const [escalationInstructions, setEscalationInstructions] = useState("");
 
   // Load existing profile
-  const { data: profileData, isLoading } = trpc.portal.getOnboardingProfile.useQuery();
+  const { data: profileData, isLoading } = trpc.portal.getOnboardingProfile.useQuery(undefined, {
+    retry: 2,
+    staleTime: 30_000,
+  });
   const saveMutation = trpc.portal.saveOnboardingStep.useMutation({
     onError: (err) => {
       toast.error(err.message || "Couldn't save your progress. Please try again.");
@@ -321,18 +332,20 @@ export default function PortalOnboarding() {
         data: getStepData(currentStep),
       });
     } catch (err) {
-      console.error("Failed to save step:", err);
+      // onError toast handled by the mutation config.
     } finally {
       setIsSaving(false);
     }
   }, [currentStep, getStepData, saveMutation]);
 
   const handleNext = async () => {
+    hapticLight();
     await saveCurrentStep();
     setCurrentStep((s) => Math.min(s + 1, 3));
   };
 
   const handleBack = () => {
+    hapticLight();
     setCurrentStep((s) => Math.max(s - 1, 0));
   };
 
@@ -342,9 +355,10 @@ export default function PortalOnboarding() {
       // Save final step first
       await saveMutation.mutateAsync({ step: currentStep, data: getStepData(currentStep) });
       await completeMutation.mutateAsync();
+      hapticSuccess();
       navigate("/portal/dashboard");
     } catch (err) {
-      console.error("Failed to complete onboarding:", err);
+      // onError toast handled by each mutation config.
       setIsCompleting(false);
     }
   };
@@ -379,6 +393,9 @@ export default function PortalOnboarding() {
     setFaqs(faqs.filter((_, i) => i !== index));
   };
 
+  // Step 1 is valid when the mandatory basics are filled.
+  const step1Valid = tradingName.trim().length > 0 && phone.trim().length > 0 && industryType.trim().length > 0;
+
   // Summary data for review step
   const summaryItems = useMemo(() => [
     { label: "Trading Name", value: tradingName },
@@ -398,640 +415,735 @@ export default function PortalOnboarding() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#0F1F3D" }}>
-        <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F5A623" }} />
       </div>
     );
   }
 
+  // Auto-save indicator slotted into the shell header.
+  const headerRight = (
+    <div className="flex items-center gap-1.5">
+      {isSaving ? (
+        <>
+          <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#F5A623" }} />
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Saving</span>
+        </>
+      ) : (
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Saved</span>
+      )}
+    </div>
+  );
+
+  // CTA config per step.
+  const isFinalStep = currentStep === 3;
+  const ctaLabel = isFinalStep ? "Activate My Portal" : "Next";
+  const ctaDisabled = currentStep === 0 ? !step1Valid : false;
+  const ctaLoading = isFinalStep ? isCompleting : isSaving;
+  const onCtaClick = isFinalStep ? handleComplete : handleNext;
+
   return (
-    <div className="min-h-screen" style={{ background: "#0F1F3D" }}>
-      {/* Header */}
-      <div className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-        <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <img src={LOGO} alt="Solvr" className="h-7 opacity-90" />
-          <div className="flex items-center gap-2">
-            {isSaving && <Loader2 className="w-4 h-4 animate-spin text-amber-400" />}
-            <span className="text-white/30 text-xs">{isSaving ? "Saving..." : "Auto-saved"}</span>
-          </div>
-        </div>
+    <OnboardingStepShell
+      currentStep={currentStep}
+      totalSteps={TOTAL_STEPS}
+      ctaLabel={ctaLabel}
+      onCtaClick={onCtaClick}
+      ctaDisabled={ctaDisabled}
+      ctaLoading={ctaLoading}
+      onBack={handleBack}
+      headerRight={headerRight}
+    >
+      {/* Step title */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold" style={{ color: "rgba(255,255,255,0.9)" }}>
+          {STEPS[currentStep].title}
+        </h2>
+        <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
+          {STEPS[currentStep].desc}
+        </p>
       </div>
 
-      {/* Progress bar */}
-      <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 pt-8">
-        <div className="flex items-center gap-2 mb-2">
-          {STEPS.map((step, i) => (
-            <div key={step.id} className="flex items-center gap-2 flex-1">
-              <button
-                onClick={() => { if (i <= currentStep) setCurrentStep(i); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all w-full ${
-                  i === currentStep
-                    ? "text-white"
-                    : i < currentStep
-                    ? "text-green-400 cursor-pointer"
-                    : "text-white/30 cursor-default"
-                }`}
-                style={i === currentStep ? { background: "rgba(245,166,35,0.12)" } : {}}
-                disabled={i > currentStep}
-              >
-                {i < currentStep ? (
-                  <CheckCircle2 className="w-5 h-5 shrink-0 text-green-400" />
-                ) : (
-                  <step.icon className="w-5 h-5 shrink-0" style={i === currentStep ? { color: "#F5A623" } : {}} />
-                )}
-                <span className="hidden sm:inline truncate">{step.title}</span>
-              </button>
-              {i < STEPS.length - 1 && (
-                <div className="w-8 h-px shrink-0" style={{ background: i < currentStep ? "#22c55e" : "rgba(255,255,255,0.1)" }} />
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="h-1 rounded-full mt-4" style={{ background: "rgba(255,255,255,0.06)" }}>
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${((currentStep + 1) / 4) * 100}%`, background: "#F5A623" }}
-          />
-        </div>
-      </div>
-
-      {/* Dictation tip */}
+      {/* Dictation tip (steps 1–3 only) */}
       {showDictationTip && currentStep < 3 && (
-        <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 mt-6">
-          <div className="flex items-start gap-3 p-4 rounded-xl" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.12)" }}>
-            <Mic className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
-            <div className="flex-1">
-              <p className="text-white/70 text-sm">
-                <strong className="text-white/90">Time-poor?</strong> Tap the microphone on your keyboard to dictate instead of typing. Works great for service descriptions and FAQs.
-              </p>
-            </div>
-            <button onClick={() => setShowDictationTip(false)} className="text-white/30 hover:text-white/50 text-xs">
-              Dismiss
-            </button>
+        <div
+          className="flex items-start gap-3 p-4 rounded-2xl mb-6"
+          style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.12)" }}
+        >
+          <Mic className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+          <div className="flex-1">
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              <strong style={{ color: "rgba(255,255,255,0.9)" }}>Time-poor?</strong>{" "}
+              Tap the microphone on your keyboard to dictate instead of typing. Works great for
+              service descriptions and FAQs.
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowDictationTip(false)}
+            className={`${TAP_TARGET} min-w-[44px] flex items-center justify-center text-xs`}
+            style={{ color: "rgba(255,255,255,0.4)" }}
+            aria-label="Dismiss tip"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* Step content */}
-      <div className="sm:max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-white text-2xl font-bold">{STEPS[currentStep].title}</h2>
-          <p className="text-white/50 text-sm mt-1">{STEPS[currentStep].desc}</p>
-        </div>
-
-        {/* ── Step 1: Business Basics ────────────────────────────────── */}
-        {currentStep === 0 && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Trading Name *</Label>
-                <Input
-                  value={tradingName}
-                  onChange={(e) => setTradingName(e.target.value)}
-                  placeholder="e.g. Smith's Plumbing"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-                />
-                <p className="text-white/30 text-xs">The name your customers know you by</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">ABN</Label>
-                <Input
-                  value={abn}
-                  onChange={(e) => setAbn(e.target.value)}
-                  placeholder="e.g. 12 345 678 901"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Phone *</Label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 0412 345 678"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Email</Label>
-                <Input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. info@smithplumbing.com.au"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-white/70 text-sm">Business Address</Label>
-              <Input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="e.g. 42 High Street, Parramatta NSW 2150"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-white/70 text-sm">Website</Label>
-              <Input
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="e.g. www.smithplumbing.com.au"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Industry *</Label>
-                <Select value={industryType} onValueChange={setIndustryType}>
-                  <SelectTrigger className="bg-white/5 border-white/10 text-white h-11">
-                    <SelectValue placeholder="Select your industry" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDUSTRY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Years in Business</Label>
-                <Input
-                  type="number"
-                  value={yearsInBusiness}
-                  onChange={(e) => setYearsInBusiness(e.target.value)}
-                  placeholder="e.g. 5"
-                  min={0}
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Team Size</Label>
-                <Input
-                  type="number"
-                  value={teamSize}
-                  onChange={(e) => setTeamSize(e.target.value)}
-                  placeholder="e.g. 1 (sole trader)"
-                  min={1}
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-11"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: Services & Pricing ─────────────────────────────── */}
-        {currentStep === 1 && (
-          <div className="space-y-8">
-            {/* Services list */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-white font-semibold">Services You Offer</h3>
-                  <p className="text-white/40 text-xs mt-1">
-                    {industryType && INDUSTRY_DEFAULTS[industryType]
-                      ? "We've pre-filled common services for your industry — edit or remove as needed."
-                      : "Add the services your business provides."}
+      {/* ── Step 1: Business Basics ────────────────────────────────── */}
+      {currentStep === 0 && (
+        <div className="space-y-6">
+          {/* Voice CTA — step 1 only */}
+          <Link href="/portal/onboarding/voice">
+            <div
+              role="link"
+              tabIndex={0}
+              className={`${TAP_TARGET} flex items-center justify-between gap-3 p-4 rounded-2xl cursor-pointer transition-colors`}
+              style={{
+                background: "rgba(245,166,35,0.08)",
+                border: "1px solid rgba(245,166,35,0.25)",
+              }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(245,166,35,0.15)" }}
+                >
+                  <Mic className="w-5 h-5" style={{ color: "#F5A623" }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
+                    Prefer to talk?
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.6)" }}>
+                    Let SOLVR set you up — 2 mins
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  onClick={addService}
-                  variant="outline"
-                  size="sm"
-                  className="border-white/10 text-white/70 hover:text-white hover:bg-white/5"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add Service
-                </Button>
               </div>
-
-              <div className="space-y-3">
-                {services.map((service, i) => (
-                  <div key={i} className="p-4 rounded-xl space-y-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Input
-                          value={service.name}
-                          onChange={(e) => updateService(i, "name", e.target.value)}
-                          placeholder="Service name"
-                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                        />
-                        <div className="flex gap-2">
-                          <Input
-                            type="number"
-                            value={service.typicalPrice ?? ""}
-                            onChange={(e) => updateService(i, "typicalPrice", e.target.value ? parseFloat(e.target.value) : null)}
-                            placeholder="Price ($)"
-                            className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm flex-1"
-                          />
-                          <Select value={service.unit} onValueChange={(v) => updateService(i, "unit", v)}>
-                            <SelectTrigger className="bg-white/5 border-white/10 text-white h-10 text-sm w-28">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="job">per job</SelectItem>
-                              <SelectItem value="hour">per hour</SelectItem>
-                              <SelectItem value="visit">per visit</SelectItem>
-                              <SelectItem value="session">per session</SelectItem>
-                              <SelectItem value="quote">by quote</SelectItem>
-                              <SelectItem value="point">per point</SelectItem>
-                              <SelectItem value="light">per light</SelectItem>
-                              <SelectItem value="alarm">per alarm</SelectItem>
-                              <SelectItem value="door">per door</SelectItem>
-                              <SelectItem value="contract">per contract</SelectItem>
-                              <SelectItem value="transaction">per transaction</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <button onClick={() => removeService(i)} className="text-white/20 hover:text-red-400 mt-2">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <Textarea
-                      value={service.description}
-                      onChange={(e) => updateService(i, "description", e.target.value)}
-                      placeholder="Brief description of this service..."
-                      rows={2}
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
-                    />
-                  </div>
-                ))}
-                {services.length === 0 && (
-                  <div className="text-center py-8 text-white/30 text-sm">
-                    No services added yet. Click "Add Service" or select your industry in Step 1 for smart defaults.
-                  </div>
-                )}
-              </div>
+              <ChevronRight className="w-5 h-5 shrink-0" style={{ color: "#F5A623" }} />
             </div>
+          </Link>
 
-            {/* Pricing */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">Pricing</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Call-out Fee ($)</Label>
-                  <Input
-                    type="number"
-                    value={callOutFee}
-                    onChange={(e) => setCallOutFee(e.target.value)}
-                    placeholder="80"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Hourly Rate ($)</Label>
-                  <Input
-                    type="number"
-                    value={hourlyRate}
-                    onChange={(e) => setHourlyRate(e.target.value)}
-                    placeholder="95"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Minimum Charge ($)</Label>
-                  <Input
-                    type="number"
-                    value={minimumCharge}
-                    onChange={(e) => setMinimumCharge(e.target.value)}
-                    placeholder="150"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">After-hours Multiplier</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={afterHoursMultiplier}
-                    onChange={(e) => setAfterHoursMultiplier(e.target.value)}
-                    placeholder="1.5"
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Service Area */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-white/70 text-sm">Service Area</Label>
-              <Textarea
-                value={serviceArea}
-                onChange={(e) => setServiceArea(e.target.value)}
-                placeholder="e.g. Greater Sydney — Parramatta, Penrith, Blacktown, Hills District. Travel fee applies beyond 30km."
-                rows={2}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Trading Name *</Label>
+              <Input
+                value={tradingName}
+                onChange={(e) => setTradingName(e.target.value)}
+                placeholder="e.g. Smith's Plumbing"
+                autoCapitalize="words"
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+              />
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+                The name your customers know you by
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>ABN</Label>
+              <Input
+                value={abn}
+                onChange={(e) => setAbn(e.target.value)}
+                placeholder="e.g. 12 345 678 901"
+                inputMode="numeric"
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
               />
             </div>
 
-            {/* Operating Hours */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">Operating Hours</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Mon–Fri</Label>
-                  <Input value={monFri} onChange={(e) => setMonFri(e.target.value)} className="bg-white/5 border-white/10 text-white h-10 text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Saturday</Label>
-                  <Input value={sat} onChange={(e) => setSat(e.target.value)} className="bg-white/5 border-white/10 text-white h-10 text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Sunday</Label>
-                  <Input value={sun} onChange={(e) => setSun(e.target.value)} className="bg-white/5 border-white/10 text-white h-10 text-sm" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white/70 text-xs">Public Holidays</Label>
-                  <Input value={publicHolidays} onChange={(e) => setPublicHolidays(e.target.value)} className="bg-white/5 border-white/10 text-white h-10 text-sm" />
-                </div>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Phone *</Label>
+              <Input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. 0412 345 678"
+                inputMode="tel"
+                autoComplete="tel"
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+              />
+            </div>
 
-              <div className="flex items-center gap-4 mt-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={emergencyAvailable}
-                    onChange={(e) => setEmergencyAvailable(e.target.checked)}
-                    className="rounded border-white/20"
-                  />
-                  <span className="text-white/70 text-sm">Emergency call-outs available</span>
-                </label>
-                {emergencyAvailable && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-white/70 text-xs">Emergency Fee ($)</Label>
-                    <Input
-                      type="number"
-                      value={emergencyFee}
-                      onChange={(e) => setEmergencyFee(e.target.value)}
-                      placeholder="150"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-9 text-sm w-24"
-                    />
-                  </div>
-                )}
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Email</Label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="e.g. info@smithplumbing.com.au"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+              />
             </div>
           </div>
-        )}
 
-        {/* ── Step 3: Branding & AI ──────────────────────────────────── */}
-        {currentStep === 2 && (
-          <div className="space-y-8">
-            {/* Brand */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Brand Colour</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="w-10 h-10 rounded-lg border border-white/10 cursor-pointer"
-                  />
-                  <Input
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white h-10 text-sm flex-1"
-                  />
-                </div>
-              </div>
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Business Address</Label>
+            <Input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="e.g. 42 High Street, Parramatta NSW 2150"
+              autoCapitalize="words"
+              className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label className="text-white/70 text-sm">Tagline</Label>
-                <Input
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                  placeholder="e.g. Your local plumbing experts since 2010"
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                />
-              </div>
-            </div>
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Website</Label>
+            <Input
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="e.g. www.smithplumbing.com.au"
+              inputMode="url"
+              autoCapitalize="none"
+              className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+            />
+          </div>
 
-            {/* AI Tone */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label className="text-white/70 text-sm">How should the AI sound when it answers calls or writes quotes?</Label>
-              <Select value={toneOfVoice} onValueChange={setToneOfVoice}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white h-11">
-                  <SelectValue />
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Industry *</Label>
+              <Select value={industryType} onValueChange={setIndustryType}>
+                <SelectTrigger className={`bg-white/5 border-white/10 text-white ${TAP_TARGET}`}>
+                  <SelectValue placeholder="Select your industry" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TONE_OPTIONS.map((opt) => (
+                  {INDUSTRY_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* AI Context */}
             <div className="space-y-2">
-              <Label className="text-white/70 text-sm">
-                Anything else the AI should know about your business?
-              </Label>
-              <div className="flex items-start gap-2 mb-2 p-3 rounded-lg" style={{ background: "rgba(245,166,35,0.06)" }}>
-                <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
-                <p className="text-white/50 text-xs">
-                  This is your AI's "memory" — anything you write here will be used when answering calls and generating quotes.
-                  Think: specialisations, certifications, areas you don't service, common customer questions.
-                </p>
-              </div>
-              <Textarea
-                value={aiContext}
-                onChange={(e) => setAiContext(e.target.value)}
-                placeholder="e.g. We specialise in heritage homes and period-correct restorations. We're fully licensed and insured. We don't do gas fitting — refer those to ABC Gas on 0400 123 456."
-                rows={4}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Years in Business</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={yearsInBusiness}
+                onChange={(e) => setYearsInBusiness(e.target.value)}
+                placeholder="e.g. 5"
+                min={0}
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
               />
             </div>
 
-            {/* What makes you different */}
             <div className="space-y-2">
-              <Label className="text-white/70 text-sm">What makes your business different from competitors?</Label>
-              <Textarea
-                value={competitorNotes}
-                onChange={(e) => setCompetitorNotes(e.target.value)}
-                placeholder="e.g. We offer same-day service, lifetime warranty on all work, and we clean up after every job."
-                rows={3}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Team Size</Label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={teamSize}
+                onChange={(e) => setTeamSize(e.target.value)}
+                placeholder="e.g. 1 (sole trader)"
+                min={1}
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
               />
             </div>
-
-            {/* Booking instructions */}
-            <div className="space-y-2">
-              <Label className="text-white/70 text-sm">How do customers book with you?</Label>
-              <Textarea
-                value={bookingInstructions}
-                onChange={(e) => setBookingInstructions(e.target.value)}
-                placeholder="e.g. Customers can book via phone or through our ServiceM8 online booking page. For urgent jobs, call directly."
-                rows={2}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
-              />
-            </div>
-
-            {/* Escalation */}
-            <div className="space-y-2">
-              <Label className="text-white/70 text-sm">When should the AI transfer a call to you vs take a message?</Label>
-              <Textarea
-                value={escalationInstructions}
-                onChange={(e) => setEscalationInstructions(e.target.value)}
-                placeholder="e.g. Transfer immediately for emergencies (burst pipes, no hot water). Take a message for general enquiries and quote requests."
-                rows={2}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
-              />
-            </div>
-
-            {/* FAQs */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-white font-semibold">Common Questions & Answers</h3>
-                  <p className="text-white/40 text-xs mt-1">
-                    Add questions your customers frequently ask — the AI will use these to answer calls.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={addFaq}
-                  variant="outline"
-                  size="sm"
-                  className="border-white/10 text-white/70 hover:text-white hover:bg-white/5"
-                >
-                  <Plus className="w-4 h-4 mr-1" /> Add FAQ
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {faqs.map((faq, i) => (
-                  <div key={i} className="p-4 rounded-xl space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 space-y-2">
-                        <Input
-                          value={faq.question}
-                          onChange={(e) => updateFaq(i, "question", e.target.value)}
-                          placeholder="Question customers ask..."
-                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-10 text-sm"
-                        />
-                        <Textarea
-                          value={faq.answer}
-                          onChange={(e) => updateFaq(i, "answer", e.target.value)}
-                          placeholder="How the AI should answer..."
-                          rows={2}
-                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
-                        />
-                      </div>
-                      <button onClick={() => removeFaq(i)} className="text-white/20 hover:text-red-400 mt-2">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 4: Review & Activate ──────────────────────────────── */}
-        {currentStep === 3 && (
-          <div className="space-y-8">
-            <div className="p-6 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              <h3 className="text-white font-semibold mb-4">Your Business Profile Summary</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {summaryItems.map((item) => (
-                  <div key={item.label} className="flex justify-between py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                    <span className="text-white/50 text-sm">{item.label}</span>
-                    <span className="text-white text-sm font-medium">{item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Services detail */}
-            {services.filter(s => s.name).length > 0 && (
-              <div className="p-6 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <h3 className="text-white font-semibold mb-4">Services</h3>
-                <div className="space-y-3">
-                  {services.filter(s => s.name).map((s, i) => (
-                    <div key={i} className="flex items-start justify-between py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                      <div>
-                        <p className="text-white text-sm font-medium">{s.name}</p>
-                        <p className="text-white/40 text-xs">{s.description}</p>
-                      </div>
-                      <span className="text-white/60 text-sm shrink-0 ml-4">
-                        {s.typicalPrice ? `$${s.typicalPrice}/${s.unit}` : `By ${s.unit}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* AI Context preview */}
-            {aiContext && (
-              <div className="p-6 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                <h3 className="text-white font-semibold mb-2">AI Memory</h3>
-                <p className="text-white/50 text-sm whitespace-pre-wrap">{aiContext}</p>
-              </div>
-            )}
-
-            <div className="p-6 rounded-xl text-center" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-              <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-green-400" />
-              <h3 className="text-white font-semibold mb-1">Ready to activate</h3>
-              <p className="text-white/50 text-sm max-w-md mx-auto">
-                Once you activate, your AI receptionist and quoting engine will use all this information
-                to represent your business. You can update any of this later in Settings.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Navigation */}
-        <div className="flex items-center justify-between mt-10 pt-6 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <Button
-            type="button"
-            onClick={handleBack}
-            variant="outline"
-            disabled={currentStep === 0}
-            className="border-white/10 text-white/70 hover:text-white hover:bg-white/5"
-          >
-            <ChevronLeft className="w-4 h-4 mr-1" /> Back
-          </Button>
-
-          <div className="flex items-center gap-3">
-            <span className="text-white/30 text-xs">Step {currentStep + 1} of 4</span>
-            {currentStep < 3 ? (
-              <Button
-                type="button"
-                onClick={handleNext}
-                disabled={isSaving}
-                className="font-semibold cursor-pointer"
-                style={{ background: "#F5A623", color: "#0F1F3D" }}
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Next <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={handleComplete}
-                disabled={isCompleting}
-                className="font-semibold cursor-pointer px-8"
-                style={{ background: "#22c55e", color: "white" }}
-              >
-                {isCompleting ? (
-                  <><Loader2 className="w-4 h-4 animate-spin mr-2" />Activating…</>
-                ) : (
-                  <><Rocket className="w-4 h-4 mr-2" />Activate My Portal</>
-                )}
-              </Button>
-            )}
           </div>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* ── Step 2: Services & Pricing ─────────────────────────────── */}
+      {currentStep === 1 && (
+        <div className="space-y-8">
+          {/* Services list */}
+          <div>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
+                  Services You Offer
+                </h3>
+                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {industryType && INDUSTRY_DEFAULTS[industryType]
+                    ? "We've pre-filled common services for your industry — edit or remove as needed."
+                    : "Add the services your business provides."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={addService}
+                variant="outline"
+                className={`${TAP_TARGET} border-white/10 text-white/70 hover:text-white hover:bg-white/5 shrink-0`}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {services.map((service, i) => (
+                <div
+                  key={i}
+                  className="p-4 rounded-2xl space-y-3"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 space-y-3">
+                      <Input
+                        value={service.name}
+                        onChange={(e) => updateService(i, "name", e.target.value)}
+                        placeholder="Service name"
+                        autoCapitalize="words"
+                        className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+                      />
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={service.typicalPrice ?? ""}
+                          onChange={(e) => updateService(i, "typicalPrice", e.target.value ? parseFloat(e.target.value) : null)}
+                          placeholder="Price ($)"
+                          className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET} flex-1`}
+                        />
+                        <Select value={service.unit} onValueChange={(v) => updateService(i, "unit", v)}>
+                          <SelectTrigger className={`bg-white/5 border-white/10 text-white ${TAP_TARGET} w-32`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="job">per job</SelectItem>
+                            <SelectItem value="hour">per hour</SelectItem>
+                            <SelectItem value="visit">per visit</SelectItem>
+                            <SelectItem value="session">per session</SelectItem>
+                            <SelectItem value="quote">by quote</SelectItem>
+                            <SelectItem value="point">per point</SelectItem>
+                            <SelectItem value="light">per light</SelectItem>
+                            <SelectItem value="alarm">per alarm</SelectItem>
+                            <SelectItem value="door">per door</SelectItem>
+                            <SelectItem value="contract">per contract</SelectItem>
+                            <SelectItem value="transaction">per transaction</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeService(i)}
+                      aria-label="Remove service"
+                      className={`${TAP_TARGET} w-11 flex items-center justify-center rounded-lg`}
+                      style={{ color: "rgba(255,255,255,0.4)" }}
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <Textarea
+                    value={service.description}
+                    onChange={(e) => updateService(i, "description", e.target.value)}
+                    placeholder="Brief description of this service..."
+                    rows={2}
+                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+                  />
+                </div>
+              ))}
+              {services.length === 0 && (
+                <div
+                  className="text-center py-8 text-sm rounded-2xl"
+                  style={{
+                    color: "rgba(255,255,255,0.4)",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px dashed rgba(255,255,255,0.08)",
+                  }}
+                >
+                  No services added yet. Tap "Add" or select your industry in step 1 for smart defaults.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Pricing */}
+          <div>
+            <h3 className="font-semibold mb-4" style={{ color: "rgba(255,255,255,0.9)" }}>Pricing</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Call-out Fee ($)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={callOutFee}
+                  onChange={(e) => setCallOutFee(e.target.value)}
+                  placeholder="80"
+                  className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Hourly Rate ($)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={hourlyRate}
+                  onChange={(e) => setHourlyRate(e.target.value)}
+                  placeholder="95"
+                  className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Minimum Charge ($)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={minimumCharge}
+                  onChange={(e) => setMinimumCharge(e.target.value)}
+                  placeholder="150"
+                  className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>After-hours Multiplier</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  value={afterHoursMultiplier}
+                  onChange={(e) => setAfterHoursMultiplier(e.target.value)}
+                  placeholder="1.5"
+                  className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Service Area */}
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Service Area</Label>
+            <Textarea
+              value={serviceArea}
+              onChange={(e) => setServiceArea(e.target.value)}
+              placeholder="e.g. Greater Sydney — Parramatta, Penrith, Blacktown, Hills District. Travel fee applies beyond 30km."
+              rows={3}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+            />
+          </div>
+
+          {/* Operating Hours */}
+          <div>
+            <h3 className="font-semibold mb-4" style={{ color: "rgba(255,255,255,0.9)" }}>Operating Hours</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Mon–Fri</Label>
+                <Input
+                  value={monFri}
+                  onChange={(e) => setMonFri(e.target.value)}
+                  className={`bg-white/5 border-white/10 text-white ${TAP_TARGET}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Saturday</Label>
+                <Input
+                  value={sat}
+                  onChange={(e) => setSat(e.target.value)}
+                  className={`bg-white/5 border-white/10 text-white ${TAP_TARGET}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Sunday</Label>
+                <Input
+                  value={sun}
+                  onChange={(e) => setSun(e.target.value)}
+                  className={`bg-white/5 border-white/10 text-white ${TAP_TARGET}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Public Holidays</Label>
+                <Input
+                  value={publicHolidays}
+                  onChange={(e) => setPublicHolidays(e.target.value)}
+                  className={`bg-white/5 border-white/10 text-white ${TAP_TARGET}`}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-4">
+              <label className={`${TAP_TARGET} flex items-center gap-2 cursor-pointer`}>
+                <input
+                  type="checkbox"
+                  checked={emergencyAvailable}
+                  onChange={(e) => setEmergencyAvailable(e.target.checked)}
+                  className="w-5 h-5 rounded border-white/20"
+                />
+                <span className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  Emergency call-outs available
+                </span>
+              </label>
+              {emergencyAvailable && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm shrink-0" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    Emergency Fee ($)
+                  </Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={emergencyFee}
+                    onChange={(e) => setEmergencyFee(e.target.value)}
+                    placeholder="150"
+                    className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET} w-28`}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 3: Branding & AI ──────────────────────────────────── */}
+      {currentStep === 2 && (
+        <div className="space-y-8">
+          {/* Brand */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Brand Colour</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="w-11 h-11 rounded-lg border border-white/10 cursor-pointer shrink-0"
+                  aria-label="Pick brand colour"
+                />
+                <Input
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  autoCapitalize="none"
+                  className={`bg-white/5 border-white/10 text-white ${TAP_TARGET} flex-1`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Tagline</Label>
+              <Input
+                value={tagline}
+                onChange={(e) => setTagline(e.target.value)}
+                placeholder="e.g. Your local plumbing experts since 2010"
+                className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+              />
+            </div>
+          </div>
+
+          {/* AI Tone */}
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              How should the AI sound when it answers calls or writes quotes?
+            </Label>
+            <Select value={toneOfVoice} onValueChange={setToneOfVoice}>
+              <SelectTrigger className={`bg-white/5 border-white/10 text-white ${TAP_TARGET}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TONE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* AI Context */}
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              Anything else the AI should know about your business?
+            </Label>
+            <div
+              className="flex items-start gap-2 mb-2 p-3 rounded-lg"
+              style={{ background: "rgba(245,166,35,0.06)" }}
+            >
+              <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+                This is your AI's "memory" — anything you write here will be used when answering calls and
+                generating quotes. Think: specialisations, certifications, areas you don't service, common
+                customer questions.
+              </p>
+            </div>
+            <Textarea
+              value={aiContext}
+              onChange={(e) => setAiContext(e.target.value)}
+              placeholder="e.g. We specialise in heritage homes and period-correct restorations. We're fully licensed and insured. We don't do gas fitting — refer those to ABC Gas on 0400 123 456."
+              rows={4}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+            />
+          </div>
+
+          {/* What makes you different */}
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              What makes your business different from competitors?
+            </Label>
+            <Textarea
+              value={competitorNotes}
+              onChange={(e) => setCompetitorNotes(e.target.value)}
+              placeholder="e.g. We offer same-day service, lifetime warranty on all work, and we clean up after every job."
+              rows={3}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+            />
+          </div>
+
+          {/* Booking instructions */}
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              How do customers book with you?
+            </Label>
+            <Textarea
+              value={bookingInstructions}
+              onChange={(e) => setBookingInstructions(e.target.value)}
+              placeholder="e.g. Customers can book via phone or through our ServiceM8 online booking page. For urgent jobs, call directly."
+              rows={3}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+            />
+          </div>
+
+          {/* Escalation */}
+          <div className="space-y-2">
+            <Label className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+              When should the AI transfer a call to you vs take a message?
+            </Label>
+            <Textarea
+              value={escalationInstructions}
+              onChange={(e) => setEscalationInstructions(e.target.value)}
+              placeholder="e.g. Transfer immediately for emergencies (burst pipes, no hot water). Take a message for general enquiries and quote requests."
+              rows={3}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+            />
+          </div>
+
+          {/* FAQs */}
+          <div>
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold" style={{ color: "rgba(255,255,255,0.9)" }}>
+                  Common Questions & Answers
+                </h3>
+                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Add questions your customers frequently ask — the AI will use these to answer calls.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={addFaq}
+                variant="outline"
+                className={`${TAP_TARGET} border-white/10 text-white/70 hover:text-white hover:bg-white/5 shrink-0`}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {faqs.map((faq, i) => (
+                <div
+                  key={i}
+                  className="p-4 rounded-2xl space-y-2"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        value={faq.question}
+                        onChange={(e) => updateFaq(i, "question", e.target.value)}
+                        placeholder="Question customers ask..."
+                        className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
+                      />
+                      <Textarea
+                        value={faq.answer}
+                        onChange={(e) => updateFaq(i, "answer", e.target.value)}
+                        placeholder="How the AI should answer..."
+                        rows={2}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 text-sm resize-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeFaq(i)}
+                      aria-label="Remove FAQ"
+                      className={`${TAP_TARGET} w-11 flex items-center justify-center rounded-lg`}
+                      style={{ color: "rgba(255,255,255,0.4)" }}
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 4: Review & Activate ──────────────────────────────── */}
+      {currentStep === 3 && (
+        <div className="space-y-6">
+          <div
+            className="p-6 rounded-2xl"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <h3 className="font-semibold mb-4" style={{ color: "rgba(255,255,255,0.9)" }}>
+              Your Business Profile Summary
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {summaryItems.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex justify-between py-2 border-b gap-3"
+                  style={{ borderColor: "rgba(255,255,255,0.06)" }}
+                >
+                  <span className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>{item.label}</span>
+                  <span
+                    className="text-sm font-medium text-right"
+                    style={{ color: "rgba(255,255,255,0.9)" }}
+                  >
+                    {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Services detail */}
+          {services.filter(s => s.name).length > 0 && (
+            <div
+              className="p-6 rounded-2xl"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <h3 className="font-semibold mb-4" style={{ color: "rgba(255,255,255,0.9)" }}>Services</h3>
+              <div className="space-y-3">
+                {services.filter(s => s.name).map((s, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start justify-between py-2 border-b gap-3"
+                    style={{ borderColor: "rgba(255,255,255,0.06)" }}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.9)" }}>{s.name}</p>
+                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{s.description}</p>
+                    </div>
+                    <span className="text-sm shrink-0" style={{ color: "rgba(255,255,255,0.6)" }}>
+                      {s.typicalPrice ? `$${s.typicalPrice}/${s.unit}` : `By ${s.unit}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AI Context preview */}
+          {aiContext && (
+            <div
+              className="p-6 rounded-2xl"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <h3 className="font-semibold mb-2" style={{ color: "rgba(255,255,255,0.9)" }}>AI Memory</h3>
+              <p className="text-sm whitespace-pre-wrap" style={{ color: "rgba(255,255,255,0.6)" }}>
+                {aiContext}
+              </p>
+            </div>
+          )}
+
+          <div
+            className="p-6 rounded-2xl text-center"
+            style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}
+          >
+            <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-green-400" />
+            <h3 className="font-semibold mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>Ready to activate</h3>
+            <p className="text-sm max-w-md mx-auto" style={{ color: "rgba(255,255,255,0.6)" }}>
+              Once you activate, your AI receptionist and quoting engine will use all this information to
+              represent your business. You can update any of this later in Settings.
+            </p>
+          </div>
+        </div>
+      )}
+    </OnboardingStepShell>
   );
 }

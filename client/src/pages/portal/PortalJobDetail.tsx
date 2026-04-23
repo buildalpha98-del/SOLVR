@@ -5,10 +5,17 @@
  */
 /**
  * Portal Job Detail — tabbed job view.
- * Three tabs: Overview · Money · Work
+ * Four tabs: Overview · Money · Work · Forms
  * Designed for tradies — minimal taps to find anything.
+ *
+ * Layout:
+ *   1. Header (title + status chips) + overflow menu (copy link, open PDF)
+ *   2. Primary Action Bar — ONE amber button reflecting the next step
+ *      (mark in progress / mark complete / send invoice / mark paid)
+ *   3. Stage selector dropdown
+ *   4. Sticky tab bar + tab panels
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
@@ -16,20 +23,25 @@ import { getSolvrOrigin } from "@/const";
 import { toast } from "sonner";
 import {
   ArrowLeft, MapPin, User, Phone, Mail, Home, Briefcase,
-  DollarSign, CheckCircle2, FileText, Camera, Clock,
+  CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
   Banknote, Receipt, Send, Copy, Check,
-  ChevronLeft, ChevronRight, ZoomIn, RefreshCw,
+  ChevronLeft, ChevronRight, ZoomIn, RefreshCw, Link2, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
+import { JobDetailActionsMenu, type JobDetailAction } from "@/components/portal/JobDetailActionsMenu";
 import { useSwipe } from "@/hooks/useSwipe";
 import { hapticLight, hapticMedium, hapticSuccess, hapticWarning } from "@/lib/haptics";
 import { openMapsLatLng } from "@/lib/openMaps";
+import { openUrl } from "@/lib/openUrl";
 import { useOfflineMutation } from "@/hooks/useOfflineMutation";
+
+// Apple HIG 44×44pt minimum tap target (tradies use gloves/thumbs).
+const TAP_TARGET = "min-h-[44px]";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STAGE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -273,7 +285,7 @@ function PhotoSection({
         {staffPhotos.length > 0 && (
           <div className="pt-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>Staff Photos ({staffPhotos.length})</p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               {staffPhotos.map(p => (
                 <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "1" }}>
                   <img src={p.imageUrl} alt={p.caption ?? p.photoType} className="w-full h-full object-cover" onClick={() => openLightbox(p)} />
@@ -319,11 +331,11 @@ function JobCostingSection({
 
   const addCost = trpc.portal.addJobCostItem.useMutation({
     onSuccess: () => { onRefresh(); setShowAdd(false); setDescription(""); setAmount(""); setSupplier(""); setReference(""); toast.success("Cost item added"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to add cost item"),
   });
   const deleteCost = trpc.portal.deleteJobCostItem.useMutation({
     onSuccess: () => { onRefresh(); toast.success("Cost item removed"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to remove cost item"),
   });
 
   const isProfitable = grossProfitCents >= 0;
@@ -332,7 +344,7 @@ function JobCostingSection({
   return (
     <SectionCard title="Job Costing & Profit" action={<button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#F5A623" }}><Plus className="w-3.5 h-3.5" /> Add Cost</button>}>
       {/* Profit Summary */}
-      <div className="grid grid-cols-3 gap-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div>
           <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Revenue</p>
           <p className="text-base font-bold text-white">{centsToAud(invoicedCents)}</p>
@@ -391,7 +403,7 @@ function JobCostingSection({
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount (AUD)</label>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
+              <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
             </div>
           </div>
           <div>
@@ -409,15 +421,15 @@ function JobCostingSection({
             </div>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => {
+            <Button onClick={() => {
               const cents = Math.round(parseFloat(amount) * 100);
               if (!cents || isNaN(cents) || cents < 1) { toast.error("Enter a valid amount"); return; }
               if (!description.trim()) { toast.error("Enter a description"); return; }
               addCost.mutate({ jobId, category, description: description.trim(), amountCents: cents, supplier: supplier || undefined, reference: reference || undefined });
-            }} disabled={addCost.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
-              {addCost.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Add Cost"}
+            }} disabled={addCost.isPending} className={`flex-1 font-semibold ${TAP_TARGET}`} style={{ background: "#F5A623", color: "#0F1F3D" }}>
+              {addCost.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Cost"}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button variant="ghost" className={TAP_TARGET} onClick={() => setShowAdd(false)}>Cancel</Button>
           </div>
         </div>
       )}
@@ -426,26 +438,20 @@ function JobCostingSection({
 }
 
 // ─── Copy Link Buttons ───────────────────────────────────────────────────────
-function CopyStatusLinkButton({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
-  const publicUrl = `${getSolvrOrigin()}/job/${token}`;
-  const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
-  return (
-    <Button size="sm" onClick={handleCopy} title="Copy customer status link"
-      style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(245,166,35,0.12)", color: copied ? "#22c55e" : "#F5A623", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(245,166,35,0.2)"}` }}>
-      {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
-    </Button>
-  );
-}
-
 function CopyReportLinkButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const publicUrl = `${getSolvrOrigin()}/report/${token}`;
-  const handleCopy = () => { navigator.clipboard.writeText(publicUrl).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); };
+  const handleCopy = () => {
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopied(true);
+      hapticLight();
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => toast.error("Copy failed"));
+  };
   return (
-    <Button size="sm" onClick={handleCopy}
+    <Button onClick={handleCopy} className={TAP_TARGET}
       style={{ background: copied ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.06)", color: copied ? "#22c55e" : "rgba(255,255,255,0.6)", border: `1px solid ${copied ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.1)"}` }}>
-      {copied ? <Check className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+      {copied ? <Check className="w-4 h-4 mr-1.5" /> : <Copy className="w-4 h-4 mr-1.5" />}
       {copied ? "Copied!" : "Copy Link"}
     </Button>
   );
@@ -463,23 +469,23 @@ export default function PortalJobDetail() {
 
   const { data, isLoading, error } = trpc.portal.getJobDetail.useQuery(
     { id: jobId },
-    { enabled: !!jobId }
+    { enabled: !!jobId, retry: 2, staleTime: 30_000 }
   );
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const updateJob = trpc.portal.updateJobDetail.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticLight(); toast.success("Saved"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to save"),
   });
 
   const addPayment = trpc.portal.addProgressPayment.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowAddPayment(false); hapticMedium(); toast.success("Payment recorded"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to record payment"),
   });
 
   const removePayment = trpc.portal.removeProgressPayment.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticWarning(); toast.success("Payment removed"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to remove payment"),
   });
 
   const setRecurring = trpc.portal.setRecurring.useMutation({
@@ -488,36 +494,36 @@ export default function PortalJobDetail() {
       const label = res.frequency === "weekly" ? "Weekly" : res.frequency === "fortnightly" ? "Fortnightly" : "Monthly";
       toast.success(`${label} repeat enabled — 3 future jobs created`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to enable repeat"),
   });
 
   const disableRecurring = trpc.portal.disableRecurring.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success("Repeat disabled"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to disable repeat"),
   });
 
   const markComplete = trpc.portal.markJobComplete.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowCompleteModal(false); hapticSuccess(); toast.success("Job marked complete"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to mark complete"),
   });
 
   const generateCompletionReport = trpc.portal.generateCompletionReport.useMutation({
     onSuccess: (res) => {
       utils.portal.getJobDetail.invalidate({ id: jobId });
       toast.success("Completion report generated");
-      if (res.pdfUrl) window.open(res.pdfUrl, "_blank");
+      if (res.pdfUrl) openUrl(res.pdfUrl);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to generate report"),
   });
 
   const generateInvoice = trpc.portal.generateInvoice.useMutation({
     onSuccess: (res) => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticSuccess(); toast.success(`Invoice ${res.invoiceNumber} created`); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to generate invoice"),
   });
 
   const markPaid = trpc.portal.markInvoicePaid.useMutation({
     onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); setShowMarkPaid(false); hapticSuccess(); toast.success("Invoice marked as paid"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(e.message || "Failed to mark invoice paid"),
   });
 
   // ── Local state ────────────────────────────────────────────────────────────
@@ -549,14 +555,15 @@ export default function PortalJobDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
   // Forms data for the Forms tab
-  const jobFormsQuery = trpc.portal.jobForms.useQuery({ jobId }, { enabled: !!jobId });
-  const formComplianceQuery = trpc.portal.formCompliance.useQuery({ jobId }, { enabled: !!jobId });
-  const formTemplatesQuery = trpc.forms.listTemplates.useQuery(undefined, { enabled: activeTab === "forms" });
+  const jobFormsQuery = trpc.portal.jobForms.useQuery({ jobId }, { enabled: !!jobId, retry: 2, staleTime: 30_000 });
+  const formComplianceQuery = trpc.portal.formCompliance.useQuery({ jobId }, { enabled: !!jobId, retry: 2, staleTime: 30_000 });
+  const formTemplatesQuery = trpc.forms.listTemplates.useQuery(undefined, { enabled: activeTab === "forms", retry: 2, staleTime: 60_000 });
   const updateRequiredForms = trpc.portal.updateRequiredForms.useMutation({
     onSuccess: () => {
       formComplianceQuery.refetch();
       toast.success("Required forms updated");
     },
+    onError: (e) => toast.error(e.message || "Failed to update required forms"),
   });
 
   const swipeHandlers = useSwipe({
@@ -614,14 +621,46 @@ export default function PortalJobDetail() {
     offlineAware("portal.updateJob", input, () => updateJob.mutate(input as Parameters<typeof updateJob.mutate>[0]));
   }
 
+  // ── Overflow-menu actions (tertiary: copy status link, open invoice PDF) ──
+  const statusToken = (job as { customerStatusToken?: string }).customerStatusToken;
+  const invoicePdfUrl = (job as { invoicePdfUrl?: string }).invoicePdfUrl;
+  const menuActions: JobDetailAction[] = [];
+  if (statusToken) {
+    menuActions.push({
+      key: "copy-status-link",
+      label: "Copy customer status link",
+      description: "Shareable job-tracking URL",
+      icon: <Link2 className="w-4 h-4" />,
+      onSelect: () => {
+        const publicUrl = `${getSolvrOrigin()}/job/${statusToken}`;
+        navigator.clipboard.writeText(publicUrl)
+          .then(() => toast.success("Status link copied"))
+          .catch(() => toast.error("Copy failed"));
+      },
+    });
+  }
+  if (invoicePdfUrl) {
+    menuActions.push({
+      key: "open-invoice-pdf",
+      label: "Open invoice PDF",
+      icon: <ExternalLink className="w-4 h-4" />,
+      onSelect: () => openUrl(invoicePdfUrl),
+    });
+  }
+
   return (
     <PortalLayout>
       <div className="sm:max-w-4xl mx-auto space-y-4 pb-24">
 
         {/* ── Header (always visible) ── */}
-        <div className="flex items-start gap-3">
-          <button onClick={() => navigate("/portal/jobs")} className="mt-1 p-1.5 rounded-lg transition-colors hover:bg-white/5" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <ArrowLeft className="w-4 h-4" />
+        <div className="flex items-start gap-2">
+          <button
+            onClick={() => navigate("/portal/jobs")}
+            aria-label="Back to jobs"
+            className={`flex items-center justify-center rounded-lg min-w-[44px] ${TAP_TARGET} transition-colors hover:bg-white/5`}
+            style={{ color: "rgba(255,255,255,0.6)" }}
+          >
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -634,10 +673,128 @@ export default function PortalJobDetail() {
               {job.invoiceNumber && ` · ${job.invoiceNumber}`}
             </p>
           </div>
-          {(job as any).customerStatusToken && <CopyStatusLinkButton token={(job as any).customerStatusToken} />}
+          <JobDetailActionsMenu ariaLabel="Job actions menu" actions={menuActions} />
+        </div>
+
+        {/* ── Primary Action Bar — one tap to the next step ── */}
+        {(() => {
+          const stage = job.stage;
+          const invoiceStatus = job.invoiceStatus ?? "not_invoiced";
+          // Fully done: invoice paid.
+          if (invoiceStatus === "paid") {
+            return (
+              <div
+                className={`flex items-center justify-center gap-2 rounded-2xl px-4 ${TAP_TARGET}`}
+                style={{
+                  background: "rgba(74,222,128,0.1)",
+                  border: "1px solid rgba(74,222,128,0.25)",
+                  color: "#4ade80",
+                }}
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                <span className="text-sm font-semibold">
+                  Job complete — invoice paid{job.paidAt ? ` ${formatDate(job.paidAt)}` : ""}
+                </span>
+              </div>
+            );
+          }
+          // Lost leads: no primary action.
+          if (stage === "lost") return null;
+
+          // Has an unpaid invoice → Mark paid (highest priority next step).
+          const hasUnpaidInvoice =
+            invoiceStatus === "sent" ||
+            invoiceStatus === "draft" ||
+            invoiceStatus === "overdue";
+          if (hasUnpaidInvoice) {
+            return (
+              <button
+                onClick={() => {
+                  setPaidAmount(String((invoicedCents / 100).toFixed(2)));
+                  setShowMarkPaid(true);
+                  hapticMedium();
+                }}
+                className={`w-full flex items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold active:opacity-90 transition-opacity ${TAP_TARGET}`}
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+              >
+                <Banknote className="w-5 h-5" />
+                Mark paid
+              </button>
+            );
+          }
+
+          // Completed + no invoice → Send invoice.
+          if (stage === "completed" && invoiceStatus === "not_invoiced") {
+            return (
+              <button
+                onClick={() => {
+                  if (!hasQuoteEngine) {
+                    toast.error("Quote Engine add-on required to generate invoices");
+                    return;
+                  }
+                  setSendInvoiceEmail(job.customerEmail ?? "");
+                  setShowSendInvoice(true);
+                  setActiveTab("money");
+                  hapticMedium();
+                }}
+                className={`w-full flex items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold active:opacity-90 transition-opacity ${TAP_TARGET}`}
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+              >
+                <Send className="w-5 h-5" />
+                Send invoice
+              </button>
+            );
+          }
+
+          // In progress → Mark complete.
+          if (stage === "in_progress") {
+            return (
+              <button
+                onClick={() => {
+                  setShowCompleteModal(true);
+                  hapticMedium();
+                }}
+                className={`w-full flex items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold active:opacity-90 transition-opacity ${TAP_TARGET}`}
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Mark complete
+              </button>
+            );
+          }
+
+          // Early stages → Mark in progress.
+          if (stage === "new_lead" || stage === "quoted" || stage === "booked") {
+            return (
+              <button
+                onClick={() => {
+                  save("stage", "in_progress");
+                  hapticMedium();
+                }}
+                disabled={updateJob.isPending}
+                className={`w-full flex items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold active:opacity-90 transition-opacity ${TAP_TARGET} disabled:opacity-60`}
+                style={{ background: "#F5A623", color: "#0F1F3D" }}
+              >
+                {updateJob.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Briefcase className="w-5 h-5" />}
+                Mark in progress
+              </button>
+            );
+          }
+          return null;
+        })()}
+
+        {/* ── Stage dropdown (still useful for explicit stage changes) ── */}
+        <div className="flex items-center gap-2">
+          <label
+            className="text-[10px] uppercase tracking-wide flex-shrink-0"
+            style={{ color: "rgba(255,255,255,0.4)" }}
+          >
+            Stage
+          </label>
           <select
-            value={job.stage} onChange={e => save("stage", e.target.value)}
-            className="text-xs px-3 py-1.5 rounded-lg outline-none cursor-pointer"
+            value={job.stage}
+            onChange={e => save("stage", e.target.value)}
+            className={`flex-1 text-sm px-3 rounded-lg outline-none cursor-pointer ${TAP_TARGET}`}
             style={{ background: "#0F1F3D", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }}
           >
             <option value="new_lead">New Lead</option>
@@ -656,14 +813,14 @@ export default function PortalJobDetail() {
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)} className="w-full">
           {/* Sticky tab bar — thumb-reachable on mobile */}
           <TabsList
-            className="w-full grid grid-cols-4 h-12 rounded-xl p-1 sticky top-0 z-30"
+            className="w-full grid grid-cols-4 sm:grid-cols-4 h-12 rounded-xl p-1 sticky top-0 z-30"
             style={{ background: "rgba(15,31,61,0.97)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}
           >
             {(["overview", "money", "work", "forms"] as const).map((tab) => (
               <TabsTrigger
                 key={tab}
                 value={tab}
-                className={`rounded-lg text-sm font-semibold min-h-[44px] capitalize data-[state=active]:shadow-none data-[state=active]:!bg-[#F5A623] data-[state=active]:!text-[#0F1F3D] ${
+                className={`rounded-lg text-sm font-semibold ${TAP_TARGET} capitalize data-[state=active]:shadow-none data-[state=active]:!bg-[#F5A623] data-[state=active]:!text-[#0F1F3D] ${
                   activeTab !== tab ? "!text-white/45" : ""
                 }`}
               >
@@ -755,7 +912,7 @@ export default function PortalJobDetail() {
               </SectionCard>
             ) : (
               <div className="flex justify-center">
-                <Button onClick={() => setShowCompleteModal(true)} style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                <Button onClick={() => setShowCompleteModal(true)} className={TAP_TARGET} style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
                   <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Job Complete
                 </Button>
               </div>
@@ -770,7 +927,7 @@ export default function PortalJobDetail() {
                 <Plus className="w-3.5 h-3.5" /> Add Payment
               </button>
             }>
-              <div className="grid grid-cols-3 gap-3 pb-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-2" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <div>
                   <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Invoiced</p>
                   <p className="text-base font-bold text-white">{centsToAud(invoicedCents)}</p>
@@ -808,7 +965,7 @@ export default function PortalJobDetail() {
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Amount (AUD)</label>
-                      <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
+                      <input type="number" inputMode="decimal" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0.00" className="w-full text-sm px-2 py-1.5 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                     </div>
                     <div>
                       <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>Method</label>
@@ -832,14 +989,14 @@ export default function PortalJobDetail() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => {
+                    <Button onClick={() => {
                       const cents = Math.round(parseFloat(paymentAmount) * 100);
                       if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
                       addPayment.mutate({ jobId, amountCents: cents, method: paymentMethod, note: paymentNote || undefined, receivedAt: paymentDate });
-                    }} disabled={addPayment.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
-                      {addPayment.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Payment"}
+                    }} disabled={addPayment.isPending} className={`flex-1 font-semibold ${TAP_TARGET}`} style={{ background: "#F5A623", color: "#0F1F3D" }}>
+                      {addPayment.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Payment"}
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setShowAddPayment(false)}>Cancel</Button>
+                    <Button variant="ghost" className={TAP_TARGET} onClick={() => setShowAddPayment(false)}>Cancel</Button>
                   </div>
                 </div>
               )}
@@ -848,11 +1005,11 @@ export default function PortalJobDetail() {
             {/* Job Costing */}
             <JobCostingSection
               jobId={jobId}
-              costItems={(data as any).costItems ?? []}
-              totalCostCents={(data as any).totalCostCents ?? 0}
+              costItems={(data as { costItems?: CostItem[] }).costItems ?? []}
+              totalCostCents={(data as { totalCostCents?: number }).totalCostCents ?? 0}
               invoicedCents={invoicedCents}
-              grossProfitCents={(data as any).grossProfitCents ?? 0}
-              grossMarginPct={(data as any).grossMarginPct ?? null}
+              grossProfitCents={(data as { grossProfitCents?: number }).grossProfitCents ?? 0}
+              grossMarginPct={(data as { grossMarginPct?: number | null }).grossMarginPct ?? null}
               onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
             />
 
@@ -866,7 +1023,7 @@ export default function PortalJobDetail() {
                       {!job.actualValue && !job.estimatedValue && !job.sourceQuoteId && (
                         <p className="text-xs text-center px-3 py-1.5 rounded-md" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>Set an Actual Value above before generating an invoice.</p>
                       )}
-                      <Button onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })} disabled={generateInvoice.isPending} style={{ background: "#F5A623", color: "#0F1F3D" }}>
+                      <Button onClick={() => generateInvoice.mutate({ jobId, paymentMethod: "bank_transfer" })} disabled={generateInvoice.isPending} className={`font-semibold ${TAP_TARGET}`} style={{ background: "#F5A623", color: "#0F1F3D" }}>
                         {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
                         Generate Invoice
                       </Button>
@@ -893,36 +1050,36 @@ export default function PortalJobDetail() {
                     <span>Invoiced {formatDate(job.invoicedAt)}</span>
                     {job.paidAt && <><span>·</span><span>Paid {formatDate(job.paidAt)}</span></>}
                   </div>
-                  {(job as any).invoicePdfUrl && (
-                    <Button size="sm" onClick={() => window.open((job as any).invoicePdfUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
-                      <FileText className="w-3.5 h-3.5 mr-1.5" /> View PDF
+                  {invoicePdfUrl && (
+                    <Button onClick={() => openUrl(invoicePdfUrl)} className={TAP_TARGET} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                      <FileText className="w-4 h-4 mr-1.5" /> View PDF
                     </Button>
                   )}
                   {job.invoiceStatus !== "paid" && (
                     <div className="flex gap-2 pt-1 flex-wrap">
-                      <Button size="sm" onClick={() => { setSendInvoiceEmail(job.customerEmail ?? ""); setShowSendInvoice(true); }} style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
-                        <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
+                      <Button onClick={() => { setSendInvoiceEmail(job.customerEmail ?? ""); setShowSendInvoice(true); }} className={TAP_TARGET} style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
+                        <Send className="w-4 h-4 mr-1.5" /> Send to Client
                       </Button>
-                      <Button size="sm" onClick={() => { setPaidAmount(String((invoicedCents / 100).toFixed(2))); setShowMarkPaid(true); }} style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
-                        <Banknote className="w-3.5 h-3.5 mr-1.5" /> Mark as Paid
+                      <Button onClick={() => { setPaidAmount(String((invoicedCents / 100).toFixed(2))); setShowMarkPaid(true); }} className={TAP_TARGET} style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}>
+                        <Banknote className="w-4 h-4 mr-1.5" /> Mark as Paid
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => updateJob.mutate({ id: jobId, invoiceStatus: "sent" })}>Mark Sent</Button>
+                      <Button variant="ghost" className={TAP_TARGET} onClick={() => updateJob.mutate({ id: jobId, invoiceStatus: "sent" })}>Mark Sent</Button>
                     </div>
                   )}
                   {showSendInvoice && (
                     <div className="mt-2 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                       <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send invoice to:</p>
                       <div className="flex gap-2">
-                        <input type="email" value={sendInvoiceEmail} onChange={e => setSendInvoiceEmail(e.target.value)} placeholder="customer@email.com" className="flex-1 text-xs px-3 py-1.5 rounded-md" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }} />
-                        <Button size="sm" onClick={() => {
+                        <input type="email" value={sendInvoiceEmail} onChange={e => setSendInvoiceEmail(e.target.value)} placeholder="customer@email.com" className={`flex-1 text-sm px-3 rounded-md ${TAP_TARGET}`} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }} />
+                        <Button onClick={() => {
                           if (!sendInvoiceEmail) { toast.error("Enter a customer email"); return; }
                           generateInvoice.mutate({ jobId, sendEmail: true, customerEmail: sendInvoiceEmail }, {
                             onSuccess: (res) => { setShowSendInvoice(false); toast.success(res.sent ? "Invoice sent to client" : "Invoice generated (email not sent)"); }
                           });
-                        }} disabled={generateInvoice.isPending} style={{ background: "#22c55e", color: "white" }}>
-                          {generateInvoice.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        }} disabled={generateInvoice.isPending} className={TAP_TARGET} style={{ background: "#22c55e", color: "white" }}>
+                          {generateInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowSendInvoice(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" className={TAP_TARGET} onClick={() => setShowSendInvoice(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-4 h-4" /></Button>
                       </div>
                     </div>
                   )}
@@ -936,36 +1093,36 @@ export default function PortalJobDetail() {
             {/* Job Tasks */}
             <JobTasksSection
               jobId={jobId}
-              jobType={(job as any).jobType ?? ""}
-              jobDescription={(job as any).description ?? null}
-              jobStage={(job as any).stage ?? "new_lead"}
-              nextActionSuggestion={(job as any).nextActionSuggestion ?? null}
+              jobType={(job as { jobType?: string }).jobType ?? ""}
+              jobDescription={(job as { description?: string | null }).description ?? null}
+              jobStage={(job as { stage?: string }).stage ?? "new_lead"}
+              nextActionSuggestion={(job as { nextActionSuggestion?: string | null }).nextActionSuggestion ?? null}
               onRefresh={() => utils.portal.getJobDetail.invalidate({ id: jobId })}
             />
 
             {/* Repeat This Job */}
-            {!(job as any).parentJobId && (
+            {!(job as { parentJobId?: number | null }).parentJobId && (
               <SectionCard title="Repeat This Job" action={<RefreshCw className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-                {(job as any).isRecurring ? (
+                {(job as { isRecurring?: boolean }).isRecurring ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium" style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
                         <RefreshCw className="w-3 h-3" />
-                        {(job as any).recurrenceFrequency === "weekly" ? "Repeats weekly" : (job as any).recurrenceFrequency === "fortnightly" ? "Repeats fortnightly" : "Repeats monthly"}
+                        {(job as { recurrenceFrequency?: string }).recurrenceFrequency === "weekly" ? "Repeats weekly" : (job as { recurrenceFrequency?: string }).recurrenceFrequency === "fortnightly" ? "Repeats fortnightly" : "Repeats monthly"}
                       </span>
                     </div>
                     <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>3 upcoming jobs have been created in your job list. Disable repeat to stop creating new ones.</p>
-                    <button onClick={() => disableRecurring.mutate({ jobId })} disabled={disableRecurring.isPending} className="text-xs px-3 py-1.5 rounded-lg border transition-colors" style={{ borderColor: "rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}>
+                    <button onClick={() => disableRecurring.mutate({ jobId })} disabled={disableRecurring.isPending} className={`text-xs px-3 rounded-lg border transition-colors ${TAP_TARGET}`} style={{ borderColor: "rgba(239,68,68,0.3)", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}>
                       {disableRecurring.isPending ? "Disabling..." : "Disable repeat"}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>Set this job to repeat for maintenance or regular clients. Creates the next 3 jobs automatically.</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {(["weekly", "fortnightly", "monthly"] as const).map((freq) => (
                         <button key={freq} onClick={() => setRecurring.mutate({ jobId, frequency: freq })} disabled={setRecurring.isPending}
-                          className="py-2.5 rounded-xl text-sm font-medium border transition-all active:scale-95"
+                          className={`rounded-xl text-sm font-semibold border transition-all active:scale-95 ${TAP_TARGET}`}
                           style={{ borderColor: "rgba(245,166,35,0.3)", color: "#F5A623", background: "rgba(245,166,35,0.06)" }}>
                           {setRecurring.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : freq.charAt(0).toUpperCase() + freq.slice(1)}
                         </button>
@@ -987,8 +1144,10 @@ export default function PortalJobDetail() {
 
             {/* Staff Activity */}
             {(() => {
-              const scheduleEntries = (data as any).scheduleEntries ?? [];
-              const timeEntries = (data as any).timeEntries ?? [];
+              type ScheduleEntry = { id: number; staffId: number; staffName?: string | null; startTime: string | Date; staffDeclinedAt?: string | Date | null; staffConfirmedAt?: string | Date | null; declineReason?: string | null; status: string };
+              type TimeEntry = { id: number; staffId: number; staffName?: string | null; checkInAt: string | Date; checkOutAt?: string | Date | null; checkInLat?: number | null; checkInLng?: number | null; checkOutLat?: number | null; checkOutLng?: number | null };
+              const scheduleEntries = ((data as { scheduleEntries?: ScheduleEntry[] }).scheduleEntries ?? []) as ScheduleEntry[];
+              const timeEntries = ((data as { timeEntries?: TimeEntry[] }).timeEntries ?? []) as TimeEntry[];
               if (scheduleEntries.length === 0 && timeEntries.length === 0) return null;
               const REASON_LABELS: Record<string, string> = { sick: "Sick", unavailable: "Unavailable", personal: "Personal", other: "Other" };
               return (
@@ -996,7 +1155,7 @@ export default function PortalJobDetail() {
                   {scheduleEntries.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Scheduled Staff</p>
-                      {scheduleEntries.map((entry: any) => (
+                      {scheduleEntries.map((entry) => (
                         <div key={entry.id} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
                           <div className="flex items-center gap-2">
                             {entry.staffDeclinedAt ? (
@@ -1032,7 +1191,7 @@ export default function PortalJobDetail() {
                   {timeEntries.length > 0 && (
                     <div className="space-y-2 mt-3">
                       <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Check-in / Check-out Log</p>
-                      {timeEntries.map((te: any) => {
+                      {timeEntries.map((te) => {
                         const durationMins = te.checkOutAt
                           ? Math.round((new Date(te.checkOutAt).getTime() - new Date(te.checkInAt).getTime()) / 60000)
                           : null;
@@ -1047,7 +1206,7 @@ export default function PortalJobDetail() {
                                 <p style={{ color: "rgba(255,255,255,0.7)" }}>
                                   {new Date(te.checkInAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
                                   {hasCheckInCoords && (
-                                    <button onClick={() => openMapsLatLng(te.checkInLat, te.checkInLng)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                    <button onClick={() => openMapsLatLng(te.checkInLat!, te.checkInLng!)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
                                       <MapPin className="w-2.5 h-2.5" /> Map
                                     </button>
                                   )}
@@ -1059,7 +1218,7 @@ export default function PortalJobDetail() {
                                   <p style={{ color: "rgba(255,255,255,0.7)" }}>
                                     {new Date(te.checkOutAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}
                                     {hasCheckOutCoords && (
-                                      <button onClick={() => openMapsLatLng(te.checkOutLat, te.checkOutLng)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
+                                      <button onClick={() => openMapsLatLng(te.checkOutLat!, te.checkOutLng!)} className="ml-1.5 inline-flex items-center gap-0.5 text-[10px]" style={{ color: "#F5A623" }}>
                                         <MapPin className="w-2.5 h-2.5" /> Map
                                       </button>
                                     )}
@@ -1085,19 +1244,19 @@ export default function PortalJobDetail() {
 
             {/* Completion Report */}
             <SectionCard title="Completion Report" action={<FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
-              {(job as any).completionReportUrl ? (
+              {(job as { completionReportUrl?: string }).completionReportUrl ? (
                 <div className="space-y-3">
                   <p className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report generated and ready to send to your customer.</p>
                   <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => window.open((job as any).completionReportUrl, "_blank")} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
-                      <FileText className="w-3.5 h-3.5 mr-1.5" /> View Report
+                    <Button onClick={() => openUrl((job as { completionReportUrl?: string }).completionReportUrl!)} className={TAP_TARGET} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                      <FileText className="w-4 h-4 mr-1.5" /> View Report
                     </Button>
-                    {(job as any).completionReportToken && <CopyReportLinkButton token={(job as any).completionReportToken} />}
-                    <Button size="sm" onClick={() => { setSendReportEmail(job.customerEmail ?? ""); setShowSendReport(true); }} style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
-                      <Send className="w-3.5 h-3.5 mr-1.5" /> Send to Client
+                    {(job as { completionReportToken?: string }).completionReportToken && <CopyReportLinkButton token={(job as { completionReportToken?: string }).completionReportToken!} />}
+                    <Button onClick={() => { setSendReportEmail(job.customerEmail ?? ""); setShowSendReport(true); }} className={TAP_TARGET} style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>
+                      <Send className="w-4 h-4 mr-1.5" /> Send to Client
                     </Button>
-                    <Button size="sm" onClick={() => generateCompletionReport.mutate({ jobId })} disabled={generateCompletionReport.isPending} style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                      {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <FileText className="w-3.5 h-3.5 mr-1.5" />}
+                    <Button onClick={() => generateCompletionReport.mutate({ jobId })} disabled={generateCompletionReport.isPending} className={TAP_TARGET} style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                      {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <FileText className="w-4 h-4 mr-1.5" />}
                       Regenerate
                     </Button>
                   </div>
@@ -1105,16 +1264,16 @@ export default function PortalJobDetail() {
                     <div className="mt-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
                       <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>Send completion report to:</p>
                       <div className="flex gap-2">
-                        <input type="email" value={sendReportEmail} onChange={e => setSendReportEmail(e.target.value)} placeholder="customer@email.com" className="flex-1 text-xs px-3 py-1.5 rounded-md" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }} />
-                        <Button size="sm" onClick={() => {
+                        <input type="email" value={sendReportEmail} onChange={e => setSendReportEmail(e.target.value)} placeholder="customer@email.com" className={`flex-1 text-sm px-3 rounded-md ${TAP_TARGET}`} style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white", outline: "none" }} />
+                        <Button onClick={() => {
                           if (!sendReportEmail) { toast.error("Enter a customer email"); return; }
                           generateCompletionReport.mutate({ jobId, sendEmail: true, customerEmail: sendReportEmail }, {
                             onSuccess: (res) => { setShowSendReport(false); toast.success(res.sent ? "Report sent to client" : "Report generated (email not sent)"); }
                           });
-                        }} disabled={generateCompletionReport.isPending} style={{ background: "#22c55e", color: "white" }}>
-                          {generateCompletionReport.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        }} disabled={generateCompletionReport.isPending} className={TAP_TARGET} style={{ background: "#22c55e", color: "white" }}>
+                          {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowSendReport(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" className={TAP_TARGET} onClick={() => setShowSendReport(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-4 h-4" /></Button>
                       </div>
                     </div>
                   )}
@@ -1124,7 +1283,7 @@ export default function PortalJobDetail() {
                   {hasQuoteEngine ? (
                     <>
                       <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.4)" }}>Generate a client-facing report showing what was done, variations, and before/after photos.</p>
-                      <Button onClick={() => generateCompletionReport.mutate({ jobId })} disabled={generateCompletionReport.isPending} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
+                      <Button onClick={() => generateCompletionReport.mutate({ jobId })} disabled={generateCompletionReport.isPending} className={TAP_TARGET} style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.2)" }}>
                         {generateCompletionReport.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
                         Generate Completion Report
                       </Button>
@@ -1172,7 +1331,7 @@ export default function PortalJobDetail() {
             }>
               {formTemplatesQuery.data && formTemplatesQuery.data.length > 0 ? (
                 <div className="space-y-2">
-                  {formTemplatesQuery.data.map((t: any) => {
+                  {formTemplatesQuery.data.map((t) => {
                     const requiredIds = (formComplianceQuery.data?.requiredTemplateIds ?? []) as number[];
                     const isRequired = requiredIds.includes(t.id);
                     const isCompleted = (formComplianceQuery.data?.completedTemplateIds ?? []).includes(t.id);
@@ -1211,12 +1370,12 @@ export default function PortalJobDetail() {
             {/* Submitted Forms */}
             <SectionCard title="Job Forms" action={
               <Button
-                variant="ghost" size="sm"
-                className="text-xs gap-1"
+                variant="ghost"
+                className={`text-xs gap-1 ${TAP_TARGET}`}
                 style={{ color: "#F5A623" }}
-                onClick={() => window.open(`/portal/forms?jobId=${jobId}`, "_blank")}
+                onClick={() => openUrl(`${getSolvrOrigin()}/portal/forms?jobId=${jobId}`)}
               >
-                <Plus className="w-3.5 h-3.5" /> New Form
+                <Plus className="w-4 h-4" /> New Form
               </Button>
             }>
               {jobFormsQuery.isLoading && (
@@ -1227,7 +1386,7 @@ export default function PortalJobDetail() {
               )}
               {jobFormsQuery.data && jobFormsQuery.data.length > 0 && (
                 <div className="space-y-2">
-                  {jobFormsQuery.data.map((sub: any) => (
+                  {jobFormsQuery.data.map((sub) => (
                     <div key={sub.id} className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
                       <FileText className="w-4 h-4 flex-shrink-0" style={{ color: sub.status === "completed" ? "#4ade80" : "#F5A623" }} />
                       <div className="flex-1 min-w-0">
@@ -1243,9 +1402,9 @@ export default function PortalJobDetail() {
                           color: sub.status === "completed" ? "#4ade80" : "#F5A623",
                         }}>{sub.status === "completed" ? "Completed" : "Draft"}</span>
                         {sub.pdfUrl && (
-                          <a href={sub.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg hover:bg-white/5">
-                            <FileText className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.4)" }} />
-                          </a>
+                          <button onClick={() => openUrl(sub.pdfUrl!)} className={`rounded-lg hover:bg-white/5 px-2 ${TAP_TARGET}`} aria-label="Open form PDF">
+                            <FileText className="w-4 h-4" style={{ color: "rgba(255,255,255,0.4)" }} />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1268,7 +1427,14 @@ export default function PortalJobDetail() {
             <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ background: "#0A1628", border: "1px solid rgba(255,255,255,0.1)" }}>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-white">Mark Job Complete</h2>
-                <button onClick={() => setShowCompleteModal(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-5 h-5" /></button>
+                <button
+                  onClick={() => setShowCompleteModal(false)}
+                  aria-label="Close"
+                  className={`flex items-center justify-center rounded-lg min-w-[44px] ${TAP_TARGET}`}
+                  style={{ color: "rgba(255,255,255,0.6)" }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
               <div className="space-y-3">
                 <div>
@@ -1284,12 +1450,12 @@ export default function PortalJobDetail() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Actual hours</label>
-                    <input type="number" value={actualHours} onChange={e => setActualHours(e.target.value)} placeholder="e.g. 3.5"
+                    <input type="number" inputMode="decimal" value={actualHours} onChange={e => setActualHours(e.target.value)} placeholder="e.g. 3.5"
                       className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                   </div>
                   <div>
                     <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Final value ($)</label>
-                    <input type="number" value={actualValue} onChange={e => setActualValue(e.target.value)} placeholder="e.g. 850"
+                    <input type="number" inputMode="decimal" value={actualValue} onChange={e => setActualValue(e.target.value)} placeholder="e.g. 850"
                       className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                   </div>
                 </div>
@@ -1304,11 +1470,11 @@ export default function PortalJobDetail() {
                     actualValue: actualValue ? parseFloat(actualValue) : undefined,
                   };
                   offlineAware("portal.markJobComplete", input, () => markComplete.mutate(input));
-                }} disabled={markComplete.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
+                }} disabled={markComplete.isPending} className={`flex-1 font-semibold ${TAP_TARGET}`} style={{ background: "#4ade80", color: "#0F1F3D" }}>
                   {markComplete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                   Complete Job
                 </Button>
-                <Button variant="ghost" onClick={() => setShowCompleteModal(false)}>Cancel</Button>
+                <Button variant="ghost" className={TAP_TARGET} onClick={() => setShowCompleteModal(false)}>Cancel</Button>
               </div>
             </div>
           </div>
@@ -1320,12 +1486,19 @@ export default function PortalJobDetail() {
             <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "#0A1628", border: "1px solid rgba(255,255,255,0.1)" }}>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-white">Mark Invoice Paid</h2>
-                <button onClick={() => setShowMarkPaid(false)} style={{ color: "rgba(255,255,255,0.4)" }}><X className="w-5 h-5" /></button>
+                <button
+                  onClick={() => setShowMarkPaid(false)}
+                  aria-label="Close"
+                  className={`flex items-center justify-center rounded-lg min-w-[44px] ${TAP_TARGET}`}
+                  style={{ color: "rgba(255,255,255,0.6)" }}
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
               <div className="space-y-3">
                 <div>
                   <label className="text-xs block mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Amount received ($)</label>
-                  <input type="number" value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
+                  <input type="number" inputMode="decimal" value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
                     className="w-full text-sm px-3 py-2 rounded-lg outline-none" style={{ background: "rgba(255,255,255,0.06)", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }} />
                 </div>
                 <div>
@@ -1345,11 +1518,11 @@ export default function PortalJobDetail() {
                   if (!cents || isNaN(cents)) { toast.error("Enter a valid amount"); return; }
                   const input = { jobId, paymentMethod: paidMethod, amountCents: cents };
                   offlineAware("portal.markJobPaid", input, () => markPaid.mutate(input));
-                }} disabled={markPaid.isPending} className="flex-1" style={{ background: "#4ade80", color: "#0F1F3D" }}>
+                }} disabled={markPaid.isPending} className={`flex-1 font-semibold ${TAP_TARGET}`} style={{ background: "#4ade80", color: "#0F1F3D" }}>
                   {markPaid.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />}
                   Confirm Payment
                 </Button>
-                <Button variant="ghost" onClick={() => setShowMarkPaid(false)}>Cancel</Button>
+                <Button variant="ghost" className={TAP_TARGET} onClick={() => setShowMarkPaid(false)}>Cancel</Button>
               </div>
             </div>
           </div>
