@@ -20,30 +20,18 @@ export const getSolvrOrigin = (): string => {
   return origin;
 };
 
-// Generate login URL at runtime so redirect URI reflects the current origin.
-export const getLoginUrl = () => {
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
-  const appId = import.meta.env.VITE_APP_ID;
-
+/**
+ * Login URL for SOLVR's own portal auth.
+ *
+ * Historically this returned a Manus OAuth URL — that path was removed after
+ * the Railway migration. All logins now go through `/portal/login` with
+ * email + bcrypt password (see `server/routers/portal.ts :: passwordLogin`).
+ */
+export const getLoginUrl = (): string => {
   // On Capacitor, use relative path — absolute https:// URLs navigate the
   // WKWebView away from capacitor://localhost and can trigger Safari.
   if (isNativeApp()) {
     return "/portal/login";
   }
-
-  // Without OAuth env vars, use origin-relative path (avoids new URL crash)
-  if (!oauthPortalUrl) {
-    return `${window.location.origin}/portal/login`;
-  }
-
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-  const state = btoa(redirectUri);
-
-  const url = new URL(`${oauthPortalUrl}/app-auth`);
-  url.searchParams.set("appId", appId ?? "");
-  url.searchParams.set("redirectUri", redirectUri);
-  url.searchParams.set("state", state);
-  url.searchParams.set("type", "signIn");
-
-  return url.toString();
+  return `${window.location.origin}/portal/login`;
 };
