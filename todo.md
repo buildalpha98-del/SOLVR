@@ -464,4 +464,43 @@ These are planned features that are not blocking the current launch. They will b
 - [x] Add "Download My Data" button to DeleteAccountSection in PortalSettings.tsx
 - [x] Wire frontend: refetch on click → Blob → download as solvr-data-export-YYYY-MM-DD.json
 - [x] tsc EXIT:0 + 394 vitest tests passing + audit-capacitor.sh 0 violations
+- [x] Save checkpoint (version 3e8ef40a)
+
+### Hero Video Upload (22 April 2026)
+- [x] Upload demo video to manus-storage via manus-upload-file --webdev
+- [x] Create server/_core/storageProxy.ts for /manus-storage/* route
+- [x] Register storage proxy in server/_core/index.ts
+- [x] Replace video placeholder in Home.tsx with actual <video> element
+- [x] Verify video plays in browser preview (readyState:4, autoPlay, 35s duration)
+- [x] Save checkpoint (version 231accec)
+
+### Hero Video Poster Frame (22 April 2026)
+- [x] Extract first frame from demo video as poster-frame.jpg
+- [x] Upload poster frame to manus-storage
+- [x] Add poster attribute to <video> element in Home.tsx
+- [x] Save checkpoint (version ba2c82a1)
+
+### BUG: AI Chat "need to log in" error (22 April 2026)
+- [ ] Investigate AI chat procedure auth flow
+- [ ] Fix the authentication issue
+- [ ] Verify chat works end-to-end
+- [ ] Save checkpoint
+
+### BUG FIX: Capacitor iOS cookie/ITP bypass (22 April 2026)
+- [ ] Install @capacitor/http
+- [ ] Patch tRPC fetch in main.tsx to use native HTTP on Capacitor iOS
+- [ ] Ensure credentials/cookies pass through native NSURLSession
+
+### BUG FIX: AI chat LLM errors misinterpreted as 401 (22 April 2026)
+- [ ] Trace portalAssistant.chat error path
+- [ ] Add proper error handling so LLM failures don't trigger login redirect
+- [ ] Return user-friendly error message instead of auth redirect
+
+### BUG FIX: Completion report "Invalid string" (22 April 2026)
+- [x] Audit generateCompletionReport full call chain for Zod .parse() calls
+- [x] Fix all z.string().optional() → z.string().nullish() in portalJobs.ts (null-safe for offline queue replay)
+- [x] Bump ALL S3 URL columns from varchar(512) to text (14 columns across 8 tables)
+- [x] Add try/catch + console.error around every step in generateCompletionReport chain
+- [x] Run db:push — migration 0070 applied (14 ALTER TABLE statements)
+- [x] Run tsc (0 errors) + vitest (394 passed) + audit-capacitor.sh (0 violations)
 - [ ] Save checkpoint
