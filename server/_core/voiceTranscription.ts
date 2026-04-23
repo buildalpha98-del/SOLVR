@@ -75,18 +75,21 @@ export async function transcribeAudio(
 ): Promise<TranscriptionResponse | TranscriptionError> {
   try {
     // Step 1: Validate environment configuration
-    if (!ENV.forgeApiUrl) {
+    // Post-Manus: we call any OpenAI-compatible Whisper endpoint directly.
+    // Default is OpenAI — swap WHISPER_BASE_URL/WHISPER_API_KEY/WHISPER_MODEL
+    // to point at Groq or any other compatible provider.
+    if (!ENV.whisperBaseUrl) {
       return {
         error: "Voice transcription service is not configured",
         code: "SERVICE_ERROR",
-        details: "BUILT_IN_FORGE_API_URL is not set"
+        details: "WHISPER_BASE_URL is not set"
       };
     }
-    if (!ENV.forgeApiKey) {
+    if (!ENV.whisperApiKey) {
       return {
         error: "Voice transcription service authentication is missing",
         code: "SERVICE_ERROR",
-        details: "BUILT_IN_FORGE_API_KEY is not set"
+        details: "WHISPER_API_KEY (or OPENAI_API_KEY) is not set"
       };
     }
 
@@ -131,31 +134,33 @@ export async function transcribeAudio(
     const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
     formData.append("file", audioBlob, filename);
     
-    formData.append("model", "whisper-1");
+    formData.append("model", ENV.whisperModel);
     formData.append("response_format", "verbose_json");
-    
+
+    // Optional language hint — improves accuracy when the caller knows it.
+    // Omit to let Whisper auto-detect (SOLVR's multilingual default).
+    if (options.language) {
+      formData.append("language", options.language);
+    }
+
     // Add prompt - use custom prompt if provided, otherwise generate based on language
     const prompt = options.prompt || (
-      options.language 
+      options.language
         ? `Transcribe the user's voice to text, the user's working language is ${getLanguageName(options.language)}`
         : "Transcribe the user's voice to text"
     );
     formData.append("prompt", prompt);
 
-    // Step 4: Call the transcription service
-    const baseUrl = ENV.forgeApiUrl.endsWith("/")
-      ? ENV.forgeApiUrl
-      : `${ENV.forgeApiUrl}/`;
-    
-    const fullUrl = new URL(
-      "v1/audio/transcriptions",
-      baseUrl
-    ).toString();
+    // Step 4: Call the Whisper-compatible transcription service.
+    // WHISPER_BASE_URL already includes the /v1 prefix (e.g. https://api.openai.com/v1),
+    // so we just append /audio/transcriptions.
+    const baseUrl = ENV.whisperBaseUrl.replace(/\/+$/, "");
+    const fullUrl = `${baseUrl}/audio/transcriptions`;
 
     const response = await fetch(fullUrl, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${ENV.forgeApiKey}`,
+        authorization: `Bearer ${ENV.whisperApiKey}`,
         "Accept-Encoding": "identity",
       },
       body: formData,

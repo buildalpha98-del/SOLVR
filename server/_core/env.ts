@@ -23,12 +23,17 @@ export const ENV = {
   r2Bucket: process.env.R2_BUCKET ?? "solvr-uploads",
   r2PublicUrl: (process.env.R2_PUBLIC_URL ?? "").replace(/\/+$/, ""),
 
-  // ── Deprecated: Manus Forge proxy ────────────────────────────────────
-  // Kept so any straggler code referencing these still compiles, and so
-  // Manus-hosted environments keep working until the DNS cutover. Delete
-  // once the Railway migration is confirmed stable.
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // ── Speech-to-text (Whisper, OpenAI-compatible) ─────────────────────
+  // Replaces the dead Manus Forge proxy. Any OpenAI-compatible endpoint
+  // works — e.g. OpenAI, Groq, OpenRouter. Defaults to OpenAI.
+  //
+  // To switch to Groq later:
+  //   WHISPER_BASE_URL = https://api.groq.com/openai/v1
+  //   WHISPER_API_KEY  = gsk_...
+  //   WHISPER_MODEL    = whisper-large-v3
+  whisperBaseUrl: process.env.WHISPER_BASE_URL ?? "https://api.openai.com/v1",
+  whisperApiKey: process.env.WHISPER_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
+  whisperModel: process.env.WHISPER_MODEL ?? "whisper-1",
 
   // ── Other services ───────────────────────────────────────────────────
   vapiApiKey: process.env.VAPI_API_KEY ?? "",

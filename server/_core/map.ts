@@ -7,11 +7,14 @@
  * See API examples below the type definitions for usage patterns.
  */
 
-import { ENV } from "./env";
-
 // ============================================================================
 // Configuration
 // ============================================================================
+//
+// NOTE: Post-Manus migration this module is unused. It previously went through
+// Manus Forge's Google Maps proxy. The frontend uses VITE_GOOGLE_MAPS_API_KEY
+// directly for all in-app mapping. If server-side Maps access is needed later,
+// swap this to call the Google Maps API directly with a backend-only key.
 
 type MapsConfig = {
   baseUrl: string;
@@ -19,19 +22,9 @@ type MapsConfig = {
 };
 
 function getMapsConfig(): MapsConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
-
-  if (!baseUrl || !apiKey) {
-    throw new Error(
-      "Google Maps proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
-  }
-
-  return {
-    baseUrl: baseUrl.replace(/\/+$/, ""),
-    apiKey,
-  };
+  throw new Error(
+    "Server-side Google Maps proxy is not configured. The Manus Forge proxy was removed during the Railway migration — this module has no callers and should be wired to the Google Maps API directly before use."
+  );
 }
 
 // ============================================================================
