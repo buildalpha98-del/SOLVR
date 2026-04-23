@@ -1,7 +1,7 @@
 # Solvr — Apple App Store Submission Guide
 
 **App name:** Solvr — AI Receptionist  
-**Bundle ID:** au.com.solvr.app  
+**Bundle ID:** com.solvr.mobile  
 **Version:** 1.0.0  
 **Prepared:** April 2026
 
@@ -89,20 +89,24 @@ Fill this in on App Store Connect under **App Privacy**.
 
 ### Data collected
 
+> Source of truth for this table: `ios/App/App/PrivacyInfo.xcprivacy`. Any change here requires a matching change there, and vice versa — Apple cross-checks.
+
 | Data type | Collected? | Linked to user? | Used for tracking? | Purpose |
 |-----------|-----------|-----------------|-------------------|---------|
-| Name | ✅ Yes | ✅ Yes | ❌ No | Account creation |
+| Name | ✅ Yes | ✅ Yes | ❌ No | Customer records, quotes, invoices |
 | Email address | ✅ Yes | ✅ Yes | ❌ No | Account login, notifications |
-| Phone number | ✅ Yes | ✅ Yes | ❌ No | Account creation |
+| Phone number | ✅ Yes | ✅ Yes | ❌ No | SMS notifications + customer contact records |
+| Physical address | ✅ Yes | ✅ Yes | ❌ No | Job-site addresses on quotes and invoices |
 | User ID | ✅ Yes | ✅ Yes | ❌ No | Authentication |
-| Audio data (recordings) | ✅ Yes | ✅ Yes | ❌ No | AI receptionist transcription |
-| Photos / videos | ✅ Yes | ✅ Yes | ❌ No | Quote photo attachments (optional) |
-| Customer support data | ✅ Yes | ✅ Yes | ❌ No | Support requests |
-| Product interaction | ✅ Yes | ✅ Yes | ❌ No | Analytics, service improvement |
-| Crash data | ✅ Yes | ❌ No | ❌ No | Debugging |
-| Performance data | ✅ Yes | ❌ No | ❌ No | App performance monitoring |
+| Audio data (recordings) | ✅ Yes | ✅ Yes | ❌ No | Voice-to-quote transcription (recordings discarded after transcription) |
+| Photos / videos | ✅ Yes | ✅ Yes | ❌ No | Quote / job / completion-report attachments |
+| Precise location | ✅ Yes | ✅ Yes | ❌ No | Staff check-in/check-out GPS verification |
+| Other user content | ✅ Yes | ✅ Yes | ❌ No | Quote line items, job notes, invoice text, form submissions, signatures |
+| Customer support data | ✅ Yes | ✅ Yes | ❌ No | In-app support messages |
 | Payment info | ❌ No | — | — | Handled by Apple IAP via RevenueCat (not stored locally) |
-| Precise location | ❌ No | — | — | Not collected |
+| Product interaction | ❌ No | — | — | No analytics SDK present |
+| Crash data | ❌ No | — | — | No crash-reporting SDK present |
+| Performance data | ❌ No | — | — | No performance-monitoring SDK present |
 | Contacts | ❌ No | — | — | Not collected |
 | Browsing history | ❌ No | — | — | Not collected |
 | Search history | ❌ No | — | — | Not collected |
@@ -123,34 +127,73 @@ Fill this in on App Store Connect under **App Privacy**.
 
 ### Notes for Apple Reviewer
 ```
-This is a B2B SaaS application for Australian trade businesses. The app requires 
-an account to use — there is no public browsing mode.
+Solvr is a B2B SaaS app for Australian trade businesses (plumbers, electricians,
+builders, HVAC). Sign-in is required — there is no public browsing mode, which
+is standard for a field-service-management tool tied to a specific business
+account.
 
-Demo account credentials:
-Email: apple.review@solvr.com.au
+DEMO ACCOUNT
+Email:    apple.review@solvr.com.au
 Password: AppleReview2026!
+URL:      opens at https://solvr.com.au/portal/login inside the in-app web view
 
-This account has been pre-loaded with realistic demo data for a plumbing business 
-(Demo Plumbing & Gas). All features are unlocked and accessible without requiring 
-a paid subscription.
+This account is pre-seeded with a realistic plumbing business (Demo Plumbing &
+Gas). All features are unlocked without requiring a paid subscription, so the
+reviewer does not need sandbox IAP purchases to exercise the app.
 
-The AI Receptionist feature (voice call handling) requires a live telephony 
-integration which is not active in the demo environment. To demonstrate this 
-feature, please view the pre-seeded call transcripts in the Calls section, which 
-show the output of the AI receptionist processing real inbound calls.
+WHAT TO TEST
 
-The Voice-to-Quote feature requires microphone access. Please grant microphone 
-permission when prompted to test this feature.
+1. Dashboard / Calls
+   The Calls tab has pre-seeded call transcripts showing the output of the AI
+   receptionist. Live inbound telephony is not active in the demo environment
+   (it requires a provisioned carrier number), so the transcripts demonstrate
+   the end state the reviewer would see in production.
 
-Subscriptions are handled via Apple In-App Purchase (auto-renewable subscriptions 
-managed through RevenueCat/StoreKit 2). The reviewer account has all features 
-unlocked without requiring an active subscription.
+2. Voice-to-Quote (primary AI differentiator)
+   Quotes → New Quote → tap the microphone button → record a short spoken
+   description of a job → the app transcribes the audio and generates a
+   structured, line-itemised quote. Grant microphone permission when prompted
+   (Apple's NSMicrophoneUsageDescription explains why).
 
-To test the subscription flow, navigate to the Pricing page from the dashboard 
-sidebar. The app uses RevenueCat's Capacitor SDK for purchase handling.
+3. Job Management
+   Jobs tab shows a kanban-style pipeline (New Lead → Quoted → Booked →
+   Completed). Drag or tap status chips to move jobs between states.
 
-The app includes a "Restore Purchases" button and a link to Apple's subscription 
-management page, as required by App Store guidelines.
+4. Compliance Documents (AI-generated)
+   Forms tab can generate SWMS, Site Induction, Safety Certificate, and JSA
+   forms using AI. Select a template and hit Generate.
+
+5. Subscription Management
+   Subscription tab shows the active demo plan. Reviewer can test:
+   - "Change Plan" → opens the RevenueCat native paywall (StoreKit 2 sheet)
+   - "Manage in Settings" → deep-links into iOS Settings → Subscriptions
+     (Guideline 3.1.2)
+   - "Restore Purchases" → triggers Purchases.restorePurchases()
+     (Guideline 3.1.1)
+
+PERMISSIONS THE APP REQUESTS
+   - Microphone  — only when the user taps the voice-to-quote mic button
+   - Camera      — only when the user attaches a photo to a quote/job
+   - Photo Lib.  — only when the user picks an existing photo
+   - Location    — only when a staff member checks in/out of a job site
+   - Notifications — for inbound-call and booking-confirmation alerts
+
+All permission prompts are gated behind explicit user actions — none are
+requested at launch.
+
+SIGN IN WITH APPLE
+The app uses first-party email/password auth only. No third-party social login
+(Google, Facebook, etc.) is offered, so Sign in with Apple is not required per
+Guideline 4.8.
+
+IN-APP PURCHASES
+All subscriptions are auto-renewable Apple IAP through RevenueCat's Capacitor
+SDK (StoreKit 2). The demo account is pre-provisioned with full access so the
+reviewer doesn't need to run a sandbox purchase — but if desired, sandbox
+purchases work normally from the Pricing page.
+
+CONTACT
+For questions during review: jayden@amanaoshc.com.au
 ```
 
 ---
@@ -216,7 +259,9 @@ The app includes a "Restore Purchases" button on the subscription screen (requir
 
 ### Subscription Management Link
 
-The app includes a link to Apple's subscription management page (`https://apps.apple.com/account/subscriptions`) in the account/settings section (required by Apple).
+The app includes a **"Manage in Settings"** button on the subscription screen (Apple Guideline 3.1.2). It navigates directly to the iOS native subscription-management screen using the `itms-apps://` URL scheme — `itms-apps://apps.apple.com/account/subscriptions` — which opens the Settings → Apple ID → Subscriptions pane without leaving the user in Safari first. Also surfaced from Portal Settings.
+
+Implementation detail: the button uses `window.location.href` rather than Capacitor's `Browser.open` / `openUrl`, because SFSafariViewController cannot handle the `itms-apps://` scheme — the OS has to route it natively.
 
 ---
 

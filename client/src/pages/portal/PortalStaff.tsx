@@ -7,10 +7,11 @@
  * PortalStaff — Staff management page for tradies.
  * Tabs: Team (staff list + PIN management) | Labour Costs (monthly cost report)
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { getSolvrOrigin } from "@/const";
 import PortalLayout from "./PortalLayout";
+import StaffCard from "@/components/portal/StaffCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,13 +29,11 @@ import {
 import {
   UserCog, Plus, Pencil, Trash2, Phone, Wrench, Hash, DollarSign,
   Users, KeyRound, Link2, Copy, Check, Download, ChevronLeft, ChevronRight,
-  TrendingDown, Clock, AlertCircle, Settings2,
+  ChevronDown, ChevronUp, TrendingDown, Clock, AlertCircle, Settings2,
+  Loader2,
 } from "lucide-react";
-import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
-import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
-import { Loader2 } from "lucide-react";
 
 type StaffMember = {
   id: number;
@@ -72,6 +71,7 @@ function LabourCostsTab() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1); // 1-based
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear(y => y - 1); }
@@ -86,8 +86,19 @@ function LabourCostsTab() {
 
   const { data, isLoading } = trpc.portal.getLabourCostReport.useQuery(
     { year, month },
-    { staleTime: 60_000 }
+    { retry: 2, staleTime: 60_000 }
   );
+
+  const { data: staffList } = trpc.portal.listStaff.useQuery(undefined, {
+    retry: 2,
+    staleTime: 60_000,
+  });
+
+  const tradeByStaffId = useMemo(() => {
+    const map = new Map<number, string | null>();
+    staffList?.forEach((s) => map.set(s.id, s.trade ?? null));
+    return map;
+  }, [staffList]);
 
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
 
@@ -106,23 +117,27 @@ function LabourCostsTab() {
       {/* Month navigator */}
       <div className="flex items-center justify-between">
         <button
+          type="button"
           onClick={prevMonth}
-          className="p-2 rounded-lg transition-colors"
+          aria-label="Previous month"
+          className="w-11 h-11 flex items-center justify-center rounded-lg transition-colors"
           style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-5 h-5" />
         </button>
         <div className="text-center">
           <p className="text-white font-semibold">{MONTH_NAMES[month - 1]} {year}</p>
           {isCurrentMonth && <p className="text-xs" style={{ color: "#F5A623" }}>Current month</p>}
         </div>
         <button
+          type="button"
           onClick={nextMonth}
           disabled={isCurrentMonth}
-          className="p-2 rounded-lg transition-colors disabled:opacity-30"
+          aria-label="Next month"
+          className="w-11 h-11 flex items-center justify-center rounded-lg transition-colors disabled:opacity-30"
           style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)" }}
         >
-          <ChevronRight className="w-4 h-4" />
+          <ChevronRight className="w-5 h-5" />
         </button>
       </div>
 
@@ -191,79 +206,143 @@ function LabourCostsTab() {
               </p>
             </div>
           ) : (
-            <div
-              className="rounded-2xl overflow-hidden"
-              style={{ border: "1px solid rgba(255,255,255,0.08)" }}
-            >
-              {/* Table header */}
-              <div
-                className="grid grid-cols-4 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide"
-                style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)" }}
+            <>
+              {/* Mobile: "View breakdown" toggle, collapsed by default */}
+              <button
+                type="button"
+                onClick={() => setShowBreakdown((v) => !v)}
+                aria-expanded={showBreakdown}
+                className="sm:hidden w-full min-h-11 flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "rgba(255,255,255,0.8)",
+                }}
               >
-                <span className="col-span-2">Staff Member</span>
-                <span className="text-right">Hours</span>
-                <span className="text-right">Cost</span>
-              </div>
-              {/* Rows */}
-              <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                {data.rows.map((row) => (
+                <span>{showBreakdown ? "Hide" : "View"} monthly breakdown</span>
+                {showBreakdown ? (
+                  <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.5)" }} />
+                ) : (
+                  <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.5)" }} />
+                )}
+              </button>
+
+              {/* Mobile: vertical card list */}
+              {showBreakdown && (
+                <div className="sm:hidden space-y-2">
+                  {data.rows.map((row) => (
+                    <StaffCard
+                      key={row.staffId}
+                      staffName={row.staffName}
+                      trade={tradeByStaffId.get(row.staffId) ?? null}
+                      hourlyRate={row.hourlyRate}
+                      totalHours={row.totalHours}
+                      entryCount={row.entryCount}
+                      labourCost={row.labourCost}
+                    />
+                  ))}
                   <div
-                    key={row.staffId}
-                    className="grid grid-cols-4 px-4 py-3 items-center"
-                    style={{ background: "rgba(255,255,255,0.01)" }}
+                    className="rounded-xl px-4 py-3 flex items-center justify-between"
+                    style={{
+                      background: "rgba(245,166,35,0.08)",
+                      border: "1px solid rgba(245,166,35,0.2)",
+                    }}
                   >
-                    <div className="col-span-2 flex items-center gap-3">
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                        style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
-                      >
-                        {row.staffName.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{row.staffName}</p>
-                        <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                          {row.hourlyRate ? `$${row.hourlyRate}/hr` : <span style={{ color: "rgba(245,166,35,0.6)" }}>No rate set</span>}
-                        </p>
-                      </div>
-                    </div>
+                    <span
+                      className="text-xs font-semibold uppercase tracking-wider"
+                      style={{ color: "rgba(255,255,255,0.7)" }}
+                    >
+                      Total
+                    </span>
                     <div className="text-right">
-                      <p className="text-white text-sm font-semibold">{row.totalHours.toFixed(1)}</p>
-                      <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{row.entryCount} entries</p>
-                    </div>
-                    <div className="text-right">
-                      {row.labourCost != null ? (
-                        <p className="text-sm font-semibold" style={{ color: "#22c55e" }}>
-                          ${row.labourCost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </p>
-                      ) : (
-                        <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>—</p>
-                      )}
+                      <p className="text-sm font-bold" style={{ color: "#F5A623" }}>
+                        {totals.cost > 0
+                          ? `$${totals.cost.toLocaleString("en-AU", {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0,
+                            })}`
+                          : "—"}
+                      </p>
+                      <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>
+                        {totals.hours.toFixed(1)} hrs
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-              {/* Totals footer */}
+                </div>
+              )}
+
+              {/* Desktop: table layout */}
               <div
-                className="grid grid-cols-4 px-4 py-3 border-t"
-                style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
+                className="hidden sm:block rounded-2xl overflow-hidden"
+                style={{ border: "1px solid rgba(255,255,255,0.08)" }}
               >
-                <div className="col-span-2">
-                  <p className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>TOTAL</p>
+                <div
+                  className="hidden sm:grid sm:grid-cols-4 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide"
+                  style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)" }}
+                >
+                  <span className="sm:col-span-2">Staff Member</span>
+                  <span className="text-right">Hours</span>
+                  <span className="text-right">Cost</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-white text-sm font-bold">{totals.hours.toFixed(1)}</p>
+                <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  {data.rows.map((row) => (
+                    <div
+                      key={row.staffId}
+                      className="hidden sm:grid sm:grid-cols-4 px-4 py-3 items-center"
+                      style={{ background: "rgba(255,255,255,0.01)" }}
+                    >
+                      <div className="sm:col-span-2 flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
+                        >
+                          {row.staffName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{row.staffName}</p>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                            {row.hourlyRate ? `$${row.hourlyRate}/hr` : <span style={{ color: "rgba(245,166,35,0.6)" }}>No rate set</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white text-sm font-semibold">{row.totalHours.toFixed(1)}</p>
+                        <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>{row.entryCount} entries</p>
+                      </div>
+                      <div className="text-right">
+                        {row.labourCost != null ? (
+                          <p className="text-sm font-semibold" style={{ color: "#22c55e" }}>
+                            ${row.labourCost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
+                        ) : (
+                          <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>—</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-right">
-                  {totals.cost > 0 ? (
-                    <p className="text-sm font-bold" style={{ color: "#22c55e" }}>
-                      ${totals.cost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </p>
-                  ) : (
-                    <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>—</p>
-                  )}
+                <div
+                  className="hidden sm:grid sm:grid-cols-4 px-4 py-3 border-t"
+                  style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)" }}
+                >
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.5)" }}>TOTAL</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white text-sm font-bold">{totals.hours.toFixed(1)}</p>
+                  </div>
+                  <div className="text-right">
+                    {totals.cost > 0 ? (
+                      <p className="text-sm font-bold" style={{ color: "#22c55e" }}>
+                        ${totals.cost.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </p>
+                    ) : (
+                      <p className="text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>—</p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
           <p className="text-xs text-center" style={{ color: "rgba(255,255,255,0.25)" }}>
@@ -279,8 +358,14 @@ function LabourCostsTab() {
 export default function PortalStaff() {
   const utils = trpc.useUtils();
 
-  const { data: staffList, isLoading } = trpc.portal.listStaff.useQuery();
-  const { data: me } = trpc.portal.me.useQuery();
+  const { data: staffList, isLoading } = trpc.portal.listStaff.useQuery(undefined, {
+    retry: 2,
+    staleTime: 30_000,
+  });
+  const { data: me } = trpc.portal.me.useQuery(undefined, {
+    retry: 2,
+    staleTime: 60_000,
+  });
 
   const [activeTab, setActiveTab] = useState<"team" | "labour">("team");
 
@@ -307,7 +392,6 @@ export default function PortalStaff() {
   }
   const [pinConfirm, setPinConfirm] = useState("");
 
-  // Timesheet export state
   // Manage drawer state
   const [manageTarget, setManageTarget] = useState<StaffMember | null>(null);
 
@@ -322,7 +406,7 @@ export default function PortalStaff() {
 
   const { data: timesheetData, isFetching: exportLoading } = trpc.portal.exportTimesheets.useQuery(
     { from: exportFrom, to: exportTo },
-    { enabled: exportEnabled }
+    { enabled: exportEnabled, retry: 2, staleTime: 30_000 }
   );
 
   // Trigger CSV download when data arrives
@@ -341,7 +425,7 @@ export default function PortalStaff() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`Downloaded ${timesheetData.count} time entries.`);
-  }, [timesheetData, exportEnabled]);
+  }, [timesheetData, exportEnabled, exportFrom, exportTo]);
 
   function handleExport() {
     if (!exportFrom || !exportTo) { toast.error("Please select a date range."); return; }
@@ -357,7 +441,7 @@ export default function PortalStaff() {
       setForm(emptyForm);
       toast.success(`${form.name} has been added to your team.`);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const updateMutation = trpc.portal.updateStaff.useMutation({
@@ -367,7 +451,7 @@ export default function PortalStaff() {
       setForm(emptyForm);
       toast.success("Staff member updated.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const setPinMutation = trpc.portal.setStaffPin.useMutation({
@@ -377,7 +461,7 @@ export default function PortalStaff() {
       setPinConfirm("");
       toast.success("PIN set successfully.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const deleteMutation = trpc.portal.deleteStaff.useMutation({
@@ -386,7 +470,7 @@ export default function PortalStaff() {
       setDeleteTarget(null);
       toast.success("Staff member removed.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   function openCreate() {
@@ -437,8 +521,8 @@ export default function PortalStaff() {
     <PortalLayout activeTab="staff">
       <div className="sm:max-w-2xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
               <UserCog className="w-5 h-5" style={{ color: "#F5A623" }} />
               Staff
@@ -448,7 +532,7 @@ export default function PortalStaff() {
             </p>
           </div>
           {activeTab === "team" && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {staffLoginUrl && (
                 <Button
                   size="sm"
@@ -456,9 +540,11 @@ export default function PortalStaff() {
                   onClick={() => setShowQr(true)}
                   style={{ color: "rgba(245,166,35,0.8)", border: "1px solid rgba(245,166,35,0.3)" }}
                   title="Staff Login QR Code"
+                  className="min-h-11"
                 >
                   <Link2 className="w-4 h-4 mr-1" />
-                  Staff Link
+                  <span className="hidden sm:inline">Staff Link</span>
+                  <span className="sm:hidden">Link</span>
                 </Button>
               )}
               <Button
@@ -467,6 +553,7 @@ export default function PortalStaff() {
                 onClick={() => setShowExport(true)}
                 style={{ color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.15)" }}
                 title="Export Timesheets"
+                className="min-h-11"
               >
                 <Download className="w-4 h-4 mr-1" />
                 Export
@@ -475,7 +562,7 @@ export default function PortalStaff() {
                 size="sm"
                 onClick={openCreate}
                 style={{ background: "#F5A623", color: "#0F1F3D" }}
-                className="font-semibold"
+                className="hidden sm:inline-flex font-semibold min-h-11"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Add Staff
@@ -492,8 +579,9 @@ export default function PortalStaff() {
           {(["team", "labour"] as const).map(tab => (
             <button
               key={tab}
+              type="button"
               onClick={() => setActiveTab(tab)}
-              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+              className="flex-1 min-h-11 py-2 rounded-lg text-sm font-semibold transition-all"
               style={activeTab === tab
                 ? { background: "#F5A623", color: "#0F1F3D" }
                 : { color: "rgba(255,255,255,0.45)" }
@@ -507,6 +595,16 @@ export default function PortalStaff() {
         {/* ── Team Tab ── */}
         {activeTab === "team" && (
           <>
+            {/* Mobile primary action — full-width amber */}
+            <Button
+              onClick={openCreate}
+              className="sm:hidden w-full font-semibold h-11"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              <Plus className="w-5 h-5 mr-1.5" />
+              Add staff member
+            </Button>
+
             {isLoading ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
@@ -525,7 +623,7 @@ export default function PortalStaff() {
                   size="sm"
                   onClick={openCreate}
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
-                  className="font-semibold"
+                  className="font-semibold min-h-11"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add First Staff Member
@@ -576,8 +674,9 @@ export default function PortalStaff() {
 
                     {/* Single Manage button — opens bottom drawer */}
                     <button
+                      type="button"
                       onClick={() => setManageTarget(member)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0 transition-colors"
+                      className="flex items-center gap-1.5 px-3 min-h-11 rounded-lg text-xs font-semibold flex-shrink-0 transition-colors"
                       style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)" }}
                     >
                       <Settings2 className="w-3.5 h-3.5" />
@@ -607,8 +706,9 @@ export default function PortalStaff() {
           </DrawerHeader>
           <div className="px-4 pb-8 space-y-3">
             <button
+              type="button"
               onClick={() => { if (manageTarget) openEdit(manageTarget); setManageTarget(null); }}
-              className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
+              className="w-full min-h-11 flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <Pencil className="w-5 h-5 flex-shrink-0" style={{ color: "#F5A623" }} />
@@ -618,8 +718,9 @@ export default function PortalStaff() {
               </div>
             </button>
             <button
+              type="button"
               onClick={() => { if (manageTarget) { setPinTarget(manageTarget); setPinValue(""); setPinConfirm(""); } setManageTarget(null); }}
-              className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
+              className="w-full min-h-11 flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
               <KeyRound className="w-5 h-5 flex-shrink-0" style={{ color: "#F5A623" }} />
@@ -629,8 +730,9 @@ export default function PortalStaff() {
               </div>
             </button>
             <button
+              type="button"
               onClick={() => { if (manageTarget) setDeleteTarget(manageTarget); setManageTarget(null); }}
-              className="w-full flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
+              className="w-full min-h-11 flex items-center gap-3 p-4 rounded-xl text-left transition-colors"
               style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.15)" }}
             >
               <Trash2 className="w-5 h-5 flex-shrink-0" style={{ color: "#ef4444" }} />
@@ -668,6 +770,7 @@ export default function PortalStaff() {
                   value={form.mobile}
                   onChange={(e) => setForm(f => ({ ...f, mobile: e.target.value }))}
                   placeholder="04xx xxx xxx"
+                  inputMode="tel"
                   style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
                 />
               </div>
@@ -698,6 +801,7 @@ export default function PortalStaff() {
                   onChange={(e) => setForm(f => ({ ...f, hourlyRate: e.target.value }))}
                   placeholder="e.g. 45"
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.50"
                   style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "white" }}
@@ -710,6 +814,7 @@ export default function PortalStaff() {
               variant="ghost"
               onClick={() => { setShowForm(false); setEditingStaff(null); setForm(emptyForm); }}
               style={{ color: "rgba(255,255,255,0.5)" }}
+              className="min-h-11"
             >
               Cancel
             </Button>
@@ -717,7 +822,7 @@ export default function PortalStaff() {
               onClick={handleSubmit}
               disabled={isSaving}
               style={{ background: "#F5A623", color: "#0F1F3D" }}
-              className="font-semibold"
+              className="font-semibold min-h-11"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : editingStaff ? "Save Changes" : "Add Staff Member"}
             </Button>
@@ -749,7 +854,7 @@ export default function PortalStaff() {
             <Button
               onClick={copyStaffLink}
               style={{ background: "#F5A623", color: "#0F1F3D" }}
-              className="font-semibold w-full"
+              className="font-semibold w-full h-11"
             >
               {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
               {copied ? "Copied!" : "Copy Link"}
@@ -770,7 +875,7 @@ export default function PortalStaff() {
                   }
                 }}
                 variant="outline"
-                className="w-full font-semibold"
+                className="w-full font-semibold h-11"
                 style={{ borderColor: "rgba(255,255,255,0.2)", color: "white", background: "transparent" }}
               >
                 <Link2 className="w-4 h-4 mr-2" />
@@ -819,12 +924,19 @@ export default function PortalStaff() {
             </p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowExport(false)} style={{ color: "rgba(255,255,255,0.5)" }}>Cancel</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setShowExport(false)}
+              style={{ color: "rgba(255,255,255,0.5)" }}
+              className="min-h-11"
+            >
+              Cancel
+            </Button>
             <Button
               onClick={handleExport}
               disabled={exportLoading}
               style={{ background: "#F5A623", color: "#0F1F3D" }}
-              className="font-semibold"
+              className="font-semibold min-h-11"
             >
               {exportLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
               {exportLoading ? "Generating…" : "Download CSV"}
@@ -878,6 +990,7 @@ export default function PortalStaff() {
               variant="ghost"
               onClick={() => { setPinTarget(null); setPinValue(""); setPinConfirm(""); }}
               style={{ color: "rgba(255,255,255,0.5)" }}
+              className="min-h-11"
             >
               Cancel
             </Button>
@@ -885,7 +998,7 @@ export default function PortalStaff() {
               onClick={() => pinTarget && setPinMutation.mutate({ id: pinTarget.id, pin: pinValue })}
               disabled={!pinValue || pinValue.length < 4 || pinValue !== pinConfirm || setPinMutation.isPending}
               style={{ background: "#F5A623", color: "#0F1F3D" }}
-              className="font-semibold"
+              className="font-semibold min-h-11"
             >
               {setPinMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Set PIN"}
             </Button>
@@ -903,12 +1016,16 @@ export default function PortalStaff() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}>
+            <AlertDialogCancel
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+              className="min-h-11"
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTarget && deleteMutation.mutate({ id: deleteTarget.id })}
               style={{ background: "#ef4444", color: "white" }}
+              className="min-h-11"
             >
               Remove
             </AlertDialogAction>

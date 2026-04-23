@@ -484,7 +484,7 @@ export default function PortalSubscription() {
 
               {/* Manage billing CTA — hidden on native iOS (Apple Guideline 3.1.1) */}
               {isNativeApp() ? (
-                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                <div className="pt-2 flex flex-col sm:flex-row flex-wrap gap-3">
                   <Button
                     onClick={async () => {
                       if (!isNativeRevenueCatConfigured() && user?.id) {
@@ -496,18 +496,35 @@ export default function PortalSubscription() {
                         setTimeout(() => window.location.reload(), 2000);
                       }
                     }}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 min-h-[44px]"
                     style={{ background: "#F5A623", color: "#0F1F3D" }}
                   >
                     <CreditCard className="w-4 h-4" />
-                    Manage Subscription
+                    Change Plan
+                  </Button>
+                  {/*
+                    Apple Guideline 3.1.2 — for auto-renewing subscriptions, a
+                    link to the iOS subscription-management screen must be
+                    accessible from inside the app. `window.location.href` is
+                    required because `itms-apps://` is a native URL scheme —
+                    SFSafariViewController / Capacitor Browser can't handle it.
+                  */}
+                  <Button
+                    onClick={() => {
+                      window.location.href = "itms-apps://apps.apple.com/account/subscriptions";
+                    }}
+                    variant="outline"
+                    className="flex items-center gap-2 min-h-[44px] border-white/20 text-white/70 hover:bg-white/5"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Manage in Settings
                   </Button>
                   {/* Apple Guideline 3.1.1 — Restore Purchases must be available */}
                   <Button
                     onClick={handleRestorePurchases}
                     disabled={restoring}
                     variant="outline"
-                    className="flex items-center gap-2 border-white/20 text-white/70 hover:bg-white/5"
+                    className="flex items-center gap-2 min-h-[44px] border-white/20 text-white/70 hover:bg-white/5"
                   >
                     {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                     {restoring ? "Restoring…" : "Restore Purchases"}

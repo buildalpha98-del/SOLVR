@@ -1,9 +1,9 @@
 # Solvr — App Store Connect Submission Checklist
 
 **App:** Solvr — AI Receptionist  
-**Bundle ID:** au.com.solvr.app  
+**Bundle ID:** `com.solvr.mobile` *(code-of-record — matches Xcode project and `capacitor.config.ts`)*
 **Version:** 1.0.0  
-**Prepared:** 19 April 2026  
+**Prepared:** 19 April 2026 · last revised 24 April 2026  
 **Entity:** Elevate Kids Holdings Pty Ltd (ABN 47 262 120 626)
 
 This document is the single source of truth for everything required to submit Solvr v1.0.0 to the Apple App Store. Each section maps directly to a tab or field in App Store Connect. Items marked with a status column indicate whether the asset or information is ready, needs to be created, or requires a manual action in App Store Connect.
@@ -34,7 +34,7 @@ Enter these in **App Store Connect → App Information** and **Version Informati
 |-------|-------|-----------|--------|
 | App Name | `Solvr — AI Receptionist` | 30 chars | **Ready** |
 | Subtitle | `Quote & Job Tool for Tradies` | 30 chars | **Ready** |
-| Bundle ID | `au.com.solvr.app` | — | **Ready** |
+| Bundle ID | `com.solvr.mobile` | — | **Ready** |
 | SKU | `solvr-ai-receptionist` | — | **Ready** |
 | Primary Category | Business | — | **Enter in ASC** |
 | Secondary Category | Productivity | — | **Enter in ASC** |
@@ -197,38 +197,7 @@ Enter in **App Store Connect → Version Information → App Review Information*
 
 ### 4.2 Reviewer Notes
 
-Paste the following into the "Notes" field:
-
-```
-This is a B2B SaaS application for Australian trade businesses. The app requires 
-an account to use — there is no public browsing mode.
-
-Demo account credentials:
-Email: apple.review@solvr.com.au
-Password: AppleReview2026!
-
-This account has been pre-loaded with realistic demo data for a plumbing business 
-(Demo Plumbing & Gas). All features are unlocked and accessible without requiring 
-a paid subscription.
-
-The AI Receptionist feature (voice call handling) requires a live telephony 
-integration which is not active in the demo environment. To demonstrate this 
-feature, please view the pre-seeded call transcripts in the Calls section, which 
-show the output of the AI receptionist processing real inbound calls.
-
-The Voice-to-Quote feature requires microphone access. Please grant microphone 
-permission when prompted to test this feature.
-
-Subscriptions are handled via Apple In-App Purchase (auto-renewable subscriptions 
-managed through RevenueCat/StoreKit 2). The reviewer account has all features 
-unlocked without requiring an active subscription.
-
-To test the subscription flow, navigate to the Pricing page from the dashboard 
-sidebar. The app uses RevenueCat's Capacitor SDK for purchase handling.
-
-The app includes a "Restore Purchases" button and a link to Apple's subscription 
-management page, as required by App Store guidelines.
-```
+Paste the **Notes for Apple Reviewer** block from `APPLE_APP_STORE_SUBMISSION.md §3 Reviewer Account` into the Notes field. The canonical copy lives there so we don't maintain two versions of the reviewer-facing text.
 
 **Status:** Ready
 
@@ -261,23 +230,31 @@ Complete in **App Store Connect → App Privacy**.
 
 ### 5.1 Data Collection Declarations
 
+> **Source of truth:** `ios/App/App/PrivacyInfo.xcprivacy` (bundled in the IPA).
+> If this table and the privacy manifest diverge, Apple rejects the build.
+> Update both together.
+
 | Data Type | Collected? | Linked to User? | Used for Tracking? | Purpose |
 |-----------|-----------|-----------------|-------------------|---------|
-| Name | Yes | Yes | No | Account creation |
+| Name | Yes | Yes | No | Customer records, quotes, invoices |
 | Email address | Yes | Yes | No | Account login, notifications |
-| Phone number | Yes | Yes | No | Account creation |
+| Phone number | Yes | Yes | No | SMS notifications + customer contact records |
+| Physical address | Yes | Yes | No | Job-site addresses on quotes and invoices |
 | User ID | Yes | Yes | No | Authentication |
-| Audio data | Yes | Yes | No | AI receptionist transcription |
-| Photos / videos | Yes | Yes | No | Quote photo attachments |
-| Customer support data | Yes | Yes | No | Support requests |
-| Product interaction | Yes | Yes | No | Analytics, service improvement |
-| Crash data | Yes | No | No | Debugging |
-| Performance data | Yes | No | No | App performance monitoring |
-| Payment info | No | — | — | Handled by Apple IAP via RevenueCat |
-| Precise location | No | — | — | Not collected |
+| Audio data | Yes | Yes | No | Voice-to-quote transcription (recordings discarded after transcription) |
+| Photos / videos | Yes | Yes | No | Quote / job / completion-report attachments |
+| Precise location | Yes | Yes | No | Staff check-in/check-out GPS verification |
+| Other user content | Yes | Yes | No | Quote line items, job notes, invoice text, form submissions, digital signatures |
+| Customer support data | Yes | Yes | No | In-app support messages |
+| Payment info | No | — | — | Handled by Apple IAP via RevenueCat — not stored locally |
+| Product interaction | No | — | — | No analytics SDK present |
+| Crash data | No | — | — | No crash-reporting SDK present |
+| Performance data | No | — | — | No performance-monitoring SDK present |
 | Contacts | No | — | — | Not collected |
 | Browsing history | No | — | — | Not collected |
 | Search history | No | — | — | Not collected |
+
+**Cross-check before submit:** open `ios/App/App/PrivacyInfo.xcprivacy` and confirm every `Yes` row in the table above has a matching `NSPrivacyCollectedDataType*` entry. Precise location and Physical address are the two most likely to drift — both are declared.
 
 ### 5.2 Summary Answers
 
@@ -367,12 +344,12 @@ Higher tiers include all features from lower tiers:
 | Set App Store Shared Secret in RevenueCat | **DO after ASC app is created** |
 | Set RevenueCat webhook URL in ASC Server Notifications V2 | **DO after ASC app is created** |
 
-### 7.6 App-Side Requirements (Apple Guideline 3.1.2)
+### 7.6 App-Side Requirements (Apple Guidelines 3.1.1 / 3.1.2)
 
 | Requirement | Implementation | Status |
 |-------------|---------------|--------|
-| "Restore Purchases" button | On subscription/pricing screen | **Verify in build** |
-| Link to Apple subscription management | In account/settings section (`https://apps.apple.com/account/subscriptions`) | **Verify in build** |
+| "Restore Purchases" button | `client/src/pages/portal/PortalSubscription.tsx` — native-app branch + no-subscription branch. Calls `Purchases.restorePurchases()` via RevenueCat Capacitor SDK. | **Done** |
+| Link to Apple subscription management | `client/src/pages/portal/PortalSubscription.tsx` — "Manage in Settings" button in native-app branch. Uses `window.location.href = "itms-apps://apps.apple.com/account/subscriptions"` (not `openUrl` — `itms-apps://` is a native URL scheme that SFSafariViewController cannot handle). Also present in `PortalSettings.tsx`. | **Done** |
 | Clear pricing display before purchase | Pricing page shows all tiers with prices | **Verify in build** |
 | Terms of service link | In subscription screen footer | **Verify in build** |
 
@@ -389,9 +366,37 @@ These are set in the Xcode project or Capacitor config before building the .ipa.
 | `CFBundleDisplayName` | Solvr | **Set in Capacitor config** |
 | `CFBundleShortVersionString` | 1.0.0 | **Set in Capacitor config** |
 | `CFBundleVersion` | 1 | **Set in Capacitor config** |
-| `NSMicrophoneUsageDescription` | Solvr uses your microphone to record voice notes for the Voice-to-Quote feature. Your recording is transcribed to generate a professional quote. | **Set in Info.plist** |
-| `NSCameraUsageDescription` | Solvr uses your camera to take photos of job sites, which can be attached to quotes. | **Set in Info.plist** |
-| `NSPhotoLibraryUsageDescription` | Solvr accesses your photo library so you can attach job site photos to quotes. | **Set in Info.plist** |
+| `NSMicrophoneUsageDescription` | *(specific — see Info.plist)* | **Done** |
+| `NSCameraUsageDescription` | *(specific — see Info.plist)* | **Done** |
+| `NSPhotoLibraryUsageDescription` | *(specific — see Info.plist)* | **Done** |
+| `NSPhotoLibraryAddUsageDescription` | *(specific — see Info.plist)* | **Done** |
+| `NSLocationWhenInUseUsageDescription` | *(specific — see Info.plist)* | **Done** |
+| `ITSAppUsesNonExemptEncryption` | `false` | **Done** |
+
+### 8.1a Privacy Manifest (PrivacyInfo.xcprivacy) — MANDATORY since May 2024
+
+The app-level privacy manifest lives at `ios/App/App/PrivacyInfo.xcprivacy` and declares:
+
+- `NSPrivacyTracking: false` (no cross-app/website tracking, no IDFA use)
+- 10 `NSPrivacyCollectedDataTypes` entries (see §5.1 — must match ASC nutrition label)
+- 4 `NSPrivacyAccessedAPITypes` with reason codes: UserDefaults `CA92.1`, File timestamp `C617.1`, Disk space `E174.1`, System boot time `35F9.1`
+
+**Manual Xcode step (one-time, required):** the file exists on disk but must be registered with the App target via Xcode, otherwise it is not embedded in the IPA.
+
+1. Open `ios/App/App.xcworkspace` in Xcode
+2. Project Navigator → right-click the **App** group → **Add Files to "App"…**
+3. Select `ios/App/App/PrivacyInfo.xcprivacy`
+4. In the dialog: **uncheck** "Copy items if needed", **check** the **App** target, click **Add**
+5. Commit the resulting `project.pbxproj` change (it will add a `PBXFileReference` + membership entry)
+
+To verify the manifest is inside the built IPA before upload:
+
+```bash
+unzip -l path/to/App.ipa | grep PrivacyInfo.xcprivacy
+# → should list one entry under Payload/App.app/
+```
+
+Embedded SDKs (RevenueCat, Capacitor plugins) ship their own privacy manifests — Xcode merges them at archive time. If we add a new SDK that touches a tracked API, Xcode merges its manifest automatically.
 
 ### 8.2 Entitlements & Capabilities
 
@@ -410,7 +415,7 @@ These are set in the Xcode project or Capacitor config before building the .ipa.
 |------|--------------|--------|
 | Minimum iOS version | 15.0 | **Set in Capacitor config** |
 | Signing certificate | Apple Distribution (not Development) | **Create in Apple Developer Portal** |
-| Provisioning profile | App Store Distribution profile for `au.com.solvr.app` | **Create in Apple Developer Portal** |
+| Provisioning profile | App Store Distribution profile for `com.solvr.mobile` | **Create in Apple Developer Portal** |
 | Archive & upload | Via Xcode → Product → Archive → Distribute App → App Store Connect | **Do at build time** |
 
 ---
@@ -460,7 +465,7 @@ Follow this order to avoid blockers.
 |------|--------|-----------|
 | 1 | Verify Apple Developer Program enrolment (organisation account) | D-U-N-S number |
 | 2 | Sign Paid Applications Agreement in ASC | Step 1 |
-| 3 | Create app record in App Store Connect (`au.com.solvr.app`) | Step 1 |
+| 3 | Create app record in App Store Connect (`com.solvr.mobile`) | Step 1 |
 | 4 | Create subscription group "Solvr Subscriptions" in ASC | Step 3 |
 | 5 | Create 6 subscription products with pricing and 14-day trials | Step 4 |
 | 6 | Link ASC app to RevenueCat (replace Test Store app) | Step 3 |

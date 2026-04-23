@@ -8,13 +8,14 @@
  *
  * Tabs:
  *  - Customers: search, multi-select, bulk SMS (immediate or scheduled), navigation to detail
- *  - Campaign History: past SMS blasts with expandable per-recipient delivery rows + Retry Failed + Cancel
+ *  - Campaign History: past SMS blasts rendered as vertical cards (SMSCampaignCard)
  */
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
+import SMSCampaignCard from "@/components/portal/SMSCampaignCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,14 +24,13 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
+import { hapticSuccess } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import { ErrorState } from "@/components/portal/ErrorState";
 import {
   Users, Search, MessageSquare, ChevronRight, Phone, UserPlus,
   MapPin, Loader2, CheckSquare, Square, Download, DollarSign, Briefcase,
-  History, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, BellOff,
-  RefreshCw, CalendarClock, BookOpen, Plus, Trash2, X, UserMinus,
+  History, BellOff, CalendarClock, BookOpen, Plus, Trash2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -41,241 +41,8 @@ function fmtDate(val: Date | string | null | undefined) {
   });
 }
 
-function fmtDateTime(val: Date | string | null | undefined) {
-  if (!val) return "—";
-  return new Date(String(val)).toLocaleString("en-AU", {
-    day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
-/** Expandable row showing per-recipient delivery details for one campaign */
-function CampaignRecipientsRow({ campaignId }: { campaignId: number }) {
-  const { data: recipients = [], isLoading } = trpc.portalCustomers.getCampaignRecipients.useQuery(
-    { campaignId },
-    { staleTime: 120_000 },
-  );
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-3" style={{ background: "rgba(255,255,255,0.02)" }}>
-        <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#F5A623" }} />
-        <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Loading recipients…</span>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="border-t"
-      style={{ borderColor: "rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.15)" }}
-    >
-      <div className="px-4 py-2 grid grid-cols-[1fr_auto_auto_1fr] gap-x-4 text-[10px] font-semibold uppercase tracking-wider"
-        style={{ color: "rgba(255,255,255,0.3)" }}>
-        <span>Name / Phone</span>
-        <span>Status</span>
-        <span>Sent At</span>
-        <span>Twilio SID / Error</span>
-      </div>
-      <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-        {recipients.map((r) => (
-          <div
-            key={r.id}
-            className="px-4 py-2.5 grid grid-cols-[1fr_auto_auto_1fr] gap-x-4 items-center text-sm"
-          >
-            <div>
-              <p className="text-white/80 font-medium text-xs">{r.name}</p>
-              <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>{r.phone}</p>
-            </div>
-            <div>
-              {r.status === "sent" && (
-                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#4ade80" }}>
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Sent
-                </span>
-              )}
-              {r.status === "failed" && (
-                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#f87171" }}>
-                  <XCircle className="w-3.5 h-3.5" /> Failed
-                </span>
-              )}
-              {r.status === "pending" && (
-                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  <Clock className="w-3.5 h-3.5" /> Pending
-                </span>
-              )}
-            </div>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              {r.sentAt ? fmtDateTime(r.sentAt) : "—"}
-            </p>
-            <div className="min-w-0">
-              {r.twilioSid && (
-                <p className="text-[11px] font-mono truncate" style={{ color: "rgba(245,166,35,0.7)" }}
-                  title={r.twilioSid}>
-                  {r.twilioSid}
-                </p>
-              )}
-              {r.errorMessage && (
-                <p className="text-[11px] truncate" style={{ color: "#f87171" }}
-                  title={r.errorMessage}>
-                  {r.errorMessage}
-                </p>
-              )}
-              {!r.twilioSid && !r.errorMessage && (
-                <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Single campaign row with expand/collapse, Retry Failed button, and Cancel button */
-function CampaignRow({ campaign, onRetried, onCancelled }: {
-  campaign: {
-    id: number;
-    name: string;
-    message: string;
-    totalCount: number;
-    sentCount: number;
-    failedCount: number;
-    skippedCount?: number | null;
-    status: string;
-    scheduledAt: Date | string | null;
-    createdAt: Date | string;
-    completedAt: Date | string | null;
-  };
-  onRetried: () => void;
-  onCancelled: () => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  const retryMutation = trpc.portalCustomers.retryFailedRecipients.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.message);
-      onRetried();
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const cancelMutation = trpc.portalCustomers.cancelCampaign.useMutation({
-    onSuccess: () => {
-      toast.success("Campaign cancelled — no messages will be sent.");
-      onCancelled();
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const statusColor =
-    campaign.status === "completed" ? "#4ade80"
-    : campaign.status === "failed" ? "#f87171"
-    : campaign.status === "cancelled" ? "rgba(255,255,255,0.3)"
-    : "#F5A623"; // pending / sending
-
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-    >
-      {/* Summary row */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <MessageSquare className="w-4 h-4 flex-shrink-0" style={{ color: "#F5A623" }} />
-
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">{campaign.name}</p>
-          <p className="text-xs mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {campaign.message.length > 80 ? campaign.message.slice(0, 80) + "…" : campaign.message}
-          </p>
-          {campaign.scheduledAt && campaign.status === "pending" && (
-            <p className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: "#F5A623" }}>
-              <CalendarClock className="w-3 h-3" />
-              Scheduled for {fmtDateTime(campaign.scheduledAt)}
-            </p>
-          )}
-        </div>
-
-        <div className="flex-shrink-0 flex items-center gap-2 text-xs">
-          <span style={{ color: "#4ade80" }}>{campaign.sentCount} sent</span>
-          {campaign.failedCount > 0 && (
-            <span style={{ color: "#f87171" }}>{campaign.failedCount} failed</span>
-          )}
-          {/* Skipped count — opt-out customers excluded from this blast */}
-          {(campaign.skippedCount ?? 0) > 0 && (
-            <span
-              className="flex items-center gap-0.5"
-              title={`${campaign.skippedCount} customer${campaign.skippedCount !== 1 ? "s" : ""} skipped (SMS opt-out)`}
-              style={{ color: "rgba(255,255,255,0.3)" }}
-            >
-              <UserMinus className="w-3 h-3" />
-              {campaign.skippedCount} skipped
-            </span>
-          )}
-          <span style={{ color: "rgba(255,255,255,0.3)" }}>{fmtDate(campaign.createdAt)}</span>
-          <Badge
-            className="text-[10px] px-1.5 py-0 h-4 capitalize"
-            style={{ background: `${statusColor}20`, color: statusColor, border: "none" }}
-          >
-            {campaign.status}
-          </Badge>
-
-          {/* Cancel button — only for pending (scheduled) campaigns */}
-          {campaign.status === "pending" && (
-            <button
-              title="Cancel this scheduled campaign"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm("Cancel this scheduled campaign? This cannot be undone.")) {
-                  cancelMutation.mutate({ campaignId: campaign.id });
-                }
-              }}
-              disabled={cancelMutation.isPending}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-opacity hover:opacity-70"
-              style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.12)" }}
-            >
-              {cancelMutation.isPending
-                ? <Loader2 className="w-3 h-3 animate-spin" />
-                : <X className="w-3 h-3" />}
-              Cancel
-            </button>
-          )}
-
-          {/* Retry Failed button — only when there are failed recipients */}
-          {campaign.failedCount > 0 && (campaign.status === "completed" || campaign.status === "failed") && (
-            <button
-              title={`Retry ${campaign.failedCount} failed recipient${campaign.failedCount !== 1 ? "s" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                retryMutation.mutate({ campaignId: campaign.id });
-              }}
-              disabled={retryMutation.isPending}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-opacity hover:opacity-70"
-              style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)" }}
-            >
-              {retryMutation.isPending
-                ? <Loader2 className="w-3 h-3 animate-spin" />
-                : <RefreshCw className="w-3 h-3" />}
-              Retry {campaign.failedCount}
-            </button>
-          )}
-
-          {expanded
-            ? <ChevronUp className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-            : <ChevronDown className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}
-        </div>
-      </div>
-
-      {/* Expandable recipients */}
-      {expanded && <CampaignRecipientsRow campaignId={campaign.id} />}
-    </div>
-  );
 }
 
 export default function PortalCustomers() {
@@ -286,14 +53,11 @@ export default function PortalCustomers() {
   const [showBulkSms, setShowBulkSms] = useState(false);
   const [smsMessage, setSmsMessage] = useState("");
   const [smsSent, setSmsSent] = useState(false);
-  // Scheduling state
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
-  // Template library state
   const [showTemplates, setShowTemplates] = useState(false);
   const [newTplName, setNewTplName] = useState("");
   const [newTplBody, setNewTplBody] = useState("");
-  // Add customer state
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [newCustFirst, setNewCustFirst] = useState("");
   const [newCustLast, setNewCustLast] = useState("");
@@ -301,26 +65,29 @@ export default function PortalCustomers() {
   const [newCustPhone, setNewCustPhone] = useState("");
   const [newCustAddress, setNewCustAddress] = useState("");
 
-  const { data: customers = [], isLoading, error: custError, refetch: refetchCust } = trpc.portalCustomers.list.useQuery(undefined, {
-    retry: 2,
-    staleTime: 60_000,
-  });
+  const { data: customers = [], isLoading, error: custError, refetch: refetchCust } =
+    trpc.portalCustomers.list.useQuery(undefined, {
+      retry: 2,
+      staleTime: 60_000,
+    });
 
   const { data: campaigns = [], isLoading: campaignsLoading, refetch: refetchCampaigns } =
     trpc.portalCustomers.listSmsCampaigns.useQuery(undefined, {
       enabled: activeTab === "history",
+      retry: 2,
       staleTime: 30_000,
     });
 
   const { data: templates = [], refetch: refetchTemplates } =
     trpc.portalCustomers.listSmsTemplates.useQuery(undefined, {
       enabled: showBulkSms,
+      retry: 2,
       staleTime: 60_000,
     });
 
   const bulkSmsPreviewMutation = trpc.portalCustomers.bulkSmsPreview.useMutation({
     onSuccess: () => setSmsSent(true),
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
   const utils = trpc.useUtils();
 
@@ -332,7 +99,7 @@ export default function PortalCustomers() {
       setNewCustFirst(""); setNewCustLast(""); setNewCustEmail(""); setNewCustPhone(""); setNewCustAddress("");
       utils.portalCustomers.list.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const toggleOptOutMutation = trpc.portalCustomers.toggleSmsOptOut.useMutation({
@@ -340,7 +107,7 @@ export default function PortalCustomers() {
       toast.success(data.optedOutSms ? "Customer opted out of SMS" : "Customer re-enabled for SMS");
       utils.portalCustomers.list.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const sendBulkSmsMutation = trpc.portalCustomers.sendBulkSms.useMutation({
@@ -354,7 +121,7 @@ export default function PortalCustomers() {
       setSelected(new Set());
       refetchCampaigns();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const scheduleBulkSmsMutation = trpc.portalCustomers.scheduleBulkSms.useMutation({
@@ -365,7 +132,7 @@ export default function PortalCustomers() {
       setScheduleMode(false);
       setScheduledAt("");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const createTemplateMutation = trpc.portalCustomers.createSmsTemplate.useMutation({
@@ -375,7 +142,7 @@ export default function PortalCustomers() {
       setNewTplBody("");
       refetchTemplates();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
   const deleteTemplateMutation = trpc.portalCustomers.deleteSmsTemplate.useMutation({
@@ -383,10 +150,9 @@ export default function PortalCustomers() {
       toast.success("Template deleted");
       refetchTemplates();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
-  // alias for the preview step
   const bulkSmsMutation = bulkSmsPreviewMutation;
 
   const filtered = useMemo(() => {
@@ -432,6 +198,11 @@ export default function PortalCustomers() {
     setShowBulkSms(true);
   }
 
+  function startNewCampaign() {
+    setActiveTab("customers");
+    toast.info("Select customers below, then tap Bulk SMS to send.");
+  }
+
   function exportCsv() {
     const rows = [
       ["Name", "Phone", "Email", "Suburb", "Jobs", "Total Spent (AUD)", "Last Job Type", "Last Job Date"],
@@ -463,7 +234,7 @@ export default function PortalCustomers() {
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <Users className="w-5 h-5" style={{ color: "#F5A623" }} />
             Customer Database
@@ -472,7 +243,7 @@ export default function PortalCustomers() {
             Auto-populated from accepted quotes and paid invoices.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
           {activeTab === "customers" && (
             <>
               <WriteGuard>
@@ -480,7 +251,7 @@ export default function PortalCustomers() {
                   size="sm"
                   variant="outline"
                   onClick={() => setShowAddCustomer(true)}
-                  className="border-white/10 text-white/60 hover:text-white"
+                  className="border-white/10 text-white/60 hover:text-white min-h-11"
                 >
                   <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Add
                 </Button>
@@ -490,7 +261,7 @@ export default function PortalCustomers() {
                 variant="outline"
                 onClick={exportCsv}
                 disabled={customers.length === 0}
-                className="border-white/10 text-white/60 hover:text-white"
+                className="border-white/10 text-white/60 hover:text-white min-h-11"
               >
                 <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
               </Button>
@@ -499,6 +270,7 @@ export default function PortalCustomers() {
                   size="sm"
                   onClick={openBulkSms}
                   disabled={selected.size === 0}
+                  className="min-h-11"
                   style={selected.size > 0 ? { background: "#F5A623", color: "#0F1F3D" } : {}}
                 >
                   <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
@@ -517,8 +289,9 @@ export default function PortalCustomers() {
         {(["customers", "history"] as const).map((tab) => (
           <button
             key={tab}
+            type="button"
             onClick={() => setActiveTab(tab)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 min-h-11 rounded-md text-sm font-medium transition-colors"
             style={
               activeTab === tab
                 ? { background: "#F5A623", color: "#0F1F3D" }
@@ -534,19 +307,23 @@ export default function PortalCustomers() {
       {/* ── Customers tab ── */}
       {activeTab === "customers" && (
         <>
-          {/* Stats row */}
-          <div className="grid grid-cols-3 gap-3 mb-5">
+          {/* Stats row — flex for mobile-safe layout (no bare grid-cols-3) */}
+          <div className="flex gap-2 sm:gap-3 mb-5">
             {[
-              { label: "Total Customers", value: String(customers.length), icon: <Users className="w-4 h-4" /> },
-              { label: "Total Jobs", value: String(totalJobs), icon: <Briefcase className="w-4 h-4" /> },
-              { label: "Total Revenue", value: fmtAUD(totalRevenue), icon: <DollarSign className="w-4 h-4" /> },
+              { label: "Customers", value: String(customers.length), icon: <Users className="w-4 h-4" /> },
+              { label: "Jobs", value: String(totalJobs), icon: <Briefcase className="w-4 h-4" /> },
+              { label: "Revenue", value: fmtAUD(totalRevenue), icon: <DollarSign className="w-4 h-4" /> },
             ].map((stat) => (
-              <div key={stat.label} className="rounded-xl p-4" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div
+                key={stat.label}
+                className="flex-1 min-w-0 rounded-xl p-3 sm:p-4"
+                style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+              >
                 <div className="flex items-center gap-2 mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {stat.icon}
-                  <span className="text-xs">{stat.label}</span>
+                  <span className="text-[11px] sm:text-xs truncate">{stat.label}</span>
                 </div>
-                <p className="text-2xl font-bold text-white">{stat.value}</p>
+                <p className="text-lg sm:text-2xl font-bold text-white truncate">{stat.value}</p>
               </div>
             ))}
           </div>
@@ -554,8 +331,9 @@ export default function PortalCustomers() {
           {/* Search + select-all */}
           <div className="flex items-center gap-3 mb-4">
             <button
+              type="button"
               onClick={toggleAll}
-              className="flex-shrink-0 transition-colors"
+              className="flex-shrink-0 w-11 h-11 flex items-center justify-center transition-colors"
               title={selected.size === filtered.length && filtered.length > 0 ? "Deselect all" : "Select all"}
             >
               {selected.size === filtered.length && filtered.length > 0
@@ -602,7 +380,7 @@ export default function PortalCustomers() {
               {filtered.map((c) => (
                 <div
                   key={c.id}
-                  className="rounded-xl flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
+                  className="rounded-xl flex items-center gap-3 px-4 py-3 min-h-11 cursor-pointer transition-colors"
                   style={{
                     background: selected.has(c.id) ? "rgba(245,166,35,0.07)" : "rgba(255,255,255,0.03)",
                     border: selected.has(c.id) ? "1px solid rgba(245,166,35,0.25)" : "1px solid rgba(255,255,255,0.06)",
@@ -611,8 +389,10 @@ export default function PortalCustomers() {
                 >
                   {/* Checkbox */}
                   <button
+                    type="button"
                     onClick={(e) => { e.stopPropagation(); toggleSelect(c.id); }}
-                    className="flex-shrink-0"
+                    className="flex-shrink-0 w-11 h-11 -m-2 flex items-center justify-center"
+                    aria-label={selected.has(c.id) ? "Deselect" : "Select"}
                   >
                     {selected.has(c.id)
                       ? <CheckSquare className="w-5 h-5" style={{ color: "#F5A623" }} />
@@ -629,7 +409,7 @@ export default function PortalCustomers() {
 
                   {/* Details */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-white text-sm truncate">{c.name}</span>
                       {c.jobCount > 1 && (
                         <Badge
@@ -639,10 +419,10 @@ export default function PortalCustomers() {
                           {c.jobCount} jobs
                         </Badge>
                       )}
-                      {/* SMS opt-out badge — inline with name, click to re-enable */}
                       {c.optedOutSms && (
                         <button
-                          title="SMS opted out — click to re-enable"
+                          type="button"
+                          title="SMS opted out — tap to re-enable"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleOptOutMutation.mutate({ customerId: c.id, optedOut: false });
@@ -692,25 +472,50 @@ export default function PortalCustomers() {
       {/* ── Campaign History tab ── */}
       {activeTab === "history" && (
         <>
+          {/* Primary action — full-width amber at top */}
+          <WriteGuard>
+            <Button
+              onClick={startNewCampaign}
+              className="w-full font-semibold h-11 mb-4"
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
+            >
+              <Plus className="w-5 h-5 mr-1.5" />
+              New SMS campaign
+            </Button>
+          </WriteGuard>
+
           {campaignsLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
             </div>
           ) : campaigns.length === 0 ? (
-            <div className="rounded-xl border p-12 text-center" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
-              <History className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
-              <p className="text-sm font-medium text-white mb-1">No campaigns sent yet</p>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Select customers on the Customers tab and send a Bulk SMS to see history here.
+            <div
+              className="rounded-2xl border p-10 text-center"
+              style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}
+            >
+              <div className="text-5xl mb-3" aria-hidden="true">📣</div>
+              <p className="text-base font-semibold text-white mb-1">No campaigns yet</p>
+              <p className="text-sm mb-5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Send your first bulk SMS blast to customers and it'll show up here.
               </p>
+              <WriteGuard>
+                <Button
+                  onClick={startNewCampaign}
+                  className="font-semibold h-11"
+                  style={{ background: "#F5A623", color: "#0F1F3D" }}
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Start first campaign
+                </Button>
+              </WriteGuard>
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
-                {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""} — click any row to expand recipient delivery details.
+              <p className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+                {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""} — tap any card to view recipients and actions.
               </p>
               {campaigns.map((c) => (
-                <CampaignRow
+                <SMSCampaignCard
                   key={c.id}
                   campaign={c}
                   onRetried={refetchCampaigns}
@@ -758,12 +563,13 @@ export default function PortalCustomers() {
               {/* Schedule toggle */}
               <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                 <button
+                  type="button"
                   onClick={() => setScheduleMode((v) => !v)}
-                  className="flex items-center gap-2 text-xs font-medium mb-2 transition-opacity hover:opacity-70"
+                  className="flex items-center gap-2 text-xs font-medium mb-2 min-h-11 transition-opacity hover:opacity-70"
                   style={{ color: scheduleMode ? "#F5A623" : "rgba(255,255,255,0.4)" }}
                 >
                   <CalendarClock className="w-3.5 h-3.5" />
-                  {scheduleMode ? "Scheduling for later" : "Send immediately — click to schedule instead"}
+                  {scheduleMode ? "Scheduling for later" : "Send immediately — tap to schedule instead"}
                 </button>
                 {scheduleMode && (
                   <input
@@ -771,7 +577,7 @@ export default function PortalCustomers() {
                     value={scheduledAt}
                     onChange={(e) => setScheduledAt(e.target.value)}
                     min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
-                    className="w-full rounded-md px-3 py-2 text-sm bg-white/5 border border-white/10 text-white"
+                    className="w-full rounded-md px-3 py-2 h-11 text-sm bg-white/5 border border-white/10 text-white"
                     style={{ colorScheme: "dark" }}
                   />
                 )}
@@ -780,7 +586,7 @@ export default function PortalCustomers() {
               <div className="flex gap-2 pt-1">
                 <Button
                   variant="outline"
-                  className="flex-1 border-white/10 text-white/60"
+                  className="flex-1 border-white/10 text-white/60 h-11"
                   onClick={() => {
                     const lines = bulkSmsMutation.data!.recipients.map((r) => r.phone).join(", ");
                     navigator.clipboard.writeText(lines);
@@ -791,7 +597,7 @@ export default function PortalCustomers() {
                 </Button>
                 {scheduleMode ? (
                   <Button
-                    className="flex-1 font-semibold"
+                    className="flex-1 font-semibold h-11"
                     style={{ background: "#F5A623", color: "#0F1F3D" }}
                     disabled={scheduleBulkSmsMutation.isPending || !scheduledAt}
                     onClick={() => {
@@ -809,7 +615,7 @@ export default function PortalCustomers() {
                   </Button>
                 ) : (
                   <Button
-                    className="flex-1 font-semibold"
+                    className="flex-1 font-semibold h-11"
                     style={{ background: "#F5A623", color: "#0F1F3D" }}
                     disabled={sendBulkSmsMutation.isPending}
                     onClick={() =>
@@ -834,8 +640,9 @@ export default function PortalCustomers() {
               {/* Template library toggle */}
               <div className="mb-2">
                 <button
+                  type="button"
                   onClick={() => setShowTemplates((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-70"
+                  className="flex items-center gap-1.5 text-xs font-medium min-h-11 transition-opacity hover:opacity-70"
                   style={{ color: showTemplates ? "#F5A623" : "rgba(255,255,255,0.4)" }}
                 >
                   <BookOpen className="w-3.5 h-3.5" />
@@ -857,7 +664,8 @@ export default function PortalCustomers() {
                         {templates.map((tpl) => (
                           <div key={tpl.id} className="flex items-center gap-2 px-3 py-2">
                             <button
-                              className="flex-1 text-left"
+                              type="button"
+                              className="flex-1 min-h-11 text-left"
                               onClick={() => {
                                 setSmsMessage(tpl.body);
                                 setShowTemplates(false);
@@ -870,10 +678,12 @@ export default function PortalCustomers() {
                               </p>
                             </button>
                             <button
+                              type="button"
                               onClick={() => deleteTemplateMutation.mutate({ id: tpl.id })}
                               disabled={deleteTemplateMutation.isPending}
-                              className="flex-shrink-0 transition-opacity hover:opacity-70"
+                              className="flex-shrink-0 w-11 h-11 flex items-center justify-center transition-opacity hover:opacity-70"
                               title="Delete template"
+                              aria-label="Delete template"
                             >
                               <Trash2 className="w-3.5 h-3.5" style={{ color: "rgba(248,113,113,0.6)" }} />
                             </button>
@@ -892,19 +702,20 @@ export default function PortalCustomers() {
                           value={newTplName}
                           onChange={(e) => setNewTplName(e.target.value)}
                           placeholder="Template name…"
-                          className="h-7 text-xs bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                          className="h-11 text-xs bg-white/5 border-white/10 text-white placeholder:text-white/30"
                         />
                         <Button
                           size="sm"
-                          className="h-7 px-2 text-xs flex-shrink-0"
+                          className="h-11 w-11 p-0 flex-shrink-0"
                           style={{ background: "#F5A623", color: "#0F1F3D" }}
                           disabled={!newTplName.trim() || !smsMessage.trim() || createTemplateMutation.isPending}
                           onClick={() => {
                             if (!newTplName.trim() || !smsMessage.trim()) return;
                             createTemplateMutation.mutate({ name: newTplName.trim(), body: smsMessage.trim() });
                           }}
+                          aria-label="Save template"
                         >
-                          {createTemplateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                          {createTemplateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                         </Button>
                       </div>
                     </div>
@@ -927,7 +738,7 @@ export default function PortalCustomers() {
                 <Button
                   variant="outline"
                   onClick={() => setShowBulkSms(false)}
-                  className="border-white/10 text-white/60"
+                  className="border-white/10 text-white/60 h-11"
                 >
                   Cancel
                 </Button>
@@ -941,6 +752,7 @@ export default function PortalCustomers() {
                   }}
                   disabled={bulkSmsMutation.isPending || !smsMessage.trim()}
                   style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  className="h-11"
                 >
                   {bulkSmsMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Preview Recipients"}
                 </Button>
@@ -986,6 +798,7 @@ export default function PortalCustomers() {
                 value={newCustPhone}
                 onChange={(e) => setNewCustPhone(e.target.value)}
                 placeholder="0412 345 678"
+                inputMode="tel"
                 className="bg-white/5 border-white/10 text-white"
               />
             </div>
@@ -995,6 +808,7 @@ export default function PortalCustomers() {
                 value={newCustEmail}
                 onChange={(e) => setNewCustEmail(e.target.value)}
                 placeholder="jay@example.com"
+                inputMode="email"
                 className="bg-white/5 border-white/10 text-white"
               />
             </div>
@@ -1012,7 +826,7 @@ export default function PortalCustomers() {
             <Button
               variant="outline"
               onClick={() => setShowAddCustomer(false)}
-              className="w-full sm:w-auto border-white/10 text-white/60"
+              className="w-full sm:w-auto border-white/10 text-white/60 h-11"
             >
               Cancel
             </Button>
@@ -1028,7 +842,7 @@ export default function PortalCustomers() {
                 });
               }}
               disabled={createCustomerMutation.isPending || !newCustFirst.trim()}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto h-11"
               style={{ background: "#F5A623", color: "#0F1F3D" }}
             >
               {createCustomerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Customer"}
