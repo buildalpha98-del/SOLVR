@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  SOLVR app-level privacy manifest.
+
+  Required by Apple for all new App Store submissions since May 2024
+  (https://developer.apple.com/support/third-party-SDK-requirements/).
+
+  This file MUST be registered with the App target in Xcode. If you have just
+  added this file for the first time, open ios/App/App.xcworkspace, right-click
+  the "App" group in the Project Navigator, choose "Add Files to App…", select
+  PrivacyInfo.xcprivacy, confirm the "App" target is ticked, and commit the
+  pbxproj change.
+
+  Embedded SDKs carry their own manifests (RevenueCat, Capacitor plugins).
+  This file only declares the app's first-party data collection + the
+  required-reason APIs the first-party Swift/Objective-C code uses. If we add
+  a new SDK that touches any tracked API, its manifest is merged by Xcode.
+
+  Must stay aligned with App Store Connect "App Privacy" nutrition labels.
+  If you change a declaration here, update the nutrition labels in the same
+  submission or Apple will hold the build for clarification.
+-->
+<dict>
+	<!-- We do NOT track users across other apps or websites. No IDFA. No
+	     third-party analytics that re-key by ad identifier. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- First-party data SOLVR collects. All fields are linked to the user
+	     (account-bound) and used only for core app functionality. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<!-- Email address — primary login identifier + customer records -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Name — displayed on quotes, invoices, and customer records -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Phone number — for SMS notifications (call missed, quote sent,
+		     invoice due) and customer contact records -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhoneNumber</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Physical address — job site addresses on quotes and invoices -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhysicalAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Precise location — staff check-in / check-out GPS verification -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Photos or videos — attached to quotes, jobs, and completion reports -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Audio data — voice recordings for voice-to-quote transcription.
+		     Recordings are sent to a transcription service and then discarded;
+		     only the transcribed text is retained. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeAudioData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- User ID — server-assigned account identifier -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Other user content — quote line items, job notes, invoice text,
+		     form submissions, digital signatures -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- Customer support — free-text messages sent through in-app support -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCustomerSupport</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Required-reason API declarations. Apple requires these for any use of
+	     NSUserDefaults, File timestamp, System boot time, Disk space, or
+	     Active keyboards. Reason codes come from:
+	     https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/describing_use_of_required_reason_api -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<!-- NSUserDefaults — used by @capacitor/preferences for first-party
+		     app state (remember-me email flag, session hints) -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- CA92.1: Access info from same app, per documentation -->
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<!-- File timestamp — used by @capacitor/filesystem to write
+		     photo/PDF attachments into app container storage -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- C617.1: Inside app container, app group container, or CloudKit container -->
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<!-- Disk space — @capacitor/filesystem queries available space
+		     before writing large attachments so we can surface a clear error
+		     if the device is out of space -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- E174.1: Write or delete file on device, per documentation -->
+				<string>E174.1</string>
+			</array>
+		</dict>
+		<!-- System boot time — used by URLSession and other Foundation
+		     timing APIs transitively through Capacitor / RevenueCat -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- 35F9.1: Measure time elapsed between events that happened in the app -->
+				<string>35F9.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
