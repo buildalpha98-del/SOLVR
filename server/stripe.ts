@@ -8,7 +8,24 @@ import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
 import { buildWelcomeEmail, buildTrialEndingEmail } from "./lib/onboardingEmails";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Lazy Stripe client — a missing STRIPE_SECRET_KEY must not crash the server
+// at import time (which is what `new Stripe(undefined!)` does). Defer the
+// "missing key" error until someone actually tries to use Stripe.
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
+  _stripe = new Stripe(key);
+  return _stripe;
+}
+// Back-compat: callers use `stripe.customers.create(...)`. Proxy forwards to
+// the lazy instance so the rest of this file doesn't need rewriting.
+const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return (getStripe() as unknown as Record<string | symbol, unknown>)[prop as string];
+  },
+});
 
 // ─── Plan → package mapping ─────────────────────────────────────────────────
 /**

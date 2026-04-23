@@ -20,7 +20,21 @@ import { sendEmail } from "../_core/email";
 
 const PORTAL_ORIGIN = process.env.NODE_ENV === "production" ? "https://solvr.com.au" : "http://localhost:3000";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", { apiVersion: "2025-03-31.basil" });
+// Lazy Stripe client — mirrors the pattern in server/stripe.ts so a missing
+// STRIPE_SECRET_KEY doesn't crash the server at boot time.
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
+  _stripe = new Stripe(key, { apiVersion: "2025-03-31.basil" });
+  return _stripe;
+}
+const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return (getStripe() as unknown as Record<string | symbol, unknown>)[prop as string];
+  },
+});
 
 export const adminReferralRouter = router({
   /**

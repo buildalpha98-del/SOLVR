@@ -86,21 +86,53 @@ declare global {
   }
 }
 
-const API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY;
-const FORGE_BASE_URL =
-  import.meta.env.VITE_FRONTEND_FORGE_API_URL ||
+// Primary: direct Google Maps API using our own key (restricted to
+// https://*.solvr.com.au/*). The key is an HTTP-referrer-restricted browser
+// key, so it's safe to ship in the bundle.
+//
+// Fallback: the legacy Manus Forge maps proxy. Kept so Manus-hosted deploys
+// keep working during the Railway/DNS cutover. Remove once migration is done.
+const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as
+  | string
+  | undefined;
+const LEGACY_FORGE_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY as
+  | string
+  | undefined;
+const LEGACY_FORGE_BASE_URL =
+  (import.meta.env.VITE_FRONTEND_FORGE_API_URL as string | undefined) ||
   "https://forge.butterfly-effect.dev";
-const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
+
+function buildMapsScriptSrc(): string {
+  const libs = "marker,places,geocoding,geometry";
+  if (GOOGLE_MAPS_KEY) {
+    return `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&v=weekly&libraries=${libs}`;
+  }
+  // Legacy path — via Manus maps proxy.
+  return `${LEGACY_FORGE_BASE_URL}/v1/maps/proxy/maps/api/js?key=${LEGACY_FORGE_KEY ?? ""}&v=weekly&libraries=${libs}`;
+}
 
 export function loadMapScript() {
   return new Promise(resolve => {
+    // Avoid loading twice (AddressAutocomplete + MapView both call this)
+    if (typeof window !== "undefined" && window.google?.maps) {
+      resolve(null);
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>(
+      "script[data-solvr-gmaps]"
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve(null), { once: true });
+      return;
+    }
+
     const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
+    script.src = buildMapsScriptSrc();
     script.async = true;
     script.crossOrigin = "anonymous";
+    script.dataset.solvrGmaps = "1";
     script.onload = () => {
       resolve(null);
-      script.remove(); // Clean up immediately
     };
     script.onerror = () => {
       console.error("Failed to load Google Maps script");

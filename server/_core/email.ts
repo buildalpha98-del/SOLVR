@@ -17,7 +17,23 @@
  */
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy client so a missing RESEND_API_KEY doesn't crash the process at import
+// time. The Resend constructor throws if passed undefined, and top-level throws
+// in imported modules abort the whole server before it can listen — which in
+// turn fails Railway's healthcheck with no useful log line.
+let _resend: Resend | null = null;
+function getResend(): Resend {
+  if (_resend) return _resend;
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    throw new Error(
+      "RESEND_API_KEY is not configured — cannot send email. " +
+      "Set it in the Railway environment or .env.local."
+    );
+  }
+  _resend = new Resend(key);
+  return _resend;
+}
 
 /** Solvr's verified sending domain. Change once a custom domain is verified in Resend. */
 const DEFAULT_FROM_EMAIL = "noreply@solvr.com.au";
@@ -63,7 +79,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult
   const from = `${fromName} <${fromEmail}>`;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from,
       to: Array.isArray(opts.to) ? opts.to : [opts.to],
       subject: opts.subject,

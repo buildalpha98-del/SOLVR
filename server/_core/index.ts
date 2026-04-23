@@ -6,6 +6,7 @@ import { rateLimit } from "express-rate-limit";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { ENV } from "./env";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -52,9 +53,18 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Trust the Manus reverse proxy so Set-Cookie headers work correctly in production
-  // Without this, Express doesn't recognise the request as HTTPS and secure cookies fail
+  // Trust the reverse proxy in front of us (Railway, Cloudflare, formerly Manus)
+  // so Express sees req.secure === true and Set-Cookie with `secure` flag works.
+  // `1` = trust one hop — never set this to `true` (spoofable X-Forwarded-For).
   app.set('trust proxy', 1);
+
+  // ─── Health check (Railway / uptime monitors) ───────────────────────────────
+  // Must be registered early so it works even if later middleware is misconfigured.
+  // Returns 200 as soon as the process is listening — does NOT verify DB/Anthropic.
+  // If you need a "fully ready" check, curl /api/trpc/system.healthCheck instead.
+  app.get("/healthz", (_req, res) => {
+    res.json({ ok: true, ts: new Date().toISOString() });
+  });
 
   // ─── Security headers (Helmet) ────────────────────────────────────────────────
   // Applied before all routes. Adds X-Frame-Options, X-Content-Type-Options,
@@ -171,10 +181,17 @@ async function startServer() {
     serveStatic(app);
   }
 
+  // Port binding:
+  //   - Production (Railway, etc.) → bind exactly to $PORT. The platform only
+  //     routes traffic there, so trying alternate ports = silent downtime.
+  //   - Development → scan for a free port so `pnpm dev` doesn't crash when
+  //     another process already owns 3000.
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const port = ENV.isProduction
+    ? preferredPort
+    : await findAvailablePort(preferredPort);
 
-  if (port !== preferredPort) {
+  if (!ENV.isProduction && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
@@ -193,8 +210,10 @@ async function startServer() {
   scheduleLicenceExpiryWarningCron();
   scheduleIdleJobNudgeCron();
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  // Bind to 0.0.0.0 so containerised platforms (Railway, Docker) can route to us.
+  // "localhost" would only accept loopback traffic and the container would look dead.
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Server listening on 0.0.0.0:${port} (NODE_ENV=${process.env.NODE_ENV ?? "unset"})`);
   });
 }
 

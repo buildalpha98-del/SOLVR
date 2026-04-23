@@ -109,5 +109,8 @@ temp/
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 
+# DB backups (contain customer data — NEVER commit)
+backups/
+
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
