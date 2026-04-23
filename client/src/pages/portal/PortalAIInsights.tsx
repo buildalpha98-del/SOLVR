@@ -8,14 +8,17 @@
  * Uses portal.getWeeklyInsight which analyses recent calls + job pipeline via LLM.
  */
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
-import { Sparkles, RefreshCw, Lock, TrendingUp, Phone, Briefcase, Lightbulb } from "lucide-react";
+import AIHeroCard from "@/components/portal/AIHeroCard";
+import { RefreshCw, TrendingUp, Phone, Briefcase, Lightbulb, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Streamdown } from "streamdown";
 
 export default function PortalAIInsights() {
   const [fetchEnabled, setFetchEnabled] = useState(false);
+  const [, navigate] = useLocation();
 
   const {
     data,
@@ -25,88 +28,72 @@ export default function PortalAIInsights() {
     isFetching,
   } = trpc.portal.getWeeklyInsight.useQuery(undefined, {
     enabled: fetchEnabled,
-    staleTime: 10 * 60 * 1000, // cache for 10 min — LLM calls are expensive
-    retry: false,
+    staleTime: 10 * 60 * 1000,
+    retry: 2,
   });
 
   const isForbidden =
     (error as { data?: { code?: string } } | null)?.data?.code === "FORBIDDEN";
 
+  const busy = isLoading || isFetching;
+  const hasResult = Boolean(data?.insight);
+
+  const handleCta = () => {
+    if (!fetchEnabled) {
+      setFetchEnabled(true);
+    } else {
+      refetch();
+    }
+  };
+
   return (
     <PortalLayout activeTab="insights">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(245,166,35,0.15)" }}
-          >
-            <Sparkles className="w-5 h-5" style={{ color: "#F5A623" }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">AI Insights</h1>
-            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Weekly AI analysis of your calls, pipeline, and revenue opportunities.
-            </p>
-          </div>
-        </div>
-        {!isForbidden && (
-          <Button
-            size="sm"
-            onClick={() => {
-              if (!fetchEnabled) {
-                setFetchEnabled(true);
-              } else {
-                refetch();
-              }
-            }}
-            disabled={isLoading || isFetching}
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-            className="font-semibold w-full sm:w-auto"
-          >
-            {(isLoading || isFetching) ? (
-              <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-1.5" />
-            )}
-            {fetchEnabled ? "Refresh Insight" : "Generate Insight"}
-          </Button>
+      {/* ── Header (minimal; hero carries the weight) ─────────────────────── */}
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-white">AI Insights</h1>
+        <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+          Weekly AI analysis of your calls, pipeline, and revenue opportunities.
+        </p>
+      </div>
+
+      {/* ── Hero — primary CTA for the page ───────────────────────────────── */}
+      <div className="mb-6">
+        {isForbidden ? (
+          <AIHeroCard
+            mode="locked"
+            eyebrow="Full Managed Plan"
+            headline="Unlock AI insights for your business"
+            subtitle="See a weekly AI-generated briefing on call patterns, pipeline health, and revenue opportunities. Available on the Full Managed plan."
+            ctaLabel="Upgrade to unlock"
+            onCta={() => navigate("/portal/subscription")}
+          />
+        ) : (
+          <AIHeroCard
+            mode="active"
+            eyebrow={hasResult ? "Latest briefing" : "AI Powered"}
+            headline="Your weekly AI briefing"
+            subtitle="Spots trends, flags issues, and suggests what to do next — generated from your last 20 calls and 10 jobs."
+            ctaLabel={busy ? "Analysing your business…" : hasResult ? "Refresh insight" : "Generate insight"}
+            onCta={handleCta}
+            isLoading={busy}
+            hasRun={hasResult}
+          />
         )}
       </div>
 
-      {/* ── Feature gate ────────────────────────────────────────────────── */}
-      {isForbidden && (
-        <div
-          className="rounded-xl border p-12 text-center"
-          style={{ borderColor: "rgba(245,166,35,0.2)", background: "rgba(245,166,35,0.04)" }}
-        >
-          <Lock className="w-12 h-12 mx-auto mb-4" style={{ color: "#F5A623" }} />
-          <h3 className="text-xl font-bold text-white mb-2">AI Insights — Full Managed Plan</h3>
-          <p className="text-sm mb-6 max-w-md mx-auto" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Get a weekly AI-generated analysis of your call patterns, job pipeline health, and revenue opportunities. Available on the Full Managed plan.
-          </p>
-          <Button
-            onClick={() => window.location.href = "/portal/subscription"}
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
-            className="font-semibold"
-          >
-            Upgrade to Full Managed
-          </Button>
-        </div>
-      )}
-
-      {/* ── Empty / prompt state ─────────────────────────────────────────── */}
+      {/* ── Empty / prompt state (pre-generation only) ───────────────────── */}
       {!isForbidden && !fetchEnabled && !data && (
         <div
-          className="rounded-xl border p-12 text-center"
+          className="rounded-xl border p-6"
           style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
         >
-          <Sparkles className="w-12 h-12 mx-auto mb-4" style={{ color: "#F5A623" }} />
-          <h3 className="text-lg font-bold text-white mb-2">Ready to analyse your business</h3>
-          <p className="text-sm mb-6 max-w-sm mx-auto" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Click "Generate Insight" to get a fresh AI analysis of your recent calls, job pipeline, and revenue opportunities.
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.12em] mb-4"
+            style={{ color: "rgba(255,255,255,0.45)" }}
+          >
+            What the AI looks at
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-lg mx-auto text-left mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { icon: Phone, label: "Call Patterns", desc: "Volume trends, peak times, missed calls" },
               { icon: Briefcase, label: "Pipeline Health", desc: "Job conversion, estimated revenue" },
@@ -119,7 +106,7 @@ export default function PortalAIInsights() {
               >
                 <Icon className="w-5 h-5 mb-2" style={{ color: "#F5A623" }} />
                 <div className="text-sm font-semibold text-white mb-1">{label}</div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{desc}</div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{desc}</div>
               </div>
             ))}
           </div>
@@ -127,40 +114,41 @@ export default function PortalAIInsights() {
       )}
 
       {/* ── Loading state ────────────────────────────────────────────────── */}
-      {(isLoading || isFetching) && (
+      {busy && (
         <div
-          className="rounded-xl border p-12 text-center"
+          className="rounded-xl border p-8 text-center"
           style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
         >
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
-            <span className="text-white font-semibold">Analysing your business data…</span>
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <RefreshCw className="w-5 h-5 animate-spin" style={{ color: "#F5A623" }} />
+            <span className="text-white font-semibold text-sm">Analysing your business data…</span>
           </div>
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-            This usually takes 10–20 seconds. The AI is reviewing your recent calls and job pipeline.
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+            This usually takes 10–20 seconds. The AI is reviewing your recent calls and pipeline.
           </p>
         </div>
       )}
 
       {/* ── Insight result ───────────────────────────────────────────────── */}
-      {data?.insight && !isFetching && (
+      {data?.insight && !busy && (
         <div
-          className="rounded-xl border p-6 sm:p-8"
+          className="rounded-xl border p-5 sm:p-6"
           style={{ borderColor: "rgba(245,166,35,0.2)", background: "rgba(245,166,35,0.04)" }}
         >
-          {/* Header */}
-          <div className="flex items-center gap-2 mb-5 pb-4 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+          <div
+            className="flex items-center gap-2 mb-4 pb-3 border-b"
+            style={{ borderColor: "rgba(255,255,255,0.08)" }}
+          >
             <TrendingUp className="w-5 h-5" style={{ color: "#F5A623" }} />
-            <span className="font-semibold text-white">Weekly Business Insight</span>
+            <span className="font-semibold text-white text-sm">Weekly Business Insight</span>
             <span
-              className="ml-auto text-xs px-2 py-0.5 rounded-full"
+              className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide flex items-center gap-1"
               style={{ background: "rgba(245,166,35,0.15)", color: "#F5A623" }}
             >
-              AI Generated
+              <Sparkles className="w-2.5 h-2.5" /> AI Generated
             </span>
           </div>
 
-          {/* Markdown content */}
           <div
             className="prose prose-invert prose-sm max-w-none"
             style={{ color: "rgba(255,255,255,0.85)" }}
@@ -168,19 +156,21 @@ export default function PortalAIInsights() {
             <Streamdown>{data.insight}</Streamdown>
           </div>
 
-          {/* Footer */}
-          <div className="mt-6 pt-4 border-t flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+          <div
+            className="mt-5 pt-3 border-t flex items-center justify-between flex-wrap gap-2"
+            style={{ borderColor: "rgba(255,255,255,0.08)" }}
+          >
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-              Based on your last 20 calls and 10 jobs. Refresh for an updated analysis.
+              Based on your last 20 calls and 10 jobs.
             </p>
             <Button
-              size="sm"
-              variant="outline"
               onClick={() => refetch()}
               disabled={isFetching}
+              variant="outline"
               className="border-white/10 text-white/60 hover:text-white hover:border-white/30"
+              style={{ minHeight: "44px" }}
             >
-              <RefreshCw className="w-3 h-3 mr-1.5" />
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Refresh
             </Button>
           </div>
@@ -188,17 +178,17 @@ export default function PortalAIInsights() {
       )}
 
       {/* ── Error state (non-forbidden) ──────────────────────────────────── */}
-      {error && !isForbidden && (
+      {error && !isForbidden && !busy && (
         <div
-          className="rounded-xl border p-8 text-center"
+          className="rounded-xl border p-6 text-center"
           style={{ borderColor: "rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.04)" }}
         >
           <p className="text-sm text-red-400 mb-3">Failed to generate insight. Please try again.</p>
           <Button
-            size="sm"
-            variant="outline"
             onClick={() => refetch()}
+            variant="outline"
             className="border-red-500/30 text-red-400 hover:border-red-400"
+            style={{ minHeight: "44px" }}
           >
             Try Again
           </Button>

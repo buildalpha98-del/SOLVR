@@ -146,11 +146,10 @@ function ConversationDrawer({
         </div>
         <Button
           onClick={() => { onNew(); onClose(); }}
-          size="sm"
-          className="w-full gap-2 text-[13px] h-9"
-          style={{ background: "#F5A623", color: "#0F1F3D" }}
+          className="w-full gap-2 text-[14px] font-semibold"
+          style={{ background: "#F5A623", color: "#0F1F3D", minHeight: "44px" }}
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-4 h-4" />
           New Conversation
         </Button>
       </div>
@@ -277,16 +276,22 @@ export default function PortalAssistant() {
   }, [messages]);
 
   // Fetch conversations
-  const { data: convData, isLoading: convLoading, refetch: refetchConvs } = trpc.assistant.listConversations.useQuery();
+  const { data: convData, isLoading: convLoading, refetch: refetchConvs } = trpc.assistant.listConversations.useQuery(
+    undefined,
+    { retry: 2, staleTime: 30_000 },
+  );
 
   // Fetch messages for active conversation
   const { data: msgData } = trpc.assistant.getMessages.useQuery(
     { conversationId: activeConversationId! },
-    { enabled: !!activeConversationId }
+    { enabled: !!activeConversationId, retry: 2, staleTime: 30_000 },
   );
 
   // Get client trade type from portal.me
-  const { data: meData } = trpc.portal.me.useQuery();
+  const { data: meData } = trpc.portal.me.useQuery(undefined, {
+    retry: 2,
+    staleTime: 30_000,
+  });
   const tradeType = (meData as any)?.client?.tradeType ?? null;
 
   // Sync messages from server when conversation changes
@@ -307,6 +312,11 @@ export default function PortalAssistant() {
       setActiveConversationId(data.id);
       setMessages([]);
       refetchConvs();
+    },
+    onError: (err) => {
+      toast.error("Couldn't start conversation", {
+        description: err.message || "Something went wrong",
+      });
     },
   });
 
@@ -331,6 +341,11 @@ export default function PortalAssistant() {
       setMessages([]);
       hapticWarning();
       refetchConvs();
+    },
+    onError: (err) => {
+      toast.error("Couldn't delete conversation", {
+        description: err.message || "Something went wrong",
+      });
     },
   });
 
@@ -636,7 +651,7 @@ export default function PortalAssistant() {
             {/* Voice button */}
             <button
               className={cn(
-                "flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95",
+                "flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95",
                 isRecording ? "bg-red-500" : isTranscribing ? "bg-amber-500/20" : "bg-white/10 active:bg-white/20"
               )}
               onClick={isRecording ? stopRecording : startRecording}
@@ -644,11 +659,11 @@ export default function PortalAssistant() {
               title={isRecording ? "Stop recording" : "Voice input"}
             >
               {isTranscribing ? (
-                <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
               ) : isRecording ? (
-                <MicOff className="w-4 h-4 text-white" />
+                <MicOff className="w-5 h-5 text-white" />
               ) : (
-                <Mic className="w-4 h-4 text-white/60" />
+                <Mic className="w-5 h-5 text-white/60" />
               )}
             </button>
 
@@ -667,19 +682,18 @@ export default function PortalAssistant() {
                 isTranscribing ? "Transcribing…" :
                 "Ask anything…"
               }
-              className="flex-1 text-[14px] h-9 border-0 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-amber-500/50 rounded-full px-3.5"
+              className="flex-1 text-[14px] min-h-[48px] border-0 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-amber-500/50 rounded-full px-4"
               disabled={isRecording || isTranscribing || isSending}
             />
 
             {/* Send button */}
             <Button
-              size="sm"
-              className="flex-shrink-0 w-9 h-9 p-0 rounded-full active:scale-95"
+              className="flex-shrink-0 w-11 h-11 p-0 rounded-full active:scale-95"
               style={{ background: "#F5A623", color: "#0F1F3D" }}
               onClick={() => handleSend(inputText)}
               disabled={!inputText.trim() || isSending}
             >
-              {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </Button>
           </div>
         </div>
