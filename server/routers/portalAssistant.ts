@@ -26,6 +26,7 @@ import {
   listRecentConversations,
 } from "../db";
 import { invokeLLM } from "../_core/llm";
+import { groqChat } from "../_core/groqChat";
 import { transcribeAudio } from "../_core/voiceTranscription";
 import { getDb } from "../db";
 import {
@@ -346,10 +347,34 @@ export const portalAssistantRouter = router({
         })),
       ];
 
-      // Call LLM
-      const response = await invokeLLM({ messages });
-      const rawContent = response.choices?.[0]?.message?.content ?? "";
-      const assistantContent = (typeof rawContent === "string" ? rawContent : (rawContent as Array<{type: string; text?: string}>)[0]?.text ?? "").trim() || "Sorry, I couldn't generate a response. Please try again.";
+      // ── Call LLM ────────────────────────────────────────────────────
+      // Trade AI is served by Groq Llama 3.3 70B by default (~20× cheaper
+      // than Claude and no Anthropic credit dependency). If Groq errors —
+      // rate limit, transient 5xx, misconfig — we fall back to Claude via
+      // invokeLLM() so the feature never hard-fails.
+      let assistantContent = "";
+      try {
+        const groqResponse = await groqChat({ messages });
+        assistantContent =
+          groqResponse.content.trim() ||
+          "Sorry, I couldn't generate a response. Please try again.";
+      } catch (groqErr) {
+        console.warn("[TradeAI] Groq call failed, falling back to Claude:", groqErr);
+        try {
+          const response = await invokeLLM({ messages });
+          const rawContent = response.choices?.[0]?.message?.content ?? "";
+          assistantContent =
+            (typeof rawContent === "string"
+              ? rawContent
+              : (rawContent as Array<{ type: string; text?: string }>)[0]
+                  ?.text ?? ""
+            ).trim() ||
+            "Sorry, I couldn't generate a response. Please try again.";
+        } catch (claudeErr) {
+          console.error("[TradeAI] Both Groq and Claude failed:", claudeErr);
+          throw groqErr; // surface the original Groq error to the client
+        }
+      }
 
       // Save assistant response
       await saveChatMessage({

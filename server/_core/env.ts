@@ -35,6 +35,19 @@ export const ENV = {
   whisperApiKey: process.env.WHISPER_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
   whisperModel: process.env.WHISPER_MODEL ?? "whisper-1",
 
+  // ── Trade AI chat (Groq, OpenAI-compatible) ─────────────────────────
+  // Only used by the portal's "Trade AI" assistant chat feature. Everything
+  // else (quote drafting, structured output, image understanding) still runs
+  // through Claude via server/_core/llm.ts and needs ANTHROPIC_API_KEY.
+  //
+  // Defaults to Groq Llama 3.3 70B — good reasoning, ~20× cheaper than
+  // Claude Opus, no credit-balance risk while we're testing.
+  // Same gsk_... key used for Whisper; set GROQ_API_KEY separately if you
+  // want to keep them on different accounts.
+  groqApiKey: process.env.GROQ_API_KEY ?? process.env.WHISPER_API_KEY ?? "",
+  groqChatBaseUrl: process.env.GROQ_CHAT_BASE_URL ?? "https://api.groq.com/openai/v1",
+  groqChatModel: process.env.GROQ_CHAT_MODEL ?? "llama-3.3-70b-versatile",
+
   // ── Other services ───────────────────────────────────────────────────
   vapiApiKey: process.env.VAPI_API_KEY ?? "",
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
