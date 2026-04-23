@@ -334,11 +334,25 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   let event: Stripe.Event;
 
   try {
-    if (webhookSecret && sig) {
+    if (webhookSecret) {
+      // Production path — secret is configured, signature MUST be present.
+      // Reject unsigned requests up-front rather than falling through to a
+      // raw JSON.parse that would crash on the next field access (e.g. event.id).
+      if (!sig) {
+        console.warn("[Webhook] Rejected: STRIPE_WEBHOOK_SECRET set but request had no stripe-signature header");
+        res.status(400).send("Missing stripe-signature header");
+        return;
+      }
       event = stripe.webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
     } else {
-      // No webhook secret configured — parse raw body directly (dev/test mode)
+      // No webhook secret configured — parse raw body directly (dev/test mode only).
+      // In production STRIPE_WEBHOOK_SECRET should always be set.
       event = JSON.parse((req.body as Buffer).toString()) as Stripe.Event;
+      if (!event || typeof event.id !== "string") {
+        console.warn("[Webhook] Rejected: malformed event payload (no id)");
+        res.status(400).send("Malformed event payload");
+        return;
+      }
     }
   } catch (err) {
     console.error("[Webhook] Signature verification failed:", err);
