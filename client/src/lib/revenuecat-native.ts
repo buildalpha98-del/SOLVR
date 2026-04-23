@@ -195,6 +195,55 @@ export async function presentNativePaywall(
   }
 }
 
+// ─── Restore Purchases ──────────────────────────────────────────────────────
+
+export interface NativeRestoreOutcome {
+  success: boolean;
+  customerInfo: CustomerInfo | null;
+  restoredEntitlements: string[];
+  error?: string;
+}
+
+/**
+ * Restore previously purchased subscriptions / entitlements for this Apple ID.
+ *
+ * Apple REQUIRES any app that sells auto-renewable subscriptions to provide
+ * a visible "Restore Purchases" control (Guideline 3.1.1). This helper is the
+ * backend for that button — it asks StoreKit to re-sync purchases, which
+ * covers: user reinstalled the app, user signed in on a new device, the
+ * RevenueCat appUserID changed (e.g. migrated from anonymous to portal login).
+ *
+ * Returns the list of entitlement IDs that are now active so the caller can
+ * show a meaningful toast (e.g. "Restored Solvr Jobs").
+ */
+export async function restoreNativePurchases(): Promise<NativeRestoreOutcome> {
+  if (!isNativeApp()) {
+    return { success: false, customerInfo: null, restoredEntitlements: [], error: "Not a native app" };
+  }
+  if (!nativeConfigured) {
+    return { success: false, customerInfo: null, restoredEntitlements: [], error: "RevenueCat not configured" };
+  }
+  try {
+    const result = await Purchases.restorePurchases();
+    const info = result.customerInfo;
+    const active = Object.keys(info?.entitlements?.active ?? {});
+    return {
+      success: true,
+      customerInfo: info,
+      restoredEntitlements: active,
+    };
+  } catch (err: unknown) {
+    const errObj = err as { message?: string };
+    console.error("[RevenueCat Native] restorePurchases error:", err);
+    return {
+      success: false,
+      customerInfo: null,
+      restoredEntitlements: [],
+      error: errObj.message ?? "Restore failed",
+    };
+  }
+}
+
 // ─── Cleanup ────────────────────────────────────────────────────────────────
 
 /**

@@ -33,6 +33,7 @@ import {
   Loader2, CheckCircle2, Building2, Wrench, Palette, Rocket,
   ChevronRight, ChevronLeft, Mic, Plus, Trash2, Info,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663504638120/Z8bJhRXA3QRL3p7wZFW5Yt/solvr-logo-dark-3m4hMtZ3cT8T4cayJyuAzG.webp";
 
@@ -197,8 +198,16 @@ export default function PortalOnboarding() {
 
   // Load existing profile
   const { data: profileData, isLoading } = trpc.portal.getOnboardingProfile.useQuery();
-  const saveMutation = trpc.portal.saveOnboardingStep.useMutation();
-  const completeMutation = trpc.portal.completeOnboarding.useMutation();
+  const saveMutation = trpc.portal.saveOnboardingStep.useMutation({
+    onError: (err) => {
+      toast.error(err.message || "Couldn't save your progress. Please try again.");
+    },
+  });
+  const completeMutation = trpc.portal.completeOnboarding.useMutation({
+    onError: (err) => {
+      toast.error(err.message || "Couldn't finish onboarding. Please try again.");
+    },
+  });
 
   // Populate form from existing profile data
   useEffect(() => {

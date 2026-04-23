@@ -183,10 +183,15 @@ export default function QuoteListContent() {
   });
 
   // Mutations
-  const processVoiceMutation = trpc.quotes.processVoiceRecording.useMutation();
-  const createDraftMutation = trpc.quotes.createDraft.useMutation();
+  const processVoiceMutation = trpc.quotes.processVoiceRecording.useMutation({
+    onError: (err) => toast.error(err.message || "Failed to process voice recording."),
+  });
+  const createDraftMutation = trpc.quotes.createDraft.useMutation({
+    onError: (err) => toast.error(err.message || "Failed to create quote."),
+  });
   const deleteMutation = trpc.quotes.delete.useMutation({
     onSuccess: () => utils.quotes.list.invalidate(),
+    onError: (err) => toast.error(err.message || "Failed to delete quote."),
   });
 
   // UI state

@@ -35,6 +35,7 @@ import {
   configureNativeRevenueCat,
   isNativeRevenueCatConfigured,
   presentNativePaywall,
+  restoreNativePurchases,
 } from "@/lib/revenuecat-native";
 
 const PLAN_LABELS: Record<string, string> = {
@@ -265,6 +266,45 @@ export default function PortalSubscription() {
     staleTime: 60 * 1000,
   });
 
+  const [restoring, setRestoring] = useState(false);
+
+  /**
+   * Restore Purchases — Apple Guideline 3.1.1 requires this control to be
+   * visible on any app with auto-renewable subscriptions. Covers:
+   *   - user reinstalls the app
+   *   - user signs in on a new device
+   *   - RevenueCat appUserID changed after a portal login
+   */
+  const handleRestorePurchases = useCallback(async () => {
+    setRestoring(true);
+    try {
+      if (!isNativeRevenueCatConfigured() && user?.id) {
+        await configureNativeRevenueCat(`rc_${user.id}`);
+      }
+      const result = await restoreNativePurchases();
+      if (!result.success) {
+        toast.error("Couldn't restore purchases", {
+          description: result.error || "Please try again in a moment.",
+        });
+        hapticWarning();
+        return;
+      }
+      if (result.restoredEntitlements.length === 0) {
+        toast("No purchases to restore", {
+          description: "This Apple ID doesn't have any active Solvr subscriptions.",
+        });
+        return;
+      }
+      toast.success("Purchases restored!", {
+        description: `Restored: ${result.restoredEntitlements.join(", ")}. Refreshing…`,
+      });
+      hapticSuccess();
+      setTimeout(() => window.location.reload(), 1500);
+    } finally {
+      setRestoring(false);
+    }
+  }, [user?.id]);
+
   const handleOpenPaywall = useCallback(async () => {
     // Ensure RC is configured
     if (!isRevenueCatConfigured() && user?.id) {
@@ -462,6 +502,16 @@ export default function PortalSubscription() {
                     <CreditCard className="w-4 h-4" />
                     Manage Subscription
                   </Button>
+                  {/* Apple Guideline 3.1.1 — Restore Purchases must be available */}
+                  <Button
+                    onClick={handleRestorePurchases}
+                    disabled={restoring}
+                    variant="outline"
+                    className="flex items-center gap-2 border-white/20 text-white/70 hover:bg-white/5"
+                  >
+                    {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    {restoring ? "Restoring…" : "Restore Purchases"}
+                  </Button>
                 </div>
               ) : (
                 <div className="pt-2 flex flex-col sm:flex-row gap-3">
@@ -519,21 +569,33 @@ export default function PortalSubscription() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               {isNativeApp() ? (
-                <Button
-                  onClick={async () => {
-                    if (!isNativeRevenueCatConfigured() && user?.id) {
-                      await configureNativeRevenueCat(`rc_${user.id}`);
-                    }
-                    const result = await presentNativePaywall("solvr_ai");
-                    if (result.success) {
-                      toast.success("Subscription activated!");
-                      setTimeout(() => window.location.reload(), 2000);
-                    }
-                  }}
-                  style={{ background: "#F5A623", color: "#0F1F3D" }}
-                >
-                  View Plans & Subscribe
-                </Button>
+                <>
+                  <Button
+                    onClick={async () => {
+                      if (!isNativeRevenueCatConfigured() && user?.id) {
+                        await configureNativeRevenueCat(`rc_${user.id}`);
+                      }
+                      const result = await presentNativePaywall("solvr_ai");
+                      if (result.success) {
+                        toast.success("Subscription activated!");
+                        setTimeout(() => window.location.reload(), 2000);
+                      }
+                    }}
+                    style={{ background: "#F5A623", color: "#0F1F3D" }}
+                  >
+                    View Plans & Subscribe
+                  </Button>
+                  {/* Apple Guideline 3.1.1 — Restore Purchases must be available */}
+                  <Button
+                    onClick={handleRestorePurchases}
+                    disabled={restoring}
+                    variant="outline"
+                    className="flex items-center gap-2 border-white/20 text-white/70 hover:bg-white/5"
+                  >
+                    {restoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    {restoring ? "Restoring…" : "Restore Purchases"}
+                  </Button>
+                </>
               ) : (
                 <>
                   <Button
@@ -542,10 +604,15 @@ export default function PortalSubscription() {
                   >
                     View Plans & Subscribe
                   </Button>
+                  {/* mailto: never window.open — that kicks iOS out to Safari
+                      before jumping to Mail. Direct navigation lets iOS route
+                      straight to the Mail app / default handler. */}
                   <Button
                     variant="outline"
                     className="border-white/20 text-white/60 hover:bg-white/5"
-                    onClick={() => window.open("mailto:hello@solvr.com.au", "_blank")}
+                    onClick={() => {
+                      window.location.href = "mailto:hello@solvr.com.au";
+                    }}
                   >
                     Contact Support
                   </Button>

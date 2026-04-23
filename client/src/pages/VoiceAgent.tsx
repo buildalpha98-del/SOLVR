@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getSolvrOrigin, isNativeApp } from "@/const";
+import { openUrl } from "@/lib/openUrl";
 import {
   configureNativeRevenueCat,
   isNativeRevenueCatConfigured,
@@ -279,7 +280,11 @@ function PricingSection() {
   const [missedCalls, setMissedCalls] = useState(3);
   const [avgJobValue, setAvgJobValue] = useState(800);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const createCheckout = trpc.stripe.createCheckout.useMutation();
+  const createCheckout = trpc.stripe.createCheckout.useMutation({
+    onError: (err) => {
+      toast.error(err.message || "Checkout failed. Please try again.");
+    },
+  });
   const [nativeLoading, setNativeLoading] = useState(false);
 
   // Native iOS — show Apple IAP pricing
@@ -335,11 +340,13 @@ function PricingSection() {
         billingCycle,
         origin: getSolvrOrigin(),
       });
-      toast.success("Redirecting to checkout…", { description: "Opening Stripe in a new tab." });
-      window.open(url, "_blank");
-    } catch (err) {
-      console.error(err);
-      toast.error("Checkout failed", { description: "Please try again or contact us." });
+      toast.success("Redirecting to checkout…", {
+        description: isNativeApp() ? "Opening secure checkout…" : "Opening Stripe in a new tab.",
+      });
+      // openUrl: in-app browser on iOS, new tab on web.
+      await openUrl(url);
+    } catch {
+      // onError on the mutation handles the toast.
     } finally {
       setCheckoutLoading(null);
     }

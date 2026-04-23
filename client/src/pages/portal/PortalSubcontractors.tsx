@@ -7,22 +7,48 @@
  * PortalSubcontractors — Manage subcontractors, assign to jobs, log timesheets.
  * Costs auto-feed into the Job Costing report.
  *
- * Mobile-first: card layout, full-width dialog, stacked buttons, pb-24.
+ * Styling: matches PortalJobs canonical SOLVR palette — `#0F1F3D` surface,
+ * `#F5A623` amber accent, white-on-navy inline styles. Previously used shadcn
+ * semantic tokens (`bg-card`, `text-foreground`, `text-muted-foreground`)
+ * which drifted from every other portal page; this rewrite restores brand
+ * consistency without changing the data model or tRPC contracts.
+ *
+ * Mobile-first: card layout, full-width modal, stacked buttons, pb-24.
  */
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import {
   Hammer, Plus, Search, Phone, Mail, DollarSign,
-  Loader2, UserX, ChevronRight,
+  Loader2, UserX, ChevronRight, X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { hapticLight, hapticSuccess, hapticWarning } from "@/lib/haptics";
+
+// Minimum 44×44 tap target size — Apple HIG.
+const TAP_TARGET = "min-h-[44px]";
+
+type Subbie = {
+  id: number;
+  name: string;
+  trade: string | null;
+  abn: string | null;
+  email: string | null;
+  phone: string | null;
+  hourlyRateCents: number | null;
+  notes: string | null;
+  isActive: boolean;
+};
+
+type SubbieFormData = {
+  name: string;
+  trade?: string;
+  abn?: string;
+  email?: string;
+  phone?: string;
+  hourlyRateCents?: number;
+  notes?: string;
+};
 
 export default function PortalSubcontractors() {
   const [search, setSearch] = useState("");
@@ -31,7 +57,10 @@ export default function PortalSubcontractors() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
-  const { data: subbies, isLoading } = trpc.subcontractors.list.useQuery();
+  const { data: subbies, isLoading } = trpc.subcontractors.list.useQuery(undefined, {
+    retry: 2,
+    staleTime: 30_000,
+  });
 
   const createMut = trpc.subcontractors.create.useMutation({
     onSuccess: () => {
@@ -40,7 +69,7 @@ export default function PortalSubcontractors() {
       hapticSuccess();
       toast.success("Subcontractor added");
     },
-    onError: () => toast.error("Failed to add subcontractor"),
+    onError: (err) => toast.error(err.message || "Failed to add subcontractor"),
   });
 
   const updateMut = trpc.subcontractors.update.useMutation({
@@ -50,7 +79,7 @@ export default function PortalSubcontractors() {
       hapticSuccess();
       toast.success("Subcontractor updated");
     },
-    onError: () => toast.error("Failed to update"),
+    onError: (err) => toast.error(err.message || "Failed to update subcontractor"),
   });
 
   const deactivateMut = trpc.subcontractors.deactivate.useMutation({
@@ -59,64 +88,87 @@ export default function PortalSubcontractors() {
       hapticWarning();
       toast.success("Subcontractor deactivated");
     },
-    onError: () => toast.error("Failed to deactivate"),
+    onError: (err) => toast.error(err.message || "Failed to deactivate subcontractor"),
   });
 
-  const filtered = (subbies ?? []).filter(s =>
+  const filtered = ((subbies ?? []) as Subbie[]).filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     (s.trade ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <PortalLayout>
-      <div className="space-y-4 sm:space-y-6 pb-24">
-        {/* Header — stacks on mobile */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="space-y-4 pb-24">
+        {/* Header — matches PortalJobs pattern */}
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-              <Hammer className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <Hammer className="w-5 h-5" style={{ color: "#F5A623" }} />
               Subcontractors
             </h1>
-            <p className="text-[13px] text-muted-foreground mt-0.5">
-              Manage your subbies, assign them to jobs, and track their hours
+            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Manage your subbies — assign to jobs, track hours, feed job costing.
             </p>
           </div>
-          <Button
+          <button
             onClick={() => { setShowCreate(true); hapticLight(); }}
-            className="gap-2 bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
+            className={`flex items-center gap-1.5 px-3 rounded-lg text-sm font-semibold flex-shrink-0 ${TAP_TARGET}`}
+            style={{ background: "#F5A623", color: "#0F1F3D" }}
           >
-            <Plus className="w-4 h-4" /> Add Subcontractor
-          </Button>
+            <Plus className="w-4 h-4" /> Add Subbie
+          </button>
         </div>
 
-        {/* Search — full width */}
+        {/* Search — matches PortalJobs pattern */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name or trade..."
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
+            style={{ color: "rgba(255,255,255,0.3)" }}
+          />
+          <input
+            type="text"
+            placeholder="Search by name or trade…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="w-full pl-8 pr-8 py-2 rounded-lg text-sm outline-none"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#fff",
+            }}
           />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: "rgba(255,255,255,0.3)" }}
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* List */}
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+            <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <Hammer className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground text-sm">
-              {subbies?.length === 0
+          <div
+            className="text-center py-16 rounded-xl"
+            style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+          >
+            <Hammer className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              {(subbies?.length ?? 0) === 0
                 ? "No subcontractors yet. Add your first subbie to get started."
                 : "No subcontractors match your search."}
             </p>
           </div>
         ) : (
           <div className="grid gap-3">
-            {filtered.map(sub => (
+            {filtered.map((sub) => (
               <SubbieCard
                 key={sub.id}
                 sub={sub}
@@ -137,20 +189,20 @@ export default function PortalSubcontractors() {
         )}
       </div>
 
-      {/* Create Dialog */}
-      <SubbieFormDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="Add Subcontractor"
-        onSubmit={(data) => createMut.mutate(data)}
-        isPending={createMut.isPending}
-      />
+      {/* Create Modal */}
+      {showCreate && (
+        <SubbieFormModal
+          title="Add Subcontractor"
+          onClose={() => setShowCreate(false)}
+          onSubmit={(data) => createMut.mutate(data)}
+          isPending={createMut.isPending}
+        />
+      )}
 
-      {/* Edit Dialog */}
-      {editId && (
-        <SubbieEditDialog
+      {/* Edit Modal */}
+      {editId !== null && (
+        <SubbieEditModal
           id={editId}
-          open={true}
           onClose={() => setEditId(null)}
           onSubmit={(data) => updateMut.mutate({ id: editId, ...data })}
           isPending={updateMut.isPending}
@@ -160,7 +212,7 @@ export default function PortalSubcontractors() {
   );
 }
 
-// ─── Subbie Card (mobile-first) ─────────────────────────────────────────────
+// ─── Subbie Card (mobile-first, SOLVR palette) ──────────────────────────────
 function SubbieCard({
   sub,
   isExpanded,
@@ -168,30 +220,45 @@ function SubbieCard({
   onEdit,
   onDeactivate,
 }: {
-  sub: any;
+  sub: Subbie;
   isExpanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
   return (
-    <div className="bg-card rounded-xl border overflow-hidden">
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.07)" }}
+    >
       {/* Tap row — always visible */}
-      <div
-        className="p-3.5 sm:p-4 flex items-center gap-3 cursor-pointer active:bg-muted/30"
+      <button
+        type="button"
         onClick={onToggle}
+        className={`w-full p-3.5 flex items-center gap-3 text-left ${TAP_TARGET} active:opacity-80`}
       >
-        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-          <Hammer className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ background: "rgba(245,166,35,0.12)" }}
+        >
+          <Hammer className="w-4 h-4" style={{ color: "#F5A623" }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm sm:text-base font-semibold text-foreground truncate">{sub.name}</h3>
+            <h3 className="text-sm font-semibold text-white truncate">{sub.name}</h3>
             {!sub.isActive && (
-              <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded-full flex-shrink-0">Inactive</span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-semibold"
+                style={{ background: "rgba(239,68,68,0.12)", color: "#FCA5A5" }}
+              >
+                Inactive
+              </span>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground mt-0.5">
+          <div
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs mt-0.5"
+            style={{ color: "rgba(255,255,255,0.45)" }}
+          >
             {sub.trade && <span>{sub.trade}</span>}
             {sub.hourlyRateCents != null && (
               <span className="flex items-center gap-0.5">
@@ -202,63 +269,80 @@ function SubbieCard({
           </div>
         </div>
         <ChevronRight
-          className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          className={`w-4 h-4 flex-shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+          style={{ color: "rgba(255,255,255,0.3)" }}
         />
-      </div>
+      </button>
 
       {/* Expanded details */}
       {isExpanded && (
-        <div className="border-t px-3.5 sm:px-4 py-3 space-y-3">
-          {/* Contact info — stacked on mobile */}
+        <div
+          className="px-3.5 py-3 space-y-3"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+        >
+          {/* Contact info */}
           <div className="space-y-1.5">
             {sub.email && (
-              <a href={`mailto:${sub.email}`} className="flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+              <a
+                href={`mailto:${sub.email}`}
+                className="flex items-center gap-2 text-sm hover:text-white"
+                style={{ color: "rgba(255,255,255,0.6)" }}
+              >
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{sub.email}</span>
               </a>
             )}
             {sub.phone && (
-              <a href={`tel:${sub.phone}`} className="flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+              <a
+                href={`tel:${sub.phone}`}
+                className="flex items-center gap-2 text-sm hover:text-white"
+                style={{ color: "rgba(255,255,255,0.6)" }}
+              >
                 <Phone className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>{sub.phone}</span>
               </a>
             )}
             {sub.abn && (
-              <div className="text-[12px] text-muted-foreground">ABN: {sub.abn}</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                ABN: {sub.abn}
+              </div>
             )}
           </div>
 
           {sub.notes && (
-            <p className="text-[13px] text-muted-foreground leading-relaxed">{sub.notes}</p>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.55)" }}>
+              {sub.notes}
+            </p>
           )}
 
-          {/* Actions — stacked on mobile */}
+          {/* Actions — full-width tap targets on mobile */}
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
             {sub.phone && (
               <a
                 href={`tel:${sub.phone}`}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-foreground w-full sm:w-auto"
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold w-full sm:w-auto ${TAP_TARGET}`}
+                style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}
               >
                 <Phone className="w-4 h-4" /> Call
               </a>
             )}
-            <Button
-              variant="outline"
-              size="sm"
+            <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              className="w-full sm:w-auto"
+              className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold w-full sm:w-auto ${TAP_TARGET}`}
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.1)" }}
             >
               Edit
-            </Button>
+            </button>
             {sub.isActive && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); onDeactivate(); }}
-                className="text-red-500 border-red-500/30 hover:bg-red-500/10 w-full sm:w-auto"
+                className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold w-full sm:w-auto ${TAP_TARGET}`}
+                style={{ background: "rgba(239,68,68,0.1)", color: "#FCA5A5", border: "1px solid rgba(239,68,68,0.2)" }}
               >
-                <UserX className="w-4 h-4 mr-1" /> Deactivate
-              </Button>
+                <UserX className="w-4 h-4" /> Deactivate
+              </button>
             )}
           </div>
         </div>
@@ -267,28 +351,28 @@ function SubbieCard({
   );
 }
 
-// ─── Create Form Dialog (mobile-first) ──────────────────────────────────────
-function SubbieFormDialog({
-  open,
-  onClose,
+// ─── Subbie Form Modal (SOLVR palette, matches PortalJobs AddJobModal) ──────
+function SubbieFormModal({
   title,
+  onClose,
   onSubmit,
   isPending,
   defaults,
 }: {
-  open: boolean;
-  onClose: () => void;
   title: string;
-  onSubmit: (data: any) => void;
+  onClose: () => void;
+  onSubmit: (data: SubbieFormData) => void;
   isPending: boolean;
-  defaults?: any;
+  defaults?: Partial<Subbie>;
 }) {
   const [name, setName] = useState(defaults?.name ?? "");
   const [trade, setTrade] = useState(defaults?.trade ?? "");
   const [abn, setAbn] = useState(defaults?.abn ?? "");
   const [email, setEmail] = useState(defaults?.email ?? "");
   const [phone, setPhone] = useState(defaults?.phone ?? "");
-  const [rate, setRate] = useState(defaults?.hourlyRateCents ? (defaults.hourlyRateCents / 100).toString() : "");
+  const [rate, setRate] = useState(
+    defaults?.hourlyRateCents != null ? (defaults.hourlyRateCents / 100).toString() : "",
+  );
   const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -305,96 +389,191 @@ function SubbieFormDialog({
     });
   };
 
+  const fieldStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    color: "#fff",
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-foreground">Name *</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Dave's Plumbing" />
-          </div>
-          {/* Trade + ABN — stack on mobile */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.7)" }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+        style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`flex items-center justify-center w-10 h-10 rounded-lg`}
+            style={{ color: "rgba(255,255,255,0.4)" }}
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <Field label="Name *">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Dave's Plumbing"
+              className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+              style={fieldStyle}
+              autoFocus
+            />
+          </Field>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium text-foreground">Trade</label>
-              <Input value={trade} onChange={(e) => setTrade(e.target.value)} placeholder="e.g. Plumber" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">ABN</label>
-              <Input value={abn} onChange={(e) => setAbn(e.target.value)} placeholder="12 345 678 901" />
-            </div>
+            <Field label="Trade">
+              <input
+                value={trade}
+                onChange={(e) => setTrade(e.target.value)}
+                placeholder="e.g. Plumber"
+                className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+                style={fieldStyle}
+              />
+            </Field>
+            <Field label="ABN">
+              <input
+                value={abn}
+                onChange={(e) => setAbn(e.target.value)}
+                placeholder="12 345 678 901"
+                className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+                style={fieldStyle}
+              />
+            </Field>
           </div>
-          {/* Email + Phone — stack on mobile */}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-medium text-foreground">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="dave@example.com" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-foreground">Phone</label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0412 345 678" />
-            </div>
+            <Field label="Email">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="dave@example.com"
+                className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+                style={fieldStyle}
+              />
+            </Field>
+            <Field label="Phone">
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="0412 345 678"
+                className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+                style={fieldStyle}
+              />
+            </Field>
           </div>
-          <div>
-            <label className="text-sm font-medium text-foreground">Hourly Rate ($)</label>
-            <Input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} placeholder="65.00" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground">Notes</label>
+
+          <Field label="Hourly Rate ($)">
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+              placeholder="65.00"
+              className={`w-full px-3 py-2 rounded-lg text-sm outline-none ${TAP_TARGET}`}
+              style={fieldStyle}
+            />
+          </Field>
+
+          <Field label="Notes">
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[60px]"
-              placeholder="Any notes about this subbie..."
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none min-h-[80px] resize-y"
+              style={fieldStyle}
+              placeholder="Any notes about this subbie…"
+              rows={3}
             />
-          </div>
+          </Field>
+
           {/* Footer — stacked on mobile */}
-          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className={`flex-1 sm:flex-none rounded-lg px-4 text-sm font-semibold ${TAP_TARGET}`}
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
               disabled={isPending || !name.trim()}
-              className="bg-amber-500 hover:bg-amber-600 text-white w-full sm:w-auto"
+              className={`flex-1 rounded-lg px-4 text-sm font-semibold flex items-center justify-center gap-2 ${TAP_TARGET} disabled:opacity-50`}
+              style={{ background: "#F5A623", color: "#0F1F3D" }}
             >
-              {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               Save
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
 
-// ─── Edit Dialog (loads existing data) ───────────────────────────────────────
-function SubbieEditDialog({
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+// ─── Edit Modal (loads existing data) ────────────────────────────────────────
+function SubbieEditModal({
   id,
-  open,
   onClose,
   onSubmit,
   isPending,
 }: {
   id: number;
-  open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: SubbieFormData) => void;
   isPending: boolean;
 }) {
-  const { data } = trpc.subcontractors.get.useQuery({ id });
-  if (!data) return null;
+  const { data, isLoading } = trpc.subcontractors.get.useQuery({ id }, {
+    retry: 2,
+    staleTime: 30_000,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.7)" }}
+      >
+        <div
+          className="w-full max-w-md rounded-2xl p-8 flex items-center justify-center"
+          style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#F5A623" }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <SubbieFormDialog
-      open={open}
-      onClose={onClose}
+    <SubbieFormModal
       title="Edit Subcontractor"
+      onClose={onClose}
       onSubmit={onSubmit}
       isPending={isPending}
-      defaults={data}
+      defaults={data as Partial<Subbie>}
     />
   );
 }

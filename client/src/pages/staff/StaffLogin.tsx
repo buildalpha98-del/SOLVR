@@ -56,7 +56,15 @@ export default function StaffLogin() {
     { enabled: !!clientId }
   );
 
-  const registerPushMutation = trpc.staffPortal.registerPush.useMutation();
+  // Push registration is fire-and-forget — failure shouldn't annoy the user
+  // with a destructive toast on login. Dev-gated log is enough.
+  const registerPushMutation = trpc.staffPortal.registerPush.useMutation({
+    onError: (err) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[Push] registerPush failed:", err);
+      }
+    },
+  });
   const { data: vapidData } = trpc.staffPortal.vapidPublicKey.useQuery();
 
   async function requestPushPermission() {

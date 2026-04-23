@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getSolvrOrigin, isNativeApp } from "@/const";
+import { openUrl } from "@/lib/openUrl";
 import {
   configureNativeRevenueCat,
   isNativeRevenueCatConfigured,
@@ -37,7 +38,11 @@ export function QuoteEngineUpgradeButton({
 }: QuoteEngineUpgradeButtonProps) {
   // ALL hooks at the top, before any conditional return (Capacitor Rule 1)
   const [loading, setLoading] = useState(false);
-  const checkout = trpc.portal.createQuoteEngineCheckout.useMutation();
+  const checkout = trpc.portal.createQuoteEngineCheckout.useMutation({
+    onError: (err) => {
+      toast.error(err.message || "Checkout failed. Please try again.");
+    },
+  });
   const { user } = useAuth();
 
   const handleNativeClick = useCallback(async () => {
@@ -70,10 +75,12 @@ export function QuoteEngineUpgradeButton({
         origin: getSolvrOrigin(),
       });
       toast.success("Redirecting to secure checkout…");
-      window.open(result.url, "_blank");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
-      toast.error(msg);
+      // openUrl: in-app browser on iOS (keeps the user inside the app),
+      // new tab on web. Prevents Apple 3.1.1 rejection for pushing the user
+      // out of the app into Safari during a purchase flow.
+      await openUrl(result.url);
+    } catch {
+      // onError on the mutation handles the toast.
     } finally {
       setLoading(false);
     }

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
+import { openUrl } from "@/lib/openUrl";
 import {
   Plus, Search, FileText, Download, Trash2, Edit, ClipboardList,
   CheckCircle, PenTool, Loader2, FileCheck, AlertTriangle, Eye,
@@ -136,7 +137,7 @@ function SignaturePad({
     <div>
       <canvas
         ref={canvasRef}
-        className="w-full h-32 sm:h-24 border-2 border-dashed border-white/20 rounded-lg cursor-crosshair bg-white/5 touch-none"
+        className="w-full h-48 sm:h-32 border-2 border-dashed border-white/20 rounded-lg cursor-crosshair bg-white/5 touch-none"
         onMouseDown={startDraw}
         onMouseMove={draw}
         onMouseUp={endDraw}
@@ -369,7 +370,9 @@ function TemplatesTab({ search }: { search: string }) {
   const { data: templates, isLoading } = trpc.forms.listTemplates.useQuery();
   const utils = trpc.useUtils();
   const deleteMutation = trpc.forms.deleteTemplate.useMutation({
-    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticWarning(); toast.success("Template deleted"); },  });
+    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticWarning(); toast.success("Template deleted"); },
+    onError: (err) => toast.error(err.message || "Failed to delete template"),
+  });
 
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -414,14 +417,14 @@ function TemplatesTab({ search }: { search: string }) {
               <div className="flex gap-2">
                 {!t.isSystem && (
                   <>
-                    <Button size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={() => { setEditingId(t.id); setShowBuilder(true); }}>
-                      <Edit className="w-3.5 h-3.5 mr-1" /> Edit
+                    <Button variant="outline" className="flex-1 sm:flex-none min-h-[44px]" onClick={() => { setEditingId(t.id); setShowBuilder(true); }}>
+                      <Edit className="w-4 h-4 mr-1" /> Edit
                     </Button>
-                    <Button size="sm" variant="outline" className="flex-1 sm:flex-none text-red-400 hover:text-red-300" onClick={() => {
+                    <Button variant="outline" className="flex-1 sm:flex-none min-h-[44px] text-red-400 hover:text-red-300" onClick={() => {
                       if (confirm("Delete this template?")) deleteMutation.mutate({ id: t.id });
                     }}>
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      <span className="sm:hidden">Delete</span>
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      <span>Delete</span>
                     </Button>
                   </>
                 )}
@@ -592,8 +595,8 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
         </div>
 
         <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
-          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">Cancel</Button>
-          <Button onClick={save} disabled={isPending} className="bg-[#F5A623] hover:bg-[#e09510] text-[#0F1F3D] w-full sm:w-auto">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto min-h-[44px]">Cancel</Button>
+          <Button onClick={save} disabled={isPending} className="bg-[#F5A623] hover:bg-[#e09510] text-[#0F1F3D] w-full sm:w-auto min-h-[44px]">
             {isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
             {templateId ? "Update Template" : "Create Template"}
           </Button>
@@ -610,6 +613,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
   const utils = trpc.useUtils();
   const deleteMutation = trpc.forms.deleteSubmission.useMutation({
     onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticWarning(); toast.success("Form deleted"); },
+    onError: (err) => toast.error(err.message || "Failed to delete form"),
   });
 
   const [showNew, setShowNew] = useState(!!linkedJobId);
@@ -828,11 +832,11 @@ function FormFillerDialog({
     onError: e => toast.error(e.message),
   });
   const pdfMutation = trpc.forms.generatePdf.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success("PDF generated");
-      if (data.pdfUrl) window.open(data.pdfUrl, "_blank");
+      if (data.pdfUrl) await openUrl(data.pdfUrl);
     },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(e.message || "Failed to generate PDF"),
   });
 
   const fields: FormField[] = existingSubmission
@@ -978,11 +982,11 @@ function FormViewerDialog({ submissionId, onClose }: { submissionId: number; onC
     { enabled: !!submission?.templateId }
   );
   const pdfMutation = trpc.forms.generatePdf.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success("PDF generated");
-      if (data.pdfUrl) window.open(data.pdfUrl, "_blank");
+      if (data.pdfUrl) await openUrl(data.pdfUrl);
     },
-    onError: e => toast.error(e.message),
+    onError: e => toast.error(e.message || "Failed to generate PDF"),
   });
 
   if (isLoading || !submission) {

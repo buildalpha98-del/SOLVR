@@ -72,22 +72,30 @@ export default function PortalQuoteDetail() {
 
   const updateMutation = trpc.quotes.update.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
+    onError: (err) => toast.error(err.message || "Failed to save changes."),
   });
   const generateReportMutation = trpc.quotes.generateReport.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
+    onError: (err) => toast.error(err.message || "Failed to generate report."),
   });
-  const generatePdfMutation = trpc.quotes.generatePdf.useMutation();
+  const generatePdfMutation = trpc.quotes.generatePdf.useMutation({
+    onError: (err) => toast.error(err.message || "Failed to generate PDF."),
+  });
   const sendMutation = trpc.quotes.send.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
+    onError: (err) => toast.error(err.message || "Failed to send quote."),
   });
   const addPhotoMutation = trpc.quotes.addPhoto.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
+    onError: (err) => toast.error(err.message || "Failed to upload photo."),
   });
   const analysePhotosMutation = trpc.quotes.analysePhotos.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
+    onError: (err) => toast.error(err.message || "Failed to analyse photos."),
   });
   const deletePhotoMutation = trpc.quotes.deletePhoto.useMutation({
     onSuccess: () => utils.quotes.get.invalidate({ id: quoteId }),
+    onError: (err) => toast.error(err.message || "Failed to delete photo."),
   });
   // P3-B: Dismiss extraction warnings
   const dismissWarningsMutation = trpc.quotes.dismissWarnings.useMutation({

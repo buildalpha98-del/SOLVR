@@ -14,6 +14,7 @@
 import { useState, useMemo } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { openUrl } from "@/lib/openUrl";
 import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,6 +111,7 @@ function SuppliersTab({ search }: { search: string }) {
 
   const deactivate = trpc.purchaseOrders.deactivateSupplier.useMutation({
     onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticWarning(); toast.success("Supplier removed"); },
+    onError: (err) => toast.error(err.message || "Failed to remove supplier"),
   });
 
   if (isLoading) return <div className="text-center py-12 text-white/40">Loading suppliers...</div>;
@@ -117,7 +119,7 @@ function SuppliersTab({ search }: { search: string }) {
   return (
     <>
       <div className="flex justify-end">
-        <Button onClick={() => setShowAdd(true)} size="sm" className="w-full sm:w-auto">
+        <Button onClick={() => setShowAdd(true)} className="w-full sm:w-auto min-h-[44px]">
           <Plus className="h-4 w-4 mr-1" /> Add Supplier
         </Button>
       </div>
@@ -149,20 +151,19 @@ function SuppliersTab({ search }: { search: string }) {
                   <span className="text-xs text-white/40 mt-1.5 block">Terms: {s.paymentTerms}</span>
                 )}
               </div>
-              {/* Actions — stacked on mobile */}
+              {/* Actions — stacked on mobile, 44px tap targets */}
               <div className="flex gap-2 mt-3 sm:mt-2">
-                <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => setEditId(s.id)}>
-                  <Edit className="h-3.5 w-3.5 mr-1.5" />
-                  <span className="sm:hidden">Edit</span>
+                <Button variant="outline" className="flex-1 sm:flex-none min-h-[44px]" onClick={() => setEditId(s.id)}>
+                  <Edit className="h-4 w-4 mr-1.5" />
+                  Edit
                 </Button>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="flex-1 sm:flex-none text-red-500 hover:text-red-700"
+                  className="flex-1 sm:flex-none text-red-500 hover:text-red-700 min-h-[44px]"
                   onClick={() => { if (confirm("Remove this supplier?")) deactivate.mutate({ id: s.id }); }}
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  <span className="sm:hidden">Remove</span>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Remove
                 </Button>
               </div>
             </div>
@@ -210,9 +211,11 @@ function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose:
 
   const createMut = trpc.purchaseOrders.createSupplier.useMutation({
     onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier added"); onClose(); },
+    onError: (err) => toast.error(err.message || "Failed to add supplier"),
   });
   const updateMut = trpc.purchaseOrders.updateSupplier.useMutation({
     onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier updated"); onClose(); },
+    onError: (err) => toast.error(err.message || "Failed to update supplier"),
   });
 
   const handleSave = () => {
@@ -289,8 +292,12 @@ function OrdersTab({ search }: { search: string }) {
   }, [orders, search, supplierMap]);
 
   const genPdf = trpc.purchaseOrders.generatePdf.useMutation({
-    onSuccess: (data) => { window.open(data.pdfUrl, "_blank"); toast.success("PDF generated"); },
-    onError: (err) => toast.error(err.message),
+    onSuccess: async (data) => {
+      toast.success("PDF generated");
+      // openUrl: in-app browser on iOS, new tab on web.
+      await openUrl(data.pdfUrl);
+    },
+    onError: (err) => toast.error(err.message || "Failed to generate PDF"),
   });
 
   const sendToSupplier = trpc.purchaseOrders.sendToSupplier.useMutation({
@@ -298,7 +305,7 @@ function OrdersTab({ search }: { search: string }) {
       utils.purchaseOrders.list.invalidate();
       toast.success(`PO sent to ${data.sentTo}`);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(err.message || "Failed to send PO"),
   });
 
   if (isLoading) return <div className="text-center py-12 text-white/40">Loading purchase orders...</div>;
@@ -306,7 +313,7 @@ function OrdersTab({ search }: { search: string }) {
   return (
     <>
       <div className="flex justify-end">
-        <Button onClick={() => setShowCreate(true)} size="sm" disabled={!suppliers?.length} className="w-full sm:w-auto">
+        <Button onClick={() => setShowCreate(true)} disabled={!suppliers?.length} className="w-full sm:w-auto min-h-[44px]">
           <Plus className="h-4 w-4 mr-1" /> New Purchase Order
         </Button>
       </div>
@@ -352,25 +359,23 @@ function OrdersTab({ search }: { search: string }) {
                 {o.sentAt && <span className="text-green-600">Sent {new Date(o.sentAt).toLocaleDateString("en-AU")}</span>}
               </div>
 
-              {/* Card actions — stacked on mobile */}
+              {/* Card actions — 44px tap targets */}
               <div className="flex gap-2 mt-3" onClick={e => e.stopPropagation()}>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="flex-1 sm:flex-none text-[13px]"
+                  className="flex-1 sm:flex-none min-h-[44px]"
                   onClick={() => genPdf.mutate({ id: o.id })}
                   disabled={genPdf.isPending}
                 >
-                  <Download className="h-3.5 w-3.5 mr-1.5" /> PDF
+                  <Download className="h-4 w-4 mr-1.5" /> PDF
                 </Button>
                 {o.status === "draft" && (
                   <Button
-                    size="sm"
-                    className="flex-1 sm:flex-none text-[13px]"
+                    className="flex-1 sm:flex-none min-h-[44px]"
                     onClick={() => sendToSupplier.mutate({ id: o.id })}
                     disabled={sendToSupplier.isPending}
                   >
-                    <Send className="h-3.5 w-3.5 mr-1.5" /> Send
+                    <Send className="h-4 w-4 mr-1.5" /> Send
                   </Button>
                 )}
               </div>
@@ -495,7 +500,9 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-white/80">Line Items</label>
-              <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" /> Add</Button>
+              <Button variant="outline" onClick={addItem} className="min-h-[40px]">
+                <Plus className="h-4 w-4 mr-1" /> Add item
+              </Button>
             </div>
             <div className="space-y-3">
               {items.map((item, idx) => (
@@ -505,9 +512,13 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
                     value={item.description}
                     onChange={e => updateItem(idx, "description", e.target.value)}
                   />
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Qty + Unit share a row on mobile; Price gets its own row
+                      (easier on thumbs in a ute than 3 cramped fields). On
+                      desktop, all three fit on one line. */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <Input
                       placeholder="Qty"
+                      inputMode="decimal"
                       value={item.quantity}
                       onChange={e => updateItem(idx, "quantity", e.target.value)}
                     />
@@ -517,7 +528,9 @@ function CreatePODialog({ onClose }: { onClose: () => void }) {
                       onChange={e => updateItem(idx, "unit", e.target.value)}
                     />
                     <Input
+                      className="col-span-2 sm:col-span-1"
                       placeholder="Price $"
+                      inputMode="decimal"
                       value={item.unitPriceCents}
                       onChange={e => updateItem(idx, "unitPriceCents", e.target.value)}
                     />
@@ -560,7 +573,11 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
   const supplierName = suppliers?.find(s => s.id === po?.supplierId)?.name ?? "Unknown";
 
   const genPdf = trpc.purchaseOrders.generatePdf.useMutation({
-    onSuccess: (data) => { window.open(data.pdfUrl, "_blank"); toast.success("PDF generated"); },
+    onSuccess: async (data) => {
+      toast.success("PDF generated");
+      await openUrl(data.pdfUrl);
+    },
+    onError: (err) => toast.error(err.message || "Failed to generate PDF"),
   });
 
   const sendToSupplier = trpc.purchaseOrders.sendToSupplier.useMutation({
@@ -569,6 +586,7 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
       utils.purchaseOrders.get.invalidate({ id: poId });
       toast.success(`Sent to ${data.sentTo}`);
     },
+    onError: (err) => toast.error(err.message || "Failed to send purchase order"),
   });
 
   const updateStatus = trpc.purchaseOrders.updateStatus.useMutation({
@@ -577,6 +595,7 @@ function ViewPODialog({ poId, onClose }: { poId: number; onClose: () => void }) 
       utils.purchaseOrders.get.invalidate({ id: poId });
       toast.success("Status updated");
     },
+    onError: (err) => toast.error(err.message || "Failed to update status"),
   });
 
   if (isLoading || !po) return null;
