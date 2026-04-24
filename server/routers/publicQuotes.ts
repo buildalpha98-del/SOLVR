@@ -16,6 +16,7 @@ import {
   listQuoteLineItems,
   listQuotePhotos,
   updateQuote,
+  acceptQuoteAtomic,
   getCrmClientById,
   createPortalJob,
   createPortalCalendarEvent,
@@ -108,17 +109,46 @@ export const publicQuotesRouter = router({
   /**
    * Customer accepts the quote.
    * Creates a portal job and notifies the tradie.
+   *
+   * Idempotency: this handler is safe against double-clicks, retries, and
+   * page reloads. It uses a conditional UPDATE (status='sent' → 'accepted')
+   * to ensure only one caller wins the race; subsequent calls short-circuit
+   * to the existing job. See acceptQuoteAtomic in db.ts.
+   *
+   * Customer-supplied fields:
+   *  - customerNote — optional message to the tradie
+   *  - customerAddress — optional confirmed/edited address (used for job
+   *    location + calendar event location). Falls back to the address
+   *    captured when the quote was created if omitted.
+   *  - preferredDate — optional YYYY-MM-DD ISO date for when the customer
+   *    wants the work done. Used as the calendar event start (9am that day,
+   *    AU local time) and stored on portalJobs.preferredDate. If omitted,
+   *    falls back to today + 7 days as before.
    */
   accept: publicProcedure
     .input(
       z.object({
         token: z.string(),
         customerNote: z.string().max(1000).optional(),
+        customerAddress: z.string().trim().min(1).max(500).optional(),
+        // ISO date YYYY-MM-DD (HTML <input type="date"> emits this format)
+        preferredDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+          .optional(),
       }),
     )
     .mutation(async ({ input }) => {
       const quote = await getQuoteByToken(input.token);
       if (!quote) throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found" });
+
+      // Idempotency short-circuit: if this quote already has a converted job,
+      // a previous accept call already won the race. Return success without
+      // doing anything destructive (don't re-create job/calendar/invoice/CRM).
+      if (quote.convertedJobId) {
+        return { success: true, jobId: quote.convertedJobId };
+      }
+
       // P1-B: Only sent quotes can be accepted — draft quotes are not yet ready for customer response
       if (quote.status !== "sent") {
         throw new TRPCError({
@@ -141,12 +171,25 @@ export const publicQuotesRouter = router({
 
       const client = await getCrmClientById(quote.clientId);
 
-      // Mark quote as accepted
-      await updateQuote(quote.id, {
-        status: "accepted",
-        respondedAt: new Date(),
-        customerNote: input.customerNote ?? null,
-      });
+      // Race-safe accept — only one caller wins. If we lose, another request
+      // already accepted it; re-fetch and return its convertedJobId.
+      const wonRace = await acceptQuoteAtomic(
+        quote.id,
+        input.customerNote ?? null,
+        input.customerAddress ?? null,
+      );
+      if (!wonRace) {
+        const fresh = await getQuoteByToken(input.token);
+        return { success: true, jobId: fresh?.convertedJobId ?? null };
+      }
+
+      // Resolve the address that all downstream artifacts (job, calendar,
+      // invoice, CRM) should use — customer's confirmed address wins.
+      const finalAddress =
+        (input.customerAddress && input.customerAddress.trim()) ||
+        quote.customerAddress ||
+        null;
+
       // Stop any active follow-up sequence immediately — don't wait for the cron
       try {
         const db = await getDb();
@@ -169,7 +212,8 @@ export const publicQuotesRouter = router({
         stage: "booked",
         quotedAmount: quote.totalAmount ?? undefined,
         sourceQuoteId: quote.id,
-        location: quote.customerAddress ?? undefined,
+        location: finalAddress ?? undefined,
+        preferredDate: input.preferredDate ?? undefined,
       } as any);
 
       const jobId = (jobResult as unknown as { insertId: bigint }).insertId
@@ -219,10 +263,20 @@ export const publicQuotesRouter = router({
         }
 
         // ── Create a calendar event for the accepted quote ──────────────────────
-        // Default to 7 days from now at 9am if no preferred date was captured
-        const startAt = new Date();
-        startAt.setDate(startAt.getDate() + 7);
-        startAt.setHours(9, 0, 0, 0);
+        // Honour customer's preferred date if supplied; otherwise default to
+        // today + 7 days. Either way, anchor to 9am AU local time (the typical
+        // tradie start-of-day) and end at 10am — tradie can drag the block
+        // longer in the calendar UI if needed.
+        let startAt: Date;
+        if (input.preferredDate) {
+          // Parse YYYY-MM-DD as a local-time date at 9am
+          const [y, m, d] = input.preferredDate.split("-").map(Number);
+          startAt = new Date(y, (m ?? 1) - 1, d ?? 1, 9, 0, 0, 0);
+        } else {
+          startAt = new Date();
+          startAt.setDate(startAt.getDate() + 7);
+          startAt.setHours(9, 0, 0, 0);
+        }
         const endAt = new Date(startAt.getTime() + 60 * 60 * 1000); // +1 hour
 
         await createPortalCalendarEvent({
@@ -230,7 +284,7 @@ export const publicQuotesRouter = router({
           jobId,
           title: `📋 ${quote.jobTitle} — ${quote.customerName ?? "Customer"}`,
           description: `Quote ${quote.quoteNumber} accepted. Value: $${parseFloat(quote.totalAmount ?? "0").toLocaleString("en-AU", { minimumFractionDigits: 2 })} incl. GST${input.customerNote ? `\nCustomer note: ${input.customerNote}` : ""}`,
-          location: quote.customerAddress ?? undefined,
+          location: finalAddress ?? undefined,
           contactName: quote.customerName ?? undefined,
           contactPhone: quote.customerPhone ?? undefined,
           startAt,
@@ -260,7 +314,7 @@ export const publicQuotesRouter = router({
               name: customerName,
               phone: customerPhone,
               email: customerEmail,
-              address: quote.customerAddress ?? undefined,
+              address: finalAddress ?? undefined,
               jobCount: 0,
               totalSpentCents: 0,
               firstJobAt: new Date(),

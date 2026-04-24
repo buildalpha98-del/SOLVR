@@ -657,6 +657,46 @@ export async function updateQuote(id: string, data: Partial<InsertQuote>): Promi
   await db.update(quotes).set(data).where(eq(quotes.id, id));
 }
 
+/**
+ * Race-safe accept: only flips status to "accepted" if it's currently "sent".
+ * Returns true if THIS call won the race and is responsible for creating the
+ * downstream job/calendar/invoice. Returns false if the quote was already
+ * accepted (duplicate request) — caller should short-circuit to idempotent
+ * success and re-read the existing convertedJobId.
+ *
+ * Single-statement conditional UPDATE so MySQL handles the race natively
+ * without needing an explicit transaction.
+ */
+export async function acceptQuoteAtomic(
+  id: string,
+  customerNote: string | null,
+  customerAddressOverride: string | null,
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const setData: Partial<InsertQuote> = {
+    status: "accepted",
+    respondedAt: new Date(),
+    customerNote,
+  };
+  if (customerAddressOverride && customerAddressOverride.trim()) {
+    setData.customerAddress = customerAddressOverride.trim();
+  }
+  const result = await db
+    .update(quotes)
+    .set(setData)
+    .where(and(eq(quotes.id, id), eq(quotes.status, "sent")));
+  // mysql2 returns ResultSetHeader[] from drizzle's mysql update. The
+  // affectedRows can live at [0].affectedRows or directly on the result
+  // depending on driver version — handle both.
+  const affected = Number(
+    (result as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ??
+      (result as unknown as { affectedRows?: number }).affectedRows ??
+      0,
+  );
+  return affected > 0;
+}
+
 export async function deleteQuote(id: string): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

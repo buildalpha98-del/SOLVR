@@ -12,7 +12,7 @@
  * P1-B fix: Draft quotes show a "not yet available" banner instead of
  *           accept/decline buttons (server also blocks draft acceptance).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
-  CheckCircle, XCircle, Download, Loader2, FileText,
+  CheckCircle, XCircle, Download, Loader2, FileText, Calendar as CalendarIcon,
 } from "lucide-react";
+import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,20 @@ export default function PublicQuote() {
   const [showDeclineForm, setShowDeclineForm] = useState(false);
   const [actionDone, setActionDone] = useState<"accepted" | "declined" | null>(null);
 
+  // Acceptance form: customer can confirm/edit address and pick a preferred date.
+  // Address defaults to whatever was on the quote; date is empty so the user
+  // makes a deliberate choice (server falls back to today+7 if left blank).
+  const [confirmedAddress, setConfirmedAddress] = useState<string>("");
+  const [preferredDate, setPreferredDate] = useState<string>("");
+  // Sync address once when the quote loads — only the first time.
+  const incomingAddress = data?.quote?.customerAddress ?? "";
+  useEffect(() => {
+    if (incomingAddress && !confirmedAddress) {
+      setConfirmedAddress(incomingAddress);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingAddress]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -95,8 +110,18 @@ export default function PublicQuote() {
   const isDraft = quote.status === "draft";
 
   async function handleAccept() {
+    // Address is required so the tradie knows where to go. Date is optional —
+    // server defaults to today + 7 days if left blank.
+    if (!confirmedAddress.trim()) {
+      toast.error("Please confirm the address before accepting.");
+      return;
+    }
     try {
-      await acceptMutation.mutateAsync({ token });
+      await acceptMutation.mutateAsync({
+        token,
+        customerAddress: confirmedAddress.trim(),
+        preferredDate: preferredDate || undefined,
+      });
       setActionDone("accepted");
       toast.success("Quote accepted! The team will be in touch shortly.");
     } catch {
@@ -392,6 +417,54 @@ export default function PublicQuote() {
             <p className="text-sm text-gray-500 mb-5">
               This quote is valid until {fmtDate(quote.validUntil)}. Accept to proceed or decline if you'd like to discuss further.
             </p>
+
+            {!showDeclineForm && (
+              <div className="space-y-4 mb-5">
+                {/* Address confirmation — Google Places autocomplete (AU). */}
+                <div>
+                  <Label className="text-gray-700 text-sm font-semibold mb-1.5 block">
+                    Confirm job address <span className="text-red-500">*</span>
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Make sure this is where the work needs to happen — start typing to pick from suggestions.
+                  </p>
+                  <AddressAutocomplete
+                    value={confirmedAddress}
+                    onChange={setConfirmedAddress}
+                    placeholder="Start typing your address…"
+                    iconColorIdle="#9CA3AF"
+                    iconColorReady="#F5A623"
+                    style={{
+                      background: "#fff",
+                      border: "1px solid #E5E7EB",
+                      color: "#1F2937",
+                      padding: "10px 12px 10px 32px",
+                      fontSize: "14px",
+                    }}
+                  />
+                </div>
+
+                {/* Preferred date — native date picker. Min = today. */}
+                <div>
+                  <Label className="text-gray-700 text-sm font-semibold mb-1.5 block">
+                    Preferred date <span className="text-gray-400 font-normal">(optional)</span>
+                  </Label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    When would you like the work done? The team will confirm the exact time.
+                  </p>
+                  <div className="relative">
+                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="date"
+                      value={preferredDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setPreferredDate(e.target.value)}
+                      className="w-full pl-10 pr-3 py-2.5 rounded-lg text-sm outline-none border border-gray-200 bg-white text-gray-800 focus:border-gray-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!showDeclineForm ? (
               <div className="flex gap-3">

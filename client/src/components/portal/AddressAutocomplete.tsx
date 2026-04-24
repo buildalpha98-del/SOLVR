@@ -13,6 +13,10 @@ interface AddressAutocompleteProps {
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
+  /** Icon colour when ready (Places script loaded). Defaults to amber. */
+  iconColorReady?: string;
+  /** Icon colour while idle/loading. Defaults to a low-alpha white (dark-theme). */
+  iconColorIdle?: string;
 }
 
 export default function AddressAutocomplete({
@@ -21,6 +25,8 @@ export default function AddressAutocomplete({
   placeholder = "Start typing an address…",
   className = "",
   style,
+  iconColorReady = "#F5A623",
+  iconColorIdle = "rgba(255,255,255,0.3)",
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -64,7 +70,7 @@ export default function AddressAutocomplete({
     <div className="relative">
       <MapPin
         className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
-        style={{ color: ready ? "#F5A623" : "rgba(255,255,255,0.3)" }}
+        style={{ color: ready ? iconColorReady : iconColorIdle }}
       />
       <input
         ref={inputRef}
