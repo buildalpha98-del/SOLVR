@@ -166,6 +166,21 @@ function requireFeature(plan: SolvrPlan, feature: string) {
   }
 }
 
+// ─── Zod helpers ──────────────────────────────────────────────────────────────
+/**
+ * Decimal-string input coming from a text `<input>`.
+ *
+ * MySQL rejects `''` for `decimal(...)` columns with
+ * `ER_TRUNCATED_WRONG_VALUE_FOR_FIELD` (1366). The client sends `""` whenever
+ * a currency field is cleared, so normalize empty/null/undefined to `null`
+ * before it reaches Drizzle — then Drizzle writes a proper `NULL`, which the
+ * column accepts.
+ */
+const decStr = z
+  .string()
+  .optional()
+  .nullable()
+  .transform((v) => (v === "" || v == null ? null : v));
 
 // // ─── Router ───────────────────────────────────────────────────────────────────
 export const portalRouter = router({
@@ -1176,10 +1191,10 @@ export const portalRouter = router({
         typicalPrice: z.number().nullable(),
         unit: z.string(),
       })).optional(),
-      callOutFee: z.string().optional(),
-      hourlyRate: z.string().optional(),
-      minimumCharge: z.string().optional(),
-      afterHoursMultiplier: z.string().optional(),
+      callOutFee: decStr,
+      hourlyRate: decStr,
+      minimumCharge: decStr,
+      afterHoursMultiplier: decStr,
       serviceArea: z.string().max(2000).optional(),
       operatingHours: z.object({
         monFri: z.string(),
@@ -1188,7 +1203,7 @@ export const portalRouter = router({
         publicHolidays: z.string(),
       }).optional(),
       emergencyAvailable: z.boolean().optional(),
-      emergencyFee: z.string().optional(),
+      emergencyFee: decStr,
       logoUrl: z.string().max(512).optional(),
       primaryColor: z.string().max(16).optional(),
       secondaryColor: z.string().max(16).optional(),
@@ -1203,15 +1218,20 @@ export const portalRouter = router({
       competitorNotes: z.string().max(2000).optional(),
       bookingInstructions: z.string().max(2000).optional(),
       escalationInstructions: z.string().max(2000).optional(),
-      gstRate: z.string().optional(),
+      gstRate: decStr,
       paymentTerms: z.string().max(255).optional(),
       validityDays: z.number().int().min(1).max(365).optional(),
       defaultNotes: z.string().max(2000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
-      const profile = await getOrCreateClientProfile(client.id);
-      await updateClientProfile(profile.id, input as any);
+      // Ensure the profile row exists — we only care that it's there. The
+      // update targets `client_profiles.clientId = client.id`, which is the
+      // contract `updateClientProfile` expects. (Historically this passed
+      // `profile.id` here, which happened to match `clientId` for early
+      // accounts but silently matched 0 rows for later ones.)
+      await getOrCreateClientProfile(client.id);
+      await updateClientProfile(client.id, input as any);
       return { success: true };
     }),
 
@@ -1505,12 +1525,12 @@ export const portalRouter = router({
         typicalPrice: z.number().nullable(),
         unit: z.string(),
       })).optional(),
-      callOutFee: z.string().optional().nullable(),
-      hourlyRate: z.string().optional().nullable(),
-      minimumCharge: z.string().optional().nullable(),
-      afterHoursMultiplier: z.string().optional().nullable(),
+      callOutFee: decStr,
+      hourlyRate: decStr,
+      minimumCharge: decStr,
+      afterHoursMultiplier: decStr,
       emergencyAvailable: z.boolean().optional(),
-      emergencyFee: z.string().optional().nullable(),
+      emergencyFee: decStr,
       serviceArea: z.string().max(2000).optional().nullable(),
       operatingHours: z.object({
         monFri: z.string(),
