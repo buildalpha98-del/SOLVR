@@ -19,9 +19,10 @@ import { isNativeApp } from "@/const";
 import PortalLayout from "./PortalLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard, Zap, CheckCircle, Clock, AlertTriangle, ExternalLink, X } from "lucide-react";
+import { Loader2, CreditCard, Zap, CheckCircle, Clock, AlertTriangle, ExternalLink, X, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -251,11 +252,204 @@ function PlanComparisonTable({ onUpgrade }: { onUpgrade: () => void }) {
   );
 }
 
+// ─── Tier picker dialog ────────────────────────────────────────────────────────
+// Three tiers in ascending price. Tapping a card triggers the native paywall
+// for THAT specific tier. Apple's StoreKit treats a change within the same
+// subscription group as an upgrade or downgrade — no double-charge, the new
+// tier replaces the old one at the next billing boundary (upgrades are
+// pro-rated immediately; downgrades take effect at period end).
+
+type TierSlug = "solvr_quotes" | "solvr_jobs" | "solvr_ai";
+
+const TIER_ORDER: Record<TierSlug, number> = {
+  solvr_quotes: 0,
+  solvr_jobs:   1,
+  solvr_ai:     2,
+};
+
+// Legacy package → tier slug for comparison purposes (so we can tell which
+// tier the user is currently on and label cards "Current", "Upgrade" or
+// "Downgrade").
+function currentTierSlug(plan: string | null | undefined): TierSlug | null {
+  if (!plan) return null;
+  if (plan === "solvr_quotes" || plan === "setup-only") return "solvr_quotes";
+  if (plan === "solvr_jobs"   || plan === "setup-monthly") return "solvr_jobs";
+  if (plan === "solvr_ai"     || plan === "full-managed" || plan === "starter" || plan === "professional") return "solvr_ai";
+  return null;
+}
+
+interface TierCard {
+  slug: TierSlug;
+  name: string;
+  price: string;
+  tagline: string;
+  bullets: string[];
+}
+
+const TIER_CARDS: TierCard[] = [
+  {
+    slug: "solvr_quotes",
+    name: "Solvr Quotes",
+    price: "$49 / month",
+    tagline: "For solo tradies just doing quotes.",
+    bullets: [
+      "Voice-to-quote AI",
+      "Branded PDF quotes",
+      "SMS quote delivery",
+      "Client portal access",
+    ],
+  },
+  {
+    slug: "solvr_jobs",
+    name: "Solvr Jobs",
+    price: "$99 / month",
+    tagline: "Full jobs pipeline, calendar & invoicing.",
+    bullets: [
+      "Everything in Quotes",
+      "Jobs board + calendar",
+      "Crew scheduling",
+      "Invoice chasing",
+    ],
+  },
+  {
+    slug: "solvr_ai",
+    name: "Solvr AI",
+    price: "$197 / month",
+    tagline: "Everything + 24/7 AI receptionist.",
+    bullets: [
+      "Everything in Jobs",
+      "AI receptionist (24/7)",
+      "SMS confirmation on every call",
+      "AI insights & call summaries",
+    ],
+  },
+];
+
+function TierPickerDialog({
+  open,
+  onOpenChange,
+  currentPlan,
+  userId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  currentPlan: string | null;
+  userId: number | undefined;
+}) {
+  const [switching, setSwitching] = useState<TierSlug | null>(null);
+  const current = currentTierSlug(currentPlan);
+
+  const handlePick = useCallback(async (slug: TierSlug) => {
+    if (switching) return; // prevent double-tap
+    setSwitching(slug);
+    hapticMedium();
+    try {
+      if (!isNativeRevenueCatConfigured() && userId) {
+        await configureNativeRevenueCat(`rc_${userId}`);
+      }
+      const result = await presentNativePaywall(slug);
+      if (result.success) {
+        hapticSuccess();
+        toast.success("Subscription updated!", {
+          description: "Your plan change is live. Refreshing…",
+        });
+        setTimeout(() => window.location.reload(), 1500);
+      } else if (result.cancelled) {
+        // User dismissed the native sheet — no-op, keep the dialog open so
+        // they can pick again.
+      } else if (result.error) {
+        hapticWarning();
+        toast.error("Plan change failed", { description: result.error });
+      }
+    } finally {
+      setSwitching(null);
+    }
+  }, [switching, userId]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" style={{ background: "#0F1F3D", borderColor: "rgba(255,255,255,0.1)" }}>
+        <DialogHeader>
+          <DialogTitle className="text-white">Change your plan</DialogTitle>
+          <DialogDescription className="text-white/60">
+            Upgrades take effect immediately (pro-rated). Downgrades kick in at the end of your current billing period.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          {TIER_CARDS.map((tier) => {
+            const isCurrent = current === tier.slug;
+            const isUpgrade = current !== null && TIER_ORDER[tier.slug] > TIER_ORDER[current];
+            const isDowngrade = current !== null && TIER_ORDER[tier.slug] < TIER_ORDER[current];
+            const isBusy = switching === tier.slug;
+
+            let cta: React.ReactNode;
+            let ctaStyle: React.CSSProperties = {};
+            let ctaClass = "";
+            if (isCurrent) {
+              cta = <><CheckCircle className="w-4 h-4" /> Current plan</>;
+              ctaStyle = { background: "rgba(34,197,94,0.15)", color: "#86EFAC" };
+              ctaClass = "cursor-default";
+            } else if (isUpgrade) {
+              cta = isBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</> : <><ArrowUpRight className="w-4 h-4" /> Upgrade</>;
+              ctaStyle = { background: "#F5A623", color: "#0F1F3D" };
+            } else if (isDowngrade) {
+              cta = isBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</> : <><ArrowDownRight className="w-4 h-4" /> Downgrade</>;
+              ctaStyle = { background: "rgba(255,255,255,0.08)", color: "#F5F5F0", border: "1px solid rgba(255,255,255,0.15)" };
+            } else {
+              cta = isBusy ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening…</> : <><Zap className="w-4 h-4" /> Choose this plan</>;
+              ctaStyle = { background: "#F5A623", color: "#0F1F3D" };
+            }
+
+            return (
+              <div
+                key={tier.slug}
+                className="rounded-xl p-4 space-y-3"
+                style={{
+                  background: isCurrent ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${isCurrent ? "rgba(34,197,94,0.3)" : "rgba(255,255,255,0.08)"}`,
+                }}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-base" style={{ color: "#F5F5F0" }}>{tier.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>{tier.tagline}</p>
+                  </div>
+                  <span className="font-semibold text-sm flex-shrink-0" style={{ color: "#F5A623" }}>{tier.price}</span>
+                </div>
+                <ul className="space-y-1">
+                  {tier.bullets.map((b) => (
+                    <li key={b} className="flex items-start gap-2 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+                      <CheckCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  onClick={() => !isCurrent && handlePick(tier.slug)}
+                  disabled={isCurrent || isBusy}
+                  className={`w-full gap-2 min-h-[44px] ${ctaClass}`}
+                  style={ctaStyle}
+                >
+                  {cta}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] pt-1 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+          Billing is handled by Apple via RevenueCat. Manage or cancel any time in Settings.
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PortalSubscription() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallLoading, setPaywallLoading] = useState(false);
+  const [tierPickerOpen, setTierPickerOpen] = useState(false);
   const paywallRef = useRef<HTMLDivElement>(null);
 
   const { data: me } = trpc.portal.me.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
@@ -486,15 +680,9 @@ export default function PortalSubscription() {
               {isNativeApp() ? (
                 <div className="pt-2 flex flex-col sm:flex-row flex-wrap gap-3">
                   <Button
-                    onClick={async () => {
-                      if (!isNativeRevenueCatConfigured() && user?.id) {
-                        await configureNativeRevenueCat(`rc_${user.id}`);
-                      }
-                      const result = await presentNativePaywall("solvr_ai");
-                      if (result.success) {
-                        toast.success("Subscription updated!");
-                        setTimeout(() => window.location.reload(), 2000);
-                      }
+                    onClick={() => {
+                      hapticMedium();
+                      setTierPickerOpen(true);
                     }}
                     className="flex items-center gap-2 min-h-[44px]"
                     style={{ background: "#F5A623", color: "#0F1F3D" }}
@@ -639,6 +827,12 @@ export default function PortalSubscription() {
           </div>
         )}
       </div>
+      <TierPickerDialog
+        open={tierPickerOpen}
+        onOpenChange={setTierPickerOpen}
+        currentPlan={sub?.plan ?? me?.plan ?? null}
+        userId={user?.id}
+      />
     </PortalLayout>
   );
 }
