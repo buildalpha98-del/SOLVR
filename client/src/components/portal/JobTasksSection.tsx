@@ -20,11 +20,17 @@ import { toast } from "sonner";
 import {
   Sparkles, Plus, Trash2, Mic, MicOff, Loader2,
   CheckCircle2, Circle, ChevronDown, ChevronUp,
-  Lightbulb, RotateCcw, FileText, Save,
+  Lightbulb, RotateCcw, FileText, Save, ShieldAlert, AlertTriangle,
 } from "lucide-react";
 import { WriteGuard } from "@/components/portal/ViewerBanner";
 import { TemplatePickerModal } from "@/components/portal/TemplatePickerModal";
 import { hapticSuccess } from "@/lib/haptics";
+
+interface AiSuggestedTask {
+  title: string;
+  notes: string | null;
+  requiresDoc: "swms" | "safety_cert" | "jsa" | "site_induction" | null;
+}
 
 /** Matches the shape returned by jobTasks.list — based on the jobTasks DB table */
 interface Task {
@@ -211,6 +217,153 @@ function VoiceTasksConfirmModal({
   );
 }
 
+/** Modal to review AI-suggested tasks before adding them */
+function AiTasksReviewModal({
+  tasks,
+  disclaimer,
+  scopeWarning,
+  onConfirm,
+  onCancel,
+  isAdding,
+}: {
+  tasks: AiSuggestedTask[];
+  disclaimer: string;
+  scopeWarning: string | null;
+  onConfirm: (tasks: AiSuggestedTask[]) => void;
+  onCancel: () => void;
+  isAdding: boolean;
+}) {
+  const [selected, setSelected] = useState<boolean[]>(tasks.map(() => true));
+  const toggle = (i: number) => setSelected(s => s.map((v, j) => (j === i ? !v : v)));
+  const confirmed = tasks.filter((_, i) => selected[i]);
+  const allOn = selected.every(Boolean);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-y-auto"
+      style={{ background: "rgba(0,0,0,0.7)" }}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto"
+        style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" style={{ color: "#F5A623" }} />
+              <h3 className="text-sm font-semibold text-white">AI-suggested tasks</h3>
+            </div>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Review every task before adding. You're in charge of the final list.
+            </p>
+          </div>
+          <button onClick={onCancel} className="text-white/30 hover:text-white/60 p-1 -m-1" aria-label="Close">✕</button>
+        </div>
+
+        {/* Insurance disclaimer — always shown */}
+        <div
+          className="flex items-start gap-2 p-3 rounded-lg"
+          style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
+        >
+          <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+          <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+            {disclaimer}
+          </p>
+        </div>
+
+        {/* Optional scope warning from the model */}
+        {scopeWarning && (
+          <div
+            className="flex items-start gap-2 p-3 rounded-lg"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}
+          >
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ef4444" }} />
+            <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,200,200,0.85)" }}>
+              <span className="font-semibold">Scope check: </span>{scopeWarning}
+            </p>
+          </div>
+        )}
+
+        {/* Select all / none */}
+        <div className="flex items-center justify-between text-xs">
+          <span style={{ color: "rgba(255,255,255,0.45)" }}>
+            {confirmed.length} of {tasks.length} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelected(tasks.map(() => !allOn))}
+            className="font-semibold uppercase tracking-wide text-[10px]"
+            style={{ color: "#F5A623" }}
+          >
+            {allOn ? "Deselect all" : "Select all"}
+          </button>
+        </div>
+
+        {/* Task list */}
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          {tasks.map((t, i) => (
+            <label
+              key={i}
+              className="flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer"
+              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <input
+                type="checkbox"
+                checked={selected[i]}
+                onChange={() => toggle(i)}
+                className="mt-0.5 flex-shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white">{t.title}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {t.requiresDoc && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide"
+                      style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}
+                    >
+                      {t.requiresDoc.replace("_", " ")}
+                    </span>
+                  )}
+                  {t.notes && (
+                    <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>
+                      {t.notes}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => onConfirm(confirmed)}
+            disabled={confirmed.length === 0 || isAdding}
+            className="flex-1 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
+            style={{
+              background: confirmed.length === 0 ? "rgba(245,166,35,0.3)" : "#F5A623",
+              color: "#0F1F3D",
+              opacity: confirmed.length === 0 || isAdding ? 0.6 : 1,
+            }}
+          >
+            {isAdding && <Loader2 className="w-4 h-4 animate-spin" />}
+            Add {confirmed.length} task{confirmed.length !== 1 ? "s" : ""}
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={isAdding}
+            className="px-4 py-2.5 rounded-lg text-sm"
+            style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.6)" }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescription, jobStage: _jobStage, nextActionSuggestion, onRefresh }: Props) {
   const utils = trpc.useUtils();
   const [showAdd, setShowAdd] = useState(false);
@@ -218,6 +371,9 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
   const [collapsed, setCollapsed] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingVoiceTasks, setPendingVoiceTasks] = useState<{ title: string; notes: string | null }[] | null>(null);
+  const [pendingAiTasks, setPendingAiTasks] = useState<AiSuggestedTask[] | null>(null);
+  const [aiDisclaimer, setAiDisclaimer] = useState<string>("");
+  const [aiScopeWarning, setAiScopeWarning] = useState<string | null>(null);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -252,6 +408,31 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
       toast.success(`${res.generated} tasks generated from ${res.displayName} template`);
     },
     onError: (e) => toast.error(e.message),
+  });
+
+  const aiSuggestTasks = trpc.jobTasks.aiSuggestTasks.useMutation({
+    onSuccess: (res) => {
+      if (!res.tasks || res.tasks.length === 0) {
+        toast.error("AI couldn't generate tasks — try the static template instead.");
+        return;
+      }
+      setAiDisclaimer(res.disclaimer);
+      setAiScopeWarning(res.scopeWarning ?? null);
+      setPendingAiTasks(res.tasks);
+    },
+    onError: (e) => toast.error(e.message ?? "AI task generation failed"),
+  });
+
+  const addAiSuggestedTasks = trpc.jobTasks.addAiSuggestedTasks.useMutation({
+    onSuccess: (res) => {
+      utils.jobTasks.list.invalidate({ jobId });
+      onRefresh();
+      hapticSuccess();
+      setPendingAiTasks(null);
+      setAiScopeWarning(null);
+      toast.success(`${res.added} AI task${res.added !== 1 ? "s" : ""} added`);
+    },
+    onError: (e) => toast.error(e.message ?? "Failed to add tasks"),
   });
 
   const voiceToTasks = trpc.jobTasks.voiceToTasks.useMutation({
@@ -339,6 +520,27 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
         />
       )}
 
+      {/* AI-suggested tasks review modal */}
+      {pendingAiTasks && (
+        <AiTasksReviewModal
+          tasks={pendingAiTasks}
+          disclaimer={aiDisclaimer}
+          scopeWarning={aiScopeWarning}
+          isAdding={addAiSuggestedTasks.isPending}
+          onConfirm={(confirmed) =>
+            addAiSuggestedTasks.mutate({
+              jobId,
+              tasks: confirmed,
+              suggestedCount: pendingAiTasks.length,
+            })
+          }
+          onCancel={() => {
+            setPendingAiTasks(null);
+            setAiScopeWarning(null);
+          }}
+        />
+      )}
+
       <div
         className="rounded-2xl overflow-hidden"
         style={{ background: "#0B1628", border: "1px solid rgba(255,255,255,0.08)" }}
@@ -392,16 +594,16 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
               </button>
             </WriteGuard>
 
-            {/* AI generate from template */}
+            {/* AI generate from job description (LLM-driven, with review step) */}
             <WriteGuard>
               <button
-                onClick={() => generateFromTemplate.mutate({ jobId, tradeType: jobType })}
-                disabled={generateFromTemplate.isPending}
+                onClick={() => aiSuggestTasks.mutate({ jobId })}
+                disabled={aiSuggestTasks.isPending || addAiSuggestedTasks.isPending}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                 style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623" }}
-                title="Generate task list from AI trade template"
+                title="AI-suggested tasks based on this job's title and description"
               >
-                {generateFromTemplate.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                {aiSuggestTasks.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                 AI Tasks
               </button>
             </WriteGuard>
@@ -522,8 +724,19 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
             {!isLoading && total === 0 && !showAdd && (
               <div className="text-center py-6 space-y-3">
                 <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  No tasks yet — tap <strong style={{ color: "#F5A623" }}>AI Tasks</strong> to generate a checklist from your trade template, or add tasks manually.
+                  No tasks yet — tap <strong style={{ color: "#F5A623" }}>AI Tasks</strong> to get a tailored checklist for this job, or add tasks manually.
                 </p>
+                <WriteGuard>
+                  <button
+                    type="button"
+                    onClick={() => generateFromTemplate.mutate({ jobId, tradeType: jobType })}
+                    disabled={generateFromTemplate.isPending}
+                    className="text-[11px] underline"
+                    style={{ color: "rgba(255,255,255,0.4)" }}
+                  >
+                    {generateFromTemplate.isPending ? "Loading…" : "Or use the generic trade template"}
+                  </button>
+                </WriteGuard>
               </div>
             )}
 

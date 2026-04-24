@@ -28,10 +28,60 @@ import {
 import { getTradeTemplate } from "../lib/tradeTaskTemplates";
 import { invokeLLM } from "../_core/llm";
 import { transcribeAudio } from "../_core/voiceTranscription";
-import { getCrmClientById } from "../db";
+import { getClientProfile, getCrmClientById } from "../db";
 import { getDb } from "../db";
 import { portalJobs } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+
+/**
+ * Insurance disclaimer surfaced with every AI-suggested task list.
+ * Kept here so the wording is identical wherever it's shown (review modal,
+ * audit log, future PDF exports) — single source of truth.
+ */
+export const AI_TASK_DISCLAIMER =
+  "AI-suggested tasks are general guidance only. You remain responsible for verifying compliance with AS/NZS standards, WorkSafe requirements, manufacturer specifications, and applicable trade licensing. High-risk work requires a SWMS / JSA prepared by a qualified person. SOLVR does not provide engineering, electrical, gas, plumbing, or structural advice and is not liable for outcomes resulting from these suggestions.";
+
+/**
+ * System prompt for AI task generation. Every change here is a compliance
+ * change — review with care. Key invariants:
+ *   1. Tasks are checklist items, not step-by-step procedures.
+ *   2. NEVER emit safety-critical procedural detail (gas isolation steps,
+ *      electrical lock-out sequences, asbestos handling, confined-space entry).
+ *      Defer to "qualified person + SWMS" instead.
+ *   3. Reference relevant Australian Standards by number when applicable
+ *      (e.g. AS/NZS 3000 for electrical, AS/NZS 3500 for plumbing,
+ *      AS 5601 for gas) but only at the task-name level, not as instructions.
+ *   4. Include scaffold tasks (scope confirm, SWMS/JSA, CoC, photos, invoice).
+ */
+const AI_TASK_SYSTEM_PROMPT = `You are an Australian-trade job-management assistant. Generate a job-task CHECKLIST (not procedures) for a tradesperson.
+
+Hard constraints:
+- Output between 5 and 12 tasks. Each title ≤ 80 characters.
+- Tasks are short, actionable checklist items the tradie ticks off on site.
+- DO NOT write step-by-step safety procedures. For any high-risk work (gas, electrical isolation, asbestos, confined space, working at heights), the task should defer to a SWMS / JSA prepared by a qualified person.
+- Reference relevant Australian Standards by number where natural (AS/NZS 3000 electrical, AS/NZS 3500 plumbing, AS 5601 gas, AS/NZS 4801/ISO 45001 OHS), but at the task-name level only — never embed instructions.
+- Always include: scope confirmation at start, SWMS/JSA before high-risk work, certificate of compliance (CoC) where required, completion photos, send invoice.
+- Set requiresDoc to "swms" for SWMS/JSA tasks, "safety_cert" for CoC/test certificates, null otherwise.
+- notes (optional, ≤ 200 chars): brief practical reminder, NOT instructions. Examples: "Confirm scope with customer in writing", "Minimum 30-minute hold at 1500 kPa".
+- DO NOT invent customer names, addresses, or appointment times.
+- Australian English. No emojis.`;
+
+/**
+ * Audit-log payload for AI task generation. Logged via console.info so it
+ * lands in Railway's log stream and can be queried / archived later.
+ */
+function logAiTaskAudit(payload: {
+  event: "ai_task_suggest" | "ai_task_accept";
+  clientId: number;
+  jobId: number;
+  staffSummary: string;
+  detail?: Record<string, unknown>;
+}) {
+  console.info("[ai-task-audit]", JSON.stringify({
+    ts: new Date().toISOString(),
+    ...payload,
+  }));
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -225,6 +275,192 @@ export const portalJobTasksRouter = router({
         tradeType: template.tradeType,
         displayName: template.displayName,
       };
+    }),
+
+  /**
+   * Generate a tailored task checklist from the LLM using the actual job
+   * title, description, and trade context. Does NOT insert tasks — returns
+   * suggestions for the user to review and confirm.
+   *
+   * Insurance/liability: every response includes the AI_TASK_DISCLAIMER.
+   * The system prompt forbids step-by-step safety-critical procedures.
+   * Generation is logged to the audit trail.
+   */
+  aiSuggestTasks: publicProcedure
+    .input(z.object({ jobId: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const job = await getJobForClient(input.jobId, client.id);
+      if (!job) throw new Error("Job not found");
+
+      // Pull trade context: crm_clients.tradeType is set during onboarding,
+      // client_profiles.industryType is the more granular setting. Either is
+      // OK; fall back to job.jobType when neither is configured.
+      const profile = await getClientProfile(client.id);
+      const tradeType =
+        client.tradeType ?? profile?.industryType ?? job.jobType ?? "general trade";
+
+      const jobContextLines = [
+        `Trade: ${tradeType}`,
+        `Job type: ${job.jobType ?? "(not specified)"}`,
+        job.description ? `Description: ${job.description}` : null,
+        job.customerName ? `Customer: ${job.customerName}` : null,
+        job.customerAddress || job.location
+          ? `Location: ${job.customerAddress ?? job.location}`
+          : null,
+        job.estimatedValue ? `Estimated value: $${job.estimatedValue}` : null,
+        job.notes ? `Notes: ${job.notes}` : null,
+      ].filter(Boolean) as string[];
+
+      const userPrompt = `Generate the job-task checklist for the following job. Use the job description (if provided) to tailor tasks to the actual scope, not just generic trade steps.\n\n${jobContextLines.join("\n")}`;
+
+      let suggestions: { title: string; notes: string | null; requiresDoc: "swms" | "safety_cert" | "jsa" | "site_induction" | null }[] = [];
+      let scopeWarning: string | null = null;
+
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: AI_TASK_SYSTEM_PROMPT },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "ai_job_tasks",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  tasks: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        notes: { type: ["string", "null"] },
+                        requiresDoc: {
+                          type: ["string", "null"],
+                          enum: ["swms", "safety_cert", "jsa", "site_induction", null],
+                        },
+                      },
+                      required: ["title", "notes", "requiresDoc"],
+                      additionalProperties: false,
+                    },
+                  },
+                  scopeWarning: {
+                    type: ["string", "null"],
+                    description: "Optional one-line warning if the job description is ambiguous or contains high-risk work that needs a qualified scope.",
+                  },
+                },
+                required: ["tasks", "scopeWarning"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawC = response.choices?.[0]?.message?.content ?? "{}";
+        const contentStr = typeof rawC === "string" ? rawC : (rawC as Array<{ type: string; text?: string }>)[0]?.text ?? "{}";
+        const parsed = JSON.parse(contentStr) as {
+          tasks?: { title?: string; notes?: string | null; requiresDoc?: "swms" | "safety_cert" | "jsa" | "site_induction" | null }[];
+          scopeWarning?: string | null;
+        };
+
+        suggestions = (parsed.tasks ?? [])
+          .filter(t => t?.title && typeof t.title === "string")
+          .slice(0, 12)
+          .map(t => ({
+            title: String(t.title).slice(0, 255),
+            notes: t.notes ? String(t.notes).slice(0, 2000) : null,
+            requiresDoc: t.requiresDoc ?? null,
+          }));
+        scopeWarning = parsed.scopeWarning ?? null;
+      } catch (err) {
+        console.error("[ai-task-suggest] LLM error:", err);
+        // Graceful fallback: empty list, surface error to client
+        suggestions = [];
+      }
+
+      logAiTaskAudit({
+        event: "ai_task_suggest",
+        clientId: client.id,
+        jobId: input.jobId,
+        staffSummary: `${suggestions.length} tasks suggested for "${job.jobType ?? tradeType}"`,
+        detail: {
+          tradeType,
+          jobType: job.jobType,
+          descriptionLength: job.description?.length ?? 0,
+          taskCount: suggestions.length,
+          scopeWarning,
+        },
+      });
+
+      return {
+        tasks: suggestions,
+        disclaimer: AI_TASK_DISCLAIMER,
+        scopeWarning,
+      };
+    }),
+
+  /**
+   * Insert a user-confirmed subset of AI-suggested tasks. Marks each task
+   * `aiGenerated: true` so the AI badge shows in the UI. Logs the acceptance
+   * in the audit trail (which tasks were accepted vs rejected).
+   */
+  addAiSuggestedTasks: publicProcedure
+    .input(z.object({
+      jobId: z.number().int().positive(),
+      tasks: z.array(z.object({
+        title: z.string().min(1).max(255),
+        notes: z.string().max(2000).nullable(),
+        requiresDoc: z.enum(["swms", "safety_cert", "jsa", "site_induction"]).nullable(),
+      })).min(1).max(20),
+      /** Number of suggestions originally returned (for audit log). */
+      suggestedCount: z.number().int().nonnegative().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const job = await getJobForClient(input.jobId, client.id);
+      if (!job) throw new Error("Job not found");
+
+      const existing = await listJobTasks(input.jobId, client.id);
+      const baseOrder = existing.length > 0 ? Math.max(...existing.map(t => t.sortOrder)) + 1 : 0;
+
+      const tasksToInsert = input.tasks.map((t, i) => ({
+        jobId: input.jobId,
+        clientId: client.id,
+        title: t.title,
+        notes: t.notes,
+        sortOrder: baseOrder + i,
+        requiresDoc: t.requiresDoc,
+        aiGenerated: true,
+        status: "pending" as const,
+        dueDate: null,
+        assignedStaffId: null,
+      }));
+      await bulkCreateJobTasks(tasksToInsert);
+
+      // Update tasksGeneratedAt so the next-action suggestion refreshes
+      const db = await getDb();
+      if (db) {
+        await db.update(portalJobs)
+          .set({ tasksGeneratedAt: new Date() })
+          .where(and(eq(portalJobs.id, input.jobId), eq(portalJobs.clientId, client.id)));
+      }
+
+      logAiTaskAudit({
+        event: "ai_task_accept",
+        clientId: client.id,
+        jobId: input.jobId,
+        staffSummary: `${tasksToInsert.length}/${input.suggestedCount ?? tasksToInsert.length} AI-suggested tasks accepted`,
+        detail: {
+          accepted: tasksToInsert.length,
+          suggested: input.suggestedCount ?? null,
+          titles: tasksToInsert.map(t => t.title),
+        },
+      });
+
+      return { added: tasksToInsert.length };
     }),
 
   /**
