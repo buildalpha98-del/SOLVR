@@ -7,13 +7,13 @@
  * Portal Calendar — monthly view with booked jobs and manual event creation.
  * Available on full-managed plan only.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2, Search, Briefcase, FileText, Bell, MoreHorizontal, Link2 } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
-import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
+import { hapticSuccess, hapticWarning } from "@/lib/haptics";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import { ViewerBanner } from "@/components/portal/ViewerBanner";
 
@@ -36,6 +36,17 @@ function getColor(color: string) {
   return COLOR_MAP[color] ?? "#F5A623";
 }
 
+type EventKind = "job" | "site-visit" | "follow-up" | "other";
+
+const KIND_META: Record<EventKind, { label: string; color: string; icon: typeof Briefcase; hint: string }> = {
+  "job": { label: "Job", color: "amber", icon: Briefcase, hint: "Pick an existing job to schedule" },
+  "site-visit": { label: "Site Visit", color: "blue", icon: FileText, hint: "Visit a customer to quote a job" },
+  "follow-up": { label: "Follow-up", color: "purple", icon: Bell, hint: "Reminder to chase a customer or check in" },
+  "other": { label: "Other", color: "gray", icon: MoreHorizontal, hint: "Anything else" },
+};
+
+const INPUT_STYLE = { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" };
+
 function AddEventModal({
   selectedDate,
   onClose,
@@ -43,80 +54,308 @@ function AddEventModal({
 }: {
   selectedDate: Date;
   onClose: () => void;
-  onAdd: (data: { title: string; startAt: Date; color: string; description?: string; location?: string; contactName?: string }) => void;
+  onAdd: (data: {
+    title: string;
+    startAt: Date;
+    color: string;
+    description?: string;
+    location?: string;
+    contactName?: string;
+    contactPhone?: string;
+    jobId?: number;
+  }) => void;
 }) {
+  const [kind, setKind] = useState<EventKind>("job");
+  const [linkedJobId, setLinkedJobId] = useState<number | null>(null);
+  const [linkedQuoteLabel, setLinkedQuoteLabel] = useState<string | null>(null);
+  const [linkedJobLabel, setLinkedJobLabel] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("09:00");
-  const [color, setColor] = useState("amber");
   const [location, setLocation] = useState("");
   const [contact, setContact] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [search, setSearch] = useState("");
+
+  const { data: jobs = [] } = trpc.portal.listJobs.useQuery(undefined, {
+    enabled: kind === "job",
+    staleTime: 60 * 1000,
+    retry: 2,
+  });
+  const { data: quotes = [] } = trpc.quotes.list.useQuery(undefined, {
+    enabled: kind === "site-visit",
+    staleTime: 60 * 1000,
+    retry: 2,
+  });
+
+  const filteredJobs = useMemo(() => {
+    const open = jobs.filter(j => j.stage !== "completed" && j.stage !== "lost");
+    const q = search.trim().toLowerCase();
+    const list = !q
+      ? open
+      : open.filter(j =>
+          (j.jobType ?? "").toLowerCase().includes(q) ||
+          (j.customerName ?? "").toLowerCase().includes(q) ||
+          (j.callerName ?? "").toLowerCase().includes(q) ||
+          (j.location ?? "").toLowerCase().includes(q) ||
+          (j.customerAddress ?? "").toLowerCase().includes(q)
+        );
+    return list.slice(0, 25);
+  }, [jobs, search]);
+
+  const filteredQuotes = useMemo(() => {
+    // Quotes still pending — drafts not yet sent or sent but awaiting response.
+    const open = quotes.filter(q => q.status === "draft" || q.status === "sent");
+    const s = search.trim().toLowerCase();
+    const list = !s
+      ? open
+      : open.filter(q =>
+          (q.jobTitle ?? "").toLowerCase().includes(s) ||
+          (q.customerName ?? "").toLowerCase().includes(s) ||
+          (q.customerAddress ?? "").toLowerCase().includes(s) ||
+          (q.quoteNumber ?? "").toLowerCase().includes(s)
+        );
+    return list.slice(0, 25);
+  }, [quotes, search]);
+
+  const switchKind = (next: EventKind) => {
+    setKind(next);
+    // Preserve typed title only if user hasn't auto-filled from a link
+    if (!linkedJobId && !linkedQuoteLabel) {
+      // Keep current values
+    }
+    setLinkedJobId(null);
+    setLinkedJobLabel(null);
+    setLinkedQuoteLabel(null);
+    setSearch("");
+  };
+
+  const pickJob = (j: { id: number; jobType: string; customerName: string | null; callerName: string | null; customerAddress: string | null; location: string | null; customerPhone: string | null; callerPhone: string | null }) => {
+    setLinkedJobId(j.id);
+    const customer = j.customerName ?? j.callerName ?? "";
+    const label = customer ? `${j.jobType} — ${customer}` : j.jobType;
+    setLinkedJobLabel(label);
+    setTitle(label);
+    setLocation(j.customerAddress ?? j.location ?? "");
+    setContact(customer);
+    setContactPhone(j.customerPhone ?? j.callerPhone ?? "");
+    setSearch("");
+  };
+
+  const pickQuote = (q: { id: string; jobTitle: string; customerName: string | null; customerAddress: string | null; customerPhone: string | null; quoteNumber: string | null }) => {
+    const customer = q.customerName ?? "";
+    const label = customer ? `Site visit — ${customer}` : `Site visit — ${q.jobTitle}`;
+    setLinkedQuoteLabel(label);
+    setTitle(label);
+    setLocation(q.customerAddress ?? "");
+    setContact(customer);
+    setContactPhone(q.customerPhone ?? "");
+    if (q.jobTitle && !notes.trim()) setNotes(`Quote: ${q.quoteNumber ?? q.jobTitle}`);
+    setSearch("");
+  };
+
+  const clearLink = () => {
+    setLinkedJobId(null);
+    setLinkedJobLabel(null);
+    setLinkedQuoteLabel(null);
+    setTitle("");
+    setLocation("");
+    setContact("");
+    setContactPhone("");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      hapticWarning();
+      toast.error("Give the event a title before saving.");
+      return;
+    }
     const [h, m] = time.split(":").map(Number);
     const startAt = new Date(selectedDate);
     startAt.setHours(h, m, 0, 0);
     onAdd({
       title: title.trim(),
       startAt,
-      color,
+      color: KIND_META[kind].color,
       description: notes.trim() || undefined,
       location: location.trim() || undefined,
       contactName: contact.trim() || undefined,
+      contactPhone: contactPhone.trim() || undefined,
+      jobId: linkedJobId ?? undefined,
     });
     onClose();
   };
 
+  const linkLabel = linkedJobLabel ?? linkedQuoteLabel;
+  const showJobPicker = kind === "job" && !linkedJobId;
+  const showQuotePicker = kind === "site-visit" && !linkedQuoteLabel;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
-      <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 overflow-y-auto" style={{ background: "rgba(0,0,0,0.7)" }}>
+      <div className="w-full max-w-md rounded-2xl p-5 space-y-4 max-h-[92vh] overflow-y-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)" }}>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-white">
-            Add Event — {selectedDate.toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
-          </h2>
-          <button onClick={onClose} className="text-white/40 hover:text-white/70"><X className="w-4 h-4" /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Job / Event *</label>
+            <h2 className="text-base font-semibold text-white">Add to Calendar</h2>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {selectedDate.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-white/40 hover:text-white/70 p-1 -m-1" aria-label="Close"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Event-kind tabs */}
+        <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl" style={{ background: "rgba(0,0,0,0.25)" }}>
+          {(Object.keys(KIND_META) as EventKind[]).map(k => {
+            const meta = KIND_META[k];
+            const Icon = meta.icon;
+            const active = kind === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => switchKind(k)}
+                className="flex flex-col items-center gap-1 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-all"
+                style={{
+                  background: active ? `${getColor(meta.color)}22` : "transparent",
+                  color: active ? getColor(meta.color) : "rgba(255,255,255,0.55)",
+                  border: active ? `1px solid ${getColor(meta.color)}55` : "1px solid transparent",
+                }}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs -mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>{KIND_META[kind].hint}</p>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Linked-to chip */}
+          {linkLabel && (
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg" style={{ background: `${getColor(KIND_META[kind].color)}15`, border: `1px solid ${getColor(KIND_META[kind].color)}40` }}>
+              <div className="flex items-center gap-2 min-w-0">
+                <Link2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: getColor(KIND_META[kind].color) }} />
+                <span className="text-xs font-medium truncate" style={{ color: "#fff" }}>Linked to: {linkLabel}</span>
+              </div>
+              <button type="button" onClick={clearLink} className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: getColor(KIND_META[kind].color) }}>
+                Change
+              </button>
+            </div>
+          )}
+
+          {/* Job picker */}
+          {showJobPicker && (
+            <div>
+              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Pick an existing job</label>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "rgba(255,255,255,0.35)" }} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by job, customer, or address…"
+                  className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                  style={INPUT_STYLE}
+                />
+              </div>
+              <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+                {filteredJobs.length === 0 ? (
+                  <p className="text-xs italic py-3 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    {jobs.length === 0 ? "No jobs yet — fill in the details below to add a one-off event." : "No jobs match your search."}
+                  </p>
+                ) : (
+                  filteredJobs.map(j => {
+                    const customer = j.customerName ?? j.callerName ?? "Unnamed customer";
+                    const addr = j.customerAddress ?? j.location;
+                    return (
+                      <button
+                        key={j.id}
+                        type="button"
+                        onClick={() => pickJob(j)}
+                        className="w-full text-left p-2.5 rounded-lg hover:bg-white/10 transition-colors"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+                      >
+                        <div className="text-xs font-semibold text-white truncate">{j.jobType}</div>
+                        <div className="text-[11px] mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.55)" }}>
+                          {customer}{addr && ` · ${addr}`}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Quote picker */}
+          {showQuotePicker && (
+            <div>
+              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Pick a pending quote</label>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "rgba(255,255,255,0.35)" }} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search by job, customer, or quote #…"
+                  className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                  style={INPUT_STYLE}
+                />
+              </div>
+              <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+                {filteredQuotes.length === 0 ? (
+                  <p className="text-xs italic py-3 text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+                    {quotes.length === 0 ? "No quotes yet — fill in the details below to add a manual site visit." : "No pending quotes match."}
+                  </p>
+                ) : (
+                  filteredQuotes.map(q => {
+                    const customer = q.customerName ?? "Unnamed customer";
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => pickQuote(q)}
+                        className="w-full text-left p-2.5 rounded-lg hover:bg-white/10 transition-colors"
+                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+                      >
+                        <div className="text-xs font-semibold text-white truncate">
+                          {q.jobTitle} {q.quoteNumber && <span style={{ color: "rgba(255,255,255,0.4)" }}>· {q.quoteNumber}</span>}
+                        </div>
+                        <div className="text-[11px] mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.55)" }}>
+                          {customer}{q.customerAddress && ` · ${q.customerAddress}`}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Title *</label>
             <input
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="e.g. Hot water repair — John Smith"
+              placeholder={kind === "follow-up" ? "Follow up with John about quote" : "e.g. Hot water repair — John Smith"}
               className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+              style={INPUT_STYLE}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Time</label>
-              <input
-                type="time"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Colour</label>
-              <select
-                value={color}
-                onChange={e => setColor(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
-              >
-                <option value="amber">Amber (Job)</option>
-                <option value="blue">Blue (Quote)</option>
-                <option value="purple">Purple (Follow-up)</option>
-                <option value="green">Green (Completed)</option>
-                <option value="gray">Grey (Other)</option>
-              </select>
-            </div>
+
+          <div>
+            <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Time</label>
+            <input
+              type="time"
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+              style={INPUT_STYLE}
+            />
           </div>
+
           <div>
             <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Location</label>
             <input
@@ -125,20 +364,35 @@ function AddEventModal({
               onChange={e => setLocation(e.target.value)}
               placeholder="Address or suburb"
               className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+              style={INPUT_STYLE}
             />
           </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Customer Name</label>
-            <input
-              type="text"
-              value={contact}
-              onChange={e => setContact(e.target.value)}
-              placeholder="e.g. John Smith"
-              className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
-            />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Customer</label>
+              <input
+                type="text"
+                value={contact}
+                onChange={e => setContact(e.target.value)}
+                placeholder="John Smith"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={INPUT_STYLE}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Phone</label>
+              <input
+                type="tel"
+                value={contactPhone}
+                onChange={e => setContactPhone(e.target.value)}
+                placeholder="0400 000 000"
+                className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style={INPUT_STYLE}
+              />
+            </div>
           </div>
+
           <div>
             <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Notes</label>
             <textarea
@@ -147,13 +401,14 @@ function AddEventModal({
               placeholder="Special instructions…"
               rows={2}
               className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff" }}
+              style={INPUT_STYLE}
             />
           </div>
+
           <button
             type="submit"
-            className="w-full py-2.5 rounded-lg text-sm font-semibold"
-            style={{ background: "#F5A623", color: "#0F1F3D" }}
+            className="w-full py-3 rounded-lg text-sm font-semibold"
+            style={{ background: getColor(KIND_META[kind].color), color: "#0F1F3D" }}
           >
             Add to Calendar
           </button>
@@ -181,11 +436,19 @@ export default function PortalCalendar() {
   });
 
   const createEventMutation = trpc.portal.createCalendarEvent.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       utils.portal.listCalendarEvents.invalidate();
+      // Refresh job list if the event was linked to a job (hasCalendarEvent flips)
+      if (vars?.jobId) {
+        utils.portal.listJobs.invalidate();
+      }
+      hapticSuccess();
       toast.success("Event added");
     },
-    onError: () => toast.error("Failed to add event"),
+    onError: (err) => {
+      hapticWarning();
+      toast.error(err?.message ?? "Failed to add event");
+    },
   });
 
   if (!features.includes("calendar")) {
