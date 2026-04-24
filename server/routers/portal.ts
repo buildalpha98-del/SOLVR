@@ -141,16 +141,33 @@ import { getPortalClient, PORTAL_COOKIE, requirePortalAuth, requirePortalWrite }
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ─── Plan feature matrix ──────────────────────────────────────────────────────
+// Three canonical tiers, superset structure (Quotes ⊂ Jobs ⊂ AI):
+//
+//   Quotes  — quoting + AI receptionist (dashboard, calls)
+//   Jobs    — Quotes + jobs pipeline, calendar, invoice chasing
+//   AI      — Jobs + AI insights, price list / quote-engine add-on
+//
+// Both the legacy `crm_clients.package` enum values (setup-only / setup-monthly /
+// full-managed) and the new RevenueCat plan slugs (solvr_quotes / solvr_jobs /
+// solvr_ai) map to the same tier — MUST be kept in sync or the nav will lie
+// about what's unlocked. Any new feature gate key the UI adds MUST also be
+// added here, or it'll be locked for every user forever (see the long-running
+// "invoice-chasing" bug).
 type SolvrPlan = "setup-only" | "setup-monthly" | "full-managed" | "solvr_quotes" | "solvr_jobs" | "solvr_ai";
 
+const QUOTES_FEATURES = ["dashboard", "calls"];
+const JOBS_FEATURES   = [...QUOTES_FEATURES, "jobs", "calendar", "invoice-chasing"];
+const AI_FEATURES     = [...JOBS_FEATURES, "ai-insights", "quote-engine"];
+
 const PLAN_FEATURES: Record<SolvrPlan, string[]> = {
-  "setup-only":    ["dashboard", "calls"],
-  "setup-monthly": ["dashboard", "calls", "jobs"],
-  "full-managed":  ["dashboard", "calls", "jobs", "calendar", "ai-insights"],
-  // New RevenueCat-managed plans
-  "solvr_quotes":  ["dashboard", "calls"],
-  "solvr_jobs":    ["dashboard", "calls", "jobs", "calendar"],
-  "solvr_ai":      ["dashboard", "calls", "jobs", "calendar", "ai-insights"],
+  // Legacy package enum (still the source of truth on crm_clients.package)
+  "setup-only":    QUOTES_FEATURES,
+  "setup-monthly": JOBS_FEATURES,
+  "full-managed":  AI_FEATURES,
+  // New RevenueCat slugs — same tiers, different names
+  "solvr_quotes":  QUOTES_FEATURES,
+  "solvr_jobs":    JOBS_FEATURES,
+  "solvr_ai":      AI_FEATURES,
 };
 
 function hasFeature(plan: SolvrPlan, feature: string): boolean {
