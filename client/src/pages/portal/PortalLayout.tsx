@@ -28,7 +28,8 @@ import { usePortalRole } from "@/hooks/usePortalRole";
 import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles, Bot,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
-  CalendarClock, UserCog, Star, ChevronDown, Tag, UserPlus, MoreHorizontal, BarChart3, Hammer, Package, ClipboardList
+  CalendarClock, UserCog, Star, ChevronDown, Tag, UserPlus, MoreHorizontal, BarChart3, Hammer, Package, ClipboardList,
+  MessageCircle
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -49,9 +50,10 @@ const ALL_TABS: NavTab[] = [
   { key: "dashboard", label: "Dashboard", href: "/portal/dashboard", icon: <LayoutDashboard className="w-4 h-4" />, feature: "dashboard" },
   { key: "jobs", label: "Jobs", href: "/portal/jobs", icon: <Briefcase className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "calendar", label: "Calendar", href: "/portal/calendar", icon: <Calendar className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
+  { key: "messages", label: "Messages", href: "/portal/messages", icon: <MessageCircle className="w-4 h-4" />, feature: "dashboard" },
   { key: "invoices", label: "Invoices", href: "/portal/invoices", icon: <Receipt className="w-4 h-4" />, feature: "invoice-chasing", badge: "Pro" },
-  { key: "assistant", label: "AI Assistant", href: "/portal/assistant", icon: <Bot className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   // ── Overflow items (More drawer) ──
+  { key: "assistant", label: "AI Assistant", href: "/portal/assistant", icon: <Bot className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "calls", label: "Calls", href: "/portal/calls", icon: <Phone className="w-4 h-4" />, feature: "calls" },
   // Quotes merged into Jobs tab — no longer in More drawer
   { key: "customers", label: "Customers", href: "/portal/customers", icon: <Users className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
@@ -69,7 +71,7 @@ const ALL_TABS: NavTab[] = [
 ];
 
 // 5 primary tabs — the tradie's daily workflow
-const PRIMARY_TAB_KEYS = ["dashboard", "jobs", "calendar", "invoices", "assistant"];
+const PRIMARY_TAB_KEYS = ["dashboard", "jobs", "calendar", "messages", "invoices"];
 
 // ─── Desktop More dropdown ───────────────────────────────────────────────────
 function DesktopMoreDropdown({ features, currentTab, referralEnabled }: { features: string[]; currentTab: string; referralEnabled: boolean }) {
@@ -139,7 +141,7 @@ function DesktopMoreDropdown({ features, currentTab, referralEnabled }: { featur
 }
 
 // ─── Mobile bottom tab bar ───────────────────────────────────────────────────
-function BottomTabBar({ features, currentTab, onLogout, isLoggingOut, referralEnabled }: { features: string[]; currentTab: string; onLogout: () => void; isLoggingOut: boolean; referralEnabled: boolean }) {
+function BottomTabBar({ features, currentTab, onLogout, isLoggingOut, referralEnabled, unreadMessages }: { features: string[]; currentTab: string; onLogout: () => void; isLoggingOut: boolean; referralEnabled: boolean; unreadMessages: number }) {
   const [showMore, setShowMore] = useState(false);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragDeltaY, setDragDeltaY] = useState(0);
@@ -179,8 +181,16 @@ function BottomTabBar({ features, currentTab, onLogout, isLoggingOut, referralEn
                 className="flex flex-col items-center justify-center gap-0.5 h-full w-full text-[10px] font-medium transition-colors relative"
                 style={{ color: isActive ? "#F5A623" : unlocked ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.2)" }}
               >
-                <span className="[&>svg]:w-5 [&>svg]:h-5">
+                <span className="[&>svg]:w-5 [&>svg]:h-5 relative">
                   {unlocked ? tab.icon : <Lock className="w-5 h-5" />}
+                  {tab.key === "messages" && unreadMessages > 0 && (
+                    <span
+                      className="absolute -top-1 -right-2 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full text-[9px] font-bold"
+                      style={{ background: "#F5A623", color: "#0F1F3D" }}
+                    >
+                      {unreadMessages > 9 ? "9+" : unreadMessages}
+                    </span>
+                  )}
                 </span>
                 {tab.label}
                 {isActive && (
@@ -363,6 +373,13 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
 
   const features = me.features ?? [];
   const currentTab = resolvedActiveTab;
+  // Unread SMS badge for the Messages tab. 30s staleTime = badge updates
+  // on a window-focus or pull-to-refresh; we don't poll continuously.
+  const { data: unreadData } = trpc.smsConversations.getUnreadCount.useQuery(undefined, {
+    staleTime: 30_000,
+    retry: 2,
+  });
+  const unreadMessages = currentTab === "messages" ? 0 : (unreadData?.count ?? 0);
 
   return (
     <div
@@ -415,7 +432,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
               return (
                 <Link key={tab.key} href={tab.href}>
                   <span
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer relative"
                     style={{
                       background: isActive ? "rgba(245,166,35,0.12)" : "transparent",
                       color: isActive ? "#F5A623" : "rgba(255,255,255,0.7)",
@@ -423,6 +440,14 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
                   >
                     {tab.icon}
                     {tab.label}
+                    {tab.key === "messages" && unreadMessages > 0 && (
+                      <span
+                        className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[10px] font-bold ml-0.5"
+                        style={{ background: "#F5A623", color: "#0F1F3D" }}
+                      >
+                        {unreadMessages > 9 ? "9+" : unreadMessages}
+                      </span>
+                    )}
                   </span>
                 </Link>
               );
@@ -502,7 +527,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
-        <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} referralEnabled={referralEnabled} />
+        <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} referralEnabled={referralEnabled} unreadMessages={unreadMessages} />
       </nav>
     </div>
   );
