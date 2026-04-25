@@ -58,6 +58,44 @@ const STAGE_COLORS: Record<string, { bg: string; color: string }> = {
   lost: { bg: "rgba(248,113,113,0.15)", color: "#f87171" },
 };
 
+/**
+ * In-app SMS chip. If a SOLVR conversation already exists with this
+ * customer, links straight into the thread. Otherwise links to the
+ * Messages inbox where the tradie can search or wait for the customer
+ * to reply to an outbound SMS that auto-creates the thread.
+ *
+ * Loads its conversation lookup lazily — the chip itself renders
+ * immediately and the link target sharpens once the query resolves.
+ */
+function CustomerMessagesChip({ customerPhone }: { customerPhone: string }) {
+  const { data: conversation } = trpc.smsConversations.listByCustomerPhone.useQuery(
+    { customerPhone },
+    { staleTime: 30_000, retry: 1 },
+  );
+  const target = conversation?.id ? `/portal/messages/${conversation.id}` : `/portal/messages`;
+  const hasUnread = (conversation?.unreadCount ?? 0) > 0;
+  const [, navigate] = useLocation();
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(target)}
+      className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold relative"
+      style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", minHeight: "28px" }}
+      aria-label={`Open SMS conversation with ${customerPhone}`}
+    >
+      <MessageSquare className="w-3 h-3" /> Messages
+      {hasUnread && (
+        <span
+          className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 rounded-full text-[9px] font-bold"
+          style={{ background: "#F5A623", color: "#0F1F3D" }}
+        >
+          {(conversation?.unreadCount ?? 0) > 9 ? "9+" : conversation?.unreadCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function PortalCustomerDetail() {
   const params = useParams<{ id: string }>();
   const customerId = parseInt(params.id ?? "0", 10);
@@ -172,14 +210,7 @@ export default function PortalCustomerDetail() {
                     >
                       <Phone className="w-3.5 h-3.5" />{customer.phone}
                     </a>
-                    <a
-                      href={`sms:${customer.phone.replace(/[^\d+]/g, "")}`}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold"
-                      style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", minHeight: "28px" }}
-                      aria-label={`Text ${customer.phone}`}
-                    >
-                      <MessageSquare className="w-3 h-3" /> SMS
-                    </a>
+                    <CustomerMessagesChip customerPhone={customer.phone} />
                   </>
                 )}
                 {customer.email && (
