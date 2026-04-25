@@ -48,6 +48,7 @@ import { portalFormsRouter } from "./routers/portalForms";
 import { stripeConnectRouter } from "./routers/stripeConnect";
 import { smsConversationsRouter } from "./routers/smsConversations";
 import { liveTrackingRouter } from "./routers/liveTracking";
+import { customerImportRouter } from "./routers/customerImport";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1598,5 +1599,6 @@ export const appRouter = router({
   stripeConnect: stripeConnectRouter,
   smsConversations: smsConversationsRouter,
   tracking: liveTrackingRouter,
+  customerImport: customerImportRouter,
 });
 export type AppRouter = typeof appRouter;

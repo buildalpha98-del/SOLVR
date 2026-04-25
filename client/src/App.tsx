@@ -87,6 +87,7 @@ import PortalSubscription from "./pages/portal/PortalSubscription";
 import PortalReferral from "./pages/portal/PortalReferral";
 import PortalCustomers from "./pages/portal/PortalCustomers";
 import PortalCustomerDetail from "./pages/portal/PortalCustomerDetail";
+import PortalCustomersImport from "./pages/portal/PortalCustomersImport";
 import PortalAIInsights from "./pages/portal/PortalAIInsights";
 import PortalCompliance from "./pages/portal/PortalCompliance";
 import PortalStaff from "./pages/portal/PortalStaff";
@@ -223,6 +224,7 @@ function Router() {
       <Route path="/portal/invoices" component={PortalInvoices} />
       <Route path="/portal/subscription" component={PortalSubscription} />
       <Route path="/portal/referral" component={PortalReferral} />
+      <Route path="/portal/customers/import" component={PortalCustomersImport} />
       <Route path="/portal/customers/:id" component={PortalCustomerDetail} />
       <Route path="/portal/customers" component={PortalCustomers} />
       <Route path="/portal/insights" component={PortalAIInsights} />

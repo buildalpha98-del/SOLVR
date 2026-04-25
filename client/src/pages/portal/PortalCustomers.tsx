@@ -31,7 +31,7 @@ import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import { ErrorState } from "@/components/portal/ErrorState";
 import {
   Users, Search, MessageSquare, ChevronRight, Phone, UserPlus,
-  MapPin, Loader2, CheckSquare, Square, Download, DollarSign, Briefcase,
+  MapPin, Loader2, CheckSquare, Square, Download, Upload, DollarSign, Briefcase,
   History, BellOff, CalendarClock, BookOpen, Plus, Trash2,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -269,6 +269,16 @@ export default function PortalCustomers() {
                   className="border-white/10 text-white/60 hover:text-white min-h-11"
                 >
                   <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Add
+                </Button>
+              </WriteGuard>
+              <WriteGuard>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate("/portal/customers/import")}
+                  className="border-white/10 text-white/60 hover:text-white min-h-11"
+                >
+                  <Upload className="w-3.5 h-3.5 mr-1.5" /> Import
                 </Button>
               </WriteGuard>
               <Button
