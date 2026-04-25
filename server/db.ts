@@ -3421,7 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, pushSubscriptions } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions } from "../drizzle/schema";
+import type { InsertAiTaskAudit } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3511,4 +3512,23 @@ export async function logAccountDeletion(data: {
     deletedBy: data.deletedBy,
     reason: data.reason ?? null,
   });
+}
+
+/**
+ * Append an AI Task audit row. Used as the liability evidence trail for
+ * AI-suggested job tasks. Errors are caught — audit failure must NEVER
+ * block the user-facing operation.
+ */
+export async function createAiTaskAudit(
+  data: Omit<InsertAiTaskAudit, "id" | "createdAt">,
+): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(aiTaskAudit).values(data);
+  } catch (err) {
+    // Audit write must not break the request. Log to stderr so we still
+    // catch it in Railway, but don't surface to the user.
+    console.error("[ai-task-audit] DB write failed:", err);
+  }
 }

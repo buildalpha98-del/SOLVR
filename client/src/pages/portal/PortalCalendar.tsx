@@ -49,10 +49,14 @@ const INPUT_STYLE = { background: "rgba(255,255,255,0.06)", border: "1px solid r
 
 function AddEventModal({
   selectedDate,
+  features,
   onClose,
   onAdd,
 }: {
   selectedDate: Date;
+  /** Feature flags for the current portal client — used to gate pickers
+   *  and tabs so the modal never fires a query the user can't authorise. */
+  features: string[];
   onClose: () => void;
   onAdd: (data: {
     title: string;
@@ -65,7 +69,13 @@ function AddEventModal({
     jobId?: number;
   }) => void;
 }) {
-  const [kind, setKind] = useState<EventKind>("job");
+  // Calendar implies "jobs" structurally (JOBS_FEATURES tier). quote-engine
+  // is only on the top AI tier, so users on the Jobs plan get an upgrade
+  // hint instead of a broken site-visit picker.
+  const canPickJobs = features.includes("jobs");
+  const canPickQuotes = features.includes("quote-engine");
+
+  const [kind, setKind] = useState<EventKind>(canPickJobs ? "job" : "other");
   const [linkedJobId, setLinkedJobId] = useState<number | null>(null);
   const [linkedQuoteLabel, setLinkedQuoteLabel] = useState<string | null>(null);
   const [linkedJobLabel, setLinkedJobLabel] = useState<string | null>(null);
@@ -78,12 +88,12 @@ function AddEventModal({
   const [search, setSearch] = useState("");
 
   const { data: jobs = [] } = trpc.portal.listJobs.useQuery(undefined, {
-    enabled: kind === "job",
+    enabled: kind === "job" && canPickJobs,
     staleTime: 60 * 1000,
     retry: 2,
   });
   const { data: quotes = [] } = trpc.quotes.list.useQuery(undefined, {
-    enabled: kind === "site-visit",
+    enabled: kind === "site-visit" && canPickQuotes,
     staleTime: 60 * 1000,
     retry: 2,
   });
@@ -210,6 +220,9 @@ function AddEventModal({
             const meta = KIND_META[k];
             const Icon = meta.icon;
             const active = kind === k;
+            // Site Visit needs the quote-engine feature (top tier). Show the
+            // tab as locked rather than hidden so the upgrade path is visible.
+            const locked = k === "site-visit" && !canPickQuotes;
             return (
               <button
                 key={k}
@@ -220,9 +233,12 @@ function AddEventModal({
                   background: active ? `${getColor(meta.color)}22` : "transparent",
                   color: active ? getColor(meta.color) : "rgba(255,255,255,0.55)",
                   border: active ? `1px solid ${getColor(meta.color)}55` : "1px solid transparent",
+                  opacity: locked && !active ? 0.55 : 1,
                 }}
               >
-                <Icon className="w-3.5 h-3.5" />
+                {locked
+                  ? <Lock className="w-3 h-3" />
+                  : <Icon className="w-3.5 h-3.5" />}
                 {meta.label}
               </button>
             );
@@ -288,8 +304,21 @@ function AddEventModal({
             </div>
           )}
 
+          {/* Site-visit upgrade hint when quote-engine feature is locked */}
+          {kind === "site-visit" && !canPickQuotes && (
+            <div
+              className="flex items-start gap-2 p-3 rounded-lg"
+              style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
+            >
+              <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+              <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.75)" }}>
+                The pending-quote picker is on the AI plan. You can still book a manual site visit below — fill in the customer and location, and we'll add it to the calendar.
+              </p>
+            </div>
+          )}
+
           {/* Quote picker */}
-          {showQuotePicker && (
+          {showQuotePicker && canPickQuotes && (
             <div>
               <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>Pick a pending quote</label>
               <div className="relative mb-2">
@@ -504,6 +533,7 @@ export default function PortalCalendar() {
       {showAdd && selectedDate && (
         <AddEventModal
           selectedDate={selectedDate}
+          features={features}
           onClose={() => setShowAdd(false)}
           onAdd={data => createEventMutation.mutate(data)}
         />

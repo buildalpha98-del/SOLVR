@@ -498,6 +498,13 @@
       "when": 1776837736578,
       "tag": "0070_lumpy_harrier",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "5",
+      "when": 1777089399113,
+      "tag": "0071_ancient_retro_girl",
+      "breakpoints": true
     }
   ]
 }

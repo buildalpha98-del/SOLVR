@@ -2073,3 +2073,36 @@ export const accountDeletionLogs = mysqlTable("account_deletion_logs", {
 });
 export type AccountDeletionLog = typeof accountDeletionLogs.$inferSelect;
 export type InsertAccountDeletionLog = typeof accountDeletionLogs.$inferInsert;
+
+// ─── AI Task Audit Log ──────────────────────────────────────────────────────
+/**
+ * Append-only log of every AI Task suggestion and acceptance event.
+ * Used as the liability/insurance evidence trail — keeps a record of
+ * what the LLM proposed and what the tradie chose to add to the job.
+ *
+ * Two event types:
+ *   - "suggest": LLM returned N suggestions for a job (no tasks added yet)
+ *   - "accept": tradie confirmed and inserted M of those N tasks
+ *
+ * Detail (JSON) carries the structured payload that varies per event:
+ *   suggest: { tradeType, jobType, descriptionLength, taskCount, scopeWarning }
+ *   accept:  { accepted, suggested, titles[] }
+ */
+export const aiTaskAudit = mysqlTable("ai_task_audit", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crm_clients.id — the business that requested the suggestion */
+  clientId: int("clientId").notNull(),
+  /** FK to portal_jobs.id — the job the tasks were generated for */
+  jobId: int("jobId").notNull(),
+  /** Event kind: suggestion returned vs. tasks accepted/inserted */
+  event: mysqlEnum("event", ["suggest", "accept"]).notNull(),
+  /** Human-readable summary, surfaced in admin views */
+  staffSummary: varchar("staffSummary", { length: 500 }).notNull(),
+  /** Model identifier (e.g. claude-opus-4-7). Null for accept events. */
+  model: varchar("model", { length: 100 }),
+  /** Structured payload — see comment above for shape */
+  detail: json("detail"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AiTaskAudit = typeof aiTaskAudit.$inferSelect;
+export type InsertAiTaskAudit = typeof aiTaskAudit.$inferInsert;

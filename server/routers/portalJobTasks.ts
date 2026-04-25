@@ -28,7 +28,7 @@ import {
 import { getTradeTemplate } from "../lib/tradeTaskTemplates";
 import { invokeLLM } from "../_core/llm";
 import { transcribeAudio } from "../_core/voiceTranscription";
-import { getClientProfile, getCrmClientById } from "../db";
+import { createAiTaskAudit, getClientProfile, getCrmClientById } from "../db";
 import { getDb } from "../db";
 import { portalJobs } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
@@ -67,20 +67,36 @@ Hard constraints:
 - Australian English. No emojis.`;
 
 /**
- * Audit-log payload for AI task generation. Logged via console.info so it
- * lands in Railway's log stream and can be queried / archived later.
+ * Audit-log writer for AI task generation. Writes to the ai_task_audit
+ * table (primary, queryable trail for liability claims) and also mirrors
+ * to console.info so events land in Railway's log stream as a backup.
+ *
+ * Audit failure must NEVER block the user-facing operation —
+ * createAiTaskAudit catches its own errors. console.info is the always-on
+ * fallback record.
  */
-function logAiTaskAudit(payload: {
-  event: "ai_task_suggest" | "ai_task_accept";
+async function logAiTaskAudit(payload: {
+  event: "suggest" | "accept";
   clientId: number;
   jobId: number;
   staffSummary: string;
+  model?: string;
   detail?: Record<string, unknown>;
 }) {
+  // Belt: console log (Railway log stream)
   console.info("[ai-task-audit]", JSON.stringify({
     ts: new Date().toISOString(),
     ...payload,
   }));
+  // Braces: queryable DB row
+  await createAiTaskAudit({
+    clientId: payload.clientId,
+    jobId: payload.jobId,
+    event: payload.event,
+    staffSummary: payload.staffSummary.slice(0, 500),
+    model: payload.model ?? null,
+    detail: payload.detail ?? null,
+  });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -381,11 +397,12 @@ export const portalJobTasksRouter = router({
         suggestions = [];
       }
 
-      logAiTaskAudit({
-        event: "ai_task_suggest",
+      await logAiTaskAudit({
+        event: "suggest",
         clientId: client.id,
         jobId: input.jobId,
         staffSummary: `${suggestions.length} tasks suggested for "${job.jobType ?? tradeType}"`,
+        model: process.env.ANTHROPIC_MODEL?.trim() || "claude-opus-4-7",
         detail: {
           tradeType,
           jobType: job.jobType,
@@ -448,8 +465,8 @@ export const portalJobTasksRouter = router({
           .where(and(eq(portalJobs.id, input.jobId), eq(portalJobs.clientId, client.id)));
       }
 
-      logAiTaskAudit({
-        event: "ai_task_accept",
+      await logAiTaskAudit({
+        event: "accept",
         clientId: client.id,
         jobId: input.jobId,
         staffSummary: `${tasksToInsert.length}/${input.suggestedCount ?? tasksToInsert.length} AI-suggested tasks accepted`,
