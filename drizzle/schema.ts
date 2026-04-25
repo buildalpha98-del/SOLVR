@@ -1364,12 +1364,56 @@ export const paymentLinks = mysqlTable("payment_links", {
   smsSentAt: timestamp("smsSentAt"),
   /** When the customer paid */
   paidAt: timestamp("paidAt"),
+  /** Total refunded so far in cents (Sprint 3.2). Includes partials. */
+  refundedAmountCents: int("refundedAmountCents").default(0).notNull(),
+  /** When the most recent refund was issued */
+  refundedAt: timestamp("refundedAt"),
+  /** Human-readable reason for the refund (audit) */
+  refundReason: varchar("refundReason", { length: 255 }),
   /** When this link expires (default 7 days) */
   expiresAt: timestamp("expiresAt").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type PaymentLink = typeof paymentLinks.$inferSelect;
 export type InsertPaymentLink = typeof paymentLinks.$inferInsert;
+
+// ─── Stripe Connect disputes (Sprint 3.2) ───────────────────────────────────
+/**
+ * Mirror of Stripe's dispute objects for the connected account. Populated
+ * by the charge.dispute.* webhooks.
+ *
+ * v1: surface the dispute to the tradie so they know to act. Evidence
+ * submission still happens in Stripe's dashboard via createDashboardLink.
+ * v2: in-app evidence submission flow.
+ */
+export const stripeDisputes = mysqlTable("stripe_disputes", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crm_clients.id — which tradie this dispute is on */
+  clientId: int("clientId").notNull(),
+  /** Stripe dispute ID (dp_xxx) — UNIQUE so webhook re-deliveries idempotent */
+  stripeDisputeId: varchar("stripeDisputeId", { length: 64 }).notNull().unique(),
+  /** The Stripe charge that was disputed */
+  stripeChargeId: varchar("stripeChargeId", { length: 64 }).notNull(),
+  /** Optional FK to payment_links.id when we can match the dispute to one */
+  paymentLinkId: varchar("paymentLinkId", { length: 36 }),
+  amountCents: int("amountCents").notNull(),
+  currency: varchar("currency", { length: 3 }).default("aud").notNull(),
+  /** Stripe reason: fraudulent / unrecognized / duplicate / etc. */
+  reason: varchar("reason", { length: 64 }).notNull(),
+  /** Stripe status: warning_needs_response / needs_response / under_review /
+   *  charge_refunded / won / lost / etc. — full Stripe enum, kept as string. */
+  status: varchar("status", { length: 64 }).notNull(),
+  /** When the tradie must submit evidence by (Stripe-provided deadline) */
+  evidenceDueBy: timestamp("evidenceDueBy"),
+  /** When the dispute was created on Stripe */
+  stripeCreatedAt: timestamp("stripeCreatedAt").notNull(),
+  /** When we last received a webhook for this dispute */
+  lastWebhookAt: timestamp("lastWebhookAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StripeDispute = typeof stripeDisputes.$inferSelect;
+export type InsertStripeDispute = typeof stripeDisputes.$inferInsert;
 
 // ─── Quote Follow-Ups ─────────────────────────────────────────────────────────
 /**

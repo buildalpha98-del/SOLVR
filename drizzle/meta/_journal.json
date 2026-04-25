@@ -533,6 +533,13 @@
       "when": 1777109436874,
       "tag": "0075_glorious_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1777110502389,
+      "tag": "0076_clear_energizer",
+      "breakpoints": true
     }
   ]
 }

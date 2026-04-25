@@ -30,6 +30,9 @@ import {
   updateStripeConnection,
   getCrmClientById,
   getClientProfile,
+  getPaymentLinkByToken,
+  updatePaymentLink,
+  listStripeDisputesByClient,
 } from "../db";
 import { getStripe } from "../stripe";
 
@@ -218,6 +221,146 @@ export const stripeConnectRouter = router({
    * The tradie can reconnect any time — that creates a fresh Express
    * account rather than re-using the old one (see startOnboarding).
    */
+  /**
+   * Refund a payment link (full or partial). Sprint 3.2.
+   *
+   * Routes through the connected account so the refund debits the
+   * tradie's Stripe balance, not SOLVR's. Updates the payment_links
+   * row with refundedAmountCents + refundedAt + refundReason for the
+   * audit trail. Does NOT undo invoice_chases.status — a refund
+   * doesn't necessarily mean the work didn't happen, the tradie may
+   * still want to chase the balance manually.
+   *
+   * Idempotency: if the cumulative refunded amount equals the original
+   * charge, further refunds are rejected by Stripe — we surface that
+   * error verbatim so the tradie sees "fully refunded already".
+   */
+  refundPayment: publicProcedure
+    .input(z.object({
+      paymentLinkToken: z.string().min(1),
+      /** Refund amount in cents. Omit for full refund of remaining balance. */
+      amountCents: z.number().int().positive().optional(),
+      reason: z.enum(["requested_by_customer", "duplicate", "fraudulent"]).default("requested_by_customer"),
+      note: z.string().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req);
+      const link = await getPaymentLinkByToken(input.paymentLinkToken);
+      if (!link || link.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Payment link not found." });
+      }
+      if (link.status !== "paid" || !link.stripePaymentIntentId) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Only paid invoices can be refunded." });
+      }
+
+      const conn = await getStripeConnection(client.id);
+      if (!conn || conn.disconnectedAt) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe disconnected — reconnect first." });
+      }
+
+      const remaining = link.amountCents - (link.refundedAmountCents ?? 0);
+      if (remaining <= 0) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This payment is already fully refunded." });
+      }
+      const refundCents = input.amountCents ?? remaining;
+      if (refundCents > remaining) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Refund $${(refundCents / 100).toFixed(2)} exceeds remaining $${(remaining / 100).toFixed(2)}.`,
+        });
+      }
+
+      const stripe = getStripe();
+      try {
+        // Create the refund on the connected account (so funds debit the
+        // tradie's account, not SOLVR's). The payment intent ID encodes
+        // the original charge.
+        const refund = await stripe.refunds.create(
+          {
+            payment_intent: link.stripePaymentIntentId,
+            amount: refundCents,
+            reason: input.reason,
+            metadata: {
+              solvr_payment_link_id: link.id,
+              solvr_payment_link_token: link.token,
+              solvr_client_id: String(client.id),
+              solvr_note: input.note ?? "",
+            },
+          },
+          { stripeAccount: conn.stripeAccountId },
+        );
+
+        // Mark on our side. We accumulate in case of multiple partials.
+        const newTotal = (link.refundedAmountCents ?? 0) + refundCents;
+        await updatePaymentLink(link.id, {
+          refundedAmountCents: newTotal,
+          refundedAt: new Date(),
+          refundReason: input.note?.slice(0, 255) ?? input.reason,
+        });
+
+        return {
+          success: true,
+          refundId: refund.id,
+          refundedCents: refundCents,
+          totalRefundedCents: newTotal,
+          remainingCents: link.amountCents - newTotal,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Refund failed";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message });
+      }
+    }),
+
+  /**
+   * List disputes (chargebacks) on the tradie's connected account.
+   * Sprint 3.2. Used by the Disputes settings panel + the nav badge
+   * count.
+   */
+  listDisputes: publicProcedure
+    .input(z.object({ activeOnly: z.boolean().default(false) }).optional())
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      const rows = await listStripeDisputesByClient(client.id, {
+        activeOnly: input?.activeOnly ?? false,
+      });
+      return rows.map(d => ({
+        id: d.id,
+        stripeDisputeId: d.stripeDisputeId,
+        stripeChargeId: d.stripeChargeId,
+        paymentLinkId: d.paymentLinkId,
+        amountCents: d.amountCents,
+        currency: d.currency,
+        reason: d.reason,
+        status: d.status,
+        evidenceDueBy: d.evidenceDueBy,
+        stripeCreatedAt: d.stripeCreatedAt,
+      }));
+    }),
+
+  /**
+   * Sprint 3.2 — count of refunds + remaining balance for a specific
+   * paid invoice. Used by the invoice card + refund modal.
+   */
+  getPaymentRefundStatus: publicProcedure
+    .input(z.object({ paymentLinkToken: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      const link = await getPaymentLinkByToken(input.paymentLinkToken);
+      if (!link || link.clientId !== client.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Payment link not found." });
+      }
+      const refunded = link.refundedAmountCents ?? 0;
+      return {
+        amountCents: link.amountCents,
+        refundedCents: refunded,
+        remainingCents: link.amountCents - refunded,
+        refundedAt: link.refundedAt,
+        refundReason: link.refundReason,
+        status: link.status,
+        canRefund: link.status === "paid" && refunded < link.amountCents,
+      };
+    }),
+
   disconnect: publicProcedure.mutation(async ({ ctx }) => {
     const { client } = await requirePortalWrite(ctx.req);
     const conn = await getStripeConnection(client.id);

@@ -1,8 +1,8 @@
 import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
-import { getDb, insertCrmInteraction, getCrmClientById, getStripeConnectionByAccountId, updateStripeConnection } from "./db";
-import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals, portalSessions, invoiceChases } from "../drizzle/schema";
+import { getDb, insertCrmInteraction, getCrmClientById, getStripeConnectionByAccountId, updateStripeConnection, upsertStripeDispute, getPaymentLinkByToken, updatePaymentLink } from "./db";
+import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals, portalSessions, invoiceChases, paymentLinks } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, SOLVR_PLANS, PRODUCT_ID_TO_PLAN, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
@@ -761,6 +761,116 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         );
         break;
       }
+
+      // ── Stripe Connect: refund issued (Sprint 3.2) ──────────────────────
+      // We initiate refunds via the API so we already update the
+      // payment_links row in the request handler. This webhook is the
+      // safety net for refunds initiated outside SOLVR (Stripe dashboard,
+      // bank chargeback auto-refund) — we still want our DB to reflect
+      // reality.
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        const refundedCents = charge.amount_refunded ?? 0;
+        const piId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+        if (!piId) break;
+        const db = await getDb();
+        if (!db) break;
+        // Find the payment_link for this payment intent
+        const linkRows = await db
+          .select()
+          .from(paymentLinks)
+          .where(eq(paymentLinks.stripePaymentIntentId, piId))
+          .limit(1);
+        const link = linkRows[0];
+        if (link && refundedCents !== link.refundedAmountCents) {
+          await updatePaymentLink(link.id, {
+            refundedAmountCents: refundedCents,
+            refundedAt: new Date(),
+            // Keep existing refundReason (it'll be "requested_by_customer"
+            // for SOLVR-initiated; for external refunds the latest charge
+            // refund object on Stripe has the reason).
+          });
+          console.log(`[Webhook] Synced refund state for payment_link ${link.id}: $${(refundedCents / 100).toFixed(2)} refunded`);
+        }
+        break;
+      }
+
+      // ── Stripe Connect: dispute lifecycle (Sprint 3.2) ──────────────────
+      // Fires on charge.dispute.created (new chargeback), .updated (status
+      // change, evidence submitted) and .closed (won/lost). Single handler
+      // upserts our mirror row by stripeDisputeId so retries are idempotent.
+      case "charge.dispute.created":
+      case "charge.dispute.updated":
+      case "charge.dispute.closed":
+      case "charge.dispute.funds_withdrawn":
+      case "charge.dispute.funds_reinstated": {
+        const dispute = event.data.object as Stripe.Dispute;
+        const connectedAccountId = (event as Stripe.Event & { account?: string }).account;
+        if (!connectedAccountId) {
+          console.warn(`[Webhook] Dispute event ${event.type} ${dispute.id} has no event.account — skipping`);
+          break;
+        }
+        const conn = await getStripeConnectionByAccountId(connectedAccountId);
+        if (!conn) {
+          console.warn(`[Webhook] Dispute event for unknown Connect account ${connectedAccountId} — skipping`);
+          break;
+        }
+        // Try to match the dispute back to one of our payment_links
+        const piId = typeof dispute.payment_intent === "string"
+          ? dispute.payment_intent
+          : dispute.payment_intent?.id ?? null;
+        let paymentLinkId: string | null = null;
+        if (piId) {
+          const db = await getDb();
+          if (db) {
+            const rows = await db
+              .select({ id: paymentLinks.id })
+              .from(paymentLinks)
+              .where(eq(paymentLinks.stripePaymentIntentId, piId))
+              .limit(1);
+            paymentLinkId = rows[0]?.id ?? null;
+          }
+        }
+
+        await upsertStripeDispute({
+          clientId: conn.clientId,
+          stripeDisputeId: dispute.id,
+          stripeChargeId: typeof dispute.charge === "string" ? dispute.charge : dispute.charge.id,
+          paymentLinkId,
+          amountCents: dispute.amount,
+          currency: dispute.currency,
+          reason: dispute.reason,
+          status: dispute.status,
+          evidenceDueBy: dispute.evidence_details?.due_by
+            ? new Date(dispute.evidence_details.due_by * 1000)
+            : null,
+          stripeCreatedAt: new Date(dispute.created * 1000),
+        });
+
+        console.log(
+          `[Webhook] Dispute ${dispute.id} (${event.type}) for client ${conn.clientId}: ` +
+          `$${(dispute.amount / 100).toFixed(2)} ${dispute.currency.toUpperCase()}, status=${dispute.status}, reason=${dispute.reason}`,
+        );
+
+        // For new disputes, send a high-priority push so the tradie sees
+        // it immediately — they typically have ~7 days to submit evidence.
+        if (event.type === "charge.dispute.created") {
+          const { sendExpoPush } = await import("./expoPush");
+          const clientRow = await getCrmClientById(conn.clientId);
+          if (clientRow?.pushToken) {
+            await sendExpoPush({
+              to: clientRow.pushToken,
+              title: "⚠️ Payment dispute filed",
+              body: `A customer filed a chargeback for $${(dispute.amount / 100).toFixed(2)}. Open Settings → Disputes to respond.`,
+              priority: "high",
+              sound: "default",
+              data: { type: "stripe_dispute_created", disputeId: dispute.id },
+            });
+          }
+        }
+        break;
+      }
+
       default:
         console.log(`[Webhook] Unhandled event type: ${event.type}`);
     }

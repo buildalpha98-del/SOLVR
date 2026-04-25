@@ -3421,8 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks, xeroConnections, xeroSyncLog } from "../drizzle/schema";
-import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink, InsertXeroConnection, XeroConnection as XeroConnectionRow, InsertXeroSyncLog } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks, xeroConnections, xeroSyncLog, stripeDisputes } from "../drizzle/schema";
+import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink, InsertXeroConnection, XeroConnection as XeroConnectionRow, InsertXeroSyncLog, InsertStripeDispute, StripeDispute } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3860,4 +3860,59 @@ export async function createXeroSyncLog(data: Omit<InsertXeroSyncLog, "id" | "cr
   } catch (err) {
     console.error("[xero-sync-log] DB write failed:", err);
   }
+}
+
+// ─── Stripe disputes (Sprint 3.2) ──────────────────────────────────────────
+
+/**
+ * Upsert a dispute row. Webhooks can fire multiple times for the same
+ * dispute (created → updated → closed) so we look up by stripeDisputeId
+ * and update if it exists, insert if it doesn't.
+ */
+export async function upsertStripeDispute(data: InsertStripeDispute): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db
+    .select()
+    .from(stripeDisputes)
+    .where(eq(stripeDisputes.stripeDisputeId, data.stripeDisputeId))
+    .limit(1);
+  if (existing.length > 0) {
+    await db
+      .update(stripeDisputes)
+      .set({
+        amountCents: data.amountCents,
+        status: data.status,
+        reason: data.reason,
+        evidenceDueBy: data.evidenceDueBy ?? null,
+        paymentLinkId: data.paymentLinkId ?? existing[0].paymentLinkId,
+        lastWebhookAt: new Date(),
+      })
+      .where(eq(stripeDisputes.id, existing[0].id));
+    return;
+  }
+  await db.insert(stripeDisputes).values({ ...data, lastWebhookAt: new Date() });
+}
+
+/** List active disputes for a tradie (for the Settings panel + nav badge). */
+export async function listStripeDisputesByClient(
+  clientId: number,
+  options: { activeOnly?: boolean } = {},
+): Promise<StripeDispute[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (options.activeOnly) {
+    // "Active" = anything that still needs the tradie's attention
+    const ACTIVE_STATUSES = ["warning_needs_response", "warning_under_review", "needs_response", "under_review"];
+    return db
+      .select()
+      .from(stripeDisputes)
+      .where(and(eq(stripeDisputes.clientId, clientId), inArray(stripeDisputes.status, ACTIVE_STATUSES)))
+      .orderBy(desc(stripeDisputes.stripeCreatedAt));
+  }
+  return db
+    .select()
+    .from(stripeDisputes)
+    .where(eq(stripeDisputes.clientId, clientId))
+    .orderBy(desc(stripeDisputes.stripeCreatedAt));
 }
