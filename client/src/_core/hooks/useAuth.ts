@@ -41,24 +41,41 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
-  const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
-    return {
+  const state = useMemo(
+    () => ({
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
-    };
-  }, [
-    meQuery.data,
-    meQuery.error,
-    meQuery.isLoading,
-    logoutMutation.error,
-    logoutMutation.isPending,
-  ]);
+    }),
+    [
+      meQuery.data,
+      meQuery.error,
+      meQuery.isLoading,
+      logoutMutation.error,
+      logoutMutation.isPending,
+    ]
+  );
+
+  // Persist user info to localStorage for cross-tab/cross-session restore.
+  // CRITICAL: Must NOT live inside useMemo (or any render-phase code).
+  // iOS WKWebView throws synchronously on localStorage in several states
+  // (private mode, quota exceeded, cookies blocked, low device storage).
+  // The previous version called this inside useMemo, so the throw propagated
+  // up the render tree and the ErrorBoundary caught it as "Something went
+  // wrong" the moment auth.me resolved post-login. Safari masked it because
+  // desktop WebKit doesn't enforce the same storage restrictions.
+  // Effect + try/catch makes localStorage best-effort, never fatal.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "manus-runtime-user-info",
+        JSON.stringify(meQuery.data ?? null)
+      );
+    } catch {
+      // localStorage is best-effort — failure must not break auth.
+    }
+  }, [meQuery.data]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;

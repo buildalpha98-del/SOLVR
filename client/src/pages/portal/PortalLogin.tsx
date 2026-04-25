@@ -32,10 +32,18 @@ const FEATURES = [
 export default function PortalLogin() {
   const [mode, setMode] = useState<"form" | "magic-link-pending" | "success" | "error">("form");
   const [errorMsg, setErrorMsg] = useState("");
-  const [email, setEmail] = useState(() => localStorage.getItem("solvr_remember_email") ?? "");
+  // Defensive: localStorage can throw synchronously on iOS WKWebView in
+  // private mode / quota-full / cookies-blocked. A render-time throw here
+  // would crash the login screen with "Something went wrong" before the
+  // user gets a chance to log in. try/catch makes it best-effort.
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem("solvr_remember_email") ?? ""; } catch { return ""; }
+  });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem("solvr_remember_email"));
+  const [rememberMe, setRememberMe] = useState(() => {
+    try { return !!localStorage.getItem("solvr_remember_email"); } catch { return false; }
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
 
@@ -88,8 +96,10 @@ export default function PortalLogin() {
     if (!email || !password) return;
     setIsSubmitting(true);
     setErrorMsg("");
-    if (rememberMe) localStorage.setItem("solvr_remember_email", email);
-    else localStorage.removeItem("solvr_remember_email");
+    try {
+      if (rememberMe) localStorage.setItem("solvr_remember_email", email);
+      else localStorage.removeItem("solvr_remember_email");
+    } catch { /* localStorage unavailable on iOS WKWebView in some states */ }
     passwordLoginMutation.mutate({ email, password });
   };
 

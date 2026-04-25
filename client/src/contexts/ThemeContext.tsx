@@ -23,8 +23,15 @@ export function ThemeProvider({
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (switchable) {
-      const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
+      // try/catch: iOS WKWebView can throw on localStorage in private mode
+      // or when cookies are blocked. ThemeProvider wraps the entire app,
+      // so a throw here would crash everything.
+      try {
+        const stored = localStorage.getItem("theme");
+        return (stored as Theme) || defaultTheme;
+      } catch {
+        return defaultTheme;
+      }
     }
     return defaultTheme;
   });
@@ -38,7 +45,9 @@ export function ThemeProvider({
     }
 
     if (switchable) {
-      localStorage.setItem("theme", theme);
+      try {
+        localStorage.setItem("theme", theme);
+      } catch { /* best-effort persistence */ }
     }
   }, [theme, switchable]);
 

@@ -16,7 +16,11 @@ interface State {
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, componentStack: null, showDetails: false };
+    // Default to showing details. The whole point of this screen is
+    // to surface what went wrong — hiding it behind a 12px gray toggle
+    // (the previous default) made TestFlight crashes effectively invisible
+    // to non-technical users trying to send us a screenshot.
+    this.state = { hasError: false, error: null, componentStack: null, showDetails: true };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -63,37 +67,42 @@ class ErrorBoundary extends Component<Props, State> {
               Reload Page
             </button>
 
-            {/* Tap-to-reveal diagnostic details. Hidden by default so end
-                users don't see infrastructure noise; one tap reveals it
-                for support / TestFlight debugging without rebuilding. */}
+            {/* Diagnostic panel — open by default so we never lose another
+                TestFlight crash to invisible toggles. Users can collapse it
+                via the prominent button below. */}
             {error && (
               <div className="w-full mt-8">
                 <button
                   type="button"
                   onClick={() => this.setState({ showDetails: !showDetails })}
-                  className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-muted-foreground/80 mx-auto"
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 mx-auto rounded-lg",
+                    "text-sm font-medium",
+                    "bg-muted text-foreground",
+                    "hover:opacity-90 cursor-pointer min-h-[44px]"
+                  )}
                 >
                   <ChevronDown
-                    size={12}
+                    size={16}
                     className="transition-transform"
                     style={{ transform: showDetails ? "rotate(180deg)" : "rotate(0deg)" }}
                   />
                   {showDetails ? "Hide" : "Show"} technical details
                 </button>
                 {showDetails && (
-                  <div className="p-4 mt-3 rounded bg-muted overflow-auto max-h-80 text-left">
-                    <p className="text-xs font-mono font-bold text-destructive break-all">
+                  <div className="p-4 mt-3 rounded bg-muted overflow-auto max-h-80 text-left select-text">
+                    <p className="text-sm font-mono font-bold text-destructive break-all">
                       {error.name}: {error.message}
                     </p>
                     {error.stack && (
-                      <pre className="text-[10px] text-muted-foreground whitespace-break-spaces mt-2">
+                      <pre className="text-xs text-muted-foreground whitespace-break-spaces mt-2">
                         {error.stack}
                       </pre>
                     )}
                     {componentStack && (
                       <>
-                        <p className="text-xs font-bold text-muted-foreground mt-3 mb-1">React tree:</p>
-                        <pre className="text-[10px] text-muted-foreground whitespace-break-spaces">
+                        <p className="text-sm font-bold text-muted-foreground mt-3 mb-1">React tree:</p>
+                        <pre className="text-xs text-muted-foreground whitespace-break-spaces">
                           {componentStack}
                         </pre>
                       </>
