@@ -2152,3 +2152,73 @@ export const stripeConnections = mysqlTable("stripe_connections", {
 });
 export type StripeConnection = typeof stripeConnections.$inferSelect;
 export type InsertStripeConnection = typeof stripeConnections.$inferInsert;
+
+// ─── Two-way SMS — conversations & messages ─────────────────────────────────
+/**
+ * One row per (tradie, customer phone) pair. Rolls up the message list
+ * into the inbox view: latest body preview, unread count, last activity.
+ * Existing campaign/quote/invoice SMS still work alongside this — the
+ * outbound sender just inserts a row here too.
+ *
+ * customerPhone is stored in E.164 (+61...) so phone-match is consistent.
+ */
+export const smsConversations = mysqlTable("sms_conversations", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crm_clients.id — the SOLVR client (tradie) */
+  clientId: int("clientId").notNull(),
+  /** Customer phone in E.164 format */
+  customerPhone: varchar("customerPhone", { length: 50 }).notNull(),
+  /** Customer name (best-known — falls back to job.customerName) */
+  customerName: varchar("customerName", { length: 255 }),
+  /** Optional FK to tradie_customers.id when we know the customer record */
+  tradieCustomerId: int("tradieCustomerId"),
+  /** Latest message body, truncated, for inbox preview */
+  lastMessagePreview: varchar("lastMessagePreview", { length: 280 }),
+  /** Direction of the last message: shows who spoke last in the inbox */
+  lastDirection: mysqlEnum("lastDirection", ["inbound", "outbound"]),
+  /** When the latest message was added (for inbox sort) */
+  lastMessageAt: timestamp("lastMessageAt"),
+  /** Inbound messages awaiting tradie attention. Decrements on markRead. */
+  unreadCount: int("unreadCount").default(0).notNull(),
+  status: mysqlEnum("status", ["active", "archived"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SmsConversation = typeof smsConversations.$inferSelect;
+export type InsertSmsConversation = typeof smsConversations.$inferInsert;
+
+/**
+ * One row per individual SMS, both directions. Keeps the full thread
+ * history for legal/dispute reasons (Australian SMS records typically
+ * required for 7y) and feeds the AI-suggested-reply prompt.
+ *
+ * sentBy distinguishes a manual tradie reply from an AI-auto-FAQ reply
+ * from a bulk campaign send — useful for the inbox UI ("AI auto-replied"
+ * pill) and for analytics.
+ */
+export const smsMessages = mysqlTable("sms_messages", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  conversationId: varchar("conversationId", { length: 36 }).notNull(),
+  /** Denormalised from conversations for query speed (per-tradie fetch) */
+  clientId: int("clientId").notNull(),
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
+  body: text("body").notNull(),
+  /** Twilio's MessageSid (for delivery-status callbacks + idempotency) */
+  twilioSid: varchar("twilioSid", { length: 64 }),
+  status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received"]).default("received").notNull(),
+  /** Who originated this outbound message — N/A for inbound */
+  sentBy: mysqlEnum("sentBy", ["tradie", "auto-faq", "campaign", "system"]),
+  /** AI-suggested reply text, populated async after an inbound message */
+  aiSuggestedReply: text("aiSuggestedReply"),
+  /** When tradie marked this inbound message as read (null = unread) */
+  readAt: timestamp("readAt"),
+  /** Twilio's send time (from message status callback) — falls back to createdAt */
+  sentAt: timestamp("sentAt"),
+  /** Optional FK to portal_jobs.id — when a reply is in context of a job */
+  relatedJobId: int("relatedJobId"),
+  /** Optional FK to quotes.id — when a reply is in context of a quote */
+  relatedQuoteId: varchar("relatedQuoteId", { length: 36 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SmsMessage = typeof smsMessages.$inferSelect;
+export type InsertSmsMessage = typeof smsMessages.$inferInsert;

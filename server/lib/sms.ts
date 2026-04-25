@@ -8,8 +8,14 @@
  * { success: false } — this keeps the cron safe in dev/test environments
  * where Twilio is not configured.
  */
+import { randomUUID } from "crypto";
 import twilio from "twilio";
 import { ENV } from "../_core/env";
+import {
+  upsertSmsConversation,
+  createSmsMessage,
+  updateSmsConversation,
+} from "../db";
 
 export interface SendSmsOptions {
   to: string;       // E.164 format, e.g. +61412345678
@@ -20,6 +26,31 @@ export interface SendSmsResult {
   success: boolean;
   sid?: string;
   error?: string;
+}
+
+/**
+ * Outbound SMS that ALSO logs into the threaded-conversation table so
+ * the message shows up in the tradie's inbox alongside customer replies.
+ *
+ * Use this for any SMS that should be visible in the conversation view
+ * (manual replies from the inbox, payment-link SMS, "on my way" SMS,
+ * quote follow-ups). Use the bare sendSms() for system-internal sends
+ * that don't belong in the customer thread (admin alerts, OTP codes).
+ *
+ * Errors in the logging step are swallowed — a working SMS send beats
+ * a clean DB log.
+ */
+export interface SendSmsAndLogOptions extends SendSmsOptions {
+  /** SOLVR client (tradie) sending the message */
+  clientId: number;
+  /** Customer name, if known — for conversation display when phone is new */
+  customerName?: string | null;
+  /** Who originated this send. Defaults to 'tradie' (manual). */
+  sentBy?: "tradie" | "auto-faq" | "campaign" | "system";
+  /** Optional FK to portal_jobs.id when this SMS is in context of a job */
+  relatedJobId?: number | null;
+  /** Optional FK to quotes.id when this SMS is in context of a quote */
+  relatedQuoteId?: string | null;
 }
 
 export async function sendSms(opts: SendSmsOptions): Promise<SendSmsResult> {
@@ -51,6 +82,55 @@ export async function sendSms(opts: SendSmsOptions): Promise<SendSmsResult> {
     console.error(`[SMS] Failed to send to ${to}: ${msg}`);
     return { success: false, error: msg };
   }
+}
+
+/**
+ * Outbound SMS that also writes the message into the SOLVR conversation
+ * thread for the inbox UI. See SendSmsAndLogOptions for when to use this
+ * vs the bare sendSms.
+ */
+export async function sendSmsAndLog(opts: SendSmsAndLogOptions): Promise<SendSmsResult> {
+  const result = await sendSms({ to: opts.to, body: opts.body });
+
+  // Log into the conversation table even if Twilio failed — the tradie
+  // can see "Failed to send" in the thread and retry. Only skip logging
+  // if the destination phone couldn't be normalised at all.
+  const normalisedTo = normalisePhone(opts.to);
+  if (!normalisedTo) return result;
+
+  try {
+    const conversationId = await upsertSmsConversation({
+      clientId: opts.clientId,
+      customerPhone: normalisedTo,
+      customerName: opts.customerName ?? null,
+    });
+    const messageId = randomUUID();
+    await createSmsMessage({
+      id: messageId,
+      conversationId,
+      clientId: opts.clientId,
+      direction: "outbound",
+      body: opts.body,
+      twilioSid: result.sid ?? null,
+      status: result.success ? "sent" : "failed",
+      sentBy: opts.sentBy ?? "tradie",
+      sentAt: new Date(),
+      relatedJobId: opts.relatedJobId ?? null,
+      relatedQuoteId: opts.relatedQuoteId ?? null,
+    });
+    // Roll up the conversation summary
+    const preview = opts.body.length > 280 ? `${opts.body.slice(0, 277)}…` : opts.body;
+    await updateSmsConversation(conversationId, {
+      lastMessagePreview: preview,
+      lastDirection: "outbound",
+      lastMessageAt: new Date(),
+    });
+  } catch (err) {
+    // Non-fatal — the SMS still went out (or failed at the Twilio layer).
+    console.error("[SMS] Conversation logging failed:", err);
+  }
+
+  return result;
 }
 
 /**

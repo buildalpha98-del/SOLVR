@@ -3421,8 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections } from "../drizzle/schema";
-import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages } from "../drizzle/schema";
+import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3596,4 +3596,167 @@ export async function getStripeConnectionByAccountId(
     .where(eq(stripeConnections.stripeAccountId, stripeAccountId))
     .limit(1);
   return rows[0] ?? null;
+}
+
+// ─── SMS conversation helpers ────────────────────────────────────────────────
+
+/**
+ * Find an existing conversation for (clientId, customerPhone) or null.
+ * Phone is matched as-passed — caller is responsible for normalising to
+ * E.164 first via the helper in twilioInboundSms.ts.
+ */
+export async function getSmsConversation(
+  clientId: number,
+  customerPhone: string,
+): Promise<SmsConversation | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(smsConversations)
+    .where(and(eq(smsConversations.clientId, clientId), eq(smsConversations.customerPhone, customerPhone)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Get a conversation by ID (with auth caller verifying clientId match). */
+export async function getSmsConversationById(id: string): Promise<SmsConversation | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(smsConversations)
+    .where(eq(smsConversations.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * List all conversations for a tradie, sorted by latest activity.
+ * Used by the inbox view.
+ */
+export async function listSmsConversationsByClient(
+  clientId: number,
+  options: { limit?: number; status?: "active" | "archived" } = {},
+): Promise<SmsConversation[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(smsConversations.clientId, clientId)];
+  if (options.status) conditions.push(eq(smsConversations.status, options.status));
+  return db
+    .select()
+    .from(smsConversations)
+    .where(and(...conditions))
+    .orderBy(desc(smsConversations.lastMessageAt))
+    .limit(options.limit ?? 100);
+}
+
+/** Insert a new conversation row. Caller generates the UUID. */
+export async function createSmsConversation(data: InsertSmsConversation): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(smsConversations).values(data);
+}
+
+/** Update fields on a conversation (preview, last-message metadata, unread count). */
+export async function updateSmsConversation(
+  id: string,
+  data: Partial<Omit<InsertSmsConversation, "id" | "clientId" | "createdAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(smsConversations).set(data).where(eq(smsConversations.id, id));
+}
+
+/**
+ * Idempotent upsert for inbound: find or create the conversation row,
+ * returns its ID.
+ */
+export async function upsertSmsConversation(data: {
+  clientId: number;
+  customerPhone: string;
+  customerName?: string | null;
+  tradieCustomerId?: number | null;
+}): Promise<string> {
+  const existing = await getSmsConversation(data.clientId, data.customerPhone);
+  if (existing) return existing.id;
+
+  const id = (await import("crypto")).randomUUID();
+  await createSmsConversation({
+    id,
+    clientId: data.clientId,
+    customerPhone: data.customerPhone,
+    customerName: data.customerName ?? null,
+    tradieCustomerId: data.tradieCustomerId ?? null,
+    unreadCount: 0,
+  });
+  return id;
+}
+
+/** Insert a new SMS message row. */
+export async function createSmsMessage(data: InsertSmsMessage): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(smsMessages).values(data);
+}
+
+/** Update fields on an existing message (e.g. when async ai-suggested reply arrives). */
+export async function updateSmsMessage(
+  id: string,
+  data: Partial<Omit<InsertSmsMessage, "id" | "conversationId" | "clientId" | "createdAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(smsMessages).set(data).where(eq(smsMessages.id, id));
+}
+
+/**
+ * List all messages in a conversation, oldest-first (so the UI can render
+ * a normal scrolling thread).
+ */
+export async function listSmsMessages(conversationId: string, options: { limit?: number } = {}): Promise<SmsMessage[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(smsMessages)
+    .where(eq(smsMessages.conversationId, conversationId))
+    .orderBy(smsMessages.createdAt)
+    .limit(options.limit ?? 500);
+}
+
+/** Mark all unread inbound messages in a conversation as read, returns count marked. */
+export async function markSmsConversationRead(conversationId: string): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .update(smsMessages)
+    .set({ readAt: new Date() })
+    .where(and(
+      eq(smsMessages.conversationId, conversationId),
+      eq(smsMessages.direction, "inbound"),
+      isNull(smsMessages.readAt),
+    ));
+  // Reset the conversation unread count
+  await db
+    .update(smsConversations)
+    .set({ unreadCount: 0 })
+    .where(eq(smsConversations.id, conversationId));
+  const affected = Number(
+    (result as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ??
+      (result as unknown as { affectedRows?: number }).affectedRows ??
+      0,
+  );
+  return affected;
+}
+
+/** Total unread inbound count across all conversations for a client. */
+export async function getSmsUnreadCount(clientId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(smsConversations)
+    .where(eq(smsConversations.clientId, clientId));
+  return rows.reduce((sum, r) => sum + (r.unreadCount ?? 0), 0);
 }
