@@ -50,6 +50,7 @@ import { smsConversationsRouter } from "./routers/smsConversations";
 import { liveTrackingRouter } from "./routers/liveTracking";
 import { customerImportRouter } from "./routers/customerImport";
 import { xeroRouter } from "./routers/xero";
+import { customerAssetsRouter } from "./routers/customerAssets";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1602,5 +1603,6 @@ export const appRouter = router({
   tracking: liveTrackingRouter,
   customerImport: customerImportRouter,
   xero: xeroRouter,
+  customerAssets: customerAssetsRouter,
 });
 export type AppRouter = typeof appRouter;

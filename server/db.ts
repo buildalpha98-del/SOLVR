@@ -3421,8 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks, xeroConnections, xeroSyncLog, stripeDisputes } from "../drizzle/schema";
-import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink, InsertXeroConnection, XeroConnection as XeroConnectionRow, InsertXeroSyncLog, InsertStripeDispute, StripeDispute } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks, xeroConnections, xeroSyncLog, stripeDisputes, customerAssets } from "../drizzle/schema";
+import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink, InsertXeroConnection, XeroConnection as XeroConnectionRow, InsertXeroSyncLog, InsertStripeDispute, StripeDispute, InsertCustomerAsset, CustomerAsset } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3915,4 +3915,69 @@ export async function listStripeDisputesByClient(
     .from(stripeDisputes)
     .where(eq(stripeDisputes.clientId, clientId))
     .orderBy(desc(stripeDisputes.stripeCreatedAt));
+}
+
+// ─── Customer Assets (Sprint 4.1) ──────────────────────────────────────────
+
+/** Insert a new customer asset. Caller generates the UUID. */
+export async function createCustomerAsset(data: InsertCustomerAsset): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(customerAssets).values(data);
+}
+
+/** Get a single asset by id (caller verifies clientId match). */
+export async function getCustomerAssetById(id: string): Promise<CustomerAsset | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(customerAssets).where(eq(customerAssets.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+/** List all assets for a single customer, latest-first. */
+export async function listCustomerAssetsByCustomer(
+  clientId: number,
+  customerId: number,
+): Promise<CustomerAsset[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db
+    .select()
+    .from(customerAssets)
+    .where(and(
+      eq(customerAssets.clientId, clientId),
+      eq(customerAssets.customerId, customerId),
+    ))
+    .orderBy(desc(customerAssets.createdAt));
+}
+
+/** List all assets across the client's customers. Optional filters. */
+export async function listCustomerAssets(
+  clientId: number,
+  options: { status?: "active" | "decommissioned" } = {},
+): Promise<CustomerAsset[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [eq(customerAssets.clientId, clientId)];
+  if (options.status) conditions.push(eq(customerAssets.status, options.status));
+  return db
+    .select()
+    .from(customerAssets)
+    .where(and(...conditions))
+    .orderBy(desc(customerAssets.createdAt));
+}
+
+export async function updateCustomerAsset(
+  id: string,
+  data: Partial<Omit<InsertCustomerAsset, "id" | "clientId" | "customerId" | "createdAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(customerAssets).set(data).where(eq(customerAssets.id, id));
+}
+
+export async function deleteCustomerAsset(id: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(customerAssets).where(eq(customerAssets.id, id));
 }

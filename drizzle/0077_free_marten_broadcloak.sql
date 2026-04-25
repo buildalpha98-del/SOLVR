@@ -1,0 +1,22 @@
+CREATE TABLE `customer_assets` (
+	`id` varchar(36) NOT NULL,
+	`clientId` int NOT NULL,
+	`customerId` int NOT NULL,
+	`assetType` varchar(100) NOT NULL,
+	`label` varchar(255) NOT NULL,
+	`make` varchar(100),
+	`model` varchar(100),
+	`serialNumber` varchar(100),
+	`photoUrl` text,
+	`installedAt` date,
+	`warrantyUntil` date,
+	`lastServicedAt` date,
+	`serviceIntervalMonths` int,
+	`nextServiceDueAt` date,
+	`notes` text,
+	`assetStatus` enum('active','decommissioned') NOT NULL DEFAULT 'active',
+	`lastJobId` int,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `customer_assets_id` PRIMARY KEY(`id`)
+);

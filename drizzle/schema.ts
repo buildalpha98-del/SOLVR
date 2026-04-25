@@ -1415,6 +1415,60 @@ export const stripeDisputes = mysqlTable("stripe_disputes", {
 export type StripeDispute = typeof stripeDisputes.$inferSelect;
 export type InsertStripeDispute = typeof stripeDisputes.$inferInsert;
 
+// ─── Customer Assets / Equipment Register (Sprint 4.1) ─────────────────────
+/**
+ * Tradies install + service customer equipment that lives at the
+ * customer's property — hot water systems, AC units, switchboards, gate
+ * motors, smoke alarms etc. This table is the per-customer register.
+ *
+ * Each row is one piece of equipment. Tradie can record make/model/serial
+ * + photo + install + warranty + service interval, then Sprint 4.2's
+ * scheduler auto-creates a service-due job N days before nextServiceDueAt.
+ *
+ * Lifecycle:
+ *   active         — equipment in service, under service schedule
+ *   decommissioned — replaced or removed; kept for history but no
+ *                    auto-service jobs created.
+ *
+ * Linked to a tradie_customers row (FK customerId) — assets belong to the
+ * customer, not a job. Multiple jobs can reference the same asset over
+ * time. lastJobId is a soft pointer to whatever job last touched it.
+ */
+export const customerAssets = mysqlTable("customer_assets", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crm_clients.id — tradie that owns this row */
+  clientId: int("clientId").notNull(),
+  /** FK to tradie_customers.id — the customer the asset belongs to */
+  customerId: int("customerId").notNull(),
+  /** Asset category: hot_water, hvac, switchboard, gate_motor, etc. Free-form. */
+  assetType: varchar("assetType", { length: 100 }).notNull(),
+  /** Tradie-given label — "Master bedroom split", "Main switchboard" */
+  label: varchar("label", { length: 255 }).notNull(),
+  make: varchar("make", { length: 100 }),
+  model: varchar("model", { length: 100 }),
+  serialNumber: varchar("serialNumber", { length: 100 }),
+  /** Single photo URL — multi-photo support is v2 if needed */
+  photoUrl: text("photoUrl"),
+  /** Install date — nullable since often unknown ("around 2018"). String
+   *  mode (YYYY-MM-DD) keeps the API surface simple and timezone-free. */
+  installedAt: date("installedAt", { mode: "string" }),
+  warrantyUntil: date("warrantyUntil", { mode: "string" }),
+  lastServicedAt: date("lastServicedAt", { mode: "string" }),
+  /** Service interval in months — feeds Sprint 4.2's auto-create job */
+  serviceIntervalMonths: int("serviceIntervalMonths"),
+  /** Next service due — computed from lastServicedAt + interval, or set manually */
+  nextServiceDueAt: date("nextServiceDueAt", { mode: "string" }),
+  /** Free-form notes — fault history, customer preferences, etc. */
+  notes: text("notes"),
+  status: mysqlEnum("assetStatus", ["active", "decommissioned"]).default("active").notNull(),
+  /** Last portal_jobs row that touched this asset */
+  lastJobId: int("lastJobId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CustomerAsset = typeof customerAssets.$inferSelect;
+export type InsertCustomerAsset = typeof customerAssets.$inferInsert;
+
 // ─── Quote Follow-Ups ─────────────────────────────────────────────────────────
 /**
  * Tracks automated follow-up emails sent for unanswered quotes.
