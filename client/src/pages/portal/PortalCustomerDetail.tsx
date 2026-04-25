@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
+import { CustomerAssetsSection } from "@/components/portal/CustomerAssetsSection";
 import {
   ArrowLeft, Phone, Mail, MapPin, DollarSign, Briefcase,
   Calendar, FileText, Loader2, Save, RefreshCw, CheckCircle2,
@@ -318,6 +319,11 @@ export default function PortalCustomerDetail() {
             </p>
           )}
         </div>
+      </div>
+
+      {/* Asset Register (Sprint 4.1) */}
+      <div className="mb-6">
+        <CustomerAssetsSection customerId={customer.id} customerName={customer.name} />
       </div>
 
       {/* Job History */}
