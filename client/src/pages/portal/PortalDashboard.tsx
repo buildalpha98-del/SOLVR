@@ -655,7 +655,16 @@ export default function PortalDashboard() {
                     {checklistData.steps.filter((s) => s.completed).length}/{checklistData.steps.length}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-white">Get set up in 4 steps</p>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {checklistData.steps.every(s => !s.completed)
+                      ? "Get started — 4 things to set up"
+                      : "Finish setting up your account"}
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    Tap any step to jump in. About 5 minutes total.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => dismissChecklistMutation.mutate()}
@@ -710,14 +719,18 @@ export default function PortalDashboard() {
           </div>
         )}
 
-        {/* Header */}
+        {/* Header — adapts subtitle for first-run vs returning user */}
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">
-              G'day, {me?.contactName?.split(" ")[0] ?? me?.businessName} 👋
+              {checklistData && !checklistData.dismissed && checklistData.steps.every(s => !s.completed)
+                ? `Welcome to SOLVR, ${me?.contactName?.split(" ")[0] ?? me?.businessName} 👋`
+                : `G'day, ${me?.contactName?.split(" ")[0] ?? me?.businessName} 👋`}
             </h1>
             <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
-              Here's how your AI receptionist is performing.
+              {checklistData && !checklistData.dismissed && checklistData.steps.every(s => !s.completed)
+                ? "Tick off the steps above to start receiving calls and quoting jobs."
+                : "Here's how your AI receptionist is performing."}
             </p>
           </div>
           {isSupported && (
