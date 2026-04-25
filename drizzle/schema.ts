@@ -2222,3 +2222,54 @@ export const smsMessages = mysqlTable("sms_messages", {
 });
 export type SmsMessage = typeof smsMessages.$inferSelect;
 export type InsertSmsMessage = typeof smsMessages.$inferInsert;
+
+// ─── Live tracking links ("On my way" SMS + customer-facing tracker) ──────
+/**
+ * One row per "tradie is on the way" session. Customer receives an SMS
+ * with /track/:token; opens the page; sees the tradie's live position +
+ * ETA. The tradie's mobile app pushes their GPS every ~30s while the
+ * job is active.
+ *
+ * Auto-expires after 4 hours (don't track tradies indefinitely) OR when
+ * the tradie taps "Arrived" / marks the job complete. Token is a public
+ * UUID — anyone with the link can view the tracking page, but only the
+ * matching SOLVR client can update the position.
+ *
+ * No PII visible to anonymous viewers other than tradie's first name +
+ * business name + ETA — not the tradie's home address or full identity.
+ */
+export const liveTrackingLinks = mysqlTable("live_tracking_links", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  /** FK to crm_clients.id — the SOLVR client (tradie) doing the journey */
+  clientId: int("clientId").notNull(),
+  /** FK to portal_jobs.id — the job they're heading to */
+  jobId: int("jobId").notNull(),
+  /** Public token for the /track/:token URL (no auth required) */
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  /** Customer phone the SMS went to (E.164) */
+  customerPhone: varchar("customerPhone", { length: 50 }),
+  /** Customer name for greeting copy */
+  customerName: varchar("customerName", { length: 255 }),
+  /** Destination — geocoded snapshot at the time of journey start */
+  destLat: decimal("destLat", { precision: 10, scale: 7 }).notNull(),
+  destLng: decimal("destLng", { precision: 10, scale: 7 }).notNull(),
+  destAddress: varchar("destAddress", { length: 512 }),
+  /** Latest known tradie position (updated every ~30s by the mobile app) */
+  tradieLat: decimal("tradieLat", { precision: 10, scale: 7 }),
+  tradieLng: decimal("tradieLng", { precision: 10, scale: 7 }),
+  /** ETA in minutes from latest position update */
+  etaMinutes: int("etaMinutes"),
+  /** When position was last pushed by tradie */
+  positionUpdatedAt: timestamp("positionUpdatedAt"),
+  /** Lifecycle: active = tracking; arrived = tradie tapped Arrived;
+   *  completed = job marked complete; expired = 4h timeout; cancelled = tradie cancelled */
+  status: mysqlEnum("status", ["active", "arrived", "completed", "expired", "cancelled"]).default("active").notNull(),
+  /** Auto-expire timestamp (now + 4h) */
+  expiresAt: timestamp("expiresAt").notNull(),
+  /** When the tradie tapped Arrived (null until they do) */
+  arrivedAt: timestamp("arrivedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LiveTrackingLink = typeof liveTrackingLinks.$inferSelect;
+export type InsertLiveTrackingLink = typeof liveTrackingLinks.$inferInsert;

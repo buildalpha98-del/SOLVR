@@ -3421,8 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages } from "../drizzle/schema";
-import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks } from "../drizzle/schema";
+import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3759,4 +3759,59 @@ export async function getSmsUnreadCount(clientId: number): Promise<number> {
     .from(smsConversations)
     .where(eq(smsConversations.clientId, clientId));
   return rows.reduce((sum, r) => sum + (r.unreadCount ?? 0), 0);
+}
+
+// ─── Live tracking link helpers ───────────────────────────────────────────
+
+/** Insert a new tracking session. Caller generates id + token. */
+export async function createLiveTrackingLink(data: InsertLiveTrackingLink): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(liveTrackingLinks).values(data);
+}
+
+/** Look up a tracking session by its public token (used by /track/:token). */
+export async function getLiveTrackingLinkByToken(token: string): Promise<LiveTrackingLink | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(liveTrackingLinks)
+    .where(eq(liveTrackingLinks.token, token))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Get the most recent active tracking session for a given job (so the
+ * tradie can resume from the job detail without restarting). Returns null
+ * if there's no active row.
+ */
+export async function getActiveTrackingByJobId(
+  clientId: number,
+  jobId: number,
+): Promise<LiveTrackingLink | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(liveTrackingLinks)
+    .where(and(
+      eq(liveTrackingLinks.clientId, clientId),
+      eq(liveTrackingLinks.jobId, jobId),
+      eq(liveTrackingLinks.status, "active"),
+    ))
+    .orderBy(desc(liveTrackingLinks.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Update a tracking link (position push, status change, etc.). */
+export async function updateLiveTrackingLink(
+  id: string,
+  data: Partial<Omit<InsertLiveTrackingLink, "id" | "clientId" | "jobId" | "token" | "createdAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(liveTrackingLinks).set(data).where(eq(liveTrackingLinks.id, id));
 }

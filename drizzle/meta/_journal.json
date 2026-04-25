@@ -519,6 +519,13 @@
       "when": 1777105798170,
       "tag": "0073_common_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1777108271532,
+      "tag": "0074_brief_abomination",
+      "breakpoints": true
     }
   ]
 }

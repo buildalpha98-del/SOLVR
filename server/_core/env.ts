@@ -55,4 +55,11 @@ export const ENV = {
   twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
   revenueCatApiKey: process.env.VITE_REVENUECAT_API_KEY ?? "",
   revenueCatWebhookSecret: process.env.REVENUECAT_WEBHOOK_SECRET ?? "",
+
+  // ── Google Maps (browser-restricted public key) ──────────────────────
+  // Same value as VITE_GOOGLE_MAPS_API_KEY — surfaced server-side so the
+  // public /track/:token customer page can fetch it via tRPC instead of
+  // baking it into the bundle (the customer-page bundle is only loaded
+  // for customers, not tradies, so we route through the server).
+  googleMapsApiKey: process.env.VITE_GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY ?? "",
 };

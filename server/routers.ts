@@ -47,6 +47,7 @@ import { portalPurchaseOrdersRouter } from "./routers/portalPurchaseOrders";
 import { portalFormsRouter } from "./routers/portalForms";
 import { stripeConnectRouter } from "./routers/stripeConnect";
 import { smsConversationsRouter } from "./routers/smsConversations";
+import { liveTrackingRouter } from "./routers/liveTracking";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1596,5 +1597,6 @@ export const appRouter = router({
   forms: portalFormsRouter,
   stripeConnect: stripeConnectRouter,
   smsConversations: smsConversationsRouter,
+  tracking: liveTrackingRouter,
 });
 export type AppRouter = typeof appRouter;

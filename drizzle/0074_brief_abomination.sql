@@ -1,0 +1,22 @@
+CREATE TABLE `live_tracking_links` (
+	`id` varchar(36) NOT NULL,
+	`clientId` int NOT NULL,
+	`jobId` int NOT NULL,
+	`token` varchar(64) NOT NULL,
+	`customerPhone` varchar(50),
+	`customerName` varchar(255),
+	`destLat` decimal(10,7) NOT NULL,
+	`destLng` decimal(10,7) NOT NULL,
+	`destAddress` varchar(512),
+	`tradieLat` decimal(10,7),
+	`tradieLng` decimal(10,7),
+	`etaMinutes` int,
+	`positionUpdatedAt` timestamp,
+	`status` enum('active','arrived','completed','expired','cancelled') NOT NULL DEFAULT 'active',
+	`expiresAt` timestamp NOT NULL,
+	`arrivedAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `live_tracking_links_id` PRIMARY KEY(`id`),
+	CONSTRAINT `live_tracking_links_token_unique` UNIQUE(`token`)
+);
