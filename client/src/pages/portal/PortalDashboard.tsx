@@ -558,6 +558,7 @@ export default function PortalDashboard() {
   });
   const dismissChecklistMutation = trpc.portal.dismissActivationChecklist.useMutation({
     onSuccess: () => utils.portal.getActivationChecklist.invalidate(),
+    onError: (err) => toast.error(err.message ?? "Couldn't dismiss the checklist. Try again."),
   });
 
   // Invoice chasing summary (for dashboard widget)

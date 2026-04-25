@@ -10,7 +10,7 @@
 import { useMemo, useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
-import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2, Search, Briefcase, FileText, Bell, MoreHorizontal, Link2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2, Search, Briefcase, FileText, Bell, MoreHorizontal, Link2, Phone, MessageSquare } from "lucide-react";
 import { UpgradeButton } from "@/components/portal/UpgradeButton";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning } from "@/lib/haptics";
@@ -701,6 +701,27 @@ export default function PortalCalendar() {
                           )}
                           {ev.description && (
                             <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>{ev.description}</p>
+                          )}
+                          {/* Tap-to-call / SMS for events with a contact phone */}
+                          {ev.contactPhone && (
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              <a
+                                href={`tel:${ev.contactPhone.replace(/[^\d+]/g, "")}`}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold"
+                                style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", minHeight: "28px" }}
+                                aria-label={`Call ${ev.contactPhone}`}
+                              >
+                                <Phone className="w-3 h-3" /> Call
+                              </a>
+                              <a
+                                href={`sms:${ev.contactPhone.replace(/[^\d+]/g, "")}`}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold"
+                                style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", minHeight: "28px" }}
+                                aria-label={`Text ${ev.contactPhone}`}
+                              >
+                                <MessageSquare className="w-3 h-3" /> SMS
+                              </a>
+                            </div>
                           )}
                         </div>
                       </div>

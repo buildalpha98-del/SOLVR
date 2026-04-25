@@ -19,6 +19,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useLocation, Link } from "wouter";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import { OfflineBanner } from "@/components/portal/OfflineBanner";
@@ -341,6 +342,7 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
 
   const logoutMutation = trpc.portal.logout.useMutation({
     onSuccess: () => navigate("/portal"),
+    onError: (err) => toast.error(err.message ?? "Couldn't log out. Try again."),
   });
 
   useEffect(() => {

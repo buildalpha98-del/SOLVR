@@ -25,7 +25,7 @@ import {
   ArrowLeft, MapPin, User, Phone, Mail, Home, Briefcase,
   CheckCircle2, FileText, Camera, Clock,
   Plus, Trash2, Loader2, Edit2, Save, X, CreditCard,
-  Banknote, Receipt, Send, Copy, Check,
+  Banknote, Receipt, Send, Copy, Check, MessageSquare,
   ChevronLeft, ChevronRight, ZoomIn, RefreshCw, Link2, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -101,8 +101,40 @@ function EditableField({
             <button onClick={() => { setDraft(value ?? ""); setEditing(false); }} className="text-red-400 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
           </div>
         ) : (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
             <p className="text-sm" style={{ color: value ? "#fff" : "rgba(255,255,255,0.3)" }}>{value || placeholder}</p>
+            {/* Tap-to-call / SMS chips for phone fields */}
+            {type === "tel" && value && (
+              <>
+                <a
+                  href={`tel:${value.replace(/[^\d+]/g, "")}`}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold ml-1"
+                  style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80", minHeight: "28px" }}
+                  aria-label={`Call ${value}`}
+                >
+                  <Phone className="w-3 h-3" /> Call
+                </a>
+                <a
+                  href={`sms:${value.replace(/[^\d+]/g, "")}`}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold"
+                  style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", minHeight: "28px" }}
+                  aria-label={`Text ${value}`}
+                >
+                  <MessageSquare className="w-3 h-3" /> SMS
+                </a>
+              </>
+            )}
+            {/* Tap-to-email chip */}
+            {type === "email" && value && (
+              <a
+                href={`mailto:${value}`}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold ml-1"
+                style={{ background: "rgba(245,166,35,0.12)", color: "#F5A623", minHeight: "28px" }}
+                aria-label={`Email ${value}`}
+              >
+                <Mail className="w-3 h-3" /> Email
+              </a>
+            )}
             <button
               onClick={() => { setDraft(value ?? ""); setEditing(true); }}
               className="flex items-center justify-center w-7 h-7 rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-shrink-0 -mr-1"

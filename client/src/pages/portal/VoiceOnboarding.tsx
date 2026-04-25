@@ -118,7 +118,9 @@ function SectionReRecorder({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const extractMutation = trpc.portal.extractVoiceOnboarding.useMutation();
+  const extractMutation = trpc.portal.extractVoiceOnboarding.useMutation({
+    onError: (err) => toast.error(err.message ?? "Couldn't process your voice note. Try recording again."),
+  });
 
   const SECTION_PROMPTS: Record<SectionKey, string> = {
     basics: "Tell us your business name, industry, how long you've been operating, team size, and address.",
@@ -341,8 +343,12 @@ export default function VoiceOnboarding() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const extractMutation = trpc.portal.extractVoiceOnboarding.useMutation();
-  const saveMutation = trpc.portal.saveVoiceOnboarding.useMutation();
+  const extractMutation = trpc.portal.extractVoiceOnboarding.useMutation({
+    onError: (err) => toast.error(err.message ?? "Couldn't process your voice note. Try recording again."),
+  });
+  const saveMutation = trpc.portal.saveVoiceOnboarding.useMutation({
+    onError: (err) => toast.error(err.message ?? "Couldn't save your details. Check your connection and try again."),
+  });
 
   // P1-C: Compute which required fields are still missing from the live form state.
   // These six fields are the minimum for the AI receptionist to function.

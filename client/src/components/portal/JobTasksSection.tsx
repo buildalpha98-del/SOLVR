@@ -375,6 +375,10 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
   const [aiDisclaimer, setAiDisclaimer] = useState<string>("");
   const [aiScopeWarning, setAiScopeWarning] = useState<string | null>(null);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  // Tasks the user has tapped delete on but haven't been actually-deleted yet
+  // (waiting on the Undo window). Hidden from the list visually.
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<number>>(new Set());
+  const deleteTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -400,6 +404,58 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
     onSuccess: () => utils.jobTasks.list.invalidate({ jobId }),
     onError: (e) => toast.error(e.message),
   });
+
+  /**
+   * Optimistic-delete-with-Undo. Hides the task immediately, schedules the
+   * actual mutation in 4.5s, and shows a toast with an Undo button. Undo
+   * clears the timer so the row stays.
+   *
+   * Trade-off: if the user closes the app within 4.5s, the task is restored
+   * on next refresh — better than data loss.
+   */
+  const handleTaskDelete = (taskId: number) => {
+    // Hide row immediately
+    setPendingDeleteIds(prev => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+
+    // Cancel any prior pending delete for the same id (defensive)
+    const existing = deleteTimersRef.current.get(taskId);
+    if (existing) clearTimeout(existing);
+
+    // Schedule the real delete
+    const timer = setTimeout(() => {
+      deleteTimersRef.current.delete(taskId);
+      deleteTask.mutate({ id: taskId, jobId });
+      // Don't clear from pendingDeleteIds — invalidate on success will drop the row
+      setPendingDeleteIds(prev => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }, 4500);
+    deleteTimersRef.current.set(taskId, timer);
+
+    // Show Undo toast
+    toast("Task deleted", {
+      duration: 4500,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const t = deleteTimersRef.current.get(taskId);
+          if (t) clearTimeout(t);
+          deleteTimersRef.current.delete(taskId);
+          setPendingDeleteIds(prev => {
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+          });
+        },
+      },
+    });
+  };
 
   const generateFromTemplate = trpc.jobTasks.generateFromTemplate.useMutation({
     onSuccess: (res) => {
@@ -469,9 +525,10 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
     saveFromJobMutation.mutate({ jobId, name: name.trim() });
   };
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const total = tasks.length;
-  const done = tasks.filter(t => t.status === "done").length;
+  // ── Stats (exclude tasks pending an Undo-able delete) ────────────────────
+  const visibleTasks = tasks.filter(t => !pendingDeleteIds.has(t.id));
+  const total = visibleTasks.length;
+  const done = visibleTasks.filter(t => t.status === "done").length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   // ── Voice recording ────────────────────────────────────────────────────────
@@ -743,15 +800,17 @@ export function JobTasksSection({ jobId, jobType, jobDescription: _jobDescriptio
             {/* Task list */}
             {!isLoading && total > 0 && (
               <div className="space-y-1.5">
-                {tasks.map(task => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    onToggle={(id, completed) => updateTask.mutate({ id, jobId, status: completed ? "done" : "pending" })}
-                    onDelete={(id) => deleteTask.mutate({ id, jobId })}
-                    onEdit={(id, title) => updateTask.mutate({ id, jobId, title })}
-                  />
-                ))}
+                {tasks
+                  .filter(task => !pendingDeleteIds.has(task.id))
+                  .map(task => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      onToggle={(id, completed) => updateTask.mutate({ id, jobId, status: completed ? "done" : "pending" })}
+                      onDelete={handleTaskDelete}
+                      onEdit={(id, title) => updateTask.mutate({ id, jobId, title })}
+                    />
+                  ))}
               </div>
             )}
 

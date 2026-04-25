@@ -25,7 +25,7 @@ import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import {
   ArrowLeft, Phone, Mail, MapPin, DollarSign, Briefcase,
   Calendar, FileText, Loader2, Save, RefreshCw, CheckCircle2,
-  Clock, AlertCircle,
+  Clock, AlertCircle, MessageSquare,
 } from "lucide-react";
 
 function fmtDate(val: Date | string | null | undefined) {
@@ -163,19 +163,31 @@ export default function PortalCustomerDetail() {
               <h1 className="text-lg font-bold text-white">{customer.name}</h1>
               <div className="flex flex-wrap items-center gap-3 mt-1">
                 {customer.phone && (
-                  <a
-                    href={`tel:${customer.phone}`}
-                    className="flex items-center gap-1 text-sm"
-                    style={{ color: "rgba(255,255,255,0.5)" }}
-                  >
-                    <Phone className="w-3.5 h-3.5" />{customer.phone}
-                  </a>
+                  <>
+                    <a
+                      href={`tel:${customer.phone.replace(/[^\d+]/g, "")}`}
+                      className="flex items-center gap-1 text-sm"
+                      style={{ color: "rgba(255,255,255,0.5)" }}
+                      aria-label={`Call ${customer.phone}`}
+                    >
+                      <Phone className="w-3.5 h-3.5" />{customer.phone}
+                    </a>
+                    <a
+                      href={`sms:${customer.phone.replace(/[^\d+]/g, "")}`}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold"
+                      style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", minHeight: "28px" }}
+                      aria-label={`Text ${customer.phone}`}
+                    >
+                      <MessageSquare className="w-3 h-3" /> SMS
+                    </a>
+                  </>
                 )}
                 {customer.email && (
                   <a
                     href={`mailto:${customer.email}`}
                     className="flex items-center gap-1 text-sm"
                     style={{ color: "rgba(255,255,255,0.5)" }}
+                    aria-label={`Email ${customer.email}`}
                   >
                     <Mail className="w-3.5 h-3.5" />{customer.email}
                   </a>
