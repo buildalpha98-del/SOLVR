@@ -52,6 +52,11 @@ interface InvoiceChase {
   lastChasedAt?: string | Date | null;
   nextChaseAt?: string | Date | null;
   notes?: string | null;
+  // Sprint 3.1 — Xero sync state per chase
+  xeroInvoiceId?: string | null;
+  xeroSyncedAt?: string | Date | null;
+  xeroSyncFailedAt?: string | Date | null;
+  xeroSyncError?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -98,6 +103,80 @@ function statusBadge(status: ChaseStatus, chaseCount: number) {
         </span>
       );
   }
+}
+
+// ── Xero Sync Chip ────────────────────────────────────────────────────────────
+/**
+ * Per-invoice chip showing Xero sync state. Hides itself when:
+ *   - Xero isn't connected (we'd be nagging users with no solution path)
+ *   - Invoice is already paid (no point syncing a paid invoice)
+ *
+ * Three visible states:
+ *   ✓ in Xero       — synced, has xeroInvoiceId
+ *   ⚠ Sync failed   — xeroSyncFailedAt set, surfaces error tooltip + retry
+ *   • Sync now      — connected but never pushed
+ */
+function XeroSyncChip({ chase }: { chase: InvoiceChase }) {
+  const utils = trpc.useUtils();
+  const { data: xeroStatus } = trpc.xero.getStatus.useQuery(undefined, {
+    staleTime: 60_000, retry: 1,
+  });
+  const sync = trpc.xero.syncInvoice.useMutation({
+    onSuccess: () => {
+      utils.invoiceChasing.list.invalidate();
+      toast.success("Invoice synced to Xero.");
+    },
+    onError: (err) => toast.error(err.message ?? "Xero sync failed."),
+  });
+
+  // Hide the chip entirely if Xero isn't connected — no value nagging.
+  if (!xeroStatus?.connected) return null;
+  if (chase.status === "paid") return null;
+
+  const synced = !!chase.xeroInvoiceId;
+  const failed = !synced && !!chase.xeroSyncFailedAt;
+
+  if (synced) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+        style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}
+        title={`Synced to Xero${chase.xeroSyncedAt ? ` on ${new Date(chase.xeroSyncedAt).toLocaleDateString("en-AU")}` : ""}`}
+      >
+        <CheckCircle2 className="w-2.5 h-2.5" /> Xero
+      </span>
+    );
+  }
+
+  if (failed) {
+    return (
+      <button
+        type="button"
+        onClick={() => sync.mutate({ invoiceChaseId: chase.id })}
+        disabled={sync.isPending}
+        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+        style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
+        title={chase.xeroSyncError ?? "Sync failed — tap to retry"}
+      >
+        {sync.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <AlertTriangle className="w-2.5 h-2.5" />}
+        Retry Xero
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => sync.mutate({ invoiceChaseId: chase.id })}
+      disabled={sync.isPending}
+      className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+      style={{ background: "rgba(19,181,234,0.12)", color: "#13B5EA" }}
+      title="Push this invoice to Xero now"
+    >
+      {sync.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : null}
+      Sync to Xero
+    </button>
+  );
 }
 
 // ── Add Invoice Form ──────────────────────────────────────────────────────────
@@ -499,6 +578,7 @@ export default function PortalInvoices() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-sm" style={{ color: "#F5F5F0" }}>{chase.invoiceNumber}</span>
                       {statusBadge(chase.status, chase.chaseCount)}
+                      <XeroSyncChip chase={chase} />
                     </div>
                     <div className="text-sm mt-1 font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>
                       {chase.customerName}

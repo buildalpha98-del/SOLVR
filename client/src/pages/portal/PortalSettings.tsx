@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
   Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X, ChevronDown,
-  Download, Banknote,
+  Download, Banknote, FileText,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -601,6 +601,9 @@ export default function PortalSettings() {
         {/* ─── Stripe Connect (Pay Now) ──────────────────────────────────────────── */}
         <StripeConnectSection />
 
+        {/* ─── Xero Integration ──────────────────────────────────────────────────── */}
+        <XeroIntegrationSection />
+
         {/* ─── Google Reviews ───────────────────────────────────────────────────── */}
         <GoogleReviewSection />
 
@@ -1053,6 +1056,199 @@ function humaniseStripeRequirement(code: string): string {
     "business_profile.mcc": "Business category",
   };
   return map[code] ?? code;
+}
+
+// ─── Xero Integration ───────────────────────────────────────────────────────
+/**
+ * Xero connect/disconnect block. Mirrors the Stripe pattern: idle / mid /
+ * ready states. Mid-state isn't really possible with Xero (OAuth either
+ * succeeds or it doesn't) but we still handle ?xero=error returns from
+ * the callback handler with a friendly toast.
+ */
+function XeroIntegrationSection() {
+  const utils = trpc.useUtils();
+  const { data: status, isLoading, refetch } = trpc.xero.getStatus.useQuery(undefined, {
+    staleTime: 30_000, retry: 2,
+  });
+
+  const startConnect = trpc.xero.startConnect.useMutation({
+    onSuccess: () => {
+      // The tRPC procedure only returns the URL — we navigate via
+      // /api/xero/start so the callback can set the state cookie HttpOnly.
+      window.location.href = "/api/xero/start";
+    },
+    onError: (err) => toast.error(err.message ?? "Couldn't start Xero connection."),
+  });
+
+  const disconnect = trpc.xero.disconnect.useMutation({
+    onSuccess: () => {
+      refetch();
+      utils.xero.getStatus.invalidate();
+      toast.success("Xero disconnected. Reconnect any time.");
+    },
+    onError: (err) => toast.error(err.message ?? "Couldn't disconnect."),
+  });
+
+  const setInvoiceMode = trpc.xero.setInvoiceMode.useMutation({
+    onSuccess: () => {
+      refetch();
+      toast.success("Invoice mode updated.");
+    },
+    onError: (err) => toast.error(err.message ?? "Couldn't update."),
+  });
+
+  // Handle the ?xero=connected | cancelled | error redirect once on mount.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const xeroParam = params.get("xero");
+    if (!xeroParam) return;
+    if (xeroParam === "connected") {
+      toast.success("Xero connected.");
+      refetch();
+    } else if (xeroParam === "cancelled") {
+      toast.info("Xero connection cancelled.");
+    } else if (xeroParam === "error") {
+      const reason = params.get("reason") ?? "Connection failed";
+      toast.error(`Xero error: ${reason}`);
+    }
+    params.delete("xero");
+    params.delete("reason");
+    const newSearch = params.toString();
+    const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "") + window.location.hash;
+    window.history.replaceState({}, "", newUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (isLoading) {
+    return (
+      <SectionCard icon={FileText} title="Xero" subtitle="Sync invoices and customers automatically.">
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "rgba(255,255,255,0.4)" }} />
+        </div>
+      </SectionCard>
+    );
+  }
+
+  // Server doesn't have credentials — feature unavailable
+  if (status && !status.configured) {
+    return (
+      <SectionCard icon={FileText} title="Xero" subtitle="Sync invoices and customers automatically.">
+        <div
+          className="flex items-start gap-2 p-3 rounded-lg"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }} />
+          <p className="text-xs" style={{ color: "rgba(255,255,255,0.65)" }}>
+            Xero integration isn't enabled on this server yet. Existing CSV export still works from the Invoices page — choose <strong>Export to Xero</strong> to download an importable file.
+          </p>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  const connected = status?.connected === true;
+
+  return (
+    <SectionCard icon={FileText} title="Xero" subtitle="Sync invoices and customers automatically.">
+      {!connected ? (
+        // ── Not connected ────────────────────────────────────────────────
+        <div className="space-y-3">
+          <div
+            className="flex items-start gap-3 p-3 rounded-lg"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <FileText className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+            <div className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
+              <p className="text-white font-semibold mb-1">How it works:</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>Connect once — about 90 seconds.</li>
+                <li>SOLVR invoices auto-create as Drafts in your Xero Sales tab.</li>
+                <li>Customer contact details sync the first time you invoice them.</li>
+                <li>Tap "Sync now" on any past invoice to push it through.</li>
+              </ul>
+            </div>
+          </div>
+          <WriteGuard>
+            <Button
+              onClick={() => startConnect.mutate()}
+              disabled={startConnect.isPending}
+              className="min-h-11"
+              style={{ background: "#13B5EA", color: "#fff", fontWeight: 700 }}
+            >
+              {startConnect.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <FileText className="w-4 h-4 mr-1.5" />}
+              Connect Xero
+            </Button>
+          </WriteGuard>
+        </div>
+      ) : (
+        // ── Connected ────────────────────────────────────────────────────
+        <div className="space-y-3">
+          <div
+            className="flex items-start gap-3 p-3 rounded-lg"
+            style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.25)" }}
+          >
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#4ade80" }} />
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
+              <p className="font-semibold text-white">Connected to {status?.tenantName ?? "your Xero org"}</p>
+              <p className="mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+                New invoices will sync automatically.
+              </p>
+            </div>
+          </div>
+
+          {/* Invoice mode toggle */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Push as
+            </p>
+            <div className="flex gap-2">
+              {(["DRAFT", "AUTHORISED"] as const).map(mode => {
+                const active = status?.invoiceStatus === mode;
+                return (
+                  <WriteGuard key={mode}>
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceMode.mutate({ mode })}
+                      disabled={setInvoiceMode.isPending || active}
+                      className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide"
+                      style={{
+                        background: active ? "rgba(245,166,35,0.15)" : "rgba(255,255,255,0.04)",
+                        color: active ? "#F5A623" : "rgba(255,255,255,0.55)",
+                        border: active ? "1px solid rgba(245,166,35,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      {mode === "DRAFT" ? "Draft (safer)" : "Approved"}
+                    </button>
+                  </WriteGuard>
+                );
+              })}
+            </div>
+            <p className="text-[11px] mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+              {status?.invoiceStatus === "DRAFT"
+                ? "Invoices land as Draft in Xero — review + approve them there before they're emailed."
+                : "Invoices land as Approved (Sales tab) — Xero will treat them as ready-to-email."}
+            </p>
+          </div>
+
+          <WriteGuard>
+            <Button
+              onClick={() => {
+                if (window.confirm("Disconnect Xero? Future SOLVR invoices won't sync until you reconnect. Existing Xero invoices stay where they are.")) {
+                  disconnect.mutate();
+                }
+              }}
+              disabled={disconnect.isPending}
+              variant="outline"
+              className="min-h-11 border-red-500/20 text-red-400/70 hover:bg-red-500/10"
+            >
+              {disconnect.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+              Disconnect
+            </Button>
+          </WriteGuard>
+        </div>
+      )}
+    </SectionCard>
+  );
 }
 
 // ─── Billing Section ──────────────────────────────────────────────
