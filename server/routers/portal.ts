@@ -1697,6 +1697,67 @@ export const portalRouter = router({
     }),
 
   /**
+   * Sprint 4.3 — toggle real-time booking on the AI receptionist.
+   * Updates client_profiles.aiBookingEnabled AND PATCHes the Vapi
+   * assistant so the new tool config takes effect on the next call.
+   *
+   * If the Vapi PATCH fails (e.g. Vapi API down), we still flip the DB
+   * flag so the toggle "sticks" — next sync attempt will re-apply.
+   */
+  setAiBookingEnabled: publicProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(ctx.req as unknown as { cookies?: Record<string, string> });
+      const profile = await getClientProfile(client.id);
+
+      // Persist the flag first
+      await updateClientProfile(client.id, { aiBookingEnabled: input.enabled } as any);
+
+      // Sync to Vapi if the assistant exists. Build the prompt + tools to
+      // match the new state.
+      if (client.vapiAgentId) {
+        try {
+          const { updateVapiAssistant, BOOKING_TOOL_PROMPT_SUFFIX } = await import("../vapi");
+          const { buildBookingToolDefinitions } = await import("../vapiTools");
+          // We need the BASE prompt so we can append/strip the suffix. We
+          // store it in client_profiles.aiContext (existing column), or
+          // fall back to a generic one if missing.
+          const basePrompt = profile?.aiContext ??
+            "You are an AI receptionist for a tradie business. Answer calls professionally, capture caller name + phone + job details, and pass them along.";
+          const newPrompt = input.enabled
+            ? `${basePrompt}${BOOKING_TOOL_PROMPT_SUFFIX}`
+            : basePrompt;
+          await updateVapiAssistant(client.vapiAgentId, {
+            systemPrompt: newPrompt,
+            tools: input.enabled ? buildBookingToolDefinitions() : [],
+          });
+          console.log(`[AI Booking] Vapi assistant ${client.vapiAgentId} updated — enabled=${input.enabled}`);
+        } catch (err) {
+          console.error("[AI Booking] Vapi update failed (DB flag still saved):", err);
+          // Surface a non-fatal warning so the UI can show "saved but not synced"
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Saved your preference, but couldn't update the AI receptionist. Try toggling again, or contact support if it persists.",
+          });
+        }
+      }
+
+      return { success: true, enabled: input.enabled };
+    }),
+
+  /**
+   * Get the current AI booking state (for the Settings toggle).
+   */
+  getAiBookingStatus: publicProcedure.query(async ({ ctx }) => {
+    const { client } = await requirePortalAuth(ctx.req as unknown as { cookies?: Record<string, string> });
+    const profile = await getClientProfile(client.id);
+    return {
+      enabled: profile?.aiBookingEnabled ?? false,
+      hasVapiAssistant: !!client.vapiAgentId,
+    };
+  }),
+
+  /**
    * Get payment link details by token — public, no auth required.
    * Used by the /pay/:token page to show invoice summary.
    */

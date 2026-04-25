@@ -554,6 +554,13 @@
       "when": 1777112985798,
       "tag": "0078_true_maddog",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "5",
+      "when": 1777113373280,
+      "tag": "0079_lumpy_the_hood",
+      "breakpoints": true
     }
   ]
 }

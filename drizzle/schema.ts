@@ -1101,6 +1101,13 @@ export const clientProfiles = mysqlTable("client_profiles", {
   /** Timestamp when the tradie dismissed the activation checklist (null = not yet dismissed) */
   activationChecklistDismissedAt: timestamp("activationChecklistDismissedAt"),
 
+  /** Sprint 4.3 — when true, the AI receptionist's Vapi assistant gets
+   *  booking tools (getAvailableSlots / lookupCustomer / bookJob) and an
+   *  expanded system prompt that teaches it when to call them. Default
+   *  off so existing voice-agent customers don't have behaviour change
+   *  without opting in. */
+  aiBookingEnabled: boolean("aiBookingEnabled").default(false).notNull(),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

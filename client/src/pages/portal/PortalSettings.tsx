@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
   Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X, ChevronDown,
-  Download, Banknote, FileText,
+  Download, Banknote, FileText, Bot,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
@@ -615,6 +615,9 @@ export default function PortalSettings() {
 
         {/* ─── Automation ──────────────────────────────────────────────────────── */}
         <AutomationSection />
+
+        {/* ─── AI Booking (Sprint 4.3) ─────────────────────────────────────── */}
+        <AiBookingSection />
 
         {/* ─── Notifications ────────────────────────────────────────────────────── */}
         <NotificationsSection />
@@ -1652,6 +1655,90 @@ function NotificationsSection() {
 }
 
 // ─── Automation Section ──────────────────────────────────────────────────────
+// ─── AI Booking (Sprint 4.3) ────────────────────────────────────────────────
+/**
+ * Toggle that enables real-time job booking on the AI receptionist.
+ * Hidden when the tradie doesn't have a Vapi assistant provisioned.
+ *
+ * On toggle, the server PATCHes the Vapi assistant config with the
+ * booking tools + an extended system prompt. Takes effect on the next
+ * inbound call.
+ */
+function AiBookingSection() {
+  const utils = trpc.useUtils();
+  const { data: status, isLoading } = trpc.portal.getAiBookingStatus.useQuery(undefined, {
+    staleTime: 30_000,
+    retry: 1,
+  });
+  const setEnabled = trpc.portal.setAiBookingEnabled.useMutation({
+    onSuccess: (res) => {
+      utils.portal.getAiBookingStatus.invalidate();
+      hapticSuccess();
+      toast.success(
+        res.enabled
+          ? "AI receptionist can now book jobs in real time."
+          : "Real-time booking disabled. AI will keep capturing details for follow-up.",
+      );
+    },
+    onError: (err) => {
+      hapticWarning();
+      toast.error(err.message ?? "Couldn't update.");
+    },
+  });
+
+  if (isLoading) return null;
+  if (!status?.hasVapiAssistant) return null; // No agent provisioned yet — nothing to gate
+
+  const enabled = status.enabled;
+
+  return (
+    <SectionCard
+      icon={Bot}
+      title="AI Receptionist — Real-time Booking"
+      subtitle="Let the AI book jobs straight into your diary while the customer is on the call."
+    >
+      <div className="space-y-3">
+        <div
+          className="flex items-start gap-3 p-3 rounded-lg"
+          style={{ background: enabled ? "rgba(74,222,128,0.08)" : "rgba(255,255,255,0.04)", border: enabled ? "1px solid rgba(74,222,128,0.25)" : "1px solid rgba(255,255,255,0.08)" }}
+        >
+          {enabled ? (
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#4ade80" }} />
+          ) : (
+            <Bot className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }} />
+          )}
+          <div className="text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
+            <p className="font-semibold text-white mb-1">{enabled ? "Booking is live" : "Capture-only mode"}</p>
+            <p style={{ color: "rgba(255,255,255,0.55)" }}>
+              {enabled
+                ? "The AI checks your calendar live, offers 2-3 available slots, locks the job in, and texts the customer a confirmation. ServiceM8 doesn't do this — it's the killer demo."
+                : "Right now the AI captures caller details but doesn't book. Turn this on and it'll close the loop end-to-end on every call."}
+            </p>
+            <p className="text-[11px] mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Available slots are picked from 9am, 11am, 2pm and 4pm — Monday to Saturday — that don't clash with your existing calendar events.
+            </p>
+          </div>
+        </div>
+        <WriteGuard>
+          <Button
+            onClick={() => setEnabled.mutate({ enabled: !enabled })}
+            disabled={setEnabled.isPending}
+            className="min-h-11"
+            style={{
+              background: enabled ? "rgba(255,255,255,0.06)" : "#F5A623",
+              color: enabled ? "rgba(255,255,255,0.7)" : "#0F1F3D",
+              fontWeight: 700,
+            }}
+          >
+            {setEnabled.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+            {enabled ? "Turn off real-time booking" : "Enable real-time booking"}
+          </Button>
+        </WriteGuard>
+      </div>
+    </SectionCard>
+  );
+}
+
 function AutomationSection() {
   const { canWrite } = usePortalRole();
   const { data: prefs, isLoading } = trpc.portal.getNotificationPrefs.useQuery(undefined, {

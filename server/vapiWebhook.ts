@@ -20,6 +20,7 @@ import { crmClients, crmInteractions } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 import { sendPushToClient } from "./pushNotifications";
+import { dispatchVapiTool } from "./vapiTools";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,26 @@ interface VapiStatusUpdatePayload {
   };
 }
 
-type VapiPayload = VapiCallEndedPayload | VapiStatusUpdatePayload;
+/**
+ * Vapi tool-calls payload. Sent DURING a call when the assistant invokes
+ * one of our function tools. We respond synchronously with the result.
+ */
+interface VapiToolCallsPayload {
+  type: "tool-calls" | "function-call";
+  toolCallList?: Array<{
+    id?: string;
+    function: { name: string; arguments: string | Record<string, unknown> };
+    toolCallId?: string;
+  }>;
+  // Older Vapi payloads use "functionCall" singular
+  functionCall?: { name: string; parameters?: Record<string, unknown> };
+  call?: {
+    id: string;
+    assistantId?: string;
+  };
+}
+
+type VapiPayload = VapiCallEndedPayload | VapiStatusUpdatePayload | VapiToolCallsPayload;
 
 // ─── Helper: find CRM client by Vapi agent ID ─────────────────────────────────
 
@@ -157,6 +177,54 @@ export async function handleVapiWebhook(req: Request, res: Response) {
     }
 
     console.log(`[Vapi Webhook] Event: ${payload.type}`);
+
+    // ── Handle tool-calls (Sprint 4.3) ─────────────────────────────────────
+    // Vapi sends this DURING a call when the assistant invokes one of our
+    // function tools. We respond synchronously with a result string the
+    // assistant uses in the next conversation turn.
+    if (payload.type === "tool-calls" || payload.type === "function-call") {
+      const tcPayload = payload as VapiToolCallsPayload;
+      const assistantId = tcPayload.call?.assistantId;
+      if (!assistantId) {
+        return res.status(400).json({ error: "Missing assistantId" });
+      }
+
+      // Newer Vapi payloads put tool calls in toolCallList; older versions
+      // use a singular functionCall — handle both.
+      const calls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+      if (tcPayload.toolCallList && tcPayload.toolCallList.length > 0) {
+        for (const tc of tcPayload.toolCallList) {
+          const id = tc.id ?? tc.toolCallId ?? `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          let parsed: Record<string, unknown> = {};
+          if (typeof tc.function.arguments === "string") {
+            try { parsed = JSON.parse(tc.function.arguments); } catch { parsed = {}; }
+          } else if (tc.function.arguments && typeof tc.function.arguments === "object") {
+            parsed = tc.function.arguments;
+          }
+          calls.push({ id, name: tc.function.name, args: parsed });
+        }
+      } else if (tcPayload.functionCall) {
+        calls.push({
+          id: `legacy_${Date.now()}`,
+          name: tcPayload.functionCall.name,
+          args: tcPayload.functionCall.parameters ?? {},
+        });
+      }
+
+      if (calls.length === 0) {
+        return res.status(400).json({ error: "No tool calls in payload" });
+      }
+
+      const results = await Promise.all(
+        calls.map(async (c) => {
+          const result = await dispatchVapiTool({ assistantId, name: c.name, args: c.args });
+          return { toolCallId: c.id, result };
+        }),
+      );
+
+      console.log(`[Vapi Webhook] Tool calls processed: ${calls.map(c => c.name).join(", ")}`);
+      return res.json({ results });
+    }
 
     // ── Handle end-of-call-report ────────────────────────────────────────────
     if (payload.type === "end-of-call-report" || payload.type === "call-ended") {
