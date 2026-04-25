@@ -2,24 +2,47 @@
  * Quote Follow-Up Cron Job
  *
  * Runs every day at 9:00 AM AEST (23:00 UTC previous day).
- * For each sent quote that hasn't been responded to, sends automated follow-ups
- * and marks expired quotes.
+ * For each sent quote that hasn't been responded to, sends automated
+ * follow-ups (email + SMS) and marks expired quotes.
  *
- * Sequence (hours/days since sentAt):
- *   48h   → Follow-up #1: "Just checking in" email
- *   5 days → Follow-up #2: "Still interested?" email + SMS
- *   Expiry → Mark quote as expired, notify tradie via push
+ * Sequence (days since sentAt — Sprint 2.2 spec):
+ *   Day 3  → Follow-up #1: "Just checking in" email + SMS
+ *   Day 7  → Follow-up #2: "Still interested?" email + SMS
+ *   Day 14 → Follow-up #3: "Last chance" email + SMS
+ *   validUntil expiry → Mark quote as expired, notify tradie
+ *
+ * SMS goes through sendSmsAndLog so it appears in the threaded inbox
+ * tagged sentBy='system' — tradie sees exactly what auto-fired and
+ * can monitor replies in one place.
  *
  * Cron expression: 0 23 * * * (11pm UTC = 9am AEST)
  */
 import cron from "node-cron";
 import { getDb } from "../db";
 import { sendEmail } from "../_core/email";
-import { sendSms } from "../lib/sms";
+import { sendSmsAndLog } from "../lib/sms";
 import { sendExpoPush } from "../expoPush";
 import { quotes, quoteFollowUps, crmClients, clientProfiles } from "../../drizzle/schema";
-import { and, eq, lte, or, isNull, inArray } from "drizzle-orm";
+import { and, eq, lte, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
+
+// ── Sequence timing (days from sentAt) ───────────────────────────────────────
+const FOLLOW_UP_DAYS = [3, 7, 14] as const;
+const MAX_FOLLOW_UPS = FOLLOW_UP_DAYS.length;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Look up sentAt for a quote — used by the follow-up scheduler so each
+ * step's nextFollowUpAt is anchored to the original send time, not to
+ * the cron run that just executed step N.
+ */
+async function getQuoteSentAt(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  quoteId: string,
+): Promise<Date | null> {
+  const rows = await db.select({ sentAt: quotes.sentAt }).from(quotes).where(eq(quotes.id, quoteId)).limit(1);
+  return rows[0]?.sentAt ?? null;
+}
 
 // ─── Email templates ──────────────────────────────────────────────────────────
 
@@ -39,68 +62,62 @@ function buildFollowUpEmail(opts: {
     ? `This quote is valid until <strong>${new Date(validUntil).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}</strong>.`
     : "This quote will expire soon.";
 
-  if (followUpCount === 1) {
-    return {
+  // Map followUpCount → (subject, lead headline, opening line, urgency tone)
+  const stages: Record<number, { subject: string; headline: string | null; opening: string; closing: string }> = {
+    1: {
       subject: `Quick follow-up — Quote ${quoteNumber} from ${businessName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
-          <p>Hi ${customerName},</p>
-          <p>Just checking in on the quote we sent you for <strong>${jobTitle}</strong>.</p>
-          <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-            <tr style="background: #f5f5f5;">
-              <td style="padding: 12px; border: 1px solid #e0e0e0;"><strong>Quote Number</strong></td>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;">${quoteNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;"><strong>Job</strong></td>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;">${jobTitle}</td>
-            </tr>
-            <tr style="background: #f5f5f5;">
-              <td style="padding: 12px; border: 1px solid #e0e0e0;"><strong>Total (inc. GST)</strong></td>
-              <td style="padding: 12px; border: 1px solid #e0e0e0;"><strong>${formattedAmount}</strong></td>
-            </tr>
-          </table>
-          <p>${expiryText}</p>
-          <p style="text-align: center; margin: 24px 0;">
-            <a href="${acceptUrl}" style="background: #F5A623; color: #0F1F3D; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">View &amp; Accept Quote</a>
-          </p>
-          <p>If you have any questions or would like to discuss the scope, please reply to this email — we're happy to help.</p>
-          <p>Kind regards,<br><strong>${businessName}</strong></p>
-        </div>
-      `,
-    };
-  }
+      headline: null,
+      opening: `Just checking in on the quote we sent you for <strong>${jobTitle}</strong>.`,
+      closing: `If you have any questions or would like to discuss the scope, please reply to this email — we're happy to help.`,
+    },
+    2: {
+      subject: `Still interested? — Quote ${quoteNumber} from ${businessName}`,
+      headline: null,
+      opening: `We wanted to follow up on your quote for <strong>${jobTitle}</strong> — still keen to go ahead?`,
+      closing: `Happy to adjust scope or pricing if something's not quite right. Just hit reply.`,
+    },
+    3: {
+      subject: `Last chance — Quote ${quoteNumber} from ${businessName}`,
+      headline: "⏰ Last chance — your quote is about to expire",
+      opening: `Final follow-up — your quote for <strong>${jobTitle}</strong> expires soon.`,
+      closing: `If you've decided not to proceed, no worries — just let us know and we'll close this off. Otherwise, we'd love to get started on your job.`,
+    },
+  };
+  const stage = stages[followUpCount] ?? stages[1];
+  const isUrgent = followUpCount >= 3;
+  const tableBg = isUrgent ? "#fff8e6" : "#f5f5f5";
+  const tableBorder = isUrgent ? "#F5A623" : "#e0e0e0";
 
-  // followUpCount === 2 — "Still interested?" with urgency
   return {
-    subject: `Your quote is expiring soon — ${quoteNumber} from ${businessName}`,
+    subject: stage.subject,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
+        ${stage.headline ? `
         <div style="background: #F5A623; color: #0F1F3D; padding: 16px; border-radius: 4px 4px 0 0; text-align: center;">
-          <strong>⏰ Your quote is expiring soon</strong>
-        </div>
-        <div style="border: 2px solid #F5A623; padding: 24px;">
+          <strong>${stage.headline}</strong>
+        </div>` : ""}
+        <div style="${isUrgent ? "border: 2px solid #F5A623; padding: 24px;" : ""}">
           <p>Hi ${customerName},</p>
-          <p>We wanted to let you know that your quote for <strong>${jobTitle}</strong> is expiring soon.</p>
+          <p>${stage.opening}</p>
           <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-            <tr style="background: #fff8e6;">
-              <td style="padding: 12px; border: 1px solid #F5A623;"><strong>Quote Number</strong></td>
-              <td style="padding: 12px; border: 1px solid #F5A623;">${quoteNumber}</td>
+            <tr style="background: ${tableBg};">
+              <td style="padding: 12px; border: 1px solid ${tableBorder};"><strong>Quote Number</strong></td>
+              <td style="padding: 12px; border: 1px solid ${tableBorder};">${quoteNumber}</td>
             </tr>
             <tr>
-              <td style="padding: 12px; border: 1px solid #F5A623;"><strong>Job</strong></td>
-              <td style="padding: 12px; border: 1px solid #F5A623;">${jobTitle}</td>
+              <td style="padding: 12px; border: 1px solid ${tableBorder};"><strong>Job</strong></td>
+              <td style="padding: 12px; border: 1px solid ${tableBorder};">${jobTitle}</td>
             </tr>
-            <tr style="background: #fff8e6;">
-              <td style="padding: 12px; border: 1px solid #F5A623;"><strong>Total (inc. GST)</strong></td>
-              <td style="padding: 12px; border: 1px solid #F5A623;"><strong>${formattedAmount}</strong></td>
+            <tr style="background: ${tableBg};">
+              <td style="padding: 12px; border: 1px solid ${tableBorder};"><strong>Total (inc. GST)</strong></td>
+              <td style="padding: 12px; border: 1px solid ${tableBorder};"><strong>${formattedAmount}</strong></td>
             </tr>
           </table>
           <p>${expiryText}</p>
           <p style="text-align: center; margin: 24px 0;">
-            <a href="${acceptUrl}" style="background: #F5A623; color: #0F1F3D; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">Accept Quote Now</a>
+            <a href="${acceptUrl}" style="background: #F5A623; color: #0F1F3D; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">${isUrgent ? "Accept Quote Now" : "View &amp; Accept Quote"}</a>
           </p>
-          <p>If you've decided not to proceed, no worries — just let us know and we'll close this off. Otherwise, we'd love to get started on your job.</p>
+          <p>${stage.closing}</p>
           <p>Kind regards,<br><strong>${businessName}</strong></p>
         </div>
       </div>
@@ -109,16 +126,22 @@ function buildFollowUpEmail(opts: {
 }
 
 function buildFollowUpSms(opts: {
+  followUpCount: number;
   customerName: string;
   businessName: string;
   jobTitle: string;
   acceptUrl: string;
 }): string {
-  const { customerName, businessName, jobTitle, acceptUrl } = opts;
-  return (
-    `Hi ${customerName}, ${businessName} here. Your quote for ${jobTitle} is expiring soon. ` +
-    `Accept online: ${acceptUrl}`
-  );
+  const { followUpCount, customerName, businessName, jobTitle, acceptUrl } = opts;
+  const firstName = customerName.split(" ")[0];
+  if (followUpCount === 1) {
+    return `Hi ${firstName}, ${businessName} here — just checking in on the quote for ${jobTitle}. View/accept: ${acceptUrl}`;
+  }
+  if (followUpCount === 2) {
+    return `Hi ${firstName}, still interested in your ${jobTitle} quote? Happy to chat if anything needs adjusting: ${acceptUrl}`;
+  }
+  // followUpCount === 3 — last chance
+  return `Hi ${firstName}, last reminder — your ${jobTitle} quote is expiring soon. Accept: ${acceptUrl}`;
 }
 
 // ─── Main cron function ───────────────────────────────────────────────────────
@@ -165,18 +188,15 @@ export async function runQuoteFollowUpCron(): Promise<void> {
     console.log(`[QuoteFollowUp] Marked quote ${q.id} as expired`);
   }
 
-  // ── Step 2: Enrol newly sent quotes into follow-up sequence ──────────────────
-  // Find sent quotes that have no follow-up record yet and were sent > 24h ago
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  // ── Step 2: Enrol newly sent quotes into follow-up sequence ──────────────
+  // Find sent quotes that have no follow-up record yet. Enrol everything
+  // that's still "sent" — the cron picks up the first follow-up only when
+  // nextFollowUpAt arrives (sentAt + 3 days), so there's no "blast a fresh
+  // quote" risk.
   const sentQuotes = await db
     .select({ id: quotes.id, clientId: quotes.clientId, sentAt: quotes.sentAt })
     .from(quotes)
-    .where(
-      and(
-        eq(quotes.status, "sent"),
-        lte(quotes.sentAt, oneDayAgo),
-      ),
-    );
+    .where(eq(quotes.status, "sent"));
 
   const existingFollowUpIds = sentQuotes.length > 0
     ? (await db
@@ -188,16 +208,16 @@ export async function runQuoteFollowUpCron(): Promise<void> {
 
   const toEnrol = sentQuotes.filter(q => !existingFollowUpIds.includes(q.id));
   for (const q of toEnrol) {
-    const twoDaysFromSent = new Date((q.sentAt ?? now).getTime() + 48 * 60 * 60 * 1000);
+    const firstFollowUpAt = new Date((q.sentAt ?? now).getTime() + FOLLOW_UP_DAYS[0] * DAY_MS);
     await db.insert(quoteFollowUps).values({
       id: randomUUID(),
       clientId: q.clientId,
       quoteId: q.id,
       followUpCount: 0,
-      nextFollowUpAt: twoDaysFromSent,
+      nextFollowUpAt: firstFollowUpAt,
       status: "active",
     });
-    console.log(`[QuoteFollowUp] Enrolled quote ${q.id} in follow-up sequence`);
+    console.log(`[QuoteFollowUp] Enrolled quote ${q.id} in follow-up sequence (first nudge: ${firstFollowUpAt.toISOString()})`);
   }
 
   // ── Step 3: Send due follow-ups ───────────────────────────────────────────────
@@ -250,7 +270,7 @@ export async function runQuoteFollowUpCron(): Promise<void> {
     }
 
     const nextCount = followUp.followUpCount + 1;
-    if (nextCount > 2) {
+    if (nextCount > MAX_FOLLOW_UPS) {
       // Sequence complete — stop
       await db.update(quoteFollowUps).set({ status: "stopped", updatedAt: now }).where(eq(quoteFollowUps.id, followUp.id));
       continue;
@@ -260,7 +280,7 @@ export async function runQuoteFollowUpCron(): Promise<void> {
     const replyTo = profile?.email ?? undefined;
     const acceptUrl = `${process.env.QUOTE_PUBLIC_BASE_URL ?? "https://solvr.com.au"}/quote/${quote.customerToken}`;
 
-    // ── Send email ──────────────────────────────────────────────────────────────
+    // ── Send email ──────────────────────────────────────────────────────────
     if (quote.customerEmail) {
       const { subject, html } = buildFollowUpEmail({
         followUpCount: nextCount,
@@ -280,42 +300,57 @@ export async function runQuoteFollowUpCron(): Promise<void> {
       }
     }
 
-    // ── Send SMS on follow-up #2 ────────────────────────────────────────────────
-    if (nextCount === 2 && quote.customerPhone) {
+    // ── Send SMS on EVERY follow-up step via the threaded inbox path ─────────
+    // sendSmsAndLog routes the message into sms_conversations so the tradie
+    // sees the auto-fired SMS in the inbox alongside customer replies.
+    if (quote.customerPhone) {
       const smsBody = buildFollowUpSms({
+        followUpCount: nextCount,
         customerName: quote.customerName ?? "there",
         businessName,
         jobTitle: quote.jobTitle,
         acceptUrl,
       });
       try {
-        await sendSms({ to: quote.customerPhone, body: smsBody });
-        console.log(`[QuoteFollowUp] Sent follow-up SMS for quote ${quote.id}`);
+        await sendSmsAndLog({
+          to: quote.customerPhone,
+          body: smsBody,
+          clientId: client.id,
+          customerName: quote.customerName ?? null,
+          sentBy: "system",
+          relatedQuoteId: quote.id,
+        });
+        console.log(`[QuoteFollowUp] Sent follow-up #${nextCount} SMS for quote ${quote.id}`);
       } catch (err) {
         console.error(`[QuoteFollowUp] SMS failed for quote ${quote.id}:`, err);
       }
     }
 
-    // ── Push notification to tradie ─────────────────────────────────────────────
+    // ── Push notification to tradie ─────────────────────────────────────────
     if (client.pushToken) {
       await sendExpoPush({
         to: client.pushToken,
         title: `Follow-up sent — ${quote.quoteNumber}`,
-        body: `Follow-up #${nextCount} sent to ${quote.customerName ?? "customer"} for ${quote.jobTitle}.`,
+        body: `Follow-up #${nextCount}/${MAX_FOLLOW_UPS} sent to ${quote.customerName ?? "customer"} for ${quote.jobTitle}.`,
         data: { type: "quote_follow_up_sent", quoteId: quote.id },
       });
     }
 
-    // ── Update follow-up record ─────────────────────────────────────────────────
-    const nextFollowUpAt = nextCount === 1
-      ? new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000) // 3 more days for #2
-      : null; // sequence ends after #2
+    // ── Update follow-up record ─────────────────────────────────────────────
+    // Schedule next follow-up based on the absolute day-X-from-sentAt
+    // schedule, not "now + N days" — keeps the cadence stable even if a
+    // cron run is delayed.
+    const sentAt = quote.id ? (await getQuoteSentAt(db, quote.id)) ?? now : now;
+    const isLastStep = nextCount >= MAX_FOLLOW_UPS;
+    const nextFollowUpAt = isLastStep
+      ? null
+      : new Date(sentAt.getTime() + FOLLOW_UP_DAYS[nextCount] * DAY_MS);
 
     await db.update(quoteFollowUps).set({
       followUpCount: nextCount,
       lastFollowUpAt: now,
       nextFollowUpAt: nextFollowUpAt,
-      status: nextCount >= 2 ? "stopped" : "active",
+      status: isLastStep ? "stopped" : "active",
       updatedAt: now,
     }).where(eq(quoteFollowUps.id, followUp.id));
   }
