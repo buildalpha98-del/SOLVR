@@ -2106,3 +2106,49 @@ export const aiTaskAudit = mysqlTable("ai_task_audit", {
 });
 export type AiTaskAudit = typeof aiTaskAudit.$inferSelect;
 export type InsertAiTaskAudit = typeof aiTaskAudit.$inferInsert;
+
+// ─── Stripe Connect (Express) Connections ───────────────────────────────────
+/**
+ * One row per SOLVR client (tradie) who has connected their Stripe account
+ * via Connect Express. Money from invoice payment links flows directly to
+ * the tradie's bank — SOLVR never holds funds, so no money-transmitter
+ * regulatory exposure.
+ *
+ * Lifecycle:
+ *   1. Tradie clicks "Connect Stripe" → SOLVR creates an Express Account,
+ *      stores acct_xxx here with chargesEnabled=false.
+ *   2. Stripe redirects through onboarding (collects ABN, ID, bank).
+ *   3. Webhook account.updated fires → we set chargesEnabled/payoutsEnabled
+ *      and onboardingCompletedAt.
+ *   4. Once chargesEnabled=true, payment link buttons unlock for the tradie.
+ *   5. On disconnect: we set disconnectedAt; the Stripe account itself is
+ *      kept (Stripe doesn't allow programmatic deletion) but we stop using
+ *      it in new payment links.
+ *
+ * 1:1 with crmClients — clientId UNIQUE.
+ */
+export const stripeConnections = mysqlTable("stripe_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to crm_clients.id — the SOLVR client (tradie) */
+  clientId: int("clientId").notNull().unique(),
+  /** Stripe Account ID (acct_xxx) */
+  stripeAccountId: varchar("stripeAccountId", { length: 64 }).notNull(),
+  /** Whether this account can accept charges (becomes true after onboarding completes) */
+  chargesEnabled: boolean("chargesEnabled").default(false).notNull(),
+  /** Whether payouts to the tradie's bank are enabled */
+  payoutsEnabled: boolean("payoutsEnabled").default(false).notNull(),
+  /** Whether the tradie has finished the onboarding form (separate from chargesEnabled which Stripe controls) */
+  detailsSubmitted: boolean("detailsSubmitted").default(false).notNull(),
+  country: varchar("country", { length: 2 }).default("AU").notNull(),
+  defaultCurrency: varchar("defaultCurrency", { length: 3 }).default("aud").notNull(),
+  /** Stripe-reported requirements that block charges (e.g. missing ID). JSON array of strings. */
+  currentlyDueRequirements: json("currentlyDueRequirements").$type<string[]>(),
+  /** When onboarding form was completed (chargesEnabled flipped true) */
+  onboardingCompletedAt: timestamp("onboardingCompletedAt"),
+  /** When the tradie or admin disconnected */
+  disconnectedAt: timestamp("disconnectedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StripeConnection = typeof stripeConnections.$inferSelect;
+export type InsertStripeConnection = typeof stripeConnections.$inferInsert;

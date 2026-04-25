@@ -3421,8 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, aiTaskAudit, pushSubscriptions } from "../drizzle/schema";
-import type { InsertAiTaskAudit } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections } from "../drizzle/schema";
+import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3531,4 +3531,69 @@ export async function createAiTaskAudit(
     // catch it in Railway, but don't surface to the user.
     console.error("[ai-task-audit] DB write failed:", err);
   }
+}
+
+// ─── Stripe Connect (Express) helpers ───────────────────────────────────────
+
+/**
+ * Get the Stripe Connection for a SOLVR client (1:1).
+ * Returns null if the client has never connected, OR if they previously
+ * connected and then disconnected (we keep the row but mark disconnectedAt
+ * — caller should treat that as "not connected").
+ */
+export async function getStripeConnection(
+  clientId: number,
+): Promise<StripeConnection | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(stripeConnections)
+    .where(eq(stripeConnections.clientId, clientId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Create the initial stripe_connections row right after Account creation. */
+export async function createStripeConnection(
+  data: Omit<InsertStripeConnection, "id" | "createdAt" | "updatedAt">,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(stripeConnections).values(data);
+}
+
+/**
+ * Update fields on a stripe_connections row. Used by the webhook handler
+ * (account.updated) and by the manual refresh endpoint to mirror the
+ * latest state from Stripe.
+ */
+export async function updateStripeConnection(
+  clientId: number,
+  data: Partial<Omit<InsertStripeConnection, "id" | "clientId" | "createdAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .update(stripeConnections)
+    .set(data)
+    .where(eq(stripeConnections.clientId, clientId));
+}
+
+/**
+ * Look up a stripe_connections row by Stripe's account ID. Used by the
+ * webhook handler when processing account.updated events — we receive
+ * the account ID, need to find which SOLVR client it belongs to.
+ */
+export async function getStripeConnectionByAccountId(
+  stripeAccountId: string,
+): Promise<StripeConnection | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(stripeConnections)
+    .where(eq(stripeConnections.stripeAccountId, stripeAccountId))
+    .limit(1);
+  return rows[0] ?? null;
 }

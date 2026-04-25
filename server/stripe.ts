@@ -11,8 +11,11 @@ import { buildWelcomeEmail, buildTrialEndingEmail } from "./lib/onboardingEmails
 // Lazy Stripe client — a missing STRIPE_SECRET_KEY must not crash the server
 // at import time (which is what `new Stripe(undefined!)` does). Defer the
 // "missing key" error until someone actually tries to use Stripe.
+//
+// Exported so the stripeConnect router can share the same singleton instead
+// of constructing its own client.
 let _stripe: Stripe | null = null;
-function getStripe(): Stripe {
+export function getStripe(): Stripe {
   if (_stripe) return _stripe;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");

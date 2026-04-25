@@ -505,6 +505,13 @@
       "when": 1777089399113,
       "tag": "0071_ancient_retro_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "5",
+      "when": 1777103532763,
+      "tag": "0072_wooden_dreaming_celestial",
+      "breakpoints": true
     }
   ]
 }

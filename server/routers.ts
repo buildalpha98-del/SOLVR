@@ -45,6 +45,7 @@ import { portalReportingRouter } from "./routers/portalReporting";
 import { portalSubcontractorsRouter } from "./routers/portalSubcontractors";
 import { portalPurchaseOrdersRouter } from "./routers/portalPurchaseOrders";
 import { portalFormsRouter } from "./routers/portalForms";
+import { stripeConnectRouter } from "./routers/stripeConnect";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1592,5 +1593,6 @@ export const appRouter = router({
   subcontractors: portalSubcontractorsRouter,
   purchaseOrders: portalPurchaseOrdersRouter,
   forms: portalFormsRouter,
+  stripeConnect: stripeConnectRouter,
 });
 export type AppRouter = typeof appRouter;
