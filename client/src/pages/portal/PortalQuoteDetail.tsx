@@ -17,6 +17,7 @@ import { useState, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { getSolvrOrigin } from "@/const";
+import { compressImage } from "@/lib/imageCompression";
 import PortalLayout from "./PortalLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,6 +218,9 @@ export default function PortalQuoteDetail() {
       toast.error("Photo must be under 10MB");
       return;
     }
+    // Compress on-device before base64-encoding — slashes upload time and
+    // server payload size for full-resolution phone-camera photos.
+    const compressed = await compressImage(file);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
@@ -224,14 +228,19 @@ export default function PortalQuoteDetail() {
         await addPhotoMutation.mutateAsync({
           quoteId,
           imageDataUrl: dataUrl,
-          mimeType: file.type as "image/jpeg" | "image/png" | "image/webp",
+          // compressImage outputs JPEG; use that mime type for the compressed
+          // path, otherwise pass the original file's mime if compression
+          // returned the file unchanged.
+          mimeType: (compressed.type === "image/jpeg" || compressed.type === "image/png" || compressed.type === "image/webp"
+            ? compressed.type
+            : "image/jpeg") as "image/jpeg" | "image/png" | "image/webp",
         });
         toast.success("Photo added");
       } catch {
         toast.error("Failed to upload photo");
       }
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
     e.target.value = "";
   }
 

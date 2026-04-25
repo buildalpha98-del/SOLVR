@@ -369,11 +369,20 @@ export default function PortalCustomers() {
               <p className="text-sm font-medium text-white mb-1">
                 {search ? "No customers match your search" : "No customers yet"}
               </p>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+              <p className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
                 {search
                   ? "Try a different search term."
-                  : "Customers appear here automatically when a quote is accepted or invoice is paid."}
+                  : "Customers appear here automatically when a quote is accepted or invoice is paid — or you can add one manually now."}
               </p>
+              {!search && (
+                <Button
+                  onClick={() => setShowAddCustomer(true)}
+                  className="mt-1"
+                  style={{ background: "#F5A623", color: "#0F1F3D", fontWeight: 700 }}
+                >
+                  <Plus className="w-4 h-4 mr-1.5" /> Add Customer Manually
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

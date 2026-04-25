@@ -20,6 +20,7 @@ import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { getSolvrOrigin } from "@/const";
+import { compressImage } from "@/lib/imageCompression";
 import { toast } from "sonner";
 import {
   ArrowLeft, MapPin, User, Phone, Mail, Home, Briefcase,
@@ -243,7 +244,7 @@ function PhotoSection({
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>, photoType: "before" | "after") {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    // Validate all files first
+    // Validate all files first (10 MB pre-compression cap)
     for (let i = 0; i < files.length; i++) {
       if (files[i].size > 10 * 1024 * 1024) { toast.error(`"${files[i].name}" exceeds 10MB limit`); return; }
     }
@@ -251,8 +252,10 @@ function PhotoSection({
     let uploaded = 0;
     try {
       for (let i = 0; i < files.length; i++) {
+        // Compress before upload — saves 5–10 MB per photo on rural 4G
+        const compressed = await compressImage(files[i]);
         const fd = new FormData();
-        fd.append("file", files[i]);
+        fd.append("file", compressed);
         fd.append("photoType", photoType);
         const res = await fetch(`${getSolvrOrigin()}/api/portal/upload-photo`, { method: "POST", credentials: "include", body: fd });
         if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error((err as { error?: string }).error ?? "Upload failed"); }
