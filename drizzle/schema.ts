@@ -932,6 +932,16 @@ export const invoiceChases = mysqlTable("invoice_chases", {
   /** Notes added by the Solvr client (e.g. "customer promised to pay Friday") */
   notes: text("notes"),
 
+  //  Xero sync (Sprint 3.1)
+  /** Xero invoice ID once successfully pushed to the connected Xero org */
+  xeroInvoiceId: varchar("xeroInvoiceId", { length: 36 }),
+  /** When the push to Xero last succeeded */
+  xeroSyncedAt: timestamp("xeroSyncedAt"),
+  /** When the most recent push attempt failed (null when synced or never tried) */
+  xeroSyncFailedAt: timestamp("xeroSyncFailedAt"),
+  /** Last error message from Xero — surfaces in the invoice card */
+  xeroSyncError: varchar("xeroSyncError", { length: 500 }),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -2273,3 +2283,61 @@ export const liveTrackingLinks = mysqlTable("live_tracking_links", {
 });
 export type LiveTrackingLink = typeof liveTrackingLinks.$inferSelect;
 export type InsertLiveTrackingLink = typeof liveTrackingLinks.$inferInsert;
+
+// ─── Xero Integration (per scoping doc 2026-04-25-xero-integration-design) ──
+/**
+ * One row per SOLVR client (tradie) connected to a Xero organisation.
+ * 1:1 — clientId UNIQUE. The actual access + refresh tokens are stored
+ * AES-256-GCM encrypted (key in XERO_TOKEN_ENCRYPTION_KEY env var) so a
+ * DB dump never leaks live OAuth credentials.
+ *
+ * Lifecycle:
+ *   1. Tradie taps Connect → OAuth flow with offline_access scope
+ *   2. Callback returns access/refresh tokens + tenant list
+ *   3. We store the first tenant (multi-tenant picker = v3 per spec)
+ *   4. On every API call: check accessTokenExpiresAt; refresh if <60s
+ *      remaining (refresh token is rotated by Xero on each refresh)
+ *   5. Disconnect: mark disconnectedAt; reconnect creates a fresh row
+ */
+export const xeroConnections = mysqlTable("xero_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull().unique(),
+  /** Xero tenant (org) ID — GUID format */
+  tenantId: varchar("tenantId", { length: 36 }).notNull(),
+  /** Org name from Xero — for the Settings page badge */
+  tenantName: varchar("tenantName", { length: 255 }).notNull(),
+  /** AES-256-GCM ciphertext (base64) of the refresh token */
+  refreshTokenEncrypted: text("refreshTokenEncrypted").notNull(),
+  /** AES-256-GCM ciphertext (base64) of the access token */
+  accessTokenEncrypted: text("accessTokenEncrypted").notNull(),
+  /** When the access token expires — refresh ~60s before this */
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt").notNull(),
+  /** Per-tenant webhook signing key (v2 feature; nullable for v1) */
+  webhookSigningKeyEncrypted: text("webhookSigningKeyEncrypted"),
+  /** Set when tradie disconnects OR refresh permanently fails */
+  disconnectedAt: timestamp("disconnectedAt"),
+  /** User pref — push as DRAFT (default, safer) or AUTHORISED */
+  invoiceStatus: mysqlEnum("xeroInvoiceStatus", ["DRAFT", "AUTHORISED"]).default("DRAFT").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type XeroConnection = typeof xeroConnections.$inferSelect;
+export type InsertXeroConnection = typeof xeroConnections.$inferInsert;
+
+/**
+ * Audit trail for every Xero touchpoint. Insurance + debugging — same
+ * shape as ai_task_audit (lessons from earlier).
+ */
+export const xeroSyncLog = mysqlTable("xero_sync_log", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  /** Optional FK to invoice_chases.id when the event is per-invoice */
+  invoiceChaseId: varchar("invoiceChaseId", { length: 36 }),
+  event: mysqlEnum("xeroEvent", ["push_invoice", "pull_status", "webhook_received", "token_refresh", "connect", "disconnect"]).notNull(),
+  outcome: mysqlEnum("xeroOutcome", ["ok", "error"]).notNull(),
+  /** Free-form payload — request/response summaries, error messages */
+  detail: json("detail"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type XeroSyncLog = typeof xeroSyncLog.$inferSelect;
+export type InsertXeroSyncLog = typeof xeroSyncLog.$inferInsert;

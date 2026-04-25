@@ -155,6 +155,13 @@ async function startServer() {
   // Uses urlencoded body (Twilio sends application/x-www-form-urlencoded)
   app.post("/api/twilio/inbound-sms", express.urlencoded({ extended: false }), handleTwilioInboundSms);
 
+  // Xero OAuth start + callback — see server/xeroOAuth.ts for the flow.
+  // The start endpoint requires an authenticated portal session; the
+  // callback verifies a short-lived state cookie set by start.
+  const { handleXeroStart, handleXeroCallback } = await import("../xeroOAuth");
+  app.get("/api/xero/start", handleXeroStart);
+  app.get("/api/xero/callback", handleXeroCallback);
+
   // Audio upload for Voice-to-Quote (multipart/form-data) — register BEFORE json middleware
   // Mount at /api so the full path becomes /api/portal/upload-audio (matching the frontend fetch call)
   app.use("/api", audioUploadRouter);

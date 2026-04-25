@@ -62,4 +62,19 @@ export const ENV = {
   // baking it into the bundle (the customer-page bundle is only loaded
   // for customers, not tradies, so we route through the server).
   googleMapsApiKey: process.env.VITE_GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY ?? "",
+
+  // ── Xero (Sprint 3.1 — per docs/specs/2026-04-25-xero-integration-design) ─
+  // Required to enable the Xero integration. Get from https://developer.xero.com/app/manage
+  //   XERO_CLIENT_ID / XERO_CLIENT_SECRET — Public App credentials
+  //   XERO_REDIRECT_URI — must EXACTLY match the URL registered with Xero,
+  //                        e.g. https://solvr.com.au/api/xero/callback
+  //   XERO_TOKEN_ENCRYPTION_KEY — 64 hex chars (32 bytes). Encrypts refresh
+  //                                 tokens at rest with AES-256-GCM. Generate
+  //                                 once with: openssl rand -hex 32
+  // If any are unset, the Xero feature degrades gracefully — Settings shows
+  // "not configured" and the connect button is disabled.
+  xeroClientId: process.env.XERO_CLIENT_ID ?? "",
+  xeroClientSecret: process.env.XERO_CLIENT_SECRET ?? "",
+  xeroRedirectUri: process.env.XERO_REDIRECT_URI ?? "",
+  xeroTokenEncryptionKey: process.env.XERO_TOKEN_ENCRYPTION_KEY ?? "",
 };

@@ -3421,8 +3421,8 @@ export async function backfillJobTypeFormRequirements(
 
 
 // ─── Account Deletion (Apple 5.1.1(v)) ──────────────────────────────────────
-import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks } from "../drizzle/schema";
-import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink } from "../drizzle/schema";
+import { accountDeletionLogs, aiTaskAudit, pushSubscriptions, stripeConnections, smsConversations, smsMessages, liveTrackingLinks, xeroConnections, xeroSyncLog } from "../drizzle/schema";
+import type { InsertAiTaskAudit, InsertStripeConnection, StripeConnection, InsertSmsConversation, SmsConversation, InsertSmsMessage, SmsMessage, InsertLiveTrackingLink, LiveTrackingLink, InsertXeroConnection, XeroConnection as XeroConnectionRow, InsertXeroSyncLog } from "../drizzle/schema";
 
 /**
  * Anonymise a portal client record — blanks PII fields.
@@ -3814,4 +3814,50 @@ export async function updateLiveTrackingLink(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(liveTrackingLinks).set(data).where(eq(liveTrackingLinks.id, id));
+}
+
+// ─── Xero connection helpers ───────────────────────────────────────────────
+
+/** Get the Xero connection row for a SOLVR client (or null). */
+export async function getXeroConnection(clientId: number): Promise<XeroConnectionRow | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db
+    .select()
+    .from(xeroConnections)
+    .where(eq(xeroConnections.clientId, clientId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Insert a new connection (after a successful OAuth callback). */
+export async function createXeroConnection(data: InsertXeroConnection): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(xeroConnections).values(data);
+}
+
+/** Update fields on the Xero connection (token rotation, disconnect, etc.). */
+export async function updateXeroConnection(
+  clientId: number,
+  data: Partial<Omit<InsertXeroConnection, "id" | "clientId" | "createdAt">>,
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(xeroConnections).set(data).where(eq(xeroConnections.clientId, clientId));
+}
+
+/**
+ * Append a Xero sync-log row. Used by every Xero touchpoint for the
+ * audit trail. Errors swallowed — audit-write must never break the
+ * real operation.
+ */
+export async function createXeroSyncLog(data: Omit<InsertXeroSyncLog, "id" | "createdAt">): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(xeroSyncLog).values(data);
+  } catch (err) {
+    console.error("[xero-sync-log] DB write failed:", err);
+  }
 }

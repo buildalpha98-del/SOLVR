@@ -49,6 +49,7 @@ import { stripeConnectRouter } from "./routers/stripeConnect";
 import { smsConversationsRouter } from "./routers/smsConversations";
 import { liveTrackingRouter } from "./routers/liveTracking";
 import { customerImportRouter } from "./routers/customerImport";
+import { xeroRouter } from "./routers/xero";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1600,5 +1601,6 @@ export const appRouter = router({
   smsConversations: smsConversationsRouter,
   tracking: liveTrackingRouter,
   customerImport: customerImportRouter,
+  xero: xeroRouter,
 });
 export type AppRouter = typeof appRouter;
