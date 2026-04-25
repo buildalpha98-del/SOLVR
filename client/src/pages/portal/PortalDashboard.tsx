@@ -1176,16 +1176,16 @@ export default function PortalDashboard() {
           <div className="flex gap-4 mb-4">
             <div className="text-center">
               <div className="text-xl font-bold" style={{ color: "#F5A623" }}>{referralStats?.totalReferred ?? 0}</div>
-              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Referred</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>Referred</div>
             </div>
             <div className="text-center">
               <div className="text-xl font-bold text-white">{referralStats?.totalConverted ?? 0}</div>
-              <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Converted</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>Converted</div>
             </div>
             {(referralStats?.pendingDiscountPct ?? 0) > 0 && (
               <div className="text-center">
                 <div className="text-xl font-bold text-green-400">{referralStats?.pendingDiscountPct}%</div>
-                <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>Pending discount</div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>Pending discount</div>
               </div>
             )}
           </div>

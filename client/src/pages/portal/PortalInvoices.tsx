@@ -166,7 +166,9 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
             </div>
             <div>
               <Label className="text-white/70 text-xs">Amount Due (AUD) *</Label>
-              <Input value={form.amountDue} onChange={e => setForm(f => ({ ...f, amountDue: e.target.value }))}
+              <Input
+                inputMode="decimal"
+                value={form.amountDue} onChange={e => setForm(f => ({ ...f, amountDue: e.target.value }))}
                 placeholder="1250.00" className="mt-1" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }} />
             </div>
           </div>
@@ -178,12 +180,20 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-white/70 text-xs">Customer Email *</Label>
-              <Input value={form.customerEmail} onChange={e => setForm(f => ({ ...f, customerEmail: e.target.value }))}
+              <Input
+                type="email"
+                inputMode="email"
+                autoCapitalize="off"
+                autoCorrect="off"
+                value={form.customerEmail} onChange={e => setForm(f => ({ ...f, customerEmail: e.target.value }))}
                 placeholder="john@example.com" className="mt-1" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }} />
             </div>
             <div>
               <Label className="text-white/70 text-xs">Customer Phone</Label>
-              <Input value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))}
+              <Input
+                type="tel"
+                inputMode="tel"
+                value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))}
                 placeholder="0412 345 678" className="mt-1" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }} />
             </div>
           </div>

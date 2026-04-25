@@ -628,6 +628,7 @@ export default function PortalPriceList() {
                 <div className="relative">
                   <DollarSign className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-500" />
                   <Input
+                    inputMode="decimal"
                     value={form.costDisplay}
                     onChange={(e) => setForm({ ...form, costDisplay: e.target.value })}
                     placeholder="0.00"
@@ -644,6 +645,7 @@ export default function PortalPriceList() {
                 <div className="relative">
                   <DollarSign className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-500" />
                   <Input
+                    inputMode="decimal"
                     value={form.sellDisplay}
                     onChange={(e) => setForm({ ...form, sellDisplay: e.target.value })}
                     placeholder="0.00"

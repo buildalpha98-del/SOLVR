@@ -348,17 +348,20 @@ function AddJobModal({
           <button onClick={onClose} className="text-white/40 hover:text-white/70"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          {[
-            { label: "Job type *", value: jobType, setter: setJobType, placeholder: "e.g. Hot water repair, Blocked drain" },
+          {([
+            { label: "Job type", required: true, value: jobType, setter: setJobType, placeholder: "e.g. Hot water repair, Blocked drain" },
             { label: "Description", value: description, setter: setDescription, placeholder: "e.g. Hot water system replacement at rear of house" },
             { label: "Caller name", value: callerName, setter: setCallerName, placeholder: "e.g. John Smith" },
-            { label: "Phone", value: callerPhone, setter: setCallerPhone, placeholder: "e.g. 0412 345 678" },
-            { label: "Estimated value ($)", value: estimatedValue, setter: setEstimatedValue, placeholder: "e.g. 1200", type: "number" },
-          ].map(field => (
+            { label: "Phone", value: callerPhone, setter: setCallerPhone, placeholder: "e.g. 0412 345 678", type: "tel", inputMode: "tel" as const },
+            { label: "Estimated value ($)", value: estimatedValue, setter: setEstimatedValue, placeholder: "e.g. 1200", inputMode: "decimal" as const },
+          ] as Array<{ label: string; required?: boolean; value: string; setter: (v: string) => void; placeholder: string; type?: string; inputMode?: "tel" | "decimal" }>).map(field => (
             <div key={field.label}>
-              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>{field.label}</label>
+              <label className="text-xs font-medium mb-1 block" style={{ color: "rgba(255,255,255,0.5)" }}>
+                {field.label}{field.required && <span className="text-red-400 ml-0.5">*</span>}
+              </label>
               <input
                 type={field.type ?? "text"}
+                inputMode={field.inputMode}
                 value={field.value}
                 onChange={e => field.setter(e.target.value)}
                 placeholder={field.placeholder}

@@ -247,8 +247,8 @@ function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose:
           <Input placeholder="Company name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           <Input placeholder="Contact person" value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input placeholder="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-            <Input placeholder="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            <Input placeholder="Email" type="email" inputMode="email" autoCapitalize="off" autoCorrect="off" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+            <Input placeholder="Phone" type="tel" inputMode="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input placeholder="ABN" value={form.abn} onChange={e => setForm(f => ({ ...f, abn: e.target.value }))} />

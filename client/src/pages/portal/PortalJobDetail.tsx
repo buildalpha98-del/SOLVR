@@ -84,7 +84,7 @@ function EditableField({
     <div className="flex items-start gap-2 group">
       {icon && <span className="mt-0.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>{icon}</span>}
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] uppercase tracking-wide mb-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{label}</p>
+        <p className="text-[11px] uppercase tracking-wide font-semibold mb-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{label}</p>
         {editing ? (
           <div className="flex items-center gap-1">
             <input
@@ -378,15 +378,15 @@ function JobCostingSection({
       {/* Profit Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div>
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Revenue</p>
+          <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: "rgba(255,255,255,0.55)" }}>Revenue</p>
           <p className="text-base font-bold text-white">{centsToAud(invoicedCents)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Total Costs</p>
+          <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: "rgba(255,255,255,0.55)" }}>Total Costs</p>
           <p className="text-base font-bold" style={{ color: "#ef4444" }}>{centsToAud(totalCostCents)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(255,255,255,0.35)" }}>Gross Profit</p>
+          <p className="text-xs uppercase tracking-wide font-semibold" style={{ color: "rgba(255,255,255,0.55)" }}>Gross Profit</p>
           <p className="text-base font-bold" style={{ color: isProfitable ? "#4ade80" : "#ef4444" }}>{isProfitable ? "+" : ""}{centsToAud(grossProfitCents)}</p>
         </div>
       </div>

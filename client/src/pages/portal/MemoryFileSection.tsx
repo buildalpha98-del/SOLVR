@@ -304,19 +304,19 @@ export default function MemoryFileSection() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="space-y-1.5">
               <Label className="text-white/70 text-xs">Call-out Fee</Label>
-              <Input placeholder="$0" value={callOutFee} onChange={(e) => setCallOutFee(e.target.value)} style={inputStyle} />
+              <Input inputMode="decimal" placeholder="$0" value={callOutFee} onChange={(e) => setCallOutFee(e.target.value)} style={inputStyle} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-white/70 text-xs">Hourly Rate</Label>
-              <Input placeholder="$0" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} style={inputStyle} />
+              <Input inputMode="decimal" placeholder="$0" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} style={inputStyle} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-white/70 text-xs">Minimum Charge</Label>
-              <Input placeholder="$0" value={minimumCharge} onChange={(e) => setMinimumCharge(e.target.value)} style={inputStyle} />
+              <Input inputMode="decimal" placeholder="$0" value={minimumCharge} onChange={(e) => setMinimumCharge(e.target.value)} style={inputStyle} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-white/70 text-xs">After-hours ×</Label>
-              <Input placeholder="1.5" value={afterHoursMultiplier} onChange={(e) => setAfterHoursMultiplier(e.target.value)} style={inputStyle} />
+              <Input inputMode="decimal" placeholder="1.5" value={afterHoursMultiplier} onChange={(e) => setAfterHoursMultiplier(e.target.value)} style={inputStyle} />
             </div>
           </div>
 
@@ -336,7 +336,7 @@ export default function MemoryFileSection() {
                   <div key={i} className="grid grid-cols-[1fr_1fr_80px_80px_32px] gap-2 items-start">
                     <Input placeholder="Service name" value={s.name} onChange={(e) => updateService(i, "name", e.target.value)} style={inputStyle} className="text-xs" />
                     <Input placeholder="Brief description" value={s.description} onChange={(e) => updateService(i, "description", e.target.value)} style={inputStyle} className="text-xs" />
-                    <Input placeholder="$0" value={s.typicalPrice?.toString() ?? ""} onChange={(e) => updateService(i, "typicalPrice", e.target.value ? parseFloat(e.target.value) : null)} style={inputStyle} className="text-xs" />
+                    <Input inputMode="decimal" placeholder="$0" value={s.typicalPrice?.toString() ?? ""} onChange={(e) => updateService(i, "typicalPrice", e.target.value ? parseFloat(e.target.value) : null)} style={inputStyle} className="text-xs" />
                     <select value={s.unit} onChange={(e) => updateService(i, "unit", e.target.value)} className="rounded-md px-2 py-2 text-xs" style={inputStyle}>
                       <option value="per job">per job</option>
                       <option value="per hour">per hour</option>
@@ -396,6 +396,7 @@ export default function MemoryFileSection() {
             </label>
             {emergencyAvailable && (
               <Input
+                inputMode="decimal"
                 placeholder="Emergency fee"
                 value={emergencyFee}
                 onChange={(e) => setEmergencyFee(e.target.value)}
