@@ -370,7 +370,8 @@ function TemplatesTab({ search }: { search: string }) {
   const { data: templates, isLoading } = trpc.forms.listTemplates.useQuery();
   const utils = trpc.useUtils();
   const deleteMutation = trpc.forms.deleteTemplate.useMutation({
-    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticWarning(); toast.success("Template deleted"); },
+    // Template row vanishes from list — visual change is feedback.
+    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticWarning(); },
     onError: (err) => toast.error(err.message || "Failed to delete template"),
   });
 
@@ -471,7 +472,8 @@ function TemplateBuilderDialog({ templateId, onClose }: { templateId: number | n
     onError: e => toast.error(e.message),
   });
   const updateMutation = trpc.forms.updateTemplate.useMutation({
-    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticSuccess(); toast.success("Template updated"); onClose(); },
+    // Modal closes + row updates — visual change is feedback.
+    onSuccess: () => { utils.forms.listTemplates.invalidate(); hapticSuccess(); onClose(); },
     onError: e => toast.error(e.message),
   });
 
@@ -612,7 +614,8 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
   const { data: templates } = trpc.forms.listTemplates.useQuery();
   const utils = trpc.useUtils();
   const deleteMutation = trpc.forms.deleteSubmission.useMutation({
-    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticWarning(); toast.success("Form deleted"); },
+    // Submission row vanishes from list — visual change is feedback.
+    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticWarning(); },
     onError: (err) => toast.error(err.message || "Failed to delete form"),
   });
 
@@ -828,7 +831,10 @@ function FormFillerDialog({
     onError: e => toast.error(e.message),
   });
   const updateMutation = trpc.forms.updateSubmission.useMutation({
-    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticSuccess(); toast.success("Form updated"); onClose(); },
+    // Modal closes + row updates — visual change is feedback. Initial save
+    // (createMutation) keeps its toast since first-time form submission is
+    // a major action the user wants explicit confirmation on.
+    onSuccess: () => { utils.forms.listSubmissions.invalidate(); hapticSuccess(); onClose(); },
     onError: e => toast.error(e.message),
   });
   const pdfMutation = trpc.forms.generatePdf.useMutation({

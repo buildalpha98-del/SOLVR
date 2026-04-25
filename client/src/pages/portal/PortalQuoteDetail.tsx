@@ -235,7 +235,7 @@ export default function PortalQuoteDetail() {
             ? compressed.type
             : "image/jpeg") as "image/jpeg" | "image/png" | "image/webp",
         });
-        toast.success("Photo added");
+        // Photo appears in the photo grid immediately — visual change is feedback.
       } catch {
         toast.error("Failed to upload photo");
       }

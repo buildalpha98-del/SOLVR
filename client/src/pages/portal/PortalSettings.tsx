@@ -87,7 +87,7 @@ export default function PortalSettings() {
   // ─── Logout ──────────────────────────────────────────────────────────────
   const logoutMutation = trpc.portal.logout.useMutation({
     onSuccess: () => {
-      toast.success("Logged out successfully.");
+      // Navigation to /portal is the feedback — toast on a different page is confusing.
       navigate("/portal");
     },
     onError: () => {

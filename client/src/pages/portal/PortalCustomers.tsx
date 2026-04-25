@@ -146,10 +146,8 @@ export default function PortalCustomers() {
   });
 
   const deleteTemplateMutation = trpc.portalCustomers.deleteSmsTemplate.useMutation({
-    onSuccess: () => {
-      toast.success("Template deleted");
-      refetchTemplates();
-    },
+    // Template row disappears from list — visual change is feedback.
+    onSuccess: () => refetchTemplates(),
     onError: (err) => toast.error(err.message || "Something went wrong"),
   });
 
@@ -676,9 +674,9 @@ export default function PortalCustomers() {
                               type="button"
                               className="flex-1 min-h-11 text-left"
                               onClick={() => {
+                                // Message body populates immediately + dropdown closes — toast was redundant.
                                 setSmsMessage(tpl.body);
                                 setShowTemplates(false);
-                                toast.success(`Template "${tpl.name}" loaded`);
                               }}
                             >
                               <p className="text-xs font-semibold text-white">{tpl.name}</p>

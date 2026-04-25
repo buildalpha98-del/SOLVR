@@ -365,11 +365,12 @@ function JobCostingSection({
   const [reference, setReference] = useState("");
 
   const addCost = trpc.portal.addJobCostItem.useMutation({
-    onSuccess: () => { onRefresh(); setShowAdd(false); setDescription(""); setAmount(""); setSupplier(""); setReference(""); toast.success("Cost item added"); },
+    // Row appears in the cost-items list — visual change is the confirmation.
+    onSuccess: () => { onRefresh(); setShowAdd(false); setDescription(""); setAmount(""); setSupplier(""); setReference(""); },
     onError: (e) => toast.error(e.message || "Failed to add cost item"),
   });
   const deleteCost = trpc.portal.deleteJobCostItem.useMutation({
-    onSuccess: () => { onRefresh(); toast.success("Cost item removed"); },
+    onSuccess: () => onRefresh(),
     onError: (e) => toast.error(e.message || "Failed to remove cost item"),
   });
 
@@ -509,7 +510,9 @@ export default function PortalJobDetail() {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const updateJob = trpc.portal.updateJobDetail.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticLight(); toast.success("Saved"); },
+    // EditableField inline saves — the new value rendering in-place is the
+    // confirmation, plus haptic. Toast was redundant noise on every keystroke save.
+    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); hapticLight(); },
     onError: (e) => toast.error(e.message || "Failed to save"),
   });
 
@@ -533,7 +536,8 @@ export default function PortalJobDetail() {
   });
 
   const disableRecurring = trpc.portal.disableRecurring.useMutation({
-    onSuccess: () => { utils.portal.getJobDetail.invalidate({ id: jobId }); toast.success("Repeat disabled"); },
+    // Toggle button label flips immediately — visual change is feedback.
+    onSuccess: () => utils.portal.getJobDetail.invalidate({ id: jobId }),
     onError: (e) => toast.error(e.message || "Failed to disable repeat"),
   });
 
@@ -594,9 +598,9 @@ export default function PortalJobDetail() {
   const formComplianceQuery = trpc.portal.formCompliance.useQuery({ jobId }, { enabled: !!jobId, retry: 2, staleTime: 30_000 });
   const formTemplatesQuery = trpc.forms.listTemplates.useQuery(undefined, { enabled: activeTab === "forms", retry: 2, staleTime: 60_000 });
   const updateRequiredForms = trpc.portal.updateRequiredForms.useMutation({
+    // Required-forms checkbox list re-renders with new state — no toast needed.
     onSuccess: () => {
       formComplianceQuery.refetch();
-      toast.success("Required forms updated");
     },
     onError: (e) => toast.error(e.message || "Failed to update required forms"),
   });

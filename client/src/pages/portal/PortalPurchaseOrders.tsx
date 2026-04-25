@@ -110,7 +110,8 @@ function SuppliersTab({ search }: { search: string }) {
   }, [suppliers, search]);
 
   const deactivate = trpc.purchaseOrders.deactivateSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticWarning(); toast.success("Supplier removed"); },
+    // Row disappears from supplier list — visual change is confirmation.
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticWarning(); },
     onError: (err) => toast.error(err.message || "Failed to remove supplier"),
   });
 
@@ -210,11 +211,12 @@ function SupplierDialog({ supplierId, onClose }: { supplierId?: number; onClose:
   }
 
   const createMut = trpc.purchaseOrders.createSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier added"); onClose(); },
+    // Modal closes + new row appears in list — visual change is feedback.
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); onClose(); },
     onError: (err) => toast.error(err.message || "Failed to add supplier"),
   });
   const updateMut = trpc.purchaseOrders.updateSupplier.useMutation({
-    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); toast.success("Supplier updated"); onClose(); },
+    onSuccess: () => { utils.purchaseOrders.listSuppliers.invalidate(); hapticSuccess(); onClose(); },
     onError: (err) => toast.error(err.message || "Failed to update supplier"),
   });
 
