@@ -21,7 +21,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell,
 } from "recharts";
-import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings, Receipt, FileText, BarChart3 } from "lucide-react";
+import { Phone, PhoneOff, Briefcase, DollarSign, TrendingUp, Lock, ArrowRight, Sparkles, RefreshCw, Bell, BellOff, Gift, Copy, Check, Share2, X, CalendarCheck, ChevronDown, ChevronUp, Mic, Bot, Settings, Receipt, FileText, BarChart3, Wrench } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Streamdown } from "streamdown";
@@ -124,6 +124,98 @@ function QuickJobButton() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * Services Due — dashboard widget (Sprint 4.2). Reads upcoming asset
+ * services from customerAssets.listDueWithin and shows a compact list
+ * with overdue first. Hides itself entirely when nothing's due so it
+ * doesn't take up empty space.
+ *
+ * Auto-create cron handles the actual job creation; this widget is the
+ * tradie's at-a-glance view + quick link to the customer.
+ */
+function ServicesDueCard() {
+  const [, navigate] = useLocation();
+  const { data: due, isLoading } = trpc.customerAssets.listDueWithin.useQuery(
+    { withinDays: 30, includeOverdue: true },
+    { staleTime: 5 * 60 * 1000, retry: 2 },
+  );
+
+  if (isLoading) return null;
+  if (!due || due.length === 0) return null;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const overdue = due.filter(a => (a.nextServiceDueAt ?? "") < todayStr);
+  const dueSoon = due.filter(a => (a.nextServiceDueAt ?? "") >= todayStr);
+  const headlineCount = overdue.length || dueSoon.length;
+  const headlineLabel = overdue.length > 0
+    ? `${overdue.length} overdue`
+    : `${dueSoon.length} due in next 30 days`;
+
+  return (
+    <div
+      className="rounded-xl p-4 space-y-3"
+      style={{
+        background: overdue.length > 0 ? "rgba(239,68,68,0.06)" : "rgba(245,166,35,0.06)",
+        border: overdue.length > 0 ? "1px solid rgba(239,68,68,0.2)" : "1px solid rgba(245,166,35,0.2)",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Wrench className="w-4 h-4" style={{ color: overdue.length > 0 ? "#ef4444" : "#F5A623" }} />
+          <h3 className="text-sm font-semibold text-white">Services due</h3>
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide"
+            style={{
+              background: overdue.length > 0 ? "rgba(239,68,68,0.2)" : "rgba(245,166,35,0.2)",
+              color: overdue.length > 0 ? "#ef4444" : "#F5A623",
+            }}
+          >
+            {headlineLabel}
+          </span>
+        </div>
+        <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+          {headlineCount === 1 ? "1 customer" : `${headlineCount} customers`}
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {due.slice(0, 5).map(a => {
+          const isOverdue = (a.nextServiceDueAt ?? "") < todayStr;
+          return (
+            <li
+              key={a.id}
+              className="flex items-center justify-between gap-3 px-2 py-1.5 rounded-lg"
+              style={{ background: "rgba(255,255,255,0.04)" }}
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-white truncate">{a.label}</p>
+                {a.nextServiceDueAt && (
+                  <p className="text-[10px]" style={{ color: isOverdue ? "#ef4444" : "rgba(255,255,255,0.5)" }}>
+                    {isOverdue ? "Overdue " : "Due "}
+                    {new Date(a.nextServiceDueAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/portal/customers/${a.customerId}`)}
+                className="text-[11px] font-semibold flex-shrink-0"
+                style={{ color: "#F5A623" }}
+              >
+                Open →
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {due.length > 5 && (
+        <p className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.4)" }}>
+          +{due.length - 5} more — auto-created jobs land in your pipeline daily
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -826,6 +918,9 @@ export default function PortalDashboard() {
             )}
           </div>
         )}
+
+        {/* ── Services Due (Sprint 4.2) ─────────────────────────────────── */}
+        {features.includes("jobs") && <ServicesDueCard />}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">

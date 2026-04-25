@@ -1,0 +1,1 @@
+ALTER TABLE `customer_assets` ADD `lastAutoJobCreatedAt` timestamp;

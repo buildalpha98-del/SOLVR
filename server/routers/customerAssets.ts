@@ -66,6 +66,39 @@ export const customerAssetsRouter = router({
       return listCustomerAssets(client.id, { status: input?.status });
     }),
 
+  /**
+   * Services-due widget feed — Sprint 4.2. Returns active assets whose
+   * nextServiceDueAt falls within `withinDays` (default 30). Already
+   * de-duped against decommissioned. Sorted soonest-first.
+   * Joins customer name so the widget can render a nice list.
+   */
+  listDueWithin: publicProcedure
+    .input(z.object({
+      withinDays: z.number().int().positive().max(365).default(30),
+      includeOverdue: z.boolean().default(true),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(ctx.req);
+      const within = input?.withinDays ?? 30;
+      const includeOverdue = input?.includeOverdue ?? true;
+      const all = await listCustomerAssets(client.id, { status: "active" });
+
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const cutoff = new Date(today.getTime() + within * 24 * 60 * 60 * 1000)
+        .toISOString().slice(0, 10);
+
+      const due = all.filter(a => {
+        if (!a.nextServiceDueAt) return false;
+        const ds = a.nextServiceDueAt;
+        if (!includeOverdue && ds < todayStr) return false;
+        return ds <= cutoff;
+      });
+      return due
+        .sort((a, b) => (a.nextServiceDueAt ?? "").localeCompare(b.nextServiceDueAt ?? ""))
+        .slice(0, 50);
+    }),
+
   /** Assets attached to one customer — used by the per-customer Assets section. */
   listByCustomer: publicProcedure
     .input(z.object({ customerId: z.number().int().positive() }))

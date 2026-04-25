@@ -28,6 +28,7 @@ import { scheduleSmsCampaignsCron } from "../cron/scheduledSmsCampaigns";
 import { scheduleAppointmentReminderCron } from "../cron/appointmentReminder";
 import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
 import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
+import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -213,6 +214,7 @@ async function startServer() {
   scheduleAppointmentReminderCron();
   scheduleLicenceExpiryWarningCron();
   scheduleIdleJobNudgeCron();
+  scheduleMaintenanceCron();
 
   // Bind to 0.0.0.0 so containerised platforms (Railway, Docker) can route to us.
   // "localhost" would only accept loopback traffic and the container would look dead.

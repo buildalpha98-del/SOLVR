@@ -1463,6 +1463,11 @@ export const customerAssets = mysqlTable("customer_assets", {
   status: mysqlEnum("assetStatus", ["active", "decommissioned"]).default("active").notNull(),
   /** Last portal_jobs row that touched this asset */
   lastJobId: int("lastJobId"),
+  /** Sprint 4.2 — when the maintenance cron last auto-created a service-due
+   *  job for this asset. Used as the dedup key so we don't fire twice for
+   *  the same upcoming service. Reset implicitly when lastServicedAt advances
+   *  (which moves nextServiceDueAt forward to a new "cycle"). */
+  lastAutoJobCreatedAt: timestamp("lastAutoJobCreatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
