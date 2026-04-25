@@ -117,6 +117,7 @@ import SupplierPortal from "./pages/SupplierPortal";
 // ── Public completion report page (no auth) ──────────────────────────────────
 import PublicCompletionReport from "./pages/PublicCompletionReport";
 import PaymentLink from "./pages/PaymentLink";
+import PublicTracking from "./pages/PublicTracking";
 import CustomerJobStatus from "./pages/CustomerJobStatus";
 import SmsUnsubscribe from "./pages/SmsUnsubscribe";
 import EmailUnsubscribe from "./pages/EmailUnsubscribe";
@@ -257,6 +258,7 @@ function Router() {
 
       {/* SMS payment link public page */}
       <Route path="/pay/:token" component={PaymentLink} />
+      <Route path="/track/:token" component={PublicTracking} />
 
       {/* ── SMS opt-out (public, no auth) ───────────────────────────────── */}
       <Route path="/sms/unsubscribe" component={SmsUnsubscribe} />

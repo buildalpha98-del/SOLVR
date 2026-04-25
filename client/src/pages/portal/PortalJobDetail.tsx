@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
+import { OnMyWayPanel } from "@/components/portal/OnMyWayPanel";
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
 import { JobDetailActionsMenu, type JobDetailAction } from "@/components/portal/JobDetailActionsMenu";
 import { useSwipe } from "@/hooks/useSwipe";
@@ -870,6 +871,16 @@ export default function PortalJobDetail() {
 
           {/* ─── TAB 1: Overview ─── */}
           <TabsContent value="overview" className="space-y-4 mt-4">
+            {/* On My Way panel — primary action when starting a job. Hidden
+                on completed/lost jobs since the journey concept doesn't apply. */}
+            {job.stage !== "completed" && job.stage !== "lost" && (
+              <OnMyWayPanel
+                jobId={jobId}
+                customerAddress={job.customerAddress ?? job.location}
+                customerPhone={job.customerPhone ?? job.callerPhone}
+                customerName={job.customerName ?? job.callerName}
+              />
+            )}
             <div className="grid grid-cols-1 gap-4">
               {/* Client Details */}
               <SectionCard title="Client Details" action={<User className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
