@@ -2,6 +2,13 @@
 # Xcode Cloud post-clone script.
 # Runs immediately after Xcode Cloud clones the repo, before any build action.
 #
+# LOCATION: this file MUST live at ios/App/ci_scripts/ci_post_clone.sh —
+# Apple's docs are explicit that the ci_scripts directory must be
+# co-located with the .xcworkspace file. The repo's xcworkspace is at
+# ios/App/App.xcworkspace, so the script lives at ios/App/ci_scripts/.
+# A previous attempt placed this at the repo root and Xcode Cloud
+# silently skipped it (build duration: 1m, queue: 17s, no log output).
+#
 # Why this exists:
 #   - SOLVR's iOS app uses Capacitor + CocoaPods.
 #   - ios/App/Pods/ is gitignored (standard, large).
@@ -19,16 +26,22 @@
 set -e
 echo "[ci_post_clone] Starting SOLVR post-clone setup..."
 
-# Xcode Cloud clones into /Volumes/workspace/repository — the script's
-# working directory at invocation is ci_scripts/, so jump up one level.
-cd "$(dirname "$0")/.."
-REPO_ROOT="$(pwd)"
+# Xcode Cloud clones the repo into /Volumes/workspace/repository.
+# We're at /Volumes/workspace/repository/ios/App/ci_scripts/ at script
+# invocation — climb three levels to get to the repo root where
+# package.json + pnpm-lock.yaml + capacitor.config.ts live.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$REPO_ROOT"
 echo "[ci_post_clone] Repo root: $REPO_ROOT"
+ls -la
 
 # ── 1. Install Node + pnpm ────────────────────────────────────────────────
 # Xcode Cloud images ship with Homebrew but not Node by default.
-echo "[ci_post_clone] Installing Node + pnpm..."
-brew install node
+# Pin to Node 22 (current LTS) for build reproducibility.
+echo "[ci_post_clone] Installing Node 22 + pnpm..."
+brew install node@22
+brew link --overwrite --force node@22
 npm install -g pnpm
 
 # ── 2. Install web deps + build the bundle ────────────────────────────────
