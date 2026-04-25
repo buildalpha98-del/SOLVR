@@ -356,6 +356,21 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
     onError: (err) => toast.error(err.message ?? "Couldn't log out. Try again."),
   });
 
+  // ALL HOOKS MUST BE CALLED ABOVE THE EARLY RETURNS BELOW.
+  // Rules of Hooks: same number of hooks per render in the same order.
+  // The previous version called useQuery(getUnreadCount) AFTER the
+  // `if (isLoading)` and `if (!me)` early returns, which crashed React's
+  // hook accounting on the second render and tripped the error boundary
+  // on iOS WKWebView (Safari masked it via different render scheduling).
+  // Don't move this back below the early returns.
+  const currentTab = resolvedActiveTab;
+  const { data: unreadData } = trpc.smsConversations.getUnreadCount.useQuery(undefined, {
+    staleTime: 30_000,
+    retry: 2,
+    enabled: !isLoading && !!me, // skip the network call until auth is settled
+  });
+  const unreadMessages = currentTab === "messages" ? 0 : (unreadData?.count ?? 0);
+
   useEffect(() => {
     if (!isLoading && !me) {
       navigate("/portal");
@@ -373,14 +388,6 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
   if (!me) return null;
 
   const features = me.features ?? [];
-  const currentTab = resolvedActiveTab;
-  // Unread SMS badge for the Messages tab. 30s staleTime = badge updates
-  // on a window-focus or pull-to-refresh; we don't poll continuously.
-  const { data: unreadData } = trpc.smsConversations.getUnreadCount.useQuery(undefined, {
-    staleTime: 30_000,
-    retry: 2,
-  });
-  const unreadMessages = currentTab === "messages" ? 0 : (unreadData?.count ?? 0);
 
   return (
     <div
