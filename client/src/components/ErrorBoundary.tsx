@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { Component, ReactNode } from "react";
+import { AlertTriangle, RotateCcw, ChevronDown } from "lucide-react";
+import { Component, ReactNode, ErrorInfo } from "react";
 
 interface Props {
   children: ReactNode;
@@ -9,20 +9,35 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
+  showDetails: boolean;
 }
 
 class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: null, showDetails: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
+  }
+
+  /**
+   * Always log to console so Safari Web Inspector / Chrome DevTools picks
+   * it up regardless of NODE_ENV. Critical for TestFlight debugging where
+   * we can't reproduce locally.
+   */
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[ErrorBoundary]", error.name, error.message);
+    if (error.stack) console.error(error.stack);
+    if (info.componentStack) console.error("Component stack:", info.componentStack);
+    this.setState({ componentStack: info.componentStack ?? null });
   }
 
   render() {
     if (this.state.hasError) {
+      const { error, componentStack, showDetails } = this.state;
       return (
         <div className="flex items-center justify-center min-h-screen p-8 bg-background">
           <div className="flex flex-col items-center w-full max-w-2xl p-8">
@@ -36,17 +51,6 @@ class ErrorBoundary extends Component<Props, State> {
               Try reloading. If the problem persists, contact hello@solvr.com.au.
             </p>
 
-            {/* Dev-only stack trace — leaks PII/infrastructure in production */}
-            {import.meta.env.DEV && (
-              <div className="p-4 w-full rounded bg-muted overflow-auto mb-6 max-h-60">
-                <pre className="text-xs text-muted-foreground whitespace-break-spaces">
-                  {this.state.error?.name}: {this.state.error?.message}
-                  {"\n"}
-                  {this.state.error?.stack}
-                </pre>
-              </div>
-            )}
-
             <button
               onClick={() => window.location.reload()}
               className={cn(
@@ -58,6 +62,46 @@ class ErrorBoundary extends Component<Props, State> {
               <RotateCcw size={16} />
               Reload Page
             </button>
+
+            {/* Tap-to-reveal diagnostic details. Hidden by default so end
+                users don't see infrastructure noise; one tap reveals it
+                for support / TestFlight debugging without rebuilding. */}
+            {error && (
+              <div className="w-full mt-8">
+                <button
+                  type="button"
+                  onClick={() => this.setState({ showDetails: !showDetails })}
+                  className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-muted-foreground/80 mx-auto"
+                >
+                  <ChevronDown
+                    size={12}
+                    className="transition-transform"
+                    style={{ transform: showDetails ? "rotate(180deg)" : "rotate(0deg)" }}
+                  />
+                  {showDetails ? "Hide" : "Show"} technical details
+                </button>
+                {showDetails && (
+                  <div className="p-4 mt-3 rounded bg-muted overflow-auto max-h-80 text-left">
+                    <p className="text-xs font-mono font-bold text-destructive break-all">
+                      {error.name}: {error.message}
+                    </p>
+                    {error.stack && (
+                      <pre className="text-[10px] text-muted-foreground whitespace-break-spaces mt-2">
+                        {error.stack}
+                      </pre>
+                    )}
+                    {componentStack && (
+                      <>
+                        <p className="text-xs font-bold text-muted-foreground mt-3 mb-1">React tree:</p>
+                        <pre className="text-[10px] text-muted-foreground whitespace-break-spaces">
+                          {componentStack}
+                        </pre>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       );
