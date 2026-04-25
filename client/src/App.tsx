@@ -72,6 +72,7 @@ import PortalResetPassword from "./pages/portal/PortalResetPassword";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCalls from "./pages/portal/PortalCalls";
 import PortalMessages from "./pages/portal/PortalMessages";
+import PortalToday from "./pages/portal/PortalToday";
 import PortalJobs from "./pages/portal/PortalJobs";
 import PortalJobDetail from "./pages/portal/PortalJobDetail";
 import PortalCalendar from "./pages/portal/PortalCalendar";
@@ -207,6 +208,7 @@ function Router() {
       <Route path="/portal/calls" component={PortalCalls} />
       <Route path="/portal/messages/:id" component={PortalMessages} />
       <Route path="/portal/messages" component={PortalMessages} />
+      <Route path="/portal/today" component={PortalToday} />
       <Route path="/portal/jobs" component={PortalJobs} />
       <Route path="/portal/jobs/:id" component={PortalJobDetail} />
       <Route path="/portal/calendar" component={PortalCalendar} />

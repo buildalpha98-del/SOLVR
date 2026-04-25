@@ -29,7 +29,7 @@ import {
   LayoutDashboard, Phone, Briefcase, Calendar, Sparkles, Bot,
   Lock, LogOut, Menu, X, FileText, Settings, Receipt, CreditCard, Users, Gift, ShieldCheck,
   CalendarClock, UserCog, Star, ChevronDown, Tag, UserPlus, MoreHorizontal, BarChart3, Hammer, Package, ClipboardList,
-  MessageCircle
+  MessageCircle, Map as MapIcon
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
@@ -48,11 +48,12 @@ type NavTab = {
 // The order here determines the order in the More drawer.
 const ALL_TABS: NavTab[] = [
   { key: "dashboard", label: "Dashboard", href: "/portal/dashboard", icon: <LayoutDashboard className="w-4 h-4" />, feature: "dashboard" },
+  { key: "today", label: "Today", href: "/portal/today", icon: <MapIcon className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
   { key: "jobs", label: "Jobs", href: "/portal/jobs", icon: <Briefcase className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
-  { key: "calendar", label: "Calendar", href: "/portal/calendar", icon: <Calendar className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
   { key: "messages", label: "Messages", href: "/portal/messages", icon: <MessageCircle className="w-4 h-4" />, feature: "dashboard" },
   { key: "invoices", label: "Invoices", href: "/portal/invoices", icon: <Receipt className="w-4 h-4" />, feature: "invoice-chasing", badge: "Pro" },
   // ── Overflow items (More drawer) ──
+  { key: "calendar", label: "Calendar", href: "/portal/calendar", icon: <Calendar className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
   { key: "assistant", label: "AI Assistant", href: "/portal/assistant", icon: <Bot className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "calls", label: "Calls", href: "/portal/calls", icon: <Phone className="w-4 h-4" />, feature: "calls" },
   // Quotes merged into Jobs tab — no longer in More drawer
@@ -71,7 +72,7 @@ const ALL_TABS: NavTab[] = [
 ];
 
 // 5 primary tabs — the tradie's daily workflow
-const PRIMARY_TAB_KEYS = ["dashboard", "jobs", "calendar", "messages", "invoices"];
+const PRIMARY_TAB_KEYS = ["dashboard", "today", "jobs", "messages", "invoices"];
 
 // ─── Desktop More dropdown ───────────────────────────────────────────────────
 function DesktopMoreDropdown({ features, currentTab, referralEnabled }: { features: string[]; currentTab: string; referralEnabled: boolean }) {
