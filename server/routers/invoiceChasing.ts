@@ -25,7 +25,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { getCrmClientById, getPortalSessionBySessionToken, getDb } from "../db";
-import { invoiceChases, crmClients, clientProfiles } from "../../drizzle/schema";
+import { invoiceChases, crmClients, clientProfiles, paymentLinks } from "../../drizzle/schema";
 import type { InsertInvoiceChase } from "../../drizzle/schema";
 import { and, eq, desc, sum, count, gte } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -96,11 +96,49 @@ export const portalInvoiceChasingRouter = router({
         conditions.push(eq(invoiceChases.status, input.status));
       }
 
-      return db
-        .select()
+      // LEFT JOIN payment_links so the UI knows whether a Pay Now link
+      // exists and its current refund state — without making the client
+      // round-trip per row.
+      const rows = await db
+        .select({
+          chase: invoiceChases,
+          paymentLinkToken: paymentLinks.token,
+          paymentLinkAmountCents: paymentLinks.amountCents,
+          paymentLinkRefundedCents: paymentLinks.refundedAmountCents,
+          paymentLinkPaidAt: paymentLinks.paidAt,
+          paymentLinkStatus: paymentLinks.status,
+          paymentLinkPiId: paymentLinks.stripePaymentIntentId,
+        })
         .from(invoiceChases)
+        .leftJoin(paymentLinks, and(
+          eq(paymentLinks.jobId, invoiceChases.jobId),
+          eq(paymentLinks.clientId, invoiceChases.clientId),
+        ))
         .where(and(...conditions))
         .orderBy(desc(invoiceChases.createdAt));
+
+      // De-dup if a job somehow has multiple payment_links (rare — repeat
+      // re-invoicing). Keep the most recent paid one, else the latest.
+      const byChaseId = new Map<string, (typeof rows)[number]>();
+      for (const r of rows) {
+        const prev = byChaseId.get(r.chase.id);
+        if (!prev) { byChaseId.set(r.chase.id, r); continue; }
+        const prevHasPaid = prev.paymentLinkStatus === "paid";
+        const thisHasPaid = r.paymentLinkStatus === "paid";
+        if (thisHasPaid && !prevHasPaid) byChaseId.set(r.chase.id, r);
+      }
+
+      return Array.from(byChaseId.values()).map(r => ({
+        ...r.chase,
+        paymentLinkToken: r.paymentLinkToken,
+        paymentLinkAmountCents: r.paymentLinkAmountCents,
+        paymentLinkRefundedCents: r.paymentLinkRefundedCents,
+        paymentLinkPaidAt: r.paymentLinkPaidAt,
+        paymentLinkStatus: r.paymentLinkStatus,
+        // Whether a refund is possible: paid + has a payment intent + not fully refunded
+        canRefund: !!(r.paymentLinkPiId && r.paymentLinkStatus === "paid" &&
+          (r.paymentLinkRefundedCents ?? 0) < (r.paymentLinkAmountCents ?? 0)),
+      }));
     }),
 
   create: publicProcedure

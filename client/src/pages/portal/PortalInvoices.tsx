@@ -14,7 +14,7 @@
  * - Cancel a chase
  * - See escalated invoices that need a manual phone call
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -57,6 +57,13 @@ interface InvoiceChase {
   xeroSyncedAt?: string | Date | null;
   xeroSyncFailedAt?: string | Date | null;
   xeroSyncError?: string | null;
+  // Sprint 3.2 — payment link / refund state
+  paymentLinkToken?: string | null;
+  paymentLinkAmountCents?: number | null;
+  paymentLinkRefundedCents?: number | null;
+  paymentLinkPaidAt?: string | Date | null;
+  paymentLinkStatus?: string | null;
+  canRefund?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -390,10 +397,162 @@ function MarkPaidDialog({ chase, onClose, onConfirm, isPending }: MarkPaidDialog
   );
 }
 
+// ── Refund Dialog (Sprint 3.2) ───────────────────────────────────────────────
+interface RefundDialogProps {
+  chase: InvoiceChase | null;
+  onClose: () => void;
+}
+
+function RefundDialog({ chase, onClose }: RefundDialogProps) {
+  const utils = trpc.useUtils();
+  const open = !!chase;
+  const handleOpenChange = (v: boolean) => { if (!v) onClose(); };
+  const [amountInput, setAmountInput] = useState("");
+  const [reason, setReason] = useState<"requested_by_customer" | "duplicate" | "fraudulent">("requested_by_customer");
+  const [note, setNote] = useState("");
+
+  // Reset state on dialog open
+  useEffect(() => {
+    if (open) {
+      setAmountInput("");
+      setReason("requested_by_customer");
+      setNote("");
+    }
+  }, [open]);
+
+  const refund = trpc.stripeConnect.refundPayment.useMutation({
+    onSuccess: (res) => {
+      hapticSuccess();
+      utils.invoiceChasing.list.invalidate();
+      utils.invoiceChasing.summary.invalidate();
+      toast.success(
+        res.remainingCents > 0
+          ? `Refunded $${(res.refundedCents / 100).toFixed(2)} — $${(res.remainingCents / 100).toFixed(2)} still on the original payment.`
+          : `Fully refunded ($${(res.refundedCents / 100).toFixed(2)}).`,
+      );
+      onClose();
+    },
+    onError: (err) => {
+      hapticWarning();
+      toast.error(err.message ?? "Refund failed.");
+    },
+  });
+
+  if (!chase || !chase.paymentLinkToken) return null;
+  const totalCents = chase.paymentLinkAmountCents ?? 0;
+  const refundedCents = chase.paymentLinkRefundedCents ?? 0;
+  const remainingCents = totalCents - refundedCents;
+  const remainingDollars = (remainingCents / 100).toFixed(2);
+
+  const handleConfirm = () => {
+    const inputDollars = parseFloat(amountInput);
+    let amountCents: number | undefined = undefined;
+    if (amountInput.trim() !== "") {
+      if (isNaN(inputDollars) || inputDollars <= 0) {
+        toast.error("Enter a valid dollar amount.");
+        return;
+      }
+      amountCents = Math.round(inputDollars * 100);
+    }
+    refund.mutate({
+      paymentLinkToken: chase.paymentLinkToken!,
+      amountCents,
+      reason,
+      note: note || undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-sm mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
+        <DialogHeader>
+          <DialogTitle style={{ color: "#F5A623" }}>Refund Payment</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-lg p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Invoice</div>
+            <div className="font-bold" style={{ color: "#F5F5F0" }}>{chase.invoiceNumber} — {chase.customerName}</div>
+            <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+              Original: ${(totalCents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+              {refundedCents > 0 && (
+                <> · Already refunded: ${(refundedCents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}</>
+              )}
+            </div>
+            <div className="text-sm mt-1 font-bold" style={{ color: "#F5A623" }}>
+              Available to refund: ${remainingDollars}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-white/70 text-xs">Refund Amount (AUD)</Label>
+            <Input
+              value={amountInput}
+              onChange={e => setAmountInput(e.target.value)}
+              placeholder={remainingDollars}
+              inputMode="decimal"
+              className="mt-1"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }}
+            />
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Leave blank to refund the full remaining amount (${remainingDollars}).
+            </p>
+          </div>
+
+          <div>
+            <Label className="text-white/70 text-xs">Reason</Label>
+            <select
+              value={reason}
+              onChange={e => setReason(e.target.value as typeof reason)}
+              className="mt-1 w-full px-3 py-2 rounded-lg text-sm outline-none"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }}
+            >
+              <option value="requested_by_customer">Requested by customer</option>
+              <option value="duplicate">Duplicate charge</option>
+              <option value="fraudulent">Fraudulent</option>
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-white/70 text-xs">Note (optional, for your records)</Label>
+            <Textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="e.g. Customer wasn't happy with the work — full refund agreed"
+              rows={2}
+              className="mt-1 resize-none"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", color: "#F5F5F0" }}
+            />
+          </div>
+
+          <div
+            className="rounded-lg p-2.5 text-xs"
+            style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)", color: "rgba(255,200,140,0.9)" }}
+          >
+            <AlertTriangle className="inline w-3 h-3 mr-1 -mt-0.5" />
+            Funds will be debited from your Stripe balance and credited back to the customer's card. Usually takes 5–10 business days to show up.
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} style={{ color: "rgba(255,255,255,0.5)" }}>Cancel</Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={refund.isPending}
+            style={{ background: "rgba(245,166,35,0.2)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.3)", fontWeight: 700 }}
+          >
+            {refund.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Issue Refund
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PortalInvoices() {
   const [addOpen, setAddOpen] = useState(false);
   const [markPaidChase, setMarkPaidChase] = useState<InvoiceChase | null>(null);
+  const [refundChase, setRefundChase] = useState<InvoiceChase | null>(null);
   const [filter, setFilter] = useState<"all" | "active" | "escalated" | "paid">("all");
 
   const utils = trpc.useUtils();
@@ -634,6 +793,36 @@ export default function PortalInvoices() {
                     </Button>
                   </div>
                 )}
+
+                {/* Sprint 3.2 — Refund row for paid invoices that came through Pay Now */}
+                {chase.canRefund && (
+                  <div className="flex items-center justify-between gap-2 mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      {(chase.paymentLinkRefundedCents ?? 0) > 0 ? (
+                        <>
+                          Refunded ${((chase.paymentLinkRefundedCents ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })} ·
+                          ${(((chase.paymentLinkAmountCents ?? 0) - (chase.paymentLinkRefundedCents ?? 0)) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })} refundable
+                        </>
+                      ) : (
+                        <>Paid via Stripe — refund available</>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setRefundChase(chase)}
+                      style={{ background: "rgba(245,166,35,0.1)", color: "#F5A623", border: "1px solid rgba(245,166,35,0.25)", fontSize: "12px" }}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refund
+                    </Button>
+                  </div>
+                )}
+
+                {/* Already-refunded indicator for paid chases without canRefund */}
+                {chase.status === "paid" && !chase.canRefund && (chase.paymentLinkRefundedCents ?? 0) > 0 && (
+                  <div className="text-xs mt-2 pt-2" style={{ color: "rgba(255,255,255,0.45)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    Fully refunded ${((chase.paymentLinkRefundedCents ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -654,6 +843,11 @@ export default function PortalInvoices() {
         onClose={() => setMarkPaidChase(null)}
         onConfirm={handleMarkPaidConfirm}
         isPending={markPaidMutation.isPending}
+      />
+
+      <RefundDialog
+        chase={refundChase}
+        onClose={() => setRefundChase(null)}
       />
     </PortalLayout>
   );

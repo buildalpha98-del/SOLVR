@@ -601,6 +601,9 @@ export default function PortalSettings() {
         {/* ─── Stripe Connect (Pay Now) ──────────────────────────────────────────── */}
         <StripeConnectSection />
 
+        {/* ─── Stripe Disputes ───────────────────────────────────────────────────── */}
+        <StripeDisputesSection />
+
         {/* ─── Xero Integration ──────────────────────────────────────────────────── */}
         <XeroIntegrationSection />
 
@@ -1065,6 +1068,161 @@ function humaniseStripeRequirement(code: string): string {
  * succeeds or it doesn't) but we still handle ?xero=error returns from
  * the callback handler with a friendly toast.
  */
+// ─── Stripe Disputes (Sprint 3.2) ───────────────────────────────────────────
+/**
+ * Lists chargebacks/disputes raised on the tradie's Stripe account.
+ * Hidden when Stripe Connect isn't set up. Hidden also when there are
+ * NO disputes ever (clean install) — only renders once a dispute has
+ * been received via webhook.
+ *
+ * v1: surfaces the dispute + a button to open Stripe's dashboard for
+ * actual evidence submission. v2 will add in-app evidence upload.
+ */
+function StripeDisputesSection() {
+  const { data: stripeStatus } = trpc.stripeConnect.getStatus.useQuery(undefined, {
+    staleTime: 60_000, retry: 1,
+  });
+  const { data: disputes, isLoading } = trpc.stripeConnect.listDisputes.useQuery(
+    { activeOnly: false },
+    { staleTime: 60_000, retry: 2, enabled: stripeStatus?.connected === true },
+  );
+  const dashboardLink = trpc.stripeConnect.createDashboardLink.useMutation({
+    onSuccess: ({ url }) => { window.open(url, "_blank"); },
+    onError: (err) => toast.error(err.message ?? "Couldn't open Stripe dashboard."),
+  });
+
+  // Don't render anything if Stripe isn't connected, or no disputes exist
+  if (stripeStatus?.connected !== true) return null;
+  if (!isLoading && (!disputes || disputes.length === 0)) return null;
+
+  const activeCount = (disputes ?? []).filter(d => isDisputeActive(d.status)).length;
+
+  return (
+    <SectionCard
+      icon={AlertTriangle}
+      title={`Payment Disputes${activeCount > 0 ? ` (${activeCount} need attention)` : ""}`}
+      subtitle="Chargebacks and disputes raised on your Stripe payments."
+      defaultOpen={activeCount > 0}
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "rgba(255,255,255,0.4)" }} />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {activeCount > 0 && (
+            <div
+              className="flex items-start gap-2 p-3 rounded-lg text-xs"
+              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "rgba(255,200,200,0.9)" }}
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#ef4444" }} />
+              <div>
+                <p className="font-semibold" style={{ color: "#fff" }}>Submit evidence in Stripe</p>
+                <p className="mt-0.5">
+                  Disputes have a tight deadline (usually 7 days). Open the Stripe dashboard and add your evidence — receipts, customer correspondence, before/after photos.
+                </p>
+                <WriteGuard>
+                  <button
+                    type="button"
+                    onClick={() => dashboardLink.mutate()}
+                    disabled={dashboardLink.isPending}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold"
+                    style={{ background: "#ef4444", color: "#fff" }}
+                  >
+                    {dashboardLink.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <ExternalLink className="w-3 h-3" />}
+                    Open Stripe Dashboard
+                  </button>
+                </WriteGuard>
+              </div>
+            </div>
+          )}
+
+          {(disputes ?? []).map(d => (
+            <div
+              key={d.id}
+              className="flex items-start gap-3 p-3 rounded-lg"
+              style={{
+                background: isDisputeActive(d.status) ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.04)",
+                border: isDisputeActive(d.status) ? "1px solid rgba(239,68,68,0.2)" : "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <p className="text-sm font-bold text-white">
+                    ${(d.amountCents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 })} {d.currency.toUpperCase()}
+                  </p>
+                  <span
+                    className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded"
+                    style={{
+                      background: isDisputeActive(d.status) ? "rgba(239,68,68,0.18)" : "rgba(255,255,255,0.08)",
+                      color: isDisputeActive(d.status) ? "#ef4444" : "rgba(255,255,255,0.55)",
+                    }}
+                  >
+                    {humaniseDisputeStatus(d.status)}
+                  </span>
+                </div>
+                <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.55)" }}>
+                  Reason: <span style={{ color: "rgba(255,255,255,0.85)" }}>{humaniseDisputeReason(d.reason)}</span>
+                </p>
+                <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Filed {new Date(d.stripeCreatedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                  {d.evidenceDueBy && (
+                    <> · <span style={{ color: isEvidenceUrgent(d.evidenceDueBy) ? "#ef4444" : "rgba(255,255,255,0.5)" }}>
+                      Evidence due {new Date(d.evidenceDueBy).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                    </span></>
+                  )}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function isDisputeActive(status: string): boolean {
+  return ["warning_needs_response", "warning_under_review", "needs_response", "under_review"].includes(status);
+}
+
+function isEvidenceUrgent(due: Date | string): boolean {
+  const ms = new Date(due).getTime() - Date.now();
+  return ms < 48 * 60 * 60 * 1000; // <48h
+}
+
+function humaniseDisputeStatus(status: string): string {
+  const map: Record<string, string> = {
+    warning_needs_response: "Action required",
+    warning_under_review: "Under review",
+    warning_closed: "Closed",
+    needs_response: "Action required",
+    under_review: "Under review",
+    charge_refunded: "Refunded",
+    won: "Won",
+    lost: "Lost",
+  };
+  return map[status] ?? status;
+}
+
+function humaniseDisputeReason(reason: string): string {
+  const map: Record<string, string> = {
+    duplicate: "Duplicate charge",
+    fraudulent: "Reported fraud",
+    subscription_canceled: "Cancelled subscription",
+    product_not_received: "Product not received",
+    product_unacceptable: "Product unacceptable",
+    unrecognized: "Customer doesn't recognise charge",
+    credit_not_processed: "Credit not processed",
+    general: "General dispute",
+    incorrect_account_details: "Incorrect account details",
+    insufficient_funds: "Insufficient funds",
+    bank_cannot_process: "Bank can't process",
+    debit_not_authorized: "Debit not authorised",
+    customer_initiated: "Customer initiated",
+  };
+  return map[reason] ?? reason;
+}
+
 function XeroIntegrationSection() {
   const utils = trpc.useUtils();
   const { data: status, isLoading, refetch } = trpc.xero.getStatus.useQuery(undefined, {
