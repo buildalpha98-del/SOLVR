@@ -64,7 +64,7 @@ import {
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import Stripe from "stripe";
-import { getPaymentLinkByToken, getPaymentLinkByJobId, updatePaymentLink } from "../db";
+import { getPaymentLinkByToken, getPaymentLinkByJobId, updatePaymentLink, getStripeConnection } from "../db";
 import {
   anonymiseClient,
   deletePortalSessionsForClient,
@@ -1762,33 +1762,53 @@ export const portalRouter = router({
       const client = await getCrmClientById(link.clientId);
       const businessName = profile?.tradingName ?? client?.businessName ?? "Your Service Provider";
 
+      // Route the charge through the tradie's connected Stripe account so
+      // funds land in the tradie's bank — not SOLVR's. v1 is passthrough
+      // (no application fee). If the tradie hasn't connected Stripe (or
+      // their connection lapsed), refuse to create the session — better
+      // an upfront error than letting the payment hit SOLVR's account by
+      // accident.
+      const stripeConn = await getStripeConnection(link.clientId);
+      if (!stripeConn || stripeConn.disconnectedAt || !stripeConn.chargesEnabled) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "This service provider hasn't finished setting up online payments. Please contact them directly to pay this invoice.",
+        });
+      }
+
       const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!);
-      const session = await stripeInstance.checkout.sessions.create({
-        mode: "payment",
-        payment_method_types: ["card"],
-        line_items: [{
-          price_data: {
-            currency: "aud",
-            product_data: {
-              name: `Invoice ${link.invoiceNumber ?? ""} — ${businessName}`,
-              description: link.customerName ? `Payment from ${link.customerName}` : undefined,
+      const session = await stripeInstance.checkout.sessions.create(
+        {
+          mode: "payment",
+          payment_method_types: ["card"],
+          line_items: [{
+            price_data: {
+              currency: "aud",
+              product_data: {
+                name: `Invoice ${link.invoiceNumber ?? ""} — ${businessName}`,
+                description: link.customerName ? `Payment from ${link.customerName}` : undefined,
+              },
+              unit_amount: link.amountCents,
             },
-            unit_amount: link.amountCents,
+            quantity: 1,
+          }],
+          customer_email: link.customerEmail ?? undefined,
+          allow_promotion_codes: false,
+          client_reference_id: link.id,
+          metadata: {
+            payment_link_id: link.id,
+            payment_link_token: link.token,
+            client_id: String(link.clientId),
+            invoice_number: link.invoiceNumber ?? "",
           },
-          quantity: 1,
-        }],
-        customer_email: link.customerEmail ?? undefined,
-        allow_promotion_codes: false,
-        client_reference_id: link.id,
-        metadata: {
-          payment_link_id: link.id,
-          payment_link_token: link.token,
-          client_id: String(link.clientId),
-          invoice_number: link.invoiceNumber ?? "",
+          success_url: `${input.origin}/pay/${link.token}?success=1`,
+          cancel_url: `${input.origin}/pay/${link.token}?cancelled=1`,
         },
-        success_url: `${input.origin}/pay/${link.token}?success=1`,
-        cancel_url: `${input.origin}/pay/${link.token}?cancelled=1`,
-      });
+        // Direct charge on the tradie's Connect account: charge appears on
+        // their account, money settles to their bank, Stripe takes their
+        // standard fee. No SOLVR cut in v1 (passthrough model).
+        { stripeAccount: stripeConn.stripeAccountId },
+      );
 
       return { url: session.url };
     }),

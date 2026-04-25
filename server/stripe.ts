@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
-import { getDb, insertCrmInteraction, getCrmClientById } from "./db";
+import { getDb, insertCrmInteraction, getCrmClientById, getStripeConnectionByAccountId, updateStripeConnection } from "./db";
 import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals, portalSessions, invoiceChases } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, SOLVR_PLANS, PRODUCT_ID_TO_PLAN, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
@@ -731,6 +731,34 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         } catch (err) {
           console.error("[Webhook] Failed to send trial ending email:", err);
         }
+        break;
+      }
+      // ── Stripe Connect: tradie's account state changed ────────────────────
+      // Fires when the tradie completes onboarding, adds bank details,
+      // submits ID, etc. We mirror the latest state into our stripe_connections
+      // row so the UI doesn't need to poll Stripe on every page load.
+      // event.account is the connected account ID (acct_xxx).
+      case "account.updated": {
+        const account = event.data.object as Stripe.Account;
+        const connectedAccountId = (event as Stripe.Event & { account?: string }).account ?? account.id;
+        const conn = await getStripeConnectionByAccountId(connectedAccountId);
+        if (!conn) {
+          console.warn(`[Webhook] account.updated for unknown account ${connectedAccountId} — no SOLVR connection row`);
+          break;
+        }
+        const completedNow =
+          account.charges_enabled && account.details_submitted && !conn.onboardingCompletedAt;
+        await updateStripeConnection(conn.clientId, {
+          chargesEnabled: account.charges_enabled ?? false,
+          payoutsEnabled: account.payouts_enabled ?? false,
+          detailsSubmitted: account.details_submitted ?? false,
+          currentlyDueRequirements: (account.requirements?.currently_due ?? []) as string[],
+          ...(completedNow ? { onboardingCompletedAt: new Date() } : {}),
+        });
+        console.log(
+          `[Webhook] Stripe account ${connectedAccountId} updated for client ${conn.clientId}: ` +
+          `chargesEnabled=${account.charges_enabled}, detailsSubmitted=${account.details_submitted}`,
+        );
         break;
       }
       default:

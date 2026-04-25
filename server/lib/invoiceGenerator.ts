@@ -22,6 +22,7 @@ import {
   listQuoteLineItems,
   getClientProfile,
   createPaymentLink,
+  getStripeConnection,
   getDb,
 } from "../db";
 import { invoiceChases } from "../../drizzle/schema";
@@ -233,32 +234,50 @@ ${profile.bankName ? `<p style="margin:0 0 4px">Bank: ${profile.bankName}</p>` :
     });
   }
 
-  // Create SMS payment link if customer has a phone number and balance is due
+  // Create SMS payment link if:
+  //   - customer has a phone number AND there's a balance due AND it's not
+  //     a cash-paid invoice, AND
+  //   - the tradie has connected Stripe and charges are enabled.
+  //
+  // We gate on the Stripe connection here rather than at the customer's
+  // /pay/:token page so we never send an SMS that lands on a "this tradie
+  // hasn't set up payments yet" error. If Stripe isn't connected, the
+  // invoice email still goes out — they just don't get a Pay Now link.
   let paymentLinkUrl: string | null = null;
   if (customerPhone && balanceDueCents > 0 && !options.isCashPaid) {
-    try {
-      const token = randomUUID().replace(/-/g, "");
-      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      await createPaymentLink({
-        id: randomUUID(),
-        clientId,
-        jobId,
-        token,
-        amountCents: balanceDueCents,
-        customerName: customerName ?? undefined,
-        customerPhone,
-        customerEmail: recipientEmail ?? undefined,
-        invoiceNumber,
-        expiresAt: sevenDaysFromNow,
-      });
-      paymentLinkUrl = `${origin}/pay/${token}`;
-      const bName = profile?.tradingName ?? businessName ?? "Your Service Provider";
-      const smsBody = `Hi ${customerName ?? "there"}, your invoice ${invoiceNumber} from ${bName} for $${(balanceDueCents / 100).toFixed(2)} is ready. Pay securely: ${paymentLinkUrl}`;
-      await sendSms({ to: customerPhone, body: smsBody });
-      console.log(`[Invoice] Payment link SMS sent to ${customerPhone} for invoice ${invoiceNumber}`);
-    } catch (smsErr) {
-      console.error("[Invoice] Failed to create/send payment link:", smsErr);
-      // Non-fatal — invoice is still generated
+    const stripeConn = await getStripeConnection(clientId);
+    const canAcceptPayments =
+      stripeConn !== null && !stripeConn.disconnectedAt && stripeConn.chargesEnabled;
+
+    if (!canAcceptPayments) {
+      console.log(
+        `[Invoice] Skipping payment link SMS for client ${clientId} — Stripe not connected (or charges disabled). Invoice still emailed.`,
+      );
+    } else {
+      try {
+        const token = randomUUID().replace(/-/g, "");
+        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        await createPaymentLink({
+          id: randomUUID(),
+          clientId,
+          jobId,
+          token,
+          amountCents: balanceDueCents,
+          customerName: customerName ?? undefined,
+          customerPhone,
+          customerEmail: recipientEmail ?? undefined,
+          invoiceNumber,
+          expiresAt: sevenDaysFromNow,
+        });
+        paymentLinkUrl = `${origin}/pay/${token}`;
+        const bName = profile?.tradingName ?? businessName ?? "Your Service Provider";
+        const smsBody = `Hi ${customerName ?? "there"}, your invoice ${invoiceNumber} from ${bName} for $${(balanceDueCents / 100).toFixed(2)} is ready. Pay securely: ${paymentLinkUrl}`;
+        await sendSms({ to: customerPhone, body: smsBody });
+        console.log(`[Invoice] Payment link SMS sent to ${customerPhone} for invoice ${invoiceNumber}`);
+      } catch (smsErr) {
+        console.error("[Invoice] Failed to create/send payment link:", smsErr);
+        // Non-fatal — invoice is still generated
+      }
     }
   }
 
