@@ -2820,6 +2820,13 @@ export const portalRouter = router({
       const quotes = await listQuotesByClient(clientId);
       const hasSentQuote = quotes.some((q) => q.status === "sent" || q.status === "accepted");
 
+      // Step 5: Stripe Connect — optional, only blocks all-done if started.
+      // We only show this step once the tradie has enough else set up that
+      // accepting payments is the natural next move.
+      const stripeConn = await getStripeConnection(clientId);
+      const hasStripeConnected =
+        stripeConn !== null && !stripeConn.disconnectedAt && stripeConn.chargesEnabled;
+
       const steps = [
         {
           id: "profile_photo",
@@ -2849,9 +2856,20 @@ export const portalRouter = router({
           completed: hasSentQuote,
           href: "/portal/quotes",
         },
+        {
+          id: "stripe_connect",
+          label: "Enable Pay Now (optional)",
+          description: "Connect Stripe so customers can pay invoices with a card. Money goes straight to your bank.",
+          completed: hasStripeConnected,
+          href: "/portal/settings",
+        },
       ];
 
-      const allDone = steps.every((s) => s.completed);
+      // The Stripe step is optional — don't let an unconnected Stripe
+      // account keep the checklist visible forever once everything else
+      // is done. allDone only considers the four core steps.
+      const coreSteps = steps.filter((s) => s.id !== "stripe_connect");
+      const allDone = coreSteps.every((s) => s.completed);
       return { dismissed: allDone, steps };
     }),
 

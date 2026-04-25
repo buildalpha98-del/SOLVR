@@ -19,14 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   KeyRound, Eye, EyeOff, CheckCircle2, Building2, Save, Loader2, CreditCard, Trash2, AlertTriangle,
   Bell, ExternalLink, RefreshCw, ShieldCheck, LogOut, Zap, ClipboardList, Plus, X, ChevronDown,
-  Download,
+  Download, Banknote,
 } from "lucide-react";
 import MemoryFileSection from "./MemoryFileSection";
 import GoogleReviewSection from "./GoogleReviewSection";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { usePortalRole } from "@/hooks/usePortalRole";
-import { ViewerBanner } from "@/components/portal/ViewerBanner";
+import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 
 // ─── Shared input style ──────────────────────────────────────────────────────
 const inputStyle = {
@@ -598,6 +598,9 @@ export default function PortalSettings() {
         {/* ─── Billing ──────────────────────────────────────────────────────────── */}
         <BillingSection />
 
+        {/* ─── Stripe Connect (Pay Now) ──────────────────────────────────────────── */}
+        <StripeConnectSection />
+
         {/* ─── Google Reviews ───────────────────────────────────────────────────── */}
         <GoogleReviewSection />
 
@@ -812,6 +815,244 @@ function LicenceInsuranceSection() {
       )}
     </SectionCard>
   );
+}
+
+// ─── Stripe Connect (Pay Now on invoices) ────────────────────────────────
+/**
+ * Connect / disconnect block for Stripe Express. Once connected and
+ * onboarding completes, customer SMS payment links route through the
+ * tradie's account directly. Money lands in their bank, SOLVR never
+ * holds it.
+ *
+ * Auto-refresh: when Stripe redirects back here with ?stripe=connected,
+ * we trigger refreshStatus once to pick up the latest account state
+ * before the webhook arrives.
+ */
+function StripeConnectSection() {
+  const { data: status, isLoading, refetch } = trpc.stripeConnect.getStatus.useQuery(undefined, {
+    staleTime: 30_000,
+    retry: 2,
+  });
+
+  const startOnboarding = trpc.stripeConnect.startOnboarding.useMutation({
+    onSuccess: ({ url }) => { window.location.href = url; },
+    onError: (err) => toast.error(err.message ?? "Couldn't start Stripe setup."),
+  });
+  const refreshStatus = trpc.stripeConnect.refreshStatus.useMutation({
+    onSuccess: () => { refetch(); },
+    onError: (err) => toast.error(err.message ?? "Couldn't refresh Stripe status."),
+  });
+  const dashboardLink = trpc.stripeConnect.createDashboardLink.useMutation({
+    onSuccess: ({ url }) => { window.open(url, "_blank"); },
+    onError: (err) => toast.error(err.message ?? "Couldn't open Stripe dashboard."),
+  });
+  const disconnect = trpc.stripeConnect.disconnect.useMutation({
+    onSuccess: () => { refetch(); toast.success("Stripe disconnected. You can reconnect any time."); },
+    onError: (err) => toast.error(err.message ?? "Couldn't disconnect Stripe."),
+  });
+
+  // Stripe → SOLVR redirect handling. Cleans the URL so a refresh doesn't
+  // re-trigger the status pull, and avoids the user seeing ?stripe=connected
+  // sitting in the address bar forever.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeParam = params.get("stripe");
+    if (stripeParam === "connected" || stripeParam === "refresh") {
+      refreshStatus.mutate();
+      params.delete("stripe");
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "") + window.location.hash;
+      window.history.replaceState({}, "", newUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const connected = status?.connected ?? false;
+  const ready = connected && status?.chargesEnabled;
+  const onboardingPending = connected && !status?.chargesEnabled;
+
+  return (
+    <SectionCard
+      icon={Banknote}
+      title="Pay Now — Online Card Payments"
+      subtitle="Let customers pay invoices with a card. Money lands in your bank, not ours."
+    >
+      {isLoading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: "rgba(255,255,255,0.4)" }} />
+        </div>
+      ) : !connected ? (
+        // ── Not connected ────────────────────────────────────────────────
+        <div className="space-y-3">
+          <div
+            className="flex items-start gap-3 p-3 rounded-lg"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <CreditCard className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }} />
+            <div className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
+              <p className="text-white font-semibold mb-1">How it works:</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>Connect your Stripe account once — takes about 3 minutes (ABN, ID, bank details).</li>
+                <li>When you mark a job complete, the customer gets an SMS with a "Pay Now" link.</li>
+                <li>They pay with a card; the money settles to your bank in 1–2 business days.</li>
+                <li>Stripe takes their standard fee (~1.75% + 30c). SOLVR takes nothing.</li>
+              </ul>
+            </div>
+          </div>
+          <WriteGuard>
+            <Button
+              onClick={() => startOnboarding.mutate({ origin: window.location.origin })}
+              disabled={startOnboarding.isPending}
+              className="min-h-11"
+              style={{ background: "#F5A623", color: "#0F1F3D", fontWeight: 700 }}
+            >
+              {startOnboarding.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              ) : (
+                <Banknote className="w-4 h-4 mr-1.5" />
+              )}
+              Connect Stripe
+            </Button>
+          </WriteGuard>
+        </div>
+      ) : ready ? (
+        // ── Fully connected and ready ────────────────────────────────────
+        <div className="space-y-3">
+          <div
+            className="flex items-start gap-3 p-3 rounded-lg"
+            style={{ background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.25)" }}
+          >
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#4ade80" }} />
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
+              <p className="font-semibold text-white">Connected — accepting card payments</p>
+              <p className="mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+                Pay Now SMS links go out automatically when you mark a job complete with a balance due.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <WriteGuard>
+              <Button
+                onClick={() => dashboardLink.mutate()}
+                disabled={dashboardLink.isPending}
+                variant="outline"
+                className="min-h-11 border-white/15 text-white/70"
+              >
+                {dashboardLink.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <ExternalLink className="w-4 h-4 mr-1.5" />}
+                Open Stripe Dashboard
+              </Button>
+            </WriteGuard>
+            <WriteGuard>
+              <Button
+                onClick={() => refreshStatus.mutate()}
+                disabled={refreshStatus.isPending}
+                variant="outline"
+                className="min-h-11 border-white/15 text-white/50"
+              >
+                {refreshStatus.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+                Refresh status
+              </Button>
+            </WriteGuard>
+            <WriteGuard>
+              <Button
+                onClick={() => {
+                  if (window.confirm("Disconnect Stripe? Future invoices won't include a Pay Now link until you reconnect.")) {
+                    disconnect.mutate();
+                  }
+                }}
+                disabled={disconnect.isPending}
+                variant="outline"
+                className="min-h-11 border-red-500/20 text-red-400/70 hover:bg-red-500/10"
+              >
+                {disconnect.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                Disconnect
+              </Button>
+            </WriteGuard>
+          </div>
+        </div>
+      ) : (
+        // ── Connected but charges not yet enabled (mid-onboarding or
+        //    requirements outstanding) ───────────────────────────────────
+        <div className="space-y-3">
+          <div
+            className="flex items-start gap-3 p-3 rounded-lg"
+            style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.3)" }}
+          >
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "#F5A623" }} />
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
+              <p className="font-semibold text-white">Stripe needs more info</p>
+              <p className="mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>
+                {onboardingPending
+                  ? "You started onboarding but haven't finished. Click Continue to pick up where you left off."
+                  : "Stripe is asking for additional details before they'll enable card payments."}
+              </p>
+              {(status?.requirements?.length ?? 0) > 0 && (
+                <ul className="mt-1.5 list-disc pl-4 space-y-0.5">
+                  {(status?.requirements ?? []).slice(0, 5).map(req => (
+                    <li key={req}>{humaniseStripeRequirement(req)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <WriteGuard>
+              <Button
+                onClick={() => startOnboarding.mutate({ origin: window.location.origin })}
+                disabled={startOnboarding.isPending}
+                className="min-h-11"
+                style={{ background: "#F5A623", color: "#0F1F3D", fontWeight: 700 }}
+              >
+                {startOnboarding.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                Continue Stripe Setup
+              </Button>
+            </WriteGuard>
+            <WriteGuard>
+              <Button
+                onClick={() => refreshStatus.mutate()}
+                disabled={refreshStatus.isPending}
+                variant="outline"
+                className="min-h-11 border-white/15 text-white/50"
+              >
+                {refreshStatus.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+                Refresh status
+              </Button>
+            </WriteGuard>
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+/**
+ * Translate Stripe's machine codes for currently-due requirements into
+ * tradie-readable text. Anything we haven't mapped falls back to the raw
+ * code, which is at least informative even if not pretty.
+ */
+function humaniseStripeRequirement(code: string): string {
+  const map: Record<string, string> = {
+    "individual.id_number": "Personal ID number",
+    "individual.verification.document": "Photo ID document",
+    "individual.dob.day": "Date of birth",
+    "individual.dob.month": "Date of birth",
+    "individual.dob.year": "Date of birth",
+    "individual.first_name": "First name",
+    "individual.last_name": "Last name",
+    "individual.email": "Email address",
+    "individual.phone": "Phone number",
+    "individual.address.line1": "Address",
+    "individual.address.city": "Address (city)",
+    "individual.address.postal_code": "Address (postcode)",
+    "individual.address.state": "Address (state)",
+    "external_account": "Bank account for payouts",
+    "tos_acceptance.date": "Accept Stripe terms of service",
+    "tos_acceptance.ip": "Accept Stripe terms of service",
+    "business_profile.url": "Business website or social link",
+    "business_profile.product_description": "What your business does",
+    "business_profile.mcc": "Business category",
+  };
+  return map[code] ?? code;
 }
 
 // ─── Billing Section ──────────────────────────────────────────────

@@ -658,7 +658,7 @@ export default function PortalDashboard() {
                 <div>
                   <p className="text-sm font-semibold text-white">
                     {checklistData.steps.every(s => !s.completed)
-                      ? "Get started — 4 things to set up"
+                      ? `Get started — ${checklistData.steps.length} things to set up`
                       : "Finish setting up your account"}
                   </p>
                   <p className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
