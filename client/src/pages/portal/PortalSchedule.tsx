@@ -11,10 +11,12 @@
  * between staff rows within the same day or across days.
  * Designed for iPhone — no horizontal scrolling required.
  */
-import { useState, useMemo, useEffect } from "react";
+import { useCallback, useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -542,8 +544,23 @@ export default function PortalSchedule() {
   const today = new Date();
   const entries: ScheduleEntry[] = scheduleEntries ?? [];
 
+  // Pull-to-refresh — pulls in week schedule + staff list + jobs.
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.listScheduleWeek.invalidate(),
+      utils.portal.listStaff.invalidate(),
+      utils.portal.listJobs.invalidate(),
+      utils.portal.listStaffUnavailability.invalidate(),
+    ]);
+  }, [utils]);
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="schedule">
+      <div ref={ptrContainerRef} style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
       <div className="px-3 py-4 space-y-2">
         {/* Header */}
         <div className="flex items-center justify-between px-1 mb-4">
@@ -830,6 +847,7 @@ export default function PortalSchedule() {
           </DialogContent>
         </Dialog>
       )}
+      </div>
     </PortalLayout>
   );
 }

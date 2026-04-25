@@ -10,9 +10,11 @@
  *  - Customer name, contact details, job, channel, sent date, status
  *  - Resend button for any completed job
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import { Button } from "@/components/ui/button";
 import {
   Star, RefreshCw, Loader2, CheckCircle2, XCircle, SkipForward,
@@ -93,8 +95,18 @@ export default function PortalReviews() {
   const requests = requestsQuery.data?.requests ?? [];
   const stats = statsQuery.data;
 
+  // Pull-to-refresh
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([requestsQuery.refetch(), statsQuery.refetch()]);
+  }, [requestsQuery, statsQuery]);
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout>
+      <div ref={ptrContainerRef} style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
       <div className="sm:max-w-4xl">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
@@ -248,6 +260,7 @@ export default function PortalReviews() {
             </Link>.
           </p>
         </div>
+      </div>
       </div>
     </PortalLayout>
   );

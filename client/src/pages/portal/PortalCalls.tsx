@@ -10,12 +10,14 @@
  * is a one-tap 44pt chip. Default filter is "Needs action" (calls without a
  * confirmed booking) so tradies land on the actionable pile, not the archive.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { Phone, Search, Loader2, Sparkles } from "lucide-react";
 import { ErrorState } from "@/components/portal/ErrorState";
 import CallCard, { type CallCardData } from "@/components/portal/CallCard";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 
 type Filter = "needs-action" | "all";
 
@@ -58,8 +60,18 @@ export default function PortalCalls() {
         )
       : allCalls;
 
+  // Pull-to-refresh
+  const handlePullRefresh = useCallback(async () => {
+    await refetchCalls();
+  }, [refetchCalls]);
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="calls">
+      <div ref={ptrContainerRef} style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
@@ -168,6 +180,7 @@ export default function PortalCalls() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </PortalLayout>
   );

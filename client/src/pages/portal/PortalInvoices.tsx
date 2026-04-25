@@ -14,9 +14,11 @@
  * - Cancel a chase
  * - See escalated invoices that need a manual phone call
  */
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -355,9 +357,21 @@ export default function PortalInvoices() {
 
   const escalated = chases.filter(c => c.status === "escalated");
 
+  // Pull-to-refresh
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.invoiceChasing.list.invalidate(),
+      utils.invoiceChasing.summary.invalidate(),
+    ]);
+  }, [utils]);
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="invoices">
-      <div className="space-y-6">
+      <div ref={ptrContainerRef} className="space-y-6" style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">

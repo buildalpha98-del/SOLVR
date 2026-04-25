@@ -10,12 +10,14 @@
  *  - Customers: search, multi-select, bulk SMS (immediate or scheduled), navigation to detail
  *  - Campaign History: past SMS blasts rendered as vertical cards (SMSCampaignCard)
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import PortalLayout from "./PortalLayout";
 import AddressAutocomplete from "@/components/portal/AddressAutocomplete";
 import SMSCampaignCard from "@/components/portal/SMSCampaignCard";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -226,9 +228,24 @@ export default function PortalCustomers() {
     toast.success("CSV exported");
   }
 
+  // Pull-to-refresh: pulls in customer list + campaigns + templates in parallel.
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      refetchCust(),
+      refetchCampaigns(),
+      refetchTemplates(),
+    ]);
+  }, [refetchCust, refetchCampaigns, refetchTemplates]);
+
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="customers">
-      <ViewerBanner />
+      <div ref={ptrContainerRef} style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
+        <ViewerBanner />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-5">
@@ -857,6 +874,7 @@ export default function PortalCustomers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </PortalLayout>
   );
 }

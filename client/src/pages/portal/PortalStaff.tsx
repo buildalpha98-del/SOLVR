@@ -7,10 +7,12 @@
  * PortalStaff — Staff management page for tradies.
  * Tabs: Team (staff list + PIN management) | Labour Costs (monthly cost report)
  */
-import { useState, useMemo, useEffect } from "react";
+import { useCallback, useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { getSolvrOrigin } from "@/const";
 import PortalLayout from "./PortalLayout";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import StaffCard from "@/components/portal/StaffCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -517,8 +519,21 @@ export default function PortalStaff() {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  // Pull-to-refresh
+  const handlePullRefresh = useCallback(async () => {
+    await Promise.all([
+      utils.portal.listStaff.invalidate(),
+      utils.portal.me.invalidate(),
+    ]);
+  }, [utils]);
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="staff">
+      <div ref={ptrContainerRef} style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
       <div className="sm:max-w-2xl mx-auto px-4 py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
@@ -1032,6 +1047,7 @@ export default function PortalStaff() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </PortalLayout>
   );
 }

@@ -7,7 +7,7 @@
  * Portal Calendar — monthly view with booked jobs and manual event creation.
  * Available on full-managed plan only.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, Plus, X, Lock, Loader2, Search, Briefcase, FileText, Bell, MoreHorizontal, Link2, Phone, MessageSquare } from "lucide-react";
@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { hapticSuccess, hapticWarning } from "@/lib/haptics";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import { ViewerBanner } from "@/components/portal/ViewerBanner";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -528,6 +530,14 @@ export default function PortalCalendar() {
     ? eventsOnDay(selectedDate.getDate())
     : [];
 
+  // Pull-to-refresh — pulls in events for the visible month.
+  const handlePullRefresh = useCallback(async () => {
+    await utils.portal.listCalendarEvents.invalidate();
+  }, [utils]);
+  const { containerRef: ptrContainerRef, pullDistance, isRefreshing: isPullRefreshing } = usePullToRefresh({
+    onRefresh: handlePullRefresh,
+  });
+
   return (
     <PortalLayout activeTab="calendar">
       {showAdd && selectedDate && (
@@ -538,6 +548,8 @@ export default function PortalCalendar() {
           onAdd={data => createEventMutation.mutate(data)}
         />
       )}
+      <div ref={ptrContainerRef} style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <PullToRefreshIndicator pullDistance={pullDistance} isRefreshing={isPullRefreshing} />
       <div className="space-y-5">
         {!canWrite && <ViewerBanner />}
         {/* Header */}
@@ -732,6 +744,7 @@ export default function PortalCalendar() {
             )}
           </>
         )}
+      </div>
       </div>
     </PortalLayout>
   );
