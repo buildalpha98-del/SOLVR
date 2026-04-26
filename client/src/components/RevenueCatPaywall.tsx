@@ -57,8 +57,8 @@ export function RevenueCatPaywall({
       }
     } catch (err) {
       console.error("[RevenueCatPaywall] error:", err);
-      toast.error("Something went wrong", {
-        description: "Please try again or contact hello@solvr.com.au",
+      toast.error("Couldn't load the purchase screen", {
+        description: "Please try again or contact hello@solvr.com.au if it keeps failing.",
       });
     } finally {
       setLoading(false);

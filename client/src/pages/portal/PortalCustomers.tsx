@@ -89,7 +89,7 @@ export default function PortalCustomers() {
 
   const bulkSmsPreviewMutation = trpc.portalCustomers.bulkSmsPreview.useMutation({
     onSuccess: () => setSmsSent(true),
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't preview SMS — ${err.message || "please try again."}`),
   });
   const utils = trpc.useUtils();
 
@@ -101,7 +101,7 @@ export default function PortalCustomers() {
       setNewCustFirst(""); setNewCustLast(""); setNewCustEmail(""); setNewCustPhone(""); setNewCustAddress("");
       utils.portalCustomers.list.invalidate();
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't add customer — ${err.message || "please try again."}`),
   });
 
   const toggleOptOutMutation = trpc.portalCustomers.toggleSmsOptOut.useMutation({
@@ -109,7 +109,7 @@ export default function PortalCustomers() {
       toast.success(data.optedOutSms ? "Customer opted out of SMS" : "Customer re-enabled for SMS");
       utils.portalCustomers.list.invalidate();
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't update SMS preference — ${err.message || "please try again."}`),
   });
 
   const sendBulkSmsMutation = trpc.portalCustomers.sendBulkSms.useMutation({
@@ -123,7 +123,7 @@ export default function PortalCustomers() {
       setSelected(new Set());
       refetchCampaigns();
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't send bulk SMS — ${err.message || "please try again."}`),
   });
 
   const scheduleBulkSmsMutation = trpc.portalCustomers.scheduleBulkSms.useMutation({
@@ -134,7 +134,7 @@ export default function PortalCustomers() {
       setScheduleMode(false);
       setScheduledAt("");
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't schedule SMS — ${err.message || "please try again."}`),
   });
 
   const createTemplateMutation = trpc.portalCustomers.createSmsTemplate.useMutation({
@@ -144,13 +144,13 @@ export default function PortalCustomers() {
       setNewTplBody("");
       refetchTemplates();
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't save template — ${err.message || "please try again."}`),
   });
 
   const deleteTemplateMutation = trpc.portalCustomers.deleteSmsTemplate.useMutation({
     // Template row disappears from list — visual change is feedback.
     onSuccess: () => refetchTemplates(),
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't delete template — ${err.message || "please try again."}`),
   });
 
   const bulkSmsMutation = bulkSmsPreviewMutation;

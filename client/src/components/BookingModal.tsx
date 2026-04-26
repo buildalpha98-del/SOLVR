@@ -73,7 +73,7 @@ function BookingForm({ onSuccess, demoPersona }: { onSuccess: () => void; demoPe
 
   const submitLead = trpc.strategyCall.submitLead.useMutation({
     onSuccess,
-    onError: (err) => toast.error("Something went wrong. Please try again.", { description: err.message }),
+    onError: (err) => toast.error("Couldn't book your call — please try again.", { description: err.message }),
   });
 
   function handleSubmit(e: React.FormEvent) {

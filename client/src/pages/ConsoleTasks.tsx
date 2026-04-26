@@ -126,7 +126,8 @@ export default function ConsoleTasks() {
                     {task.status !== "done" && (
                       <button
                         onClick={() => handleComplete(task.id)}
-                        className="w-5 h-5 rounded border border-white/20 flex items-center justify-center shrink-0 mt-0.5 hover:border-green-400 hover:bg-green-400/10 transition-colors"
+                        disabled={updateTask.isPending}
+                        className="w-5 h-5 rounded border border-white/20 flex items-center justify-center shrink-0 mt-0.5 hover:border-green-400 hover:bg-green-400/10 transition-colors disabled:opacity-60 disabled:cursor-wait"
                       >
                         <Check size={11} className="text-white/20 hover:text-green-400" />
                       </button>
@@ -153,9 +154,11 @@ export default function ConsoleTasks() {
                           </Badge>
                           <button
                             onClick={() => deleteTask.mutate({ id: task.id })}
-                            className="text-white/20 hover:text-red-400 transition-colors"
+                            disabled={deleteTask.isPending}
+                            className="text-white/30 hover:text-red-400 transition-colors p-2 min-h-10 min-w-10 flex items-center justify-center disabled:opacity-60 disabled:cursor-wait"
+                            aria-label="Delete task"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -180,7 +183,8 @@ export default function ConsoleTasks() {
                         {task.status === "todo" && (
                           <button
                             onClick={() => handleStartProgress(task.id)}
-                            className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                            disabled={updateTask.isPending}
+                            className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-60 disabled:cursor-wait min-h-8 px-1"
                           >
                             Start →
                           </button>

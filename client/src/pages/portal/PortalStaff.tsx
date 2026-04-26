@@ -443,7 +443,7 @@ export default function PortalStaff() {
       setForm(emptyForm);
       toast.success(`${form.name} has been added to your team.`);
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't add staff member — ${err.message || "please try again."}`),
   });
 
   const updateMutation = trpc.portal.updateStaff.useMutation({
@@ -453,7 +453,7 @@ export default function PortalStaff() {
       setForm(emptyForm);
       toast.success("Staff member updated.");
     },
-    onError: (err) => toast.error(err.message || "Something went wrong"),
+    onError: (err) => toast.error(`Couldn't save changes — ${err.message || "please try again."}`),
   });
 
   const setPinMutation = trpc.portal.setStaffPin.useMutation({
