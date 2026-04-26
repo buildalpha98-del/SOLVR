@@ -25,6 +25,13 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
       toast.success("Logged out.");
       window.location.href = "/staff";
     },
+    onError: () => {
+      // Logout should never trap the user — even if the server call fails
+      // (already-expired session, network drop), boot them to /staff. The
+      // cookie is short-lived enough that they'll re-auth on the next page.
+      toast.error("Couldn't reach the server — signing you out anyway.");
+      window.location.href = "/staff";
+    },
   });
 
   useEffect(() => {

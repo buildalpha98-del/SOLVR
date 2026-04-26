@@ -190,8 +190,26 @@ export default function PortalReviews() {
                 <p className="text-sm font-medium text-white truncate">
                   {req.customerName ?? "Unknown"}
                 </p>
-                <p className="text-xs truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  {req.customerPhone ?? req.customerEmail ?? "No contact"}
+                <p className="text-sm truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  {req.customerPhone ? (
+                    <a
+                      href={`tel:${req.customerPhone}`}
+                      className="underline underline-offset-2 active:opacity-70"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {req.customerPhone}
+                    </a>
+                  ) : req.customerEmail ? (
+                    <a
+                      href={`mailto:${req.customerEmail}`}
+                      className="underline underline-offset-2 active:opacity-70"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {req.customerEmail}
+                    </a>
+                  ) : (
+                    "No contact"
+                  )}
                 </p>
               </div>
 

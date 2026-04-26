@@ -18,6 +18,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ShieldCheck, Plus, Loader2, FileText, Trash2,
   AlertTriangle, CheckCircle2, ExternalLink,
 } from "lucide-react";
@@ -130,6 +135,10 @@ export default function PortalCompliance() {
   const [docType, setDocType] = useState<DocType>("swms");
   const [jobDescription, setJobDescription] = useState("");
   const [siteAddress, setSiteAddress] = useState("");
+  // Confirmation gate for compliance doc delete. Browser confirm() renders
+  // tiny on iOS WKWebView and is easy to mis-tap; AlertDialog is bigger,
+  // styled to match the rest of the portal, and matches platform expectations.
+  const [pendingDocDelete, setPendingDocDelete] = useState<{ docId: string; title: string } | null>(null);
 
   // List query
   const listQuery = trpc.portal.listComplianceDocs.useQuery(undefined, {
@@ -344,15 +353,14 @@ export default function PortalCompliance() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm("Delete this document?")) {
-                            deleteMutation.mutate({ docId: doc.id });
-                          }
+                          setPendingDocDelete({ docId: doc.id, title: doc.title });
                         }}
-                        className="p-1.5 rounded-lg transition-colors"
-                        style={{ color: "rgba(255,255,255,0.3)" }}
+                        className="p-2.5 rounded-lg transition-colors min-h-10 min-w-10 flex items-center justify-center"
+                        style={{ color: "rgba(255,255,255,0.45)" }}
                         title="Delete"
+                        aria-label="Delete document"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -393,6 +401,40 @@ export default function PortalCompliance() {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={!!pendingDocDelete}
+        onOpenChange={(open) => { if (!open) setPendingDocDelete(null); }}
+      >
+        <AlertDialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "white" }}>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.6)" }}>
+              {pendingDocDelete ? `"${pendingDocDelete.title}" will be permanently removed.` : ""} This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+              className="min-h-11"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDocDelete) {
+                  deleteMutation.mutate({ docId: pendingDocDelete.docId });
+                  setPendingDocDelete(null);
+                }
+              }}
+              style={{ background: "#ef4444", color: "white" }}
+              className="min-h-11"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PortalLayout>
   );
 }

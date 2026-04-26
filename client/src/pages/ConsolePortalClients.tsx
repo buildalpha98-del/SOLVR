@@ -260,6 +260,9 @@ export default function ConsolePortalClients() {
       toast.success("Client portal access has been revoked.");
       setRevokeDialogOpen(false);
     },
+    onError: (err: { message: string }) => {
+      toast.error(err.message ?? "Couldn't revoke access — try again.");
+    },
   });
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);

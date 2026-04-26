@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Receipt, Plus, CheckCircle2, Clock, AlertTriangle,
-  XCircle, PhoneCall, Loader2, RefreshCw, Download
+  XCircle, PhoneCall, Loader2, RefreshCw, Download, Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
@@ -677,9 +677,22 @@ export default function PortalInvoices() {
               </div>
               <div className="mt-2 space-y-1">
                 {escalated.map(c => (
-                  <div key={c.id} className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  <div key={c.id} className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
                     <span className="font-semibold">{c.customerName}</span> — {c.invoiceNumber} — ${Number(c.amountDue).toLocaleString("en-AU")}
-                    {c.customerPhone && <span style={{ color: "#F5A623" }}> · {c.customerPhone}</span>}
+                    {c.customerPhone && (
+                      <>
+                        {" · "}
+                        <a
+                          href={`tel:${c.customerPhone}`}
+                          className="inline-flex items-center gap-1 underline underline-offset-2 active:opacity-70"
+                          style={{ color: "#F5A623" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone className="w-3 h-3" />
+                          {c.customerPhone}
+                        </a>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
@@ -741,7 +754,16 @@ export default function PortalInvoices() {
                     </div>
                     <div className="text-sm mt-1 font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>
                       {chase.customerName}
-                      <span className="font-normal ml-2" style={{ color: "rgba(255,255,255,0.4)" }}>{chase.customerEmail}</span>
+                      {chase.customerEmail && (
+                        <a
+                          href={`mailto:${chase.customerEmail}`}
+                          className="font-normal ml-2 underline underline-offset-2 active:opacity-70"
+                          style={{ color: "rgba(255,255,255,0.55)" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {chase.customerEmail}
+                        </a>
+                      )}
                     </div>
                     {chase.description && (
                       <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{chase.description}</div>

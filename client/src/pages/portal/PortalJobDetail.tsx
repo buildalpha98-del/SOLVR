@@ -32,6 +32,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import { OnMyWayPanel } from "@/components/portal/OnMyWayPanel";
 import { JobTasksSection } from "@/components/portal/JobTasksSection";
@@ -227,6 +232,10 @@ function PhotoSection({
 }) {
   const [uploading, setUploading] = useState<"before" | "after" | null>(null);
   const [lightbox, setLightbox] = useState<{ photos: LightboxPhoto[]; index: number } | null>(null);
+  // Confirmation gate for photo delete — fat-finger taps on the small trash
+  // icon shouldn't quietly nuke a customer's before/after pic. Two-tap delete
+  // matches platform expectations (iOS Photos, etc.).
+  const [pendingPhotoDelete, setPendingPhotoDelete] = useState<{ id: number; jobId: number } | null>(null);
 
   const allPhotosForLightbox: LightboxPhoto[] = [
     ...beforePhotos.map(p => ({ imageUrl: p.imageUrl, caption: p.caption, photoType: p.photoType, uploadedByStaffName: p.uploadedByStaffName })),
@@ -300,7 +309,7 @@ function PhotoSection({
               <div key={p.id} className="relative group rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "4/3" }}>
                 <img src={p.imageUrl} alt={p.caption ?? type} className="w-full h-full object-cover" onClick={() => openLightbox(p)} />
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "rgba(0,0,0,0.3)" }}><ZoomIn className="w-5 h-5 text-white" /></div>
-                <button onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(239,68,68,0.85)" }}><Trash2 className="w-2.5 h-2.5 text-white" /></button>
+                <button onClick={(e) => { e.stopPropagation(); setPendingPhotoDelete({ id: p.id, jobId }); }} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(239,68,68,0.85)" }}><Trash2 className="w-2.5 h-2.5 text-white" /></button>
                 {p.caption && <p className="absolute bottom-0 left-0 right-0 text-[10px] px-1.5 py-1 truncate" style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}>{p.caption}</p>}
               </div>
             ))}
@@ -330,13 +339,47 @@ function PhotoSection({
                     {p.uploadedByStaffName && <p className="text-[9px] truncate" style={{ color: "rgba(245,166,35,0.9)" }}>{p.uploadedByStaffName}</p>}
                     <p className="text-[9px] capitalize" style={{ color: "rgba(255,255,255,0.6)" }}>{p.photoType}{p.caption ? ` — ${p.caption}` : ""}</p>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); removePhoto.mutate({ id: p.id, jobId }); }} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(239,68,68,0.85)" }}><Trash2 className="w-2.5 h-2.5 text-white" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setPendingPhotoDelete({ id: p.id, jobId }); }} className="absolute top-1 right-1 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "rgba(239,68,68,0.85)" }}><Trash2 className="w-2.5 h-2.5 text-white" /></button>
                 </div>
               ))}
             </div>
           </div>
         )}
       </SectionCard>
+
+      <AlertDialog
+        open={!!pendingPhotoDelete}
+        onOpenChange={(open) => { if (!open) setPendingPhotoDelete(null); }}
+      >
+        <AlertDialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "white" }}>Delete this photo?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.6)" }}>
+              This can't be undone. The photo will be removed from this job.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+              className="min-h-11"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingPhotoDelete) {
+                  removePhoto.mutate(pendingPhotoDelete);
+                  setPendingPhotoDelete(null);
+                }
+              }}
+              style={{ background: "#ef4444", color: "white" }}
+              className="min-h-11"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

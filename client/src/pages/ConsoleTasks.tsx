@@ -50,10 +50,12 @@ export default function ConsoleTasks() {
 
   const updateTask = trpc.tasks.update.useMutation({
     onSuccess: () => { utils.tasks.list.invalidate(); utils.ai.stats.invalidate(); },
+    onError: (err) => toast.error(err.message ?? "Couldn't update task — please try again."),
   });
 
   const deleteTask = trpc.tasks.delete.useMutation({
     onSuccess: () => { utils.tasks.list.invalidate(); utils.ai.stats.invalidate(); toast.success("Task deleted"); },
+    onError: (err) => toast.error(err.message ?? "Couldn't delete task — please try again."),
   });
 
   const handleComplete = (id: number) => {

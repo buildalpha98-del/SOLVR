@@ -190,14 +190,17 @@ export default function CrmClientDetail() {
 
   const pinMutation = trpc.crm.updateInteraction.useMutation({
     onSuccess: () => utils.crm.getInteractions.invalidate({ clientId }),
+    onError: (err) => toast.error(err.message ?? "Couldn't pin interaction."),
   });
 
   const addTagMutation = trpc.crm.addTag.useMutation({
     onSuccess: () => { utils.crm.getClientTags.invalidate({ clientId }); toast.success("Tag added."); },
+    onError: (err) => toast.error(err.message ?? "Couldn't add tag."),
   });
 
   const removeTagMutation = trpc.crm.removeTag.useMutation({
     onSuccess: () => { utils.crm.getClientTags.invalidate({ clientId }); },
+    onError: (err) => toast.error(err.message ?? "Couldn't remove tag."),
   });
 
   // ── Memory File modal ────────────────────────────────────────────────────

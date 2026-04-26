@@ -31,6 +31,27 @@ function capacitorRewriteUrl<T extends string | URL | null | undefined>(url: T):
 }
 
 if (isNative) {
+  // Health-check: CapacitorHttp must be registered for our cross-origin tRPC
+  // calls to succeed (cookies need to ride along with capacitor://localhost
+  // → solvr.com.au requests). If a future capacitor.config.ts edit drops the
+  // plugin, every API call would silently fail and the user would just see
+  // a blank dashboard. Surface it loudly at boot instead.
+  if (!Capacitor.isPluginAvailable("CapacitorHttp")) {
+    // eslint-disable-next-line no-console
+    console.error(
+      "[capacitor bootstrap] CapacitorHttp plugin is NOT available. " +
+      "tRPC requests will likely fail. Check capacitor.config.ts → plugins.CapacitorHttp.enabled."
+    );
+    // Defer toast until sonner mounts; don't block boot.
+    setTimeout(() => {
+      import("sonner").then(({ toast }) => {
+        toast.error(
+          "App is missing a network plugin — please reinstall from TestFlight or contact support."
+        );
+      }).catch(() => { /* sonner missing means we already have bigger problems */ });
+    }, 2000);
+  }
+
   if (window.location.pathname === "/" || window.location.pathname === "") {
     window.history.replaceState(null, "", REWRITE_TARGET);
   }

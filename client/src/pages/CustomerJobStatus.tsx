@@ -104,10 +104,15 @@ function FeedbackWidget({
   const [submitted, setSubmitted] = useState(!!initialFeedback);
   const [reviewLink, setReviewLink] = useState<string | null>(googleReviewLink ?? null);
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const submitMutation = trpc.portal.submitJobFeedback.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
+      setSubmitError(null);
       if (data.googleReviewLink) setReviewLink(data.googleReviewLink);
+    },
+    onError: (err) => {
+      setSubmitError(err.message ?? "Couldn't send your feedback. Please try again.");
     },
   });
 
@@ -216,6 +221,9 @@ function FeedbackWidget({
           >
             {submitMutation.isPending ? "Submitting…" : "Submit Feedback"}
           </button>
+          {submitError && (
+            <p className="text-sm text-red-600 mt-2 text-center">{submitError}</p>
+          )}
         </div>
       )}
     </div>
@@ -483,13 +491,19 @@ function CustomerFormFiller({
     { enabled: !!token && !!templateId }
   );
 
-  const submitMutation = trpc.portal.customerSubmitForm.useMutation({
-    onSuccess: () => onClose(),
-  });
-
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<string[]>([]);
+  const [submitFailureMsg, setSubmitFailureMsg] = useState<string | null>(null);
+
+  const submitMutation = trpc.portal.customerSubmitForm.useMutation({
+    onSuccess: () => onClose(),
+    onError: (err) => {
+      // Show inline so customer sees what failed without losing their entries.
+      // Customer-facing pages can't rely on the portal toast wiring.
+      setSubmitFailureMsg(err.message ?? "Couldn't submit form. Please check your connection and try again.");
+    },
+  });
 
   const fields = (template?.fields as FormField[] | null) ?? [];
 
@@ -507,6 +521,7 @@ function CustomerFormFiller({
       return;
     }
     setErrors([]);
+    setSubmitFailureMsg(null);
     submitMutation.mutate({
       token,
       templateId,
@@ -541,7 +556,12 @@ function CustomerFormFiller({
           <div className="px-4 py-4 space-y-4">
             {errors.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <p className="text-xs font-medium text-red-700">Please complete: {errors.join(", ")}</p>
+                <p className="text-sm font-medium text-red-700">Please complete: {errors.join(", ")}</p>
+              </div>
+            )}
+            {submitFailureMsg && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-sm font-medium text-red-700">{submitFailureMsg}</p>
               </div>
             )}
 

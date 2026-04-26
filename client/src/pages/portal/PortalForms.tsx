@@ -22,6 +22,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -377,6 +382,9 @@ function TemplatesTab({ search }: { search: string }) {
 
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  // Confirmation gate — replaces window.confirm() which is tiny and ugly
+  // on iOS WKWebView and easy to dismiss accidentally.
+  const [pendingTemplateDelete, setPendingTemplateDelete] = useState<{ id: number; name: string } | null>(null);
 
   const filtered = (templates ?? []).filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase())
@@ -422,7 +430,7 @@ function TemplatesTab({ search }: { search: string }) {
                       <Edit className="w-4 h-4 mr-1" /> Edit
                     </Button>
                     <Button variant="outline" className="flex-1 sm:flex-none min-h-[44px] text-red-400 hover:text-red-300" onClick={() => {
-                      if (confirm("Delete this template?")) deleteMutation.mutate({ id: t.id });
+                      setPendingTemplateDelete({ id: t.id, name: t.name });
                     }}>
                       <Trash2 className="w-4 h-4 mr-1" />
                       <span>Delete</span>
@@ -441,6 +449,40 @@ function TemplatesTab({ search }: { search: string }) {
           onClose={() => setShowBuilder(false)}
         />
       )}
+
+      <AlertDialog
+        open={!!pendingTemplateDelete}
+        onOpenChange={(open) => { if (!open) setPendingTemplateDelete(null); }}
+      >
+        <AlertDialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "white" }}>Delete this template?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.6)" }}>
+              {pendingTemplateDelete ? `"${pendingTemplateDelete.name}" will be removed.` : ""} Existing forms based on this template are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+              className="min-h-11"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingTemplateDelete) {
+                  deleteMutation.mutate({ id: pendingTemplateDelete.id });
+                  setPendingTemplateDelete(null);
+                }
+              }}
+              style={{ background: "#ef4444", color: "white" }}
+              className="min-h-11"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
@@ -623,6 +665,8 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
   const [viewingId, setViewingId] = useState<number | null>(null);
   const [fillingId, setFillingId] = useState<number | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  // Confirmation gate for submission delete (replaces window.confirm).
+  const [pendingSubmissionDelete, setPendingSubmissionDelete] = useState<{ id: number; title: string } | null>(null);
 
   const filtered = (submissions ?? []).filter(s =>
     s.title.toLowerCase().includes(search.toLowerCase())
@@ -686,7 +730,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
                           <Eye className="w-3.5 h-3.5 mr-1" /> View
                         </Button>
                         <Button size="sm" variant="outline" className="text-red-400" onClick={() => {
-                          if (confirm("Delete this form?")) deleteMutation.mutate({ id: s.id });
+                          setPendingSubmissionDelete({ id: s.id, title: s.title });
                         }}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -729,7 +773,7 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
                     <Eye className="w-3.5 h-3.5 mr-1" /> View
                   </Button>
                   <Button size="sm" variant="outline" className="text-red-400 px-3" onClick={() => {
-                    if (confirm("Delete this form?")) deleteMutation.mutate({ id: s.id });
+                    setPendingSubmissionDelete({ id: s.id, title: s.title });
                   }}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
@@ -739,6 +783,40 @@ function SubmissionsTab({ search, linkedJobId }: { search: string; linkedJobId?:
           </div>
         </>
       )}
+
+      <AlertDialog
+        open={!!pendingSubmissionDelete}
+        onOpenChange={(open) => { if (!open) setPendingSubmissionDelete(null); }}
+      >
+        <AlertDialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "white" }}>Delete this form?</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "rgba(255,255,255,0.6)" }}>
+              {pendingSubmissionDelete ? `"${pendingSubmissionDelete.title}" will be permanently removed.` : ""} This can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+              className="min-h-11"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingSubmissionDelete) {
+                  deleteMutation.mutate({ id: pendingSubmissionDelete.id });
+                  setPendingSubmissionDelete(null);
+                }
+              }}
+              style={{ background: "#ef4444", color: "white" }}
+              className="min-h-11"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* New form: select template */}
       {showNew && (
