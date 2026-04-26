@@ -138,9 +138,10 @@ function ConversationDrawer({
             {/* Close button — visible on mobile */}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-white/10 transition-colors sm:hidden"
+              className="p-2.5 rounded-md hover:bg-white/10 transition-colors sm:hidden min-h-11 min-w-11 flex items-center justify-center"
+              aria-label="Close conversation list"
             >
-              <X className="w-4 h-4 text-white/60" />
+              <X className="w-5 h-5 text-white/70" />
             </button>
           </div>
         </div>
@@ -163,7 +164,9 @@ function ConversationDrawer({
         ) : conversations.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <MessageSquare className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(255,255,255,0.15)" }} />
-            <p className="text-[12px]" style={{ color: "rgba(255,255,255,0.4)" }}>No conversations yet</p>
+            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              No conversations yet — tap "New Conversation" above to ask the AI about your jobs.
+            </p>
           </div>
         ) : (
           conversations.map((conv) => (

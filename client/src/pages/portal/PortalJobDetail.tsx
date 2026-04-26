@@ -197,10 +197,20 @@ function PhotoLightbox({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.92)" }} onClick={onClose}>
-      <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "white" }}><X className="w-5 h-5" /></button>
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs font-medium px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{index + 1} / {photos.length}</div>
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-3 rounded-full min-h-11 min-w-11 flex items-center justify-center"
+        style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+        aria-label="Close lightbox"
+      ><X className="w-5 h-5" /></button>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm font-medium px-3 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>{index + 1} / {photos.length}</div>
       {photos.length > 1 && (
-        <button onClick={(e) => { e.stopPropagation(); prev(); }} className="absolute left-3 p-2 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "white" }}><ChevronLeft className="w-5 h-5" /></button>
+        <button
+          onClick={(e) => { e.stopPropagation(); prev(); }}
+          className="absolute left-3 p-3 rounded-full min-h-11 min-w-11 flex items-center justify-center"
+          style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+          aria-label="Previous photo"
+        ><ChevronLeft className="w-5 h-5" /></button>
       )}
       <div className="max-w-[90vw] max-h-[80vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
@@ -216,7 +226,12 @@ function PhotoLightbox({
         )}
       </div>
       {photos.length > 1 && (
-        <button onClick={(e) => { e.stopPropagation(); next(); }} className="absolute right-3 p-2 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "white" }}><ChevronRight className="w-5 h-5" /></button>
+        <button
+          onClick={(e) => { e.stopPropagation(); next(); }}
+          className="absolute right-3 p-3 rounded-full min-h-11 min-w-11 flex items-center justify-center"
+          style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+          aria-label="Next photo"
+        ><ChevronRight className="w-5 h-5" /></button>
       )}
     </div>
   );
@@ -407,6 +422,9 @@ function JobCostingSection({
   const [amount, setAmount] = useState("");
   const [supplier, setSupplier] = useState("");
   const [reference, setReference] = useState("");
+  // Confirmation gate for cost-item delete — was firing instantly on a tiny
+  // 12px trash icon with no undo; easy to wipe a recorded cost by accident.
+  const [pendingCostDelete, setPendingCostDelete] = useState<{ id: number; description: string; amountCents: number } | null>(null);
 
   const addCost = trpc.portal.addJobCostItem.useMutation({
     // Row appears in the cost-items list — visual change is the confirmation.
@@ -422,7 +440,8 @@ function JobCostingSection({
   const marginColor = grossMarginPct === null ? "rgba(255,255,255,0.4)" : grossMarginPct >= 30 ? "#4ade80" : grossMarginPct >= 15 ? "#F5A623" : "#ef4444";
 
   return (
-    <SectionCard title="Job Costing & Profit" action={<button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors hover:bg-white/5" style={{ color: "#F5A623" }}><Plus className="w-3.5 h-3.5" /> Add Cost</button>}>
+    <>
+    <SectionCard title="Job Costing & Profit" action={<button onClick={() => setShowAdd(true)} className="flex items-center gap-1 text-sm px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white/5 min-h-10" style={{ color: "#F5A623" }}><Plus className="w-4 h-4" /> Add Cost</button>}>
       {/* Profit Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div>
@@ -453,15 +472,23 @@ function JobCostingSection({
           {costItems.map(item => {
             const catStyle = COST_CATEGORY_COLORS[item.category] ?? COST_CATEGORY_COLORS.other;
             return (
-              <div key={item.id} className="flex items-center justify-between text-xs">
+              <div key={item.id} className="flex items-center justify-between text-sm gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0" style={{ background: catStyle.bg, color: catStyle.text }}>{item.category}</span>
+                  <span className="px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0" style={{ background: catStyle.bg, color: catStyle.text }}>{item.category}</span>
                   <span className="text-white truncate">{item.description}</span>
-                  {item.supplier && <span className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.35)" }}>{item.supplier}</span>}
+                  {item.supplier && <span className="text-xs truncate" style={{ color: "rgba(255,255,255,0.45)" }}>{item.supplier}</span>}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <span className="font-medium" style={{ color: "#ef4444" }}>{centsToAud(item.amountCents)}</span>
-                  <button onClick={() => deleteCost.mutate({ id: item.id })} className="hover:text-red-400 transition-colors" style={{ color: "rgba(255,255,255,0.2)" }}><Trash2 className="w-3 h-3" /></button>
+                  <button
+                    onClick={() => setPendingCostDelete({ id: item.id, description: item.description, amountCents: item.amountCents })}
+                    className="p-2 rounded-md hover:text-red-400 hover:bg-red-500/10 transition-colors min-h-10 min-w-10 flex items-center justify-center"
+                    style={{ color: "rgba(255,255,255,0.4)" }}
+                    aria-label="Delete cost item"
+                    title="Delete cost item"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );
@@ -514,6 +541,43 @@ function JobCostingSection({
         </div>
       )}
     </SectionCard>
+
+    <AlertDialog
+      open={!!pendingCostDelete}
+      onOpenChange={(open) => { if (!open) setPendingCostDelete(null); }}
+    >
+      <AlertDialogContent style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "white" }}>
+        <AlertDialogHeader>
+          <AlertDialogTitle style={{ color: "white" }}>Delete this cost item?</AlertDialogTitle>
+          <AlertDialogDescription style={{ color: "rgba(255,255,255,0.6)" }}>
+            {pendingCostDelete
+              ? `"${pendingCostDelete.description}" (${centsToAud(pendingCostDelete.amountCents)}) will be removed from this job's costing. Profit and margin will recalculate.`
+              : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            style={{ background: "transparent", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }}
+            className="min-h-11"
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (pendingCostDelete) {
+                deleteCost.mutate({ id: pendingCostDelete.id });
+                setPendingCostDelete(null);
+              }
+            }}
+            style={{ background: "#ef4444", color: "white" }}
+            className="min-h-11"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

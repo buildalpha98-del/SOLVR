@@ -344,8 +344,14 @@ export default function MemoryFileSection() {
                       <option value="per sqm">per sqm</option>
                       <option value="fixed">fixed</option>
                     </select>
-                    <button type="button" onClick={() => removeService(i)} className="p-2 text-red-400/60 hover:text-red-400 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button
+                      type="button"
+                      onClick={() => removeService(i)}
+                      className="p-2.5 rounded-md text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors min-h-11 min-w-11 flex items-center justify-center"
+                      aria-label="Remove service"
+                      title="Remove service"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}

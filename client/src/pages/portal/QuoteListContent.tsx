@@ -470,10 +470,11 @@ export default function QuoteListContent() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="w-9 h-9 text-white/50 hover:text-white"
+                  className="w-11 h-11 text-white/60 hover:text-white"
                   onClick={(e) => { e.stopPropagation(); navigate(`/portal/quotes/${q.id}`); }}
                   title="View / Edit"
-                  style={{ minWidth: 36, minHeight: 36 }}
+                  aria-label="View or edit quote"
+                  style={{ minWidth: 44, minHeight: 44 }}
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
@@ -481,10 +482,11 @@ export default function QuoteListContent() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="w-9 h-9 text-red-400/60 hover:text-red-400"
+                    className="w-11 h-11 text-red-400/70 hover:text-red-400"
                     onClick={(e) => { e.stopPropagation(); handleDelete(q.id, q.quoteNumber); }}
                     title="Delete"
-                    style={{ minWidth: 36, minHeight: 36 }}
+                    aria-label="Delete quote"
+                    style={{ minWidth: 44, minHeight: 44 }}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

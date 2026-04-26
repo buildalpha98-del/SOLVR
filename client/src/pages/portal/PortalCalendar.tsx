@@ -213,7 +213,11 @@ function AddEventModal({
               {selectedDate.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short", year: "numeric" })}
             </p>
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white/70 p-1 -m-1" aria-label="Close"><X className="w-4 h-4" /></button>
+          <button
+            onClick={onClose}
+            className="text-white/50 hover:text-white/80 p-2.5 -m-2 rounded-lg min-h-11 min-w-11 flex items-center justify-center"
+            aria-label="Close"
+          ><X className="w-5 h-5" /></button>
         </div>
 
         {/* Event-kind tabs */}
