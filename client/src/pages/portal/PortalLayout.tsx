@@ -303,8 +303,8 @@ function BottomTabBar({ features, currentTab, onLogout, isLoggingOut, referralEn
               </span>
             </Link>
             <button
-              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium w-full"
-              style={{ color: "#F5A623" }}
+              className="flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm font-semibold w-full min-h-12 disabled:opacity-60"
+              style={{ color: "#F5A623", background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}
               onClick={() => { setShowMore(false); onLogout(); }}
               disabled={isLoggingOut}
             >
@@ -313,10 +313,10 @@ function BottomTabBar({ features, currentTab, onLogout, isLoggingOut, referralEn
               ) : (
                 <LogOut className="w-4 h-4" />
               )}
-              Log Out
+              {isLoggingOut ? "Signing out…" : "Sign Out"}
             </button>
             <button
-              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium w-full"
+              className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium w-full min-h-11"
               style={{ color: "rgba(255,255,255,0.5)" }}
               onClick={() => { setShowMore(false); }}
             >
@@ -353,7 +353,14 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
 
   const logoutMutation = trpc.portal.logout.useMutation({
     onSuccess: () => navigate("/portal"),
-    onError: (err) => toast.error(err.message ?? "Couldn't log out. Try again."),
+    onError: (err) => {
+      // Logout must never trap the user. Server failure (already-expired
+      // session, network drop) surfaces a brief toast then we bail to the
+      // landing page anyway — the cookie is short-lived enough that they'll
+      // re-auth on the next page load.
+      toast.error(err.message ?? "Couldn't reach the server — signing you out anyway.");
+      navigate("/portal");
+    },
   });
 
   // ALL HOOKS MUST BE CALLED ABOVE THE EARLY RETURNS BELOW.

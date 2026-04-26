@@ -91,7 +91,10 @@ export default function PortalSettings() {
       navigate("/portal");
     },
     onError: () => {
-      // Clear locally even if server call fails
+      // Server call failed (network down, already-expired session) — surface
+      // it briefly so the user knows the local sign-out happened anyway, then
+      // navigate. Without this they'd see the page swap with zero context.
+      toast.error("Couldn't reach the server — signing you out anyway.");
       navigate("/portal");
     },
   });

@@ -144,7 +144,16 @@ const redirectToLoginIfUnauthorized = (error: unknown, queryKey?: string) => {
   }
 
   isRedirecting = true;
-  window.location.href = getLoginUrl();
+  // Surface the expiry to the user before booting them. Without this they
+  // just see the screen swap to the login page mid-tap, which on iOS reads
+  // as "the app crashed and re-launched" rather than "your session expired".
+  // Sonner Toaster is already mounted globally; toast() is fire-and-forget.
+  import("sonner").then(({ toast }) => {
+    toast.error("Your session expired — please sign in again.", { duration: 6000 });
+  }).catch(() => { /* if sonner is missing the redirect still happens below */ });
+  // Brief delay so the toast paints before the page swap. Falls through
+  // immediately if anything goes wrong.
+  setTimeout(() => { window.location.href = getLoginUrl(); }, 800);
 };
 
 queryClient.getQueryCache().subscribe(event => {

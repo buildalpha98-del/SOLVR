@@ -46,6 +46,10 @@ export default function PortalLogin() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
+  // Track failed-login count so we can promote the forgot-password CTA
+  // after two strikes. Older users frequently mistype the password, then
+  // can't find the small reset link below the submit button.
+  const [failureCount, setFailureCount] = useState(0);
 
   // Referral code lookup
   const referralQuery = trpc.portal.lookupReferralCode.useQuery(
@@ -70,12 +74,19 @@ export default function PortalLogin() {
   const passwordLoginMutation = trpc.portal.passwordLogin.useMutation({
     onSuccess: (data) => {
       setMode("success");
+      setFailureCount(0);
       const dest = data.onboardingCompleted ? "/portal/dashboard" : "/portal/onboarding";
       setTimeout(() => { window.location.href = dest; }, 1000);
     },
     onError: (err) => {
       setIsSubmitting(false);
-      setErrorMsg(err.message || "Incorrect email or password.");
+      setFailureCount((n) => n + 1);
+      // Surface the server's specific message verbatim. The server already
+      // distinguishes "Email not found", "Password incorrect", "Account
+      // locked", and rate-limit errors — don't flatten them all into a
+      // generic "Incorrect email or password" which trains users to assume
+      // every failure is a typo.
+      setErrorMsg(err.message || "We couldn't sign you in. Please check your details and try again.");
     },
   });
 
@@ -218,9 +229,22 @@ export default function PortalLogin() {
               </div>
 
               {errorMsg && (
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                  <p className="text-red-300 text-sm">{errorMsg}</p>
+                <div className="flex flex-col gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    <p className="text-red-300 text-sm">{errorMsg}</p>
+                  </div>
+                  {failureCount >= 2 && (
+                    // After two strikes, surface the reset path inside the
+                    // error block where the user is already focused, not as
+                    // a tiny grey link 80px below.
+                    <a
+                      href="/portal/forgot-password"
+                      className="text-amber-300 hover:text-amber-200 text-sm font-semibold underline underline-offset-2 self-start ml-6"
+                    >
+                      Reset your password →
+                    </a>
+                  )}
                 </div>
               )}
 
@@ -291,7 +315,7 @@ export default function PortalLogin() {
               <div className="text-center">
                 <a
                   href="/portal/forgot-password"
-                  className="text-amber-400/70 hover:text-amber-400 text-sm transition-colors"
+                  className="inline-block text-amber-400 hover:text-amber-300 text-sm font-semibold underline underline-offset-2 transition-colors py-2 min-h-11"
                 >
                   Forgot your password?
                 </a>
