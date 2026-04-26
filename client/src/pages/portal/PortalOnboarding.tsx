@@ -546,6 +546,26 @@ export default function PortalOnboarding() {
                 inputMode="numeric"
                 className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 ${TAP_TARGET}`}
               />
+              {abn.trim().length > 0 && (() => {
+                // Light-touch validation — count digits only. Australian ABNs
+                // are 11 digits. We don't enforce the checksum here (server
+                // can do that on the lookup) but flagging length stops the
+                // most common mistype before they hit Next.
+                const digits = abn.replace(/\D/g, "");
+                if (digits.length === 0) return null;
+                if (digits.length === 11) {
+                  return (
+                    <p className="text-xs" style={{ color: "rgba(74,222,128,0.8)" }}>
+                      ✓ Looks like a valid ABN format. (We'll verify on the next step.)
+                    </p>
+                  );
+                }
+                return (
+                  <p className="text-xs" style={{ color: "rgba(245,166,35,0.85)" }}>
+                    Australian ABNs are 11 digits — you've entered {digits.length}. Don't have one? Leave blank and we'll set you up as a sole trader.
+                  </p>
+                );
+              })()}
             </div>
 
             <div className="space-y-2">

@@ -247,7 +247,9 @@ function RevenueTab({ startDate, endDate }: { startDate: string; endDate: string
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.4)" }}>No revenue data yet</p>
+            <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.5)" }}>
+              No revenue data yet — record a paid invoice to see your monthly trend here.
+            </p>
           )}
         </ChartCard>
       </ChartStrip>
@@ -318,7 +320,9 @@ function QuoteConversionTab({ startDate, endDate }: { startDate: string; endDate
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.4)" }}>No quote data yet</p>
+            <p className="text-sm text-center py-10" style={{ color: "rgba(255,255,255,0.5)" }}>
+              No quote data yet — send a quote to start tracking conversion here.
+            </p>
           )}
         </ChartCard>
       </ChartStrip>

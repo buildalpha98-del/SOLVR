@@ -1129,7 +1129,7 @@ export default function PortalDashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4" style={{ color: "#F5A623" }} />
-                    <h2 className="text-sm font-semibold text-white">Invoice Chasing</h2>
+                    <h2 className="text-sm font-semibold text-white">Invoice Follow-ups</h2>
                   </div>
                   <Link href="/portal/invoices">
                     <span className="text-xs font-semibold flex items-center gap-1 cursor-pointer" style={{ color: "#F5A623" }}>

@@ -78,7 +78,7 @@ function statusBadge(status: ChaseStatus, chaseCount: number) {
       return (
         <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold"
           style={{ background: "rgba(59,130,246,0.15)", color: "#60A5FA" }}>
-          <RefreshCw className="w-3 h-3" /> Chasing ({chaseCount}/3)
+          <RefreshCw className="w-3 h-3" /> Following up ({chaseCount}/3)
         </span>
       );
     case "paid":
@@ -208,7 +208,7 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
 
   const createMutation = trpc.invoiceChasing.create.useMutation({
     onSuccess: () => {
-      toast.success(`Chase started for ${form.invoiceNumber}`);
+      toast.success(`Follow-ups started for ${form.invoiceNumber}`);
       onSuccess();
       onClose();
       setForm({
@@ -243,7 +243,7 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-[calc(100vw-2rem)] max-w-lg mx-auto" style={{ background: "#0F1F3D", border: "1px solid rgba(255,255,255,0.1)", color: "#F5F5F0" }}>
         <DialogHeader>
-          <DialogTitle style={{ color: "#F5A623" }}>Start Invoice Chase</DialogTitle>
+          <DialogTitle style={{ color: "#F5A623" }}>Start Invoice Follow-up</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -313,7 +313,7 @@ function AddInvoiceDialog({ open, onClose, onSuccess }: AddInvoiceDialogProps) {
             <Button type="submit" disabled={createMutation.isPending}
               style={{ background: "#F5A623", color: "#0F1F3D", fontWeight: 700 }}>
               {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Start Chasing
+              Start Follow-ups
             </Button>
           </DialogFooter>
         </form>
@@ -578,14 +578,14 @@ export default function PortalInvoices() {
   const snoozeMutation = trpc.invoiceChasing.snooze.useMutation({
     onSuccess: () => {
       utils.invoiceChasing.list.invalidate();
-      toast.success("Chase snoozed for 7 days.");
+      toast.success("Follow-ups snoozed for 7 days.");
     },
     onError: (err) => toast.error(err.message),
   });
   const cancelMutation = trpc.invoiceChasing.cancel.useMutation({
     onSuccess: () => {
       utils.invoiceChasing.list.invalidate();
-      toast.success("Chase cancelled.");
+      toast.success("Follow-ups stopped.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -614,8 +614,8 @@ export default function PortalInvoices() {
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: "#F5F5F0" }}>Invoice Chasing</h1>
-            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <h1 className="text-2xl font-bold" style={{ color: "#F5F5F0" }}>Invoice Follow-ups</h1>
+            <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>
               AI sends polite payment reminders automatically — you get notified when it's time to call.
             </p>
           </div>

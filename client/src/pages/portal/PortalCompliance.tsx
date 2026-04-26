@@ -316,8 +316,8 @@ export default function PortalCompliance() {
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
           >
             <ShieldCheck className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.2)" }} />
-            <p className="text-white/60 text-sm">No compliance documents yet.</p>
-            <p className="text-white/35 text-xs mt-1">Click "New Document" to generate your first SWMS or safety cert.</p>
+            <p className="text-white/70 text-sm">No compliance documents yet.</p>
+            <p className="text-white/45 text-sm mt-1">Tap "New Document" above to generate your first SWMS or safety cert in about 30 seconds.</p>
           </div>
         ) : (
           <div className="space-y-3">
