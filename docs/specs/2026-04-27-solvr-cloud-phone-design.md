@@ -52,6 +52,18 @@ The vision (in the user's words): "Their number is linked to the app. It rings s
 
 ---
 
+## Pre-requisite refactors (before any V2 work begins)
+
+Three small refactors that pay back instantly. Not optional — the V2 work depends on them.
+
+1. **Extract `normalisePhone` to `server/lib/phoneNumber.ts`.** Today it's exported from `server/twilioInboundSms.ts:63` AND duplicated at `server/vapiTools.ts:120`. The phone webhooks need it; deduplicate now.
+2. **Extract Twilio webhook signature validation to `server/lib/twilio.ts`.** Currently inlined in `twilioInboundSms.ts`; the new voice webhooks need the same validation pattern.
+3. **Extract Whisper transcription helper to `server/lib/transcription.ts`.** Used today by Voice-to-Quote (`server/audioUpload.ts`). The phone AI pipeline reuses it. The GPT-4o intent classifier itself is **new** (built atop `invokeLLM`) — it does NOT exist today and isn't a refactor.
+
+Do these as their own PR before merging V2 work. ~half a day.
+
+---
+
 ## Decisions log
 
 The brainstorming session settled six decisions. These are non-negotiable for V2; deviating means revisiting the design.
@@ -200,10 +212,26 @@ export const clientPhoneNumbers = mysqlTable("client_phone_numbers", {
   isDefault: boolean("isDefault").notNull().default(true),
   ringTimeoutSeconds: int("ringTimeoutSeconds").notNull().default(20),
   aiFallbackEnabled: boolean("aiFallbackEnabled").notNull().default(true),
-  // Stripe subscription state — feature gate
+  // Stripe subscription state — feature gate.
+  // Mirrors all Stripe statuses we care about: trial (free trial),
+  // active (paid + valid), past_due (payment failed but in retry grace),
+  // unpaid (retry exhausted), incomplete (initial payment failed),
+  // cancelled (user-cancelled or terminal). Feature is enabled for
+  // {trial, active, past_due}; disabled for {unpaid, incomplete, cancelled}.
+  // past_due gets a soft "payment failed, please update card" banner in
+  // the portal but inbound calls keep ringing for the grace window.
   subscriptionStatus: mysqlEnum("subscriptionStatus",
-    ["trial", "active", "past_due", "cancelled"]).notNull().default("trial"),
+    ["trial", "active", "past_due", "unpaid", "incomplete", "cancelled"]
+  ).notNull().default("trial"),
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 100 }),
+  // Usage tracking — gates the fair-use cap.
+  // Reset to 0 every billing cycle by a daily cron that compares
+  // billingCycleStart to NOW() and rolls over if a new cycle has begun.
+  // The /voice webhook reads inboundMinutesUsed before allowing a call
+  // through; over cap → routes to Vapi fallback only.
+  billingCycleStart: timestamp("billingCycleStart").notNull().defaultNow(),
+  inboundMinutesUsed: int("inboundMinutesUsed").notNull().default(0),
+  outboundMinutesUsed: int("outboundMinutesUsed").notNull().default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 ```
@@ -285,7 +313,7 @@ Bidirectional: a quote/job knows which call spawned it; a call knows which job/q
 ### Backfill migration (idempotent)
 
 For each existing `portalJobs` row with `customerPhone`:
-1. Normalise phone to E.164 (reuse `lib/phoneNumber.ts` from SMS flow).
+1. Normalise phone to E.164 using `server/lib/phoneNumber.ts:normalisePhone` (extracted from `server/twilioInboundSms.ts:63` per pre-requisite refactor #1).
 2. `tradieCustomers.findOrCreate({ clientId, phone })`.
 3. Set `portalJobs.tradieCustomerId`.
 
@@ -303,12 +331,14 @@ All inside the existing tRPC + webhook stack. No separate microservice.
 
 **`POST /api/webhooks/twilio/voice`** — inbound entry point.
 
-1. Validate Twilio signature (reuse pattern from `twilioInboundSms.ts`)
+1. Validate Twilio signature using `server/lib/twilio.ts:validateTwilioSignature` (extracted per pre-requisite refactor #2)
 2. Look up `client_phone_numbers` by `To` (404 TwiML if unknown)
-3. Look up `tradieCustomers` by `(clientId, normalised(From))`
-4. INSERT `call_logs` row, status `ringing`
-5. **APNs VoIP-push to the tradie's `voip_push_tokens`** → wakes the device
-6. Return TwiML: `<Dial timeout=20 record="record-from-answer-dual" action=/dial-result>` to client identity `client:<userId>`
+3. **Subscription gate.** If `subscriptionStatus ∉ {trial, active, past_due}` OR `inboundMinutesUsed > 200` → if `aiFallbackEnabled`, redirect to Vapi fallback only; else 486 busy. Don't ring the device.
+4. **Concurrent-call gate.** Query `call_logs` for any `(clientId, status='in_progress')` row in the last 30 min. If one exists, redirect to Vapi fallback (don't try to ring the device — would crash CallKit).
+5. Look up `tradieCustomers` by `(clientId, normalised(From))`
+6. INSERT `call_logs` row, status `ringing`
+7. **APNs VoIP-push to ALL the tradie's `voip_push_tokens`** → every active device (iPhone + iPad) wakes and rings
+8. Return TwiML: `<Dial timeout=20 record="record-from-answer-dual" action=/dial-result>` to client identity `client:<userId>`
 
 **`POST /api/webhooks/twilio/dial-result`** — no-answer fallback.
 
@@ -320,7 +350,13 @@ If disabled → TwiML `<Say>` voicemail greeting + `<Record>`.
 
 **`POST /api/webhooks/twilio/recording`** — recording ready.
 
-Fetch audio from Twilio API → upload to R2 via existing `storagePut()` (key `call-recordings/{clientId}/{callLogId}.mp3`) → UPDATE `call_logs.recordingUrl/recordingSid/durationSeconds` → trigger AI pipeline.
+**Idempotency-first.** Twilio retries POSTs on any non-2xx for ~24h. Guard:
+1. Look up `call_logs` by `twilioCallSid`.
+2. If `recordingSid` is already set on the row → return 200 immediately. Skip the rest.
+
+Otherwise: fetch audio from Twilio API → upload to R2 via existing `storagePut()` (key `call-recordings/{clientId}/{callLogId}.mp3`) → UPDATE `call_logs.recordingUrl/recordingSid/durationSeconds` → trigger AI pipeline.
+
+Update `client_phone_numbers.inboundMinutesUsed` (or `outboundMinutesUsed`) atomically here based on the call's `direction` and `durationSeconds`.
 
 **`POST /api/webhooks/twilio/outgoing`** — TwiML for outbound. Returns `<Dial callerId=<businessNumber> record="record-from-answer-dual">` so outgoing calls show the business number and get recorded.
 
@@ -331,24 +367,37 @@ Fetch audio from Twilio API → upload to R2 via existing `storagePut()` (key `c
 ```
 Customer dials business number
   → /voice webhook
-  → Server INSERT call_logs + APNs VoIP push to user's tokens
-  → iOS wakes the app (even if killed)
-  → Plugin's PushKit handler IMMEDIATELY reports to CallKit → lock-screen UI
-  → User taps Accept
-  → Plugin connects via Twilio SDK using fresh access token (from tRPC)
+  → Server INSERT call_logs + APNs VoIP push to ALL user's tokens
+  → Each device wakes (even if killed)
+  → Each plugin's PushKit handler IMMEDIATELY reports to CallKit → lock-screen UI
+  → User taps Accept on Device A → Plugin calls phone.acceptIncoming
+       ↓
+  → Server fans out a "cancel" VoIP push to all OTHER tokens of the same user
+       (carries the callSid + a CXEndCallAction signal in the payload)
+  → Other devices' plugins receive cancel push → CallKit dismisses ringing UI
+       ↓
+  → Device A's plugin connects via Twilio SDK using fresh access token (from tRPC)
   → Audio flows; server-side Twilio recording begins
 ```
 
-Server-side delivery uses `node-apn` package with `pushType: 'voip'` and a separate VoIP push cert (distinct from the regular APNs cert used for non-VoIP notifications).
+**Apple's hard requirement:** the plugin MUST call `CXProvider.reportNewIncomingCall` synchronously in the PushKit handler — even for the cancel push, where the plugin reports + immediately ends the call. Skipping this once → iOS bans the VoIP token. Not negotiable; plugin enforces.
+
+**Server-side delivery uses the `.p12` certificate flow** with `apn` 2.x or `@parse/node-apn`. The token-based `.p8` auth-key flow is **NOT supported by Apple for VoIP pushes** (only for regular APNs) — you'll waste half a day debugging if you go that route. Two distinct push certs are needed: one regular APNs cert (existing, for post-call summaries) and one new VoIP Services cert (this spec's new requirement).
 
 ### AI pipeline (`server/_core/callIntelligence.ts`)
 
-Triggered after `/recording` webhook completes the R2 upload. Reuses Whisper + GPT helpers from the existing Voice-to-Quote flow, refactored into a shared helper.
+Triggered after `/recording` webhook completes the R2 upload.
+
+**What's reused from the existing Voice-to-Quote flow:**
+- Whisper transcription helper (`server/lib/transcription.ts`, extracted per pre-requisite refactor #3 from `server/audioUpload.ts`).
+
+**What's new:**
+- GPT-4o-mini intent classifier, system prompt, JSON schema, action-item extraction, sentiment analysis, `quoteSeed` extraction. None of this exists today — built fresh atop `invokeLLM`. Budget ~half a day for prompt tuning against real call transcripts before declaring it production-ready.
 
 ```
 R2 audio
-  → Whisper transcript (existing helper)
-  → GPT-4o-mini call analysis with system prompt + JSON schema:
+  → Whisper transcript (REUSED helper)
+  → GPT-4o-mini call analysis (NEW) with system prompt + JSON schema:
       output: { summary, intent, actionItems, sentiment,
                 callerNameExtracted, referencedQuoteNumber,
                 referencedJobTitle, quoteSeed }
@@ -358,29 +407,45 @@ R2 audio
   → SSE event for any open Phone tabs to live-refresh
 ```
 
-System prompt and JSON schema match the user's original prompt (Section 5.2/5.3 of the build prompt). Australian English, 2-4 sentence summary, intent enum, action items as short tasks, optional `quoteSeed` for direct-to-Quote-Engine handoff.
+System prompt and JSON schema match the user's original build prompt (Section 5.2/5.3). Australian English, 2-4 sentence summary, intent enum, action items as short tasks, optional `quoteSeed` for direct-to-Quote-Engine handoff.
 
 ### tRPC router (new: `server/routers/phone.ts`)
 
-| Procedure | Purpose |
-|---|---|
-| `phone.getAccessToken` | Issues 1hr Twilio Voice token for outbound `connect()` |
-| `phone.registerVoipToken` | Saves the APNs token from plugin's `registerVoipPush()` |
-| `phone.initiateCall` | Pre-creates `call_logs` for outbound before plugin connects |
-| `phone.listCalls` | Phone tab queries (paginated, filterable) |
-| `phone.getCall` | Call Detail page |
-| `phone.linkToQuote` / `phone.linkToJob` | Manual linking from post-call screen |
-| `phone.startSubscription` | Starts the $39/month Stripe subscription |
-| `phone.provisionNumber` | Onboarding wizard backend |
-| `phone.updateSettings` | Ring timeout + AI fallback toggle |
+| Procedure | Purpose | Rate limit |
+|---|---|---|
+| `phone.getAccessToken` | Issues 1hr Twilio Voice token for outbound `connect()`. **Must refresh only when ≤5 min remain on previous token; cap at 10 rpm/user.** Token-mint endpoints are abuse magnets. | 10 rpm/user |
+| `phone.registerVoipToken` | Saves the APNs token from plugin's `registerVoipPush()` | 60 rpm/user (default) |
+| `phone.initiateCall` | Pre-creates `call_logs` for outbound before plugin connects | 30 rpm/user |
+| `phone.listCalls` | Phone tab queries (paginated, filterable) | 60 rpm/user |
+| `phone.getCall` | Call Detail page | 60 rpm/user |
+| `phone.linkToQuote` / `phone.linkToJob` | Manual linking from post-call screen | 60 rpm/user |
+| `phone.startSubscription` | Starts the $39/month Stripe subscription | 5 rpm/user |
+| `phone.provisionNumber` | Onboarding wizard backend | 3 rpm/user (Twilio cost-per-call) |
+| `phone.updateSettings` | Ring timeout + AI fallback toggle | 60 rpm/user |
 
-### Vapi handoff: TwiML redirect (the simple path)
+### Vapi handoff (corrected from initial design)
 
-Use TwiML `<Redirect>` to point the no-answer call at the existing Vapi number. Vapi has no idea it was redirected — it answers as it always has. The only new wiring: pass `callLogId` so `vapiWebhook.ts` writes the transcript back into the right `call_logs` row instead of creating a new one.
+The original "pass `callLogId` as a query param through TwiML `<Redirect>`" approach **doesn't work** — TwiML doesn't propagate query params into Vapi's webhook payload. Two viable alternatives:
 
-**No changes to Vapi assistant config** — just a query-param-aware tweak in `vapiWebhook.ts` to merge into an existing row when `callLogId` is present.
+**Approach (selected for V2): reconcile by Twilio call SID.**
 
-If audio quality degrades in beta, fall back to SIP trunk integration (Twilio `<Sip>` direct to Vapi's SIP endpoint) in V2.5.
+Vapi's webhook payload includes the originating phone-call provider's call ID (under `call.phoneCallProviderId` for Twilio-originated calls). Solvr already stores `twilioCallSid` on the `call_logs` row from the original `/voice` webhook. So:
+
+1. `/dial-result` webhook fires with `DialCallStatus = no-answer`.
+2. TwiML `<Redirect>` to a Solvr-controlled `/api/webhooks/twilio/vapi-handoff?callLogId=N` endpoint.
+3. That endpoint stashes `(twilioCallSid → callLogId)` in a short-lived map (5-min TTL in Redis or in-memory cache) AND returns TwiML `<Dial><Number>` to the per-tradie Vapi number (looked up from `crmClients.vapiAgentId` → assistant config → its phone).
+4. Vapi answers, fires its own webhook with `phoneCallProviderId` set to the Twilio call SID.
+5. `vapiWebhook.ts` looks up the `(twilioCallSid → callLogId)` cache; if present, it merges into the existing `call_logs` row instead of creating new `crmInteractions`.
+
+**Approach (V2.5 if Vapi's payload doesn't expose Twilio SID):** Use Vapi's REST API to start the call with `assistantOverrides.metadata = { callLogId }`. The metadata flows back in the webhook. More implementation work; defer until needed.
+
+**Verify before implementation:** does Vapi's webhook payload actually include `call.phoneCallProviderId`? If not, fall back immediately to the metadata approach. Spec assumes (i); reviewer should confirm against Vapi docs as a Week-1 task.
+
+**`vapiWebhook.ts` changes:**
+- New: when `phoneCallProviderId` matches a known `call_logs.twilioCallSid`, UPDATE the existing row with transcript/summary instead of inserting a fresh `crmInteractions` row.
+- Otherwise: existing behaviour (Vapi-only call → `crmInteractions` insert).
+
+This avoids double-writing the same call into both tables.
 
 ### Stripe subscription wiring
 
@@ -534,12 +599,14 @@ Makes the phone feel native — no separate "phone mode" to switch into.
 </array>
 ```
 
-### Twilio account setup
+### Twilio account setup (with AU region for data residency)
 
 - Voice API enabled in Twilio console (existing account already used for SMS)
+- **Use Twilio's AU region** (`au1.twilio.com` API endpoint, AU edge location for media) — Australian tradie call audio stays in AU infra. Configure region per-API-call OR set the subaccount's default region. Without this, recordings default to US-region storage which is a privacy disclosure issue you don't need.
 - New API Key + Secret for issuing Voice access tokens (don't reuse Account Auth Token)
 - TwiML App configured pointing to `/api/webhooks/twilio/outgoing`
 - One AU test number for dev/staging
+- **R2 bucket region:** confirm Cloudflare R2 bucket uses `apac` location hint so call recordings stay in Asia-Pacific.
 
 ### New env vars
 
@@ -547,11 +614,13 @@ Makes the phone feel native — no separate "phone mode" to switch into.
 TWILIO_API_KEY_SID=SKxxx
 TWILIO_API_KEY_SECRET=xxx
 TWILIO_TWIML_APP_SID=APxxx
-VAPI_TRANSFER_NUMBER=+61xxx          # the existing Vapi number for redirect
-APN_VOIP_KEY_ID=xxx                  # APNs auth key for VoIP push
-APN_VOIP_KEY=<.p8 file contents>
-STRIPE_PRICE_ID_SOLVR_PHONE=price_xxx  # Stripe Price for $39/month add-on
+TWILIO_REGION=au1                    # ensures AU-region routing
+APN_VOIP_CERT_P12_BASE64=...         # base64-encoded .p12 VoIP cert
+APN_VOIP_CERT_PASSPHRASE=xxx         # cert passphrase
+STRIPE_PRICE_ID_SOLVR_PHONE=price_xxx
 ```
+
+**Note on `VAPI_TRANSFER_NUMBER`:** removed from initial spec — Vapi is per-tradie via `crmClients.vapiAgentId` (existing setup). The redirect resolves the tradie's specific Vapi number from their assistant config at `/dial-result` time, not a global env var. There is no shared transfer number.
 
 ### App Store review — what the reviewer will check
 
@@ -620,10 +689,15 @@ Margin: $13–$31/month per active tradie depending on usage.
 | Apple bounces first submission (VoIP scrutiny) | +1–2 week buffer baked in. Engage Apple's review-feedback flow if specific metadata issue raised. |
 | VoIP token revoked from a single missed `reportNewIncomingCall` | Plugin enforces it as the very first line of the PushKit handler. Logged + alerted server-side. |
 | Network edge cases on real devices | Week 4 explicitly carved out for device testing. |
-| Twilio cost runaway from one heavy-volume tradie | Per-subaccount spend caps in Twilio + alerting at 80% of budget. Feature pauses at fair-use cap regardless. |
-| Vapi audio quality on TwiML-redirect handoff | If degraded in beta, fall back to SIP trunk integration in V2.5. |
-| Multi-device VoIP push (iPhone + iPad) → both ring after answer | Twilio's call-state callback fires "answered elsewhere" → plugin cancels parallel CallKit invocation. |
+| Twilio cost runaway from one heavy-volume tradie | Per-subaccount spend caps in Twilio + alerting at 80% of budget. Feature pauses at fair-use cap (200/100 min) regardless. |
+| Vapi `phoneCallProviderId` field doesn't exist in webhook payload | Verify Week 1 against Vapi docs/staging. If absent, switch to `assistantOverrides.metadata` approach via Vapi REST API. |
+| Multi-device VoIP push (iPhone + iPad) — both keep ringing after one accepts | Server-side fan-out: on first `phone.acceptIncoming`, push a "cancel" VoIP push to all OTHER `voipPushTokens` rows for the user. Each device's plugin reports + immediately ends the call to satisfy Apple's `reportNewIncomingCall` requirement. |
+| Twilio recording webhook retries → double-processing | `recordingSid` idempotency check at top of `/recording` handler — return 200 + skip if already set. |
+| Stripe `past_due` silently breaks the feature on one failed renewal | `past_due` is allowed in the gate (grace period). UI banner surfaces "Payment failed, please update card." Feature only hard-stops on `unpaid`/`incomplete`/`cancelled`. |
+| Recordings stored in R2 forever → cost runaway | Daily cron purges recordings older than 90 days. Per-tradie retention override available later. |
+| Australian privacy concern from US-region recording storage | Twilio AU region + R2 `apac` location hint. Privacy disclosure in onboarding wizard. |
 | Stripe subscription state drift vs `client_phone_numbers.subscriptionStatus` | Existing Stripe webhook reconciliation pattern in the codebase handles this. |
+| Concurrent inbound call while tradie is on a Solvr call → CallKit crash | `/voice` webhook gates on existing `in_progress` row for the user → routes the second call to Vapi fallback or voicemail; never tries to ring the device twice. |
 
 ---
 
@@ -631,45 +705,56 @@ Margin: $13–$31/month per active tradie depending on usage.
 
 These need answering during writing-plans, not now:
 
-1. **Recording retention.** 90 days as the user originally specified, or longer? Storage cost is trivial; legal exposure window is the real concern. Default to 90 with a per-tradie setting to extend.
-2. **Recording consent announcement.** Australian law requires one-party consent (party = the tradie, who's using the system). Do we still play "this call may be recorded" on inbound? Cleaner UX without it. Tradie-configurable in Settings.
-3. **Multi-staff ring groups (V2 or later?).** Most Solvr clients are solo tradies. Stay V2 = single recipient. V2.5 if a multi-tradie shop asks.
-4. **Number porting flow.** Spec'd at a high level. Detailed UX needs design pass — likely V2.5 since porting takes 5–20 days regardless.
-5. **What does "Phone Settings" look like in detail?** Ring timeout slider, AI fallback toggle, recording toggle, retention period, default outgoing caller ID. Implementation detail.
-6. **Suspend behaviour on cap-reached.** Inbound calls go to AI fallback only? Reject? Voicemail? Pick one — recommend "AI fallback only" as a soft suspension.
+1. **Recording retention — locked to 90 days.** Daily cron deletes from R2 + nulls `call_logs.recordingUrl`. Per-tradie override comes V2.5.
+2. **Recording consent announcement.** Australian law requires one-party consent (party = the tradie). UX cleaner without an announcement. Tradie-configurable toggle in Phone Settings, default OFF.
+3. **Multi-staff ring groups.** V2.5 — most Solvr clients are solo tradies today.
+4. **Number porting flow detail.** V2.5 — porting takes 5–20 business days regardless of UX polish.
+5. **Phone Settings detailed UX.** Ring timeout slider (5–60s), AI fallback toggle, recording-announcement toggle, default outgoing caller ID. Implementation-plan grain.
+6. **Suspend behaviour on cap-reached — locked to "AI fallback only."** Past 200 inbound min, the `/voice` webhook redirects directly to Vapi (preserving lead capture) and shows a "minutes used up" banner in the portal.
+7. **Vapi webhook payload verification.** Week-1 task: confirm `call.phoneCallProviderId` exposes the Twilio call SID. If not, switch to `assistantOverrides.metadata` approach.
+8. **Region failover.** If Twilio AU region has an outage, fall back to US? V2 = no, just take the outage. V2.5 if it bites.
 
 ---
 
 ## Files this design will touch (preview for implementation plan)
 
-**New:**
+**Pre-requisite refactor PR (do first, separately):**
+- `server/lib/phoneNumber.ts` — new, exports `normalisePhone` extracted from `server/twilioInboundSms.ts`
+- `server/lib/twilio.ts` — new, exports `validateTwilioSignature` extracted from `server/twilioInboundSms.ts`
+- `server/lib/transcription.ts` — new, exports Whisper helper extracted from `server/audioUpload.ts`
+- `server/twilioInboundSms.ts` — modified, imports from `lib/`
+- `server/vapiTools.ts` — modified, removes its duplicate `normalisePhone`
+- `server/audioUpload.ts` — modified, imports from `lib/transcription.ts`
+
+**New (V2 main work):**
 - `packages/capacitor-voice/` — the plugin (separate package, private npm or git submodule)
-- `drizzle/schema.ts` — three new tables + FK columns
+- `drizzle/schema.ts` — three new tables + FK columns + unique index on `tradieCustomers (clientId, phone)`
 - `drizzle/migrations/0xxx_solvr_cloud_phone.sql`
 - `server/webhooks/twilioVoice.ts`
-- `server/_core/callIntelligence.ts`
-- `server/_core/voipPush.ts` (APNs delivery)
+- `server/_core/callIntelligence.ts` — NEW GPT-4o intent classifier (not a refactor)
+- `server/_core/voipPush.ts` — APNs `.p12` cert-based delivery
+- `server/_core/usageTracking.ts` — daily cron for billing-cycle rollover + recording purge
 - `server/routers/phone.ts`
-- `server/routers/customers.ts` (the CRUD layer for the new Customers tab)
+- `server/routers/customers.ts` (extends the existing `tradieCustomers` flow with the V2-needed CRUD)
 - `client/src/hooks/useSolvrPhone.ts`
 - `client/src/components/phone/IncomingCallOverlay.tsx`
 - `client/src/components/phone/InCallScreen.tsx`
 - `client/src/components/phone/PostCallSheet.tsx`
 - `client/src/pages/portal/PortalPhone.tsx`
 - `client/src/pages/portal/PortalCallDetail.tsx`
-- `client/src/pages/portal/PortalCustomers.tsx` (real impl, not the placeholder)
 - `client/src/pages/portal/PhoneOnboardingWizard.tsx`
 
 **Modified:**
-- `server/vapiWebhook.ts` — accept `callLogId` query param; merge into existing row
+- `server/vapiWebhook.ts` — when `phoneCallProviderId` matches a known `call_logs.twilioCallSid`, merge into existing row instead of inserting `crmInteractions`
 - `server/storage.ts` — add `call-recordings/` key prefix helper (optional)
-- `client/src/pages/portal/PortalLayout.tsx` — replace Calls tab with Phone tab; mount `useSolvrPhone`
-- `client/src/pages/portal/PortalJobDetail.tsx` — click-to-call on customer phone
-- `client/src/pages/portal/QuoteListContent.tsx` — click-to-call
+- `client/src/pages/portal/PortalLayout.tsx` — replace Calls tab with Phone tab; mount `useSolvrPhone` hook
+- `client/src/pages/portal/PortalJobDetail.tsx` — click-to-call on customer phone (sets `linkedJobId`)
+- `client/src/pages/portal/QuoteListContent.tsx` — click-to-call (sets `linkedQuoteId`)
+- `client/src/pages/portal/PortalCustomers.tsx` — **already exists**; extend with call-history section, click-to-call, lifetime-spend rollup (NOT a placeholder)
 - `capacitor.config.ts` — add `@buildalpha/capacitor-voice` plugin config
 - `ios/App/App/Info.plist` — VoIP background modes + mic permission (handled by plugin install hook)
 - `ios/App/Podfile` — Twilio Voice iOS Cocoapod
-- `package.json` — `@buildalpha/capacitor-voice`, `node-apn`
+- `package.json` — `@buildalpha/capacitor-voice`, `apn` 2.x or `@parse/node-apn` (NOT the unmaintained `node-apn` 1.x)
 
 ---
 
