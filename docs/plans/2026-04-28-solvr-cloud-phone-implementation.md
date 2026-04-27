@@ -319,7 +319,7 @@ This chunk lands the new tables, FK additions, and the idempotent backfill that 
 
 - [ ] **Step 2: Add `callLogs` table** — copy definition from spec §"New: `call_logs`". Indexes: `(clientId, calledAt DESC)`, `(clientId, tradieCustomerId)`, unique `(twilioCallSid)`.
 
-- [ ] **Step 3: Add `voipPushTokens` table** — copy definition from spec.
+- [ ] **Step 3: Add `voipPushTokens` table** — copy definition from spec, **with one addition:** add a nullable column `regularApnsToken: varchar("regularApnsToken", { length: 500 })`. Both VoIP push tokens (`.p12` cert, used for ringing) and regular APNs tokens (`.p8` token-auth, used for post-call summary banners) live on the same row keyed by `(userId, deviceId)`. Don't rename the table — the historical name stays — but document in a comment that the table holds BOTH token types. The downstream `phone.registerVoipToken` mutation (Task 5.2) writes both columns when the plugin reports them.
 
 - [ ] **Step 4: Add FK columns to `portalJobs` and `quotes`:**
   - `portalJobs.tradieCustomerId` (int, nullable)
@@ -913,7 +913,7 @@ export async function sendCancelPush(opts: {
 
 - [ ] **Step 4: Run tests.**
 
-- [ ] **Step 5: Implement `regularPush.ts`** — same pattern but uses `.p8` token-auth (`apn.Provider({ token: { key, keyId, teamId } })`), `pushType: "alert"`, `topic: process.env.IOS_BUNDLE_ID` (no `.voip` suffix). Functions: `sendCallSummaryPush({ userId, callLogId, callerName, summary })` writes to `voipPushTokens` rows? **No** — regular push tokens are different from VoIP tokens. Add a NEW table `apns_tokens` (or store device-tokens for regular push on the existing user/session table — investigate during implementation). For V2, simplest: add `regularApnsToken: varchar` column to `voipPushTokens` (rename to `pushTokens` for clarity, with both fields).
+- [ ] **Step 5: Implement `regularPush.ts`** — same pattern but uses `.p8` token-auth (`apn.Provider({ token: { key, keyId, teamId } })`), `pushType: "alert"`, `topic: process.env.IOS_BUNDLE_ID` (no `.voip` suffix). Reads `voipPushTokens.regularApnsToken` (the column added in Task 2.1 Step 3) — same row, different column. Function: `sendCallSummaryPush({ userId, callLogId, callerName, summary })` queries all the user's `voipPushTokens` rows where `regularApnsToken IS NOT NULL`, sends one push per device, deletes any returning APNs 410 (token invalid).
 
 - [ ] **Step 6: Wire into AI pipeline** — `callIntelligence.ts` (Task 5.1) calls `regularPush.sendCallSummaryPush` once analysis completes.
 
@@ -968,6 +968,7 @@ git commit -m "feat(server): daily usage-tracking cron — billing rollover, rec
   2. Job-update transcript → returns `{ intent: "job_update", referencedJobTitle: "..." }`
   3. Empty transcript → returns `{ intent: "other", summary: "Call had no audio." }`
   4. Caller name extracted → returned in `callerNameExtracted`
+  5. **Side effects after analysis completes:** `regularPush.sendCallSummaryPush` is called once with the right `userId` and the SSE broadcaster receives a `call:processed` event payload `{ callLogId, aiSummary, aiIntent, aiActionItems }` for that user. Both side effects must be assertion-tested with mocks.
 
 - [ ] **Step 2: Implement** per spec §"AI pipeline". Reuses `transcribeAudio` from `lib/transcription.ts`. New: GPT-4o-mini intent classifier with the system prompt + JSON schema from spec §5.2 of the original prompt (preserved in spec for reference).
 
@@ -1021,15 +1022,14 @@ git commit -m "feat(routers): phone — 10 procedures with rate limits + 429 tes
 ### Task 5.2b: SSE endpoint for live post-call updates
 
 **Files:**
-- Create: `server/routers/phone.ts` — add `phone.callEvents` SSE subscription (or create `server/routes/phoneEvents.ts` if SSE doesn't fit tRPC v10's subscriptions cleanly — investigate during implementation)
+- Create: `server/routes/phoneEvents.ts` — plain HTTP Server-Sent Events endpoint at `/api/sse/phone-events`
 - Modify: `server/_core/callIntelligence.ts` — broadcast on the channel after analysis completes
-- Create: `tests/routers/phoneEvents.test.ts`
+- Modify: `server/_core/index.ts` — register the route
+- Create: `tests/routes/phoneEvents.test.ts`
 
-The Post-Call Sheet (Task 7.3) needs to know when the AI analysis lands on the server. Push channel options:
-- **(A)** SSE endpoint at `/api/sse/phone-events` — simplest. JS opens an `EventSource`, server pushes JSON events keyed by userId.
-- **(B)** tRPC subscription via `httpSubscriptionLink` — more idiomatic but requires server-side WebSocket or SSE adapter. Check if your tRPC version supports it.
+The Post-Call Sheet (Task 7.3) needs to know when the AI analysis lands on the server. Decision (locked): plain HTTP SSE endpoint at `/api/sse/phone-events`, NOT a tRPC subscription. Rationale: SSE works trivially through CapacitorHttp + browser EventSource API; tRPC v10 subscriptions need a websocket adapter we don't currently have set up.
 
-Recommend (A) for V2 — uses the same SSE pattern Solvr likely already has for other live updates. Find the existing pattern with `grep -rn "EventSource\|text/event-stream" server/`. If none, stand up a minimal one for this.
+Find the existing SSE pattern in the codebase first via `grep -rn "EventSource\\|text/event-stream" server/`. If one exists, follow its idioms. If none, stand up a minimal in-memory broadcaster (sufficient for single-server deploys; for multi-server later, swap in Redis pub/sub).
 
 - [ ] **Step 1: Write failing test** — connect to the SSE endpoint as user X, then trigger `analyseCallTranscript` for a call belonging to user X, assert the SSE stream emits a `call:processed` event with `{ callLogId, aiSummary, aiIntent, aiActionItems }`.
 
