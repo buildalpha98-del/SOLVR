@@ -24,9 +24,15 @@ You're picking up a 4–6 week native iOS project. Before any code:
    - Apple Developer account with the ability to generate VoIP push certs
    - Cloudflare R2 (existing — `server/storage.ts`)
    - Stripe (existing)
-   - The Solvr Vapi assistants config (existing — `server/vapi.ts`)
+   - The Solvr Vapi assistants config (existing — `server/vapi.ts`, per-tradie via `crmClients.vapiAgentId`)
 3. Have an iPhone available for **physical-device testing**. PushKit + CallKit do not work in the iOS Simulator. Without a real device, the plugin cannot be validated.
 4. Set up a TestFlight beta group with 2–3 willing tradies for Week 4 dogfooding.
+
+5. **CRITICAL — Verify Vapi webhook payload exposes the Twilio call SID** *before any Chunk-4 work begins.* Spec §"Vapi handoff (corrected)" assumes Vapi's webhook payload includes `call.phoneCallProviderId` (the originating Twilio call SID). Reality-check this against staging Vapi:
+   - Place a call to a Vapi-controlled number from your phone
+   - Capture the webhook payload Vapi sends to `server/vapiWebhook.ts`
+   - Confirm the Twilio call SID is present somewhere in the payload
+   - **If absent**, switch to the `assistantOverrides.metadata` approach (spec §"Approach (V2.5 if Vapi's payload doesn't expose Twilio SID)") and rewrite Task 4.3 Step 2 before starting Chunk 4. This affects the entire handoff design.
 
 If any of those is blocked, stop and resolve it. Don't write code waiting on dependencies.
 
@@ -370,26 +376,125 @@ import { backfillTradieCustomers } from "@/scripts/backfill-tradie-customers";
 
 ```ts
 import { db } from "@/server/db";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { normalisePhone } from "@/server/lib/phoneNumber";
-import { portalJobs, quotes, tradieCustomers } from "@/drizzle/schema";
+import { portalJobs, quotes, tradieCustomers, invoices } from "@/drizzle/schema";
 
-export async function backfillTradieCustomers() {
-  // 1. Build a map: (clientId, normalisedPhone) → tradieCustomerId
-  // 2. For each portalJob with customerPhone (and no tradieCustomerId):
-  //    - normalise phone
-  //    - findOrCreate tradieCustomer keyed by (clientId, phone)
-  //    - populate name/email/address from portalJob if tradieCustomer fields empty
-  //    - SET portalJob.tradieCustomerId
-  // 3. Repeat for quotes
-  // 4. Recompute jobCount, totalSpentCents, lastJobAt aggregates per customer
-  //    (read from portalJobs/jobs/invoices as appropriate)
-  // 5. Log a summary row count (rows touched, customers created, customers updated)
+interface BackfillSummary {
+  customersCreated: number;
+  customersEnriched: number;
+  portalJobsLinked: number;
+  quotesLinked: number;
+  aggregatesRecomputed: number;
+}
+
+export async function backfillTradieCustomers(): Promise<BackfillSummary> {
+  const summary: BackfillSummary = {
+    customersCreated: 0, customersEnriched: 0,
+    portalJobsLinked: 0, quotesLinked: 0, aggregatesRecomputed: 0,
+  };
+
+  // ── PASS 1: portalJobs ─────────────────────────────────────────
+  // Only touch rows where tradieCustomerId is NULL (idempotency).
+  const jobs = await db.select().from(portalJobs)
+    .where(and(isNull(portalJobs.tradieCustomerId), sql`customerPhone IS NOT NULL`));
+
+  for (const job of jobs) {
+    if (!job.customerPhone?.trim()) continue;
+    const phone = normalisePhone(job.customerPhone);
+    if (!phone) continue;
+
+    // findOrCreate by (clientId, phone) — relies on the unique index from Task 2.1.
+    let customer = await db.query.tradieCustomers.findFirst({
+      where: and(eq(tradieCustomers.clientId, job.clientId), eq(tradieCustomers.phone, phone)),
+    });
+
+    if (!customer) {
+      const inserted = await db.insert(tradieCustomers).values({
+        clientId: job.clientId,
+        phone,
+        name: job.customerName ?? "Unknown",
+        email: job.customerEmail ?? null,
+        address: job.customerAddress ?? null,
+      }).$returningId();
+      customer = { ...inserted[0], clientId: job.clientId, phone };
+      summary.customersCreated++;
+    } else {
+      // Enrich: populate name/email/address only if currently empty.
+      const updates: Partial<typeof tradieCustomers.$inferInsert> = {};
+      if (!customer.name && job.customerName) updates.name = job.customerName;
+      if (!customer.email && job.customerEmail) updates.email = job.customerEmail;
+      if (!customer.address && job.customerAddress) updates.address = job.customerAddress;
+      if (Object.keys(updates).length > 0) {
+        await db.update(tradieCustomers).set(updates).where(eq(tradieCustomers.id, customer.id));
+        summary.customersEnriched++;
+      }
+    }
+
+    await db.update(portalJobs)
+      .set({ tradieCustomerId: customer.id })
+      .where(eq(portalJobs.id, job.id));
+    summary.portalJobsLinked++;
+  }
+
+  // ── PASS 2: quotes ─────────────────────────────────────────────
+  // Same shape as PASS 1 but reads quotes.customerPhone/Email/Name.
+  const quotesToLink = await db.select().from(quotes)
+    .where(and(isNull(quotes.tradieCustomerId), sql`customerPhone IS NOT NULL`));
+
+  for (const quote of quotesToLink) {
+    if (!quote.customerPhone?.trim()) continue;
+    const phone = normalisePhone(quote.customerPhone);
+    if (!phone) continue;
+
+    let customer = await db.query.tradieCustomers.findFirst({
+      where: and(eq(tradieCustomers.clientId, quote.clientId), eq(tradieCustomers.phone, phone)),
+    });
+    if (!customer) {
+      const inserted = await db.insert(tradieCustomers).values({
+        clientId: quote.clientId, phone,
+        name: quote.customerName ?? "Unknown",
+        email: quote.customerEmail ?? null,
+        address: quote.customerAddress ?? null,
+      }).$returningId();
+      customer = { ...inserted[0], clientId: quote.clientId, phone };
+      summary.customersCreated++;
+    }
+    // (Skip enrichment if customer already exists — PASS 1 handled it.)
+    await db.update(quotes).set({ tradieCustomerId: customer.id }).where(eq(quotes.id, quote.id));
+    summary.quotesLinked++;
+  }
+
+  // ── PASS 3: aggregate recompute ────────────────────────────────
+  // Sources of truth:
+  //   - jobCount: COUNT(*) FROM portalJobs WHERE tradieCustomerId = X AND status='completed'
+  //   - totalSpentCents: SUM(amountPaid) FROM invoices joined to portalJobs WHERE tradieCustomerId = X AND paid
+  //     (NOT from quotes — unaccepted quotes shouldn't count)
+  //   - lastJobAt: MAX(completedAt) FROM portalJobs WHERE tradieCustomerId = X
+  const allCustomers = await db.select({ id: tradieCustomers.id }).from(tradieCustomers);
+  for (const { id } of allCustomers) {
+    // Single SQL with subqueries for atomicity.
+    await db.execute(sql`
+      UPDATE tradie_customers tc SET
+        jobCount = (SELECT COUNT(*) FROM portal_jobs WHERE tradieCustomerId = ${id} AND status = 'completed'),
+        totalSpentCents = COALESCE((SELECT SUM(i.amountPaidCents) FROM invoices i JOIN portal_jobs pj ON i.jobId = pj.id WHERE pj.tradieCustomerId = ${id} AND i.status = 'paid'), 0),
+        lastJobAt = (SELECT MAX(completedAt) FROM portal_jobs WHERE tradieCustomerId = ${id})
+      WHERE tc.id = ${id}
+    `);
+    summary.aggregatesRecomputed++;
+  }
+
+  console.log("[backfill] Summary:", summary);
+  return summary;
 }
 
 if (require.main === module) {
-  backfillTradieCustomers().then(() => process.exit(0));
+  backfillTradieCustomers().then(() => process.exit(0))
+    .catch((e) => { console.error(e); process.exit(1); });
 }
 ```
+
+**Note on `invoices` schema:** if `invoices.amountPaidCents` is a different column name (or paid status is tracked differently), adjust the SUM expression. Run a quick `\\d invoices` first to confirm.
 
 - [ ] **Step 4: Run tests, verify pass.**
 
@@ -506,8 +611,9 @@ git commit -m "feat(capacitor-voice): TypeScript JS API surface + web fallback"
 
 - [ ] **Step 4: Implement `PushKitDelegate.swift`:**
   - On `pushRegistry:didUpdate:for:type:` → store token, fire `voipTokenUpdated` event
-  - On `pushRegistry:didReceiveIncomingPushWith:for:type:completion:` → IMMEDIATELY `CallKitProvider.reportIncomingCall(...)` (within the same synchronous turn — this is non-negotiable per Apple)
-  - Parse the push payload: it carries the Twilio call SID, fromNumber, customParams from the server's APNs push
+  - On `pushRegistry:didReceiveIncomingPushWith:for:type:completion:` → branch on payload `type`:
+    - `type === undefined` (default — incoming call): IMMEDIATELY `CallKitProvider.reportIncomingCall(...)` (within the same synchronous turn — this is non-negotiable per Apple). Parse the push payload: it carries the Twilio call SID, fromNumber, customParams from the server's APNs push.
+    - `type === "cancel"` (server-side fan-out cancel push when another device accepted): IMMEDIATELY `CallKitProvider.reportIncomingCall(...)` (still required by Apple — can't skip!) AND immediately end the call via `CXEndCallAction`. The reportNewIncomingCall call must happen first; failing to call it will trigger an iOS VoIP token revocation regardless of the payload type. Add a unit test in `VoiceState.swift` for this transition: `incoming → cancelled` on receipt of a cancel-payload push.
 
 - [ ] **Step 5: Implement `TwilioVoiceClient.swift`** wrapping `TVOCallDelegate`:
   - `connect(token, params)` for outbound
@@ -517,6 +623,7 @@ git commit -m "feat(capacitor-voice): TypeScript JS API surface + web fallback"
 - [ ] **Step 6: Implement `BuildAlphaVoicePlugin.swift`** — the Capacitor plugin entry point:
   - `@objc(BuildAlphaVoice)` class declaration
   - Methods: `registerVoipPush`, `connect`, `acceptIncoming`, `rejectIncoming`, `disconnect`, `setMuted`, `setSpeaker` — each calls the relevant subsystem and resolves the JS Promise
+  - **`acceptIncoming` must, before calling `TVOCall.accept()`, emit a `callAccepted` event with `{ callSid, deviceId }`** so the JS layer (Task 6.1) can call the server's `phone.notifyAccepted` mutation. This server mutation triggers the cancel-fan-out push to other devices (Task 4.6). Without this signal the cancel-fan-out never fires and other devices keep ringing.
   - Plugin events emitted via `notifyListeners`
 
 - [ ] **Step 7: Run Swift unit tests** (state machine only):
@@ -721,12 +828,25 @@ git commit -m "feat(webhooks): twilio /recording — R2 upload, idempotent, atom
 git commit -m "feat(webhooks): twilio /outgoing + /status — outbound TwiML and lifecycle updates"
 ```
 
-### Task 4.6: VoIP push delivery (`server/_core/voipPush.ts`)
+### Task 4.6: VoIP push delivery (`server/_core/voipPush.ts`) AND regular APNs push (`server/_core/regularPush.ts`)
 
 **Files:**
-- Create: `server/_core/voipPush.ts`
+- Create: `server/_core/voipPush.ts` — VoIP push via `.p12` cert (incoming-call wake)
+- Create: `server/_core/regularPush.ts` — regular APNs via `.p8` token (post-call summary, missed-call notifications)
 - Create: `tests/_core/voipPush.test.ts`
+- Create: `tests/_core/regularPush.test.ts`
 - Modify: `package.json` — add `apn` 2.x
+
+**Why two push helpers:** Apple's VoIP push channel REQUIRES the `.p12` certificate flow and is used for waking the app to ring. Regular APNs (badge/banner notifications for the post-call summary tap-to-review) supports the simpler `.p8` token-auth flow. They are NOT interchangeable. Spec §"VoIP push delivery" mandates the split.
+
+**New env vars (in addition to the VoIP cert from spec):**
+```
+# Regular APNs (post-call summary banner)
+APN_KEY_ID=xxx                   # APNs auth key ID from Apple Developer
+APN_KEY_P8_BASE64=...             # base64-encoded .p8 file contents
+APN_TEAM_ID=xxx                  # Apple Developer Team ID
+IOS_BUNDLE_ID=com.solvr.mobile   # bundle ID for `topic` field
+```
 
 - [ ] **Step 1: Install `apn`:**
 
@@ -793,11 +913,19 @@ export async function sendCancelPush(opts: {
 
 - [ ] **Step 4: Run tests.**
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Implement `regularPush.ts`** — same pattern but uses `.p8` token-auth (`apn.Provider({ token: { key, keyId, teamId } })`), `pushType: "alert"`, `topic: process.env.IOS_BUNDLE_ID` (no `.voip` suffix). Functions: `sendCallSummaryPush({ userId, callLogId, callerName, summary })` writes to `voipPushTokens` rows? **No** — regular push tokens are different from VoIP tokens. Add a NEW table `apns_tokens` (or store device-tokens for regular push on the existing user/session table — investigate during implementation). For V2, simplest: add `regularApnsToken: varchar` column to `voipPushTokens` (rename to `pushTokens` for clarity, with both fields).
+
+- [ ] **Step 6: Wire into AI pipeline** — `callIntelligence.ts` (Task 5.1) calls `regularPush.sendCallSummaryPush` once analysis completes.
+
+- [ ] **Step 7: Tests for both modules — verify VoIP push uses `.p12` cert auth and pushType=voip; regular push uses `.p8` token auth and pushType=alert.**
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add server/_core/voipPush.ts tests/_core/voipPush.test.ts package.json pnpm-lock.yaml
-git commit -m "feat(server): VoIP push delivery via APNs .p12 cert"
+git add server/_core/voipPush.ts server/_core/regularPush.ts \
+        tests/_core/voipPush.test.ts tests/_core/regularPush.test.ts \
+        package.json pnpm-lock.yaml drizzle/schema.ts
+git commit -m "feat(server): VoIP push (.p12) for ringing + regular APNs (.p8) for post-call summary"
 ```
 
 ### Task 4.7: Usage-tracking cron (`server/_core/usageTracking.ts`)
@@ -811,6 +939,7 @@ git commit -m "feat(server): VoIP push delivery via APNs .p12 cert"
   1. `rolloverBillingCycles()` — finds rows where `billingCycleStart` is older than 30 days, resets `inboundMinutesUsed = 0`, `outboundMinutesUsed = 0`, advances `billingCycleStart` to today
   2. `purgeOldRecordings()` — finds `call_logs` with `recordingUrl` set and `calledAt > 90 days ago`, deletes from R2, NULLs `recordingUrl`
   3. `closeStaleInProgressCalls()` — finds `call_logs.status = 'in_progress'` rows older than 30 min, flips to `failed` (recovers from missed `/status` webhooks)
+  4. **Cross-test with the 15-min `/voice` gate (Task 4.1)** — seed a `call_logs` row 31 min old with `status = 'in_progress'`, run the sweeper, then verify a fresh `/voice` webhook for the same client is NOT blocked (because the sweeper flipped the row to `failed`). This proves the sweeper + the gate's 15-min window work together rather than against each other.
 
 - [ ] **Step 2: Implement the three functions.**
 
@@ -862,28 +991,58 @@ git commit -m "feat(server): callIntelligence — Whisper + GPT-4o intent classi
 - [ ] **Step 1: For each procedure listed in spec §"tRPC router", write a failing test, then implement, with the rate limits specified in the spec table.**
 
 Procedures (with rate limits):
-1. `getAccessToken` — 10 rpm/user, refresh only when ≤5 min remain
-2. `registerVoipToken` — 60 rpm
+1. `getAccessToken` — **10 rpm/user.** Implementation: server-side cached. Mint a fresh token only when no cached token exists OR the cached one has ≤5 min remaining. Cache in-memory keyed by userId; eviction on next call after expiry. Pure server-side discipline — JS layer just calls this; no client-side timer logic needed.
+2. `registerVoipToken` — 60 rpm. Saves both VoIP token AND regular APNs token (per Task 4.6 schema decision).
 3. `initiateCall` — 30 rpm
-4. `listCalls` — 60 rpm
-5. `getCall` — 60 rpm
-6. `linkToQuote`, `linkToJob` — 60 rpm
-7. `provisionNumber` — 3 rpm (Twilio cost-per-call)
-8. `updateSettings` — 60 rpm
-9. `startSubscription` — 5 rpm
+4. **`notifyAccepted`** (NEW, derived from reviewer feedback) — 30 rpm. Body: `{ callSid: string, deviceId: string }`. Calls `voipPush.sendCancelPush({ userId, callSid, exceptDeviceId: deviceId })`. This is the bridge between the plugin's `acceptIncoming` (Task 3.3 Step 6) and the server-side cancel-fan-out (Task 4.6).
+5. `listCalls` — 60 rpm
+6. `getCall` — 60 rpm
+7. `linkToQuote`, `linkToJob` — 60 rpm
+8. `provisionNumber` — 3 rpm (Twilio cost-per-call)
+9. `updateSettings` — 60 rpm
+10. `startSubscription` — 5 rpm
 
 For each procedure: write the Zod input schema, the rate-limit decorator, the handler logic, the auth guard.
 
 - [ ] **Step 2: Implement each procedure following CLAUDE.md standards** — every authenticated route wrapped in `withApiAuth` (or tRPC equivalent), Zod-validated, rate-limited per the spec table.
 
-- [ ] **Step 3: Run tests for each.**
+- [ ] **Step 3: Per-procedure rate-limit tests** — for at least `getAccessToken`, `provisionNumber`, `startSubscription`, `notifyAccepted`: send the 11th request in 60 seconds and assert `429 Too Many Requests` is returned with a structured log entry per CLAUDE.md.
 
-- [ ] **Step 4: Register router in `server/_core/index.ts`.**
+- [ ] **Step 4: Run tests for each.**
+
+- [ ] **Step 5: Register router in `server/_core/index.ts`.**
+
+- [ ] **Step 6: Commit**
+
+```bash
+git commit -m "feat(routers): phone — 10 procedures with rate limits + 429 tests + notifyAccepted bridge"
+```
+
+### Task 5.2b: SSE endpoint for live post-call updates
+
+**Files:**
+- Create: `server/routers/phone.ts` — add `phone.callEvents` SSE subscription (or create `server/routes/phoneEvents.ts` if SSE doesn't fit tRPC v10's subscriptions cleanly — investigate during implementation)
+- Modify: `server/_core/callIntelligence.ts` — broadcast on the channel after analysis completes
+- Create: `tests/routers/phoneEvents.test.ts`
+
+The Post-Call Sheet (Task 7.3) needs to know when the AI analysis lands on the server. Push channel options:
+- **(A)** SSE endpoint at `/api/sse/phone-events` — simplest. JS opens an `EventSource`, server pushes JSON events keyed by userId.
+- **(B)** tRPC subscription via `httpSubscriptionLink` — more idiomatic but requires server-side WebSocket or SSE adapter. Check if your tRPC version supports it.
+
+Recommend (A) for V2 — uses the same SSE pattern Solvr likely already has for other live updates. Find the existing pattern with `grep -rn "EventSource\|text/event-stream" server/`. If none, stand up a minimal one for this.
+
+- [ ] **Step 1: Write failing test** — connect to the SSE endpoint as user X, then trigger `analyseCallTranscript` for a call belonging to user X, assert the SSE stream emits a `call:processed` event with `{ callLogId, aiSummary, aiIntent, aiActionItems }`.
+
+- [ ] **Step 2: Implement** — minimal Server-Sent Events handler that holds open connections per `userId`. `callIntelligence.ts` (Task 5.1) calls into this broadcaster after writing the analysis to `call_logs`.
+
+- [ ] **Step 3: Auth gate** — SSE connection requires the same portal auth cookie/session as tRPC. Reject 401 otherwise.
+
+- [ ] **Step 4: Test passes.**
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "feat(routers): phone — 9 procedures with per-CLAUDE.md rate limits"
+git commit -m "feat(server): SSE endpoint for live call:processed events"
 ```
 
 ### Task 5.3: Extend `customers.ts` router
@@ -914,7 +1073,14 @@ git commit -m "feat(routers): customers — extend with getById + search for V2 
 
 - [ ] **Step 3: Update Stripe webhook handler** to recognize subscription state changes and update `client_phone_numbers.subscriptionStatus`. Map Stripe statuses to your enum: `trialing → trial`, `active → active`, `past_due → past_due`, `unpaid → unpaid`, `incomplete → incomplete`, `canceled → cancelled`.
 
-- [ ] **Step 4: Tests:** verify each state transition flips the DB correctly.
+- [ ] **Step 4: Tests — explicit Stripe state transition cases:**
+  1. `trialing → active` (first invoice paid) → `subscriptionStatus = active`, feature stays enabled
+  2. `active → past_due` (payment failed) → `subscriptionStatus = past_due`, feature stays enabled (grace), banner triggers
+  3. `past_due → active` (retry succeeded) → `subscriptionStatus = active`, banner clears
+  4. `past_due → unpaid` (retries exhausted) → `subscriptionStatus = unpaid`, feature disabled
+  5. `unpaid → active` (manual re-subscribe) → `subscriptionStatus = active`, feature re-enabled (verifies the path is reversible)
+  6. Any → `canceled` → `subscriptionStatus = cancelled`, feature disabled
+  7. `incomplete` (initial payment never succeeded) → `subscriptionStatus = incomplete`, feature disabled
 
 - [ ] **Step 5: Commit**
 
@@ -922,22 +1088,45 @@ git commit -m "feat(routers): customers — extend with getById + search for V2 
 git commit -m "feat(stripe): wire Solvr Phone $39/mo subscription to client_phone_numbers.subscriptionStatus"
 ```
 
-### Task 5.5: Number provisioning
+### Task 5.5: Number provisioning + AU-region Twilio client
 
 **Files:**
+- Create: `server/lib/twilioClient.ts` — singleton Twilio client constructed with AU region/edge
 - Modify: `server/routers/phone.ts` — implement `provisionNumber` with Twilio API calls
+- Modify: `server/webhooks/twilioVoice.ts` — use the AU-region client when fetching recordings
 - Modify: `tests/routers/phone.test.ts`
 
-- [ ] **Step 1: Write failing test** — given an `areaCode`, returns 5 candidate numbers from Twilio's available numbers API. After confirmation, purchases the number, configures webhooks, INSERTs `client_phone_numbers` row.
+- [ ] **Step 1: Write failing test for `twilioClient.ts`** — assert the constructed `twilio()` client has `region: 'au1'` and `edge: 'sydney'` (or whichever AU edge Twilio currently advertises) baked in. This guarantees Australian tradie data stays in AU infra (spec §"Operations" data-residency requirement).
 
-- [ ] **Step 2: Implement** — wraps `twilio.availablePhoneNumbers('AU').local.list({areaCode})` + `twilio.incomingPhoneNumbers.create()` configured to point at `/api/webhooks/twilio/voice`.
+- [ ] **Step 2: Implement `server/lib/twilioClient.ts`:**
 
-- [ ] **Step 3: Tests pass.**
+```ts
+import twilio from "twilio";
 
-- [ ] **Step 4: Commit**
+export const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID!,
+  process.env.TWILIO_AUTH_TOKEN!,
+  {
+    region: process.env.TWILIO_REGION ?? "au1",
+    edge: "sydney",
+  },
+);
+```
+
+Replace any direct `twilio()` constructions in the codebase (existing SMS, new voice webhooks, provisionNumber) with imports from this module.
+
+- [ ] **Step 3: Write failing test for `provisionNumber`** — given an `areaCode`, returns 5 candidate numbers from Twilio's available numbers API. After confirmation, purchases the number, configures webhooks, INSERTs `client_phone_numbers` row.
+
+- [ ] **Step 4: Implement** — wraps `twilioClient.availablePhoneNumbers('AU').local.list({areaCode})` + `twilioClient.incomingPhoneNumbers.create()` configured to point at `/api/webhooks/twilio/voice`. Uses the AU-region singleton.
+
+- [ ] **Step 5: Verify R2 bucket region** — run `aws s3api get-bucket-location` (with R2 endpoint) on the production bucket. Confirm it's `apac` or AU-adjacent. If not, file a follow-up to migrate (out of scope for V2 if cost is non-trivial).
+
+- [ ] **Step 6: Tests pass.**
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git commit -m "feat(phone): number provisioning — Twilio availability search + purchase + webhook wiring"
+git commit -m "feat(phone): number provisioning + AU-region Twilio client (data residency)"
 ```
 
 ---
@@ -952,10 +1141,12 @@ git commit -m "feat(phone): number provisioning — Twilio availability search +
 
 - [ ] **Step 1: Write failing tests** with a mock `BuildAlphaVoicePlugin`:
   1. On mount: calls `registerVoipPush()` and sends the token to server via `phone.registerVoipToken` mutation
-  2. On `incomingCall` event: looks up customer + active job → sets state to `incoming` with context
-  3. On `callConnected`: sets state to `connected`
-  4. On `callEnded`: sets state to `ended`, waits for SSE-pushed AI analysis result, then sets state to `ended` with analysis
-  5. `makeCall(toNumber, { quoteId })` → calls `phone.initiateCall` mutation, then plugin's `connect()`
+  2. On mount: opens an `EventSource` to `/api/sse/phone-events` (Task 5.2b) and listens for `call:processed` events
+  3. On `incomingCall` event: looks up customer + active job → sets state to `incoming` with context
+  4. On `callConnected`: sets state to `connected`
+  5. On `callAccepted` event from plugin (Task 3.3 Step 6): calls `phone.notifyAccepted` mutation with `{ callSid, deviceId }` to trigger server-side cancel-fan-out
+  6. On `callEnded`: sets state to `ended`, waits for SSE `call:processed` event, then exposes the analysis to the post-call sheet
+  7. `makeCall(toNumber, { quoteId })` → calls `phone.initiateCall` mutation, then plugin's `connect()`
 
 - [ ] **Step 2: Implement** following spec §"`useSolvrPhone()` hook" verbatim.
 
@@ -974,11 +1165,13 @@ git commit -m "feat(hook): useSolvrPhone — wraps capacitor-voice with customer
 
 - [ ] **Step 1: Implement** the layout from spec §"Phone tab": chronological list grouped by Today / Yesterday / This Week / Earlier; each card with direction arrow + customer name + duration + intent badge + 1-line AI summary. Uses `phone.listCalls` query.
 
-- [ ] **Step 2: Add the FAB → Dial Pad navigation.**
+- [ ] **Step 2: Add the cap-reached banner.** When the user's `client_phone_numbers.inboundMinutesUsed >= 200` (or returned from a tRPC query like `phone.getUsage`), render a sticky banner at the top of the Phone tab: "You've used 200 of 200 inbound minutes this billing cycle. Calls are routed to your AI Receptionist until [next billing date]." The banner is also shown if `subscriptionStatus = 'past_due'` ("Payment failed — update your card to avoid losing your phone number"). Spec §"Pricing" requires this UX.
 
-- [ ] **Step 3: Replace the existing "Calls" tab** in `PortalLayout.tsx` bottom nav with this Phone tab.
+- [ ] **Step 3: Add the FAB → Dial Pad navigation.**
 
-- [ ] **Step 4: Manual smoke test** in dev — browse to `/portal/phone`, verify list renders.
+- [ ] **Step 4: Replace the existing "Calls" tab** in `PortalLayout.tsx` bottom nav with this Phone tab.
+
+- [ ] **Step 5: Manual smoke test** in dev — browse to `/portal/phone`, verify list renders.
 
 - [ ] **Step 5: Commit**
 
@@ -1001,18 +1194,20 @@ git commit -m "feat(portal): Phone tab — unified call list with AI summaries, 
 git commit -m "feat(portal): Call Detail page — recording player, transcript, link actions"
 ```
 
-### Task 6.4: Extend `PortalCustomers.tsx`
+### Task 6.4: Extend existing `PortalCustomers.tsx`
 
 **Files:**
-- Modify: `client/src/pages/portal/PortalCustomers.tsx`
+- Modify: `client/src/pages/portal/PortalCustomers.tsx` (already exists — confirm by reading first; do NOT rebuild from scratch)
 
-- [ ] **Step 1: Add the Customers list view** if not already present — sortable by last contact, lifetime spend, name.
+- [ ] **Step 1: Read the existing implementation** and identify the integration points for V2's additions. The file already has list + search + customer-add flows from the SMS work. The V2 work is purely additive.
 
-- [ ] **Step 2: Add the Customer Detail sub-view** showing call history (`call_logs` joined), linked quotes, linked jobs.
+- [ ] **Step 2: Add a Customer Detail sub-view (or modal)** showing call history (`call_logs` joined via `tradieCustomerId`), linked quotes (`quotes.tradieCustomerId`), linked jobs (`portalJobs.tradieCustomerId`). Use the new `customers.getById` procedure from Task 5.3.
 
-- [ ] **Step 3: Add click-to-call buttons next to the customer phone.**
+- [ ] **Step 3: Add click-to-call buttons** next to the customer phone in the existing list and detail rows. Use `useSolvrPhone().makeCall()`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Add a "calls" filter chip** so the existing list can show only customers with recent calls.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(portal): extend Customers tab with V2 call history, quotes, jobs view"
@@ -1026,14 +1221,26 @@ git commit -m "feat(portal): extend Customers tab with V2 call history, quotes, 
 
 **Files:**
 - Create: `client/src/components/phone/IncomingCallOverlay.tsx`
+- Create: `client/src/components/phone/IncomingCallOverlay.test.tsx`
 
-- [ ] **Step 1: Implement** — full-screen overlay shown when `useSolvrPhone().state === 'incoming'`. Shows customer name, last contact, [Accept]/[Decline] buttons (44pt taps).
+- [ ] **Step 0: Write failing component test** with React Testing Library:
+  1. When `useSolvrPhone().state === 'incoming'` (mocked), the overlay renders with customer name + last contact
+  2. When state is `'idle'`, overlay is null
+  3. Tapping Accept calls `useSolvrPhone().accept()`
+  4. Tapping Decline calls `useSolvrPhone().reject()`
+  5. Buttons have `min-h-[44px]` (uncle-test compliance)
+
+- [ ] **Step 1: Run test, verify failure.**
+
+- [ ] **Step 2: Implement** — full-screen overlay shown when `useSolvrPhone().state === 'incoming'`. Shows customer name, last contact, [Accept]/[Decline] buttons (44pt taps).
 
   Note: on iOS, CallKit handles the lock-screen incoming UI; this overlay is for in-app foreground state.
 
-- [ ] **Step 2: Mount in `PortalLayout.tsx`** at the top level so it's visible from any portal page.
+- [ ] **Step 3: Run test, verify pass.**
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Mount in `PortalLayout.tsx`** at the top level so it's visible from any portal page.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(phone): incoming-call overlay for in-app foreground state"
@@ -1058,18 +1265,33 @@ git commit -m "feat(phone): in-call screen with active context (open quote, acti
 
 **Files:**
 - Create: `client/src/components/phone/PostCallSheet.tsx`
+- Create: `client/src/components/phone/PostCallSheet.test.tsx`
 
-- [ ] **Step 1: Implement** the layout from spec §"Post-call confirm sheet": slide-up sheet with AI summary + AI-suggested primary CTA + secondary actions + recording player + collapsible transcript.
+- [ ] **Step 0: Write failing component tests:**
+  1. Initially renders a "Processing call..." skeleton when `aiSummary` is null
+  2. After `call:processed` SSE event arrives via the hook, renders summary + primary CTA based on `aiIntent`
+  3. For `aiIntent: 'new_quote'`, primary CTA reads "Generate Quote" and tapping fires `quotes.createFromCall` mutation
+  4. For `aiIntent: 'job_update'`, primary CTA reads "Add note to {jobTitle}"
+  5. **Per CLAUDE.md: every mutation has an `onError` handler** showing a destructive toast — assert the toast appears when the mutation rejects
+  6. "Dismiss" closes the sheet without writing anything
 
-- [ ] **Step 2: Implement primary-CTA logic** based on `aiIntent` per the table in spec:
+- [ ] **Step 1: Run tests, verify failure.**
+
+- [ ] **Step 2: Implement** the layout from spec §"Post-call confirm sheet": slide-up sheet with AI summary + AI-suggested primary CTA + secondary actions + recording player + collapsible transcript.
+
+- [ ] **Step 3: Implement primary-CTA logic** based on `aiIntent` per the table in spec:
   - `new_quote` → `quotes.createFromCall` mutation → toast → navigate to draft quote
   - `quote_followup` → `crmInteractions` insert + link to quote → toast
   - `job_update` / `new_job` → `crmInteractions` + link to job → toast
   - else → `crmInteractions` standalone → toast
 
-- [ ] **Step 3: Add Whisper-based subscriber** via SSE — sheet renders skeleton initially ("Processing call..."), then fills in once AI analysis arrives.
+  Every mutation gets an `onError` handler showing a destructive `toast.error` per CLAUDE.md. Every mutation button is `disabled={mutation.isPending}` to prevent double-tap.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Add SSE subscriber wiring** — sheet reads from `useSolvrPhone()` which already subscribes to `/api/sse/phone-events` (Task 6.1). Sheet renders skeleton initially ("Processing call..."), then fills in once the `call:processed` event arrives.
+
+- [ ] **Step 5: Run tests, verify pass.**
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git commit -m "feat(phone): post-call sheet — AI summary + suggested primary CTA + secondary actions"
@@ -1092,17 +1314,32 @@ git commit -m "feat(phone): dial pad with customer search + recent contacts"
 
 **Files:**
 - Create: `client/src/pages/portal/PhoneOnboardingWizard.tsx`
+- Create: `client/src/pages/portal/PhoneOnboardingWizard.test.tsx`
 
-- [ ] **Step 1: Implement** the multi-step wizard from spec §"Onboarding wizard":
+- [ ] **Step 0: Write failing tests** for each wizard step:
+  1. Step 1 (Stripe checkout): mounts Stripe element, "Start subscription" button calls `phone.startSubscription` mutation. **Has `onError` toast** per CLAUDE.md.
+  2. Step 2 (area code): defaults to 04XX, accepts custom input, validates AU area-code format
+  3. Step 3 (number picker): renders 5 candidates from mocked `phone.provisionNumber` query, "Confirm" calls the purchase mutation
+  4. Step 4 (provisioning): shows loading state with timeout fallback if Twilio takes >30s
+  5. Step 5 (success): shows new number + carrier-forwarding doc links
+  6. Wizard does NOT advance step on mutation failure — shows error inline
+
+- [ ] **Step 1: Run tests, verify failure.**
+
+- [ ] **Step 2: Implement** the multi-step wizard from spec §"Onboarding wizard":
   1. Stripe checkout (embedded) — uses `phone.startSubscription`
   2. Pick area code (default 04XX mobile)
   3. Show 5 candidate numbers from `phone.provisionNumber` (search step) → user picks → confirms
   4. Provisioning loading state (~10s)
   5. Success: shows the new number + optional "set up forwarding" instructional content with per-carrier links
 
-- [ ] **Step 2: Show this wizard** when the user navigates to `/portal/phone` and has no `client_phone_numbers` row.
+  Every mutation gets `onError` + `disabled={isPending}` per CLAUDE.md.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Show this wizard** when the user navigates to `/portal/phone` and has no `client_phone_numbers` row.
+
+- [ ] **Step 4: Run tests, verify pass.**
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(phone): onboarding wizard — Stripe checkout → number picker → activation"
