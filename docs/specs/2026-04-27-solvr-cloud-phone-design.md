@@ -58,7 +58,7 @@ Three small refactors that pay back instantly. Not optional — the V2 work depe
 
 1. **Extract `normalisePhone` to `server/lib/phoneNumber.ts`.** Today it's exported from `server/twilioInboundSms.ts:63` AND duplicated at `server/vapiTools.ts:120`. The phone webhooks need it; deduplicate now.
 2. **Extract Twilio webhook signature validation to `server/lib/twilio.ts`.** Currently inlined in `twilioInboundSms.ts`; the new voice webhooks need the same validation pattern.
-3. **Extract Whisper transcription helper to `server/lib/transcription.ts`.** Used today by Voice-to-Quote (`server/audioUpload.ts`). The phone AI pipeline reuses it. The GPT-4o intent classifier itself is **new** (built atop `invokeLLM`) — it does NOT exist today and isn't a refactor.
+3. **Extract Whisper transcription helper to `server/lib/transcription.ts`.** Lives today at `server/_core/voiceTranscription.ts` (used by the Voice-to-Quote upload boundary `server/audioUpload.ts`). The phone AI pipeline reuses it. The GPT-4o intent classifier itself is **new** (built atop `invokeLLM`) — it does NOT exist today and isn't a refactor.
 
 Do these as their own PR before merging V2 work. ~half a day.
 
@@ -333,8 +333,8 @@ All inside the existing tRPC + webhook stack. No separate microservice.
 
 1. Validate Twilio signature using `server/lib/twilio.ts:validateTwilioSignature` (extracted per pre-requisite refactor #2)
 2. Look up `client_phone_numbers` by `To` (404 TwiML if unknown)
-3. **Subscription gate.** If `subscriptionStatus ∉ {trial, active, past_due}` OR `inboundMinutesUsed > 200` → if `aiFallbackEnabled`, redirect to Vapi fallback only; else 486 busy. Don't ring the device.
-4. **Concurrent-call gate.** Query `call_logs` for any `(clientId, status='in_progress')` row in the last 30 min. If one exists, redirect to Vapi fallback (don't try to ring the device — would crash CallKit).
+3. **Subscription gate.** If `subscriptionStatus ∉ {trial, active, past_due}` OR `inboundMinutesUsed >= INBOUND_CAP_MINUTES` (200 in V2; expand to a per-tier value when V2.5 ships the Pro tier — likely a `inboundMinutesCap` column or a value derived from Stripe price ID) → if `aiFallbackEnabled`, redirect to Vapi fallback only; else 486 busy. Don't ring the device.
+4. **Concurrent-call gate.** Query `call_logs` for any `(clientId, status='in_progress', calledAt >= NOW() - INTERVAL 15 MINUTE)`. If one exists, redirect to Vapi fallback (don't try to ring the device — would crash CallKit). The 15-min window plus the `/status` webhook closing rows on `completed` keeps stale rows from blocking legitimate later calls indefinitely. As an extra safety net, a sweeper cron flips any `in_progress` row older than 30 min to `failed` so a missed status webhook can't trap the user permanently.
 5. Look up `tradieCustomers` by `(clientId, normalised(From))`
 6. INSERT `call_logs` row, status `ringing`
 7. **APNs VoIP-push to ALL the tradie's `voip_push_tokens`** → every active device (iPhone + iPad) wakes and rings
@@ -675,7 +675,7 @@ Margin: $13–$31/month per active tradie depending on usage.
 | Week | Deliverable |
 |---|---|
 | **1** | Native plugin scaffold: `@buildalpha/capacitor-voice` package, Twilio Voice iOS SDK integrated, VoIP push registration, CallKit `reportNewIncomingCall` flow, JS API matches contract. Unit-tested on physical device. |
-| **2** | Server: schema migration + idempotent backfill, Twilio webhooks, VoIP push delivery via `node-apn`, AI pipeline refactored into shared helper, Vapi handoff redirect, Stripe subscription wiring. |
+| **2** | Server: schema migration + idempotent backfill, Twilio webhooks (incl. `/vapi-handoff` endpoint), VoIP push delivery via `apn` 2.x or `@parse/node-apn` (not the unmaintained `node-apn` 1.x), AI pipeline (Whisper helper reused, GPT classifier new), Vapi handoff via `phoneCallProviderId` reconciliation, Stripe subscription wiring. |
 | **3** | JS integration: `useSolvrPhone` hook, in-call screen, post-call confirm sheet, Phone tab, Call Detail, Customers tab, onboarding wizard, click-to-call hooks. |
 | **4** | Real-device testing (PushKit doesn't work in simulator). Edge cases: killed-app → VoIP push wakes; network drop mid-call; concurrent calls; app-backgrounded-during-call. TestFlight beta with 2-3 real tradies. App Store submission. |
 | **+1–2** | App Store review cycles. |
@@ -730,7 +730,7 @@ These need answering during writing-plans, not now:
 - `packages/capacitor-voice/` — the plugin (separate package, private npm or git submodule)
 - `drizzle/schema.ts` — three new tables + FK columns + unique index on `tradieCustomers (clientId, phone)`
 - `drizzle/migrations/0xxx_solvr_cloud_phone.sql`
-- `server/webhooks/twilioVoice.ts`
+- `server/webhooks/twilioVoice.ts` — handles `/voice`, `/dial-result`, `/vapi-handoff`, `/recording`, `/outgoing`, `/status`
 - `server/_core/callIntelligence.ts` — NEW GPT-4o intent classifier (not a refactor)
 - `server/_core/voipPush.ts` — APNs `.p12` cert-based delivery
 - `server/_core/usageTracking.ts` — daily cron for billing-cycle rollover + recording purge
