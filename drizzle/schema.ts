@@ -3,7 +3,7 @@
  * SOLVR is a trademark of ClearPath AI Agency Pty Ltd (ABN 47 262 120 626).
  * Unauthorised copying or distribution is strictly prohibited.
  */
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal, date, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, decimal, date, json, index, uniqueIndex } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -174,6 +174,55 @@ export const crmClients = mysqlTable("crm_clients", {
 export type CrmClient = typeof crmClients.$inferSelect;;
 export type InsertCrmClient = typeof crmClients.$inferInsert;
 
+// ─── Cloud Phone V2 ───────────────────────────────────────────────────────────
+
+/**
+ * Cloud Phone V2 — one row per provisioned/ported/forwarded business number.
+ * A crmClient can have many phone numbers; one is flagged isDefault.
+ */
+export const clientPhoneNumbers = mysqlTable("client_phone_numbers", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK→crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Twilio resource SID for the phone number */
+  twilioSid: varchar("twilioSid", { length: 100 }).notNull(),
+  /** E.164 (e.g. +61412345678) */
+  phoneNumber: varchar("phoneNumber", { length: 20 }).notNull(),
+  /** Local-format display (e.g. 0412 345 678) */
+  friendlyNumber: varchar("friendlyNumber", { length: 20 }).notNull(),
+  type: mysqlEnum("type", ["provisioned", "ported", "forwarded"]).notNull(),
+  isActive: boolean("isActive").notNull().default(true),
+  isDefault: boolean("isDefault").notNull().default(true),
+  ringTimeoutSeconds: int("ringTimeoutSeconds").notNull().default(20),
+  aiFallbackEnabled: boolean("aiFallbackEnabled").notNull().default(true),
+  /**
+   * Stripe subscription state — feature gate.
+   * Mirrors all Stripe statuses we care about: trial (free trial),
+   * active (paid + valid), past_due (payment failed but in retry grace),
+   * unpaid (retry exhausted), incomplete (initial payment failed),
+   * cancelled (user-cancelled or terminal). Feature is enabled for
+   * {trial, active, past_due}; disabled for {unpaid, incomplete, cancelled}.
+   */
+  subscriptionStatus: mysqlEnum("subscriptionStatus",
+    ["trial", "active", "past_due", "unpaid", "incomplete", "cancelled"]
+  ).notNull().default("trial"),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 100 }),
+  /**
+   * Usage tracking — gates the fair-use cap (200 inbound / 100 outbound min).
+   * Reset to 0 every billing cycle by daily cron (server/_core/usageTracking.ts).
+   * The /voice webhook reads inboundMinutesUsed before allowing a call through.
+   */
+  billingCycleStart: timestamp("billingCycleStart").notNull().defaultNow(),
+  inboundMinutesUsed: int("inboundMinutesUsed").notNull().default(0),
+  outboundMinutesUsed: int("outboundMinutesUsed").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  clientIdIdx: index("client_phone_numbers_clientId_idx").on(table.clientId),
+  phoneNumberUnique: uniqueIndex("client_phone_numbers_phoneNumber_unique").on(table.phoneNumber),
+}));
+export type ClientPhoneNumber = typeof clientPhoneNumbers.$inferSelect;
+export type InsertClientPhoneNumber = typeof clientPhoneNumbers.$inferInsert;
+
 /**
  * CRM interaction log — every touchpoint with a client.
  */
@@ -195,6 +244,64 @@ export const crmInteractions = mysqlTable("crm_interactions", {
 
 export type CrmInteraction = typeof crmInteractions.$inferSelect;
 export type InsertCrmInteraction = typeof crmInteractions.$inferInsert;
+
+/**
+ * Cloud Phone V2 — one row per call, inbound or outbound.
+ * Created by the Twilio /voice webhook on call initiation; updated by status callbacks.
+ */
+export const callLogs = mysqlTable("call_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK→crmClients.id */
+  clientId: int("clientId").notNull(),
+  /** Twilio's call SID — also used for Vapi handoff reconciliation. */
+  twilioCallSid: varchar("twilioCallSid", { length: 100 }).notNull(),
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
+  status: mysqlEnum("status", [
+    "ringing", "in_progress", "completed", "missed",
+    "voicemail", "no_answer", "busy", "failed"
+  ]).notNull(),
+  /** E.164 of the caller (inbound) or business number (outbound) */
+  fromNumber: varchar("fromNumber", { length: 20 }).notNull(),
+  toNumber: varchar("toNumber", { length: 20 }).notNull(),
+  /** Normalised customer phone (whichever direction); kept denormalised for fast lookup */
+  customerPhone: varchar("customerPhone", { length: 20 }),
+  /** FK→tradieCustomers.id, populated when the from/to matches a known customer */
+  tradieCustomerId: int("tradieCustomerId"),
+  answeredBy: mysqlEnum("answeredBy",
+    ["human", "ai_receptionist", "voicemail"]),
+  durationSeconds: int("durationSeconds"),
+  talkTimeSeconds: int("talkTimeSeconds"),
+  /** R2 key/URL for the recording mp3 (key prefix: call-recordings/{clientId}/{callLogId}.mp3) */
+  recordingUrl: varchar("recordingUrl", { length: 500 }),
+  recordingSid: varchar("recordingSid", { length: 100 }),
+  /** Whisper transcript */
+  transcript: text("transcript"),
+  /** GPT-4o summary (2-4 sentences) */
+  aiSummary: text("aiSummary"),
+  aiIntent: mysqlEnum("aiIntent", [
+    "new_quote", "quote_followup", "job_update", "new_job",
+    "complaint", "payment", "general_enquiry", "scheduling", "other"
+  ]),
+  aiActionItems: json("aiActionItems").$type<string[]>(),
+  aiSentiment: mysqlEnum("aiSentiment", ["positive", "neutral", "negative"]),
+  /** FK→quotes.id, set when post-call confirm picks "Generate Quote" or "Add note to Q-XXX" */
+  linkedQuoteId: int("linkedQuoteId"),
+  /** FK→portalJobs.id, set when post-call confirm picks "Add note to <job>" */
+  linkedJobId: int("linkedJobId"),
+  calledAt: timestamp("calledAt").notNull(),
+  answeredAt: timestamp("answeredAt"),
+  endedAt: timestamp("endedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  /** Composite index for the Phone tab list query (most recent calls for a client) */
+  clientCalledAtIdx: index("call_logs_clientId_calledAt_idx").on(table.clientId, table.calledAt),
+  /** Composite index for customer call history lookup */
+  clientTradieCustomerIdx: index("call_logs_clientId_tradieCustomerId_idx").on(table.clientId, table.tradieCustomerId),
+  /** Unique on twilioCallSid — webhook dedup + Vapi reconciliation */
+  twilioCallSidUnique: uniqueIndex("call_logs_twilioCallSid_unique").on(table.twilioCallSid),
+}));
+export type CallLog = typeof callLogs.$inferSelect;
+export type InsertCallLog = typeof callLogs.$inferInsert;
 
 /**
  * CRM tags — freeform labels for filtering and segmenting clients.
@@ -651,6 +758,10 @@ export const portalJobs = mysqlTable("portal_jobs", {
   nextActionSuggestion: text("nextActionSuggestion"),
   /** When the AI task template was last generated for this job */
   tasksGeneratedAt: timestamp("tasksGeneratedAt"),
+  /** FK→tradieCustomers.id, backfilled by scripts/backfill-tradie-customers.ts */
+  tradieCustomerId: int("tradieCustomerId"),
+  /** FK→callLogs.id, set when this job was created from a Cloud Phone V2 call */
+  sourceCallLogId: int("sourceCallLogId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -812,10 +923,14 @@ export const quotes = mysqlTable("quotes", {
   //  Language 
   /** ISO-639-1 code detected by Whisper (e.g. "ar", "zh", "hi"). Null means English or undetected. */
   detectedLanguage: varchar("detectedLanguage", { length: 10 }),
-  //  Warnings 
+  //  Warnings
   /** Set to true once the tradie has reviewed and dismissed AI extraction warnings */
   warningsAcknowledged: boolean("warningsAcknowledged").default(false).notNull(),
-  //  Timestamps 
+  /** FK→tradieCustomers.id, backfilled by scripts/backfill-tradie-customers.ts */
+  tradieCustomerId: int("tradieCustomerId"),
+  /** FK→callLogs.id, set when this quote was created from a Cloud Phone V2 call */
+  sourceCallLogId: int("sourceCallLogId"),
+  //  Timestamps
   sentAt: timestamp("sentAt"),
   issuedAt: timestamp("issuedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1211,7 +1326,7 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   id: int("id").autoincrement().primaryKey(),
   /** FK to crmClients.id — which Solvr client (tradie) this customer belongs to */
   clientId: int("clientId").notNull(),
-  //  Customer details 
+  //  Customer details
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 50 }),
@@ -1219,7 +1334,7 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   suburb: varchar("suburb", { length: 100 }),
   state: varchar("state", { length: 50 }),
   postcode: varchar("postcode", { length: 10 }),
-  //  Job history 
+  //  Job history
   /** Total number of completed jobs for this customer */
   jobCount: int("jobCount").default(1).notNull(),
   /** Total amount paid across all jobs in cents */
@@ -1230,7 +1345,7 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   lastJobAt: timestamp("lastJobAt"),
   /** Most recent job type (for quick reference) */
   lastJobType: varchar("lastJobType", { length: 255 }),
-  //  Notes 
+  //  Notes
   /** Any notes the tradie has added about this customer */
   notes: text("notes"),
   /** Tags for segmentation (e.g. "repeat", "referral", "commercial") */
@@ -1245,7 +1360,11 @@ export const tradieCustomers = mysqlTable("tradie_customers", {
   emailUnsubscribeToken: varchar("emailUnsubscribeToken", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  /** Unique per-tradie customer phone — enables backfill findOrCreate idempotency.
+   *  NULLs are treated as distinct in MySQL so rows with no phone are always allowed. */
+  clientPhoneUnique: uniqueIndex("tradie_customers_clientId_phone_unique").on(table.clientId, table.phone),
+}));
 export type TradieCustomer = typeof tradieCustomers.$inferSelect;
 export type InsertTradieCustomer = typeof tradieCustomers.$inferInsert;
 
@@ -1294,6 +1413,37 @@ export const pushSubscriptions = mysqlTable("push_subscriptions", {
 });
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+/**
+ * Cloud Phone V2 — per-device push token registry.
+ *
+ * Stores BOTH VoIP push tokens (.p12 cert / pushType=voip — for ringing the app)
+ * AND regular APNs tokens (.p8 token-auth / pushType=alert — for post-call summary
+ * banners). Same row keyed by (userId, deviceId), two columns. The historical name
+ * "voipPushTokens" is preserved; despite the name, this table is now the single
+ * registry of all per-device push tokens.
+ *
+ * Multiple rows per user are intentional — a tradie with the app on iPhone + iPad
+ * has both devices ring on incoming.
+ */
+export const voipPushTokens = mysqlTable("voip_push_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  deviceId: varchar("deviceId", { length: 100 }).notNull(),
+  platform: mysqlEnum("platform", ["ios", "android"]).notNull(),
+  /** VoIP push token (.p12 cert flow, pushType=voip). Required. */
+  token: varchar("token", { length: 500 }).notNull(),
+  /** Regular APNs token (.p8 token-auth, pushType=alert). Nullable — populated
+   *  on first regular APNs registration after VoIP registration. */
+  regularApnsToken: varchar("regularApnsToken", { length: 500 }),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  /** One row per user per device — upsert by (userId, deviceId) */
+  userDeviceUnique: uniqueIndex("voip_push_tokens_userId_deviceId_unique").on(table.userId, table.deviceId),
+}));
+export type VoipPushToken = typeof voipPushTokens.$inferSelect;
+export type InsertVoipPushToken = typeof voipPushTokens.$inferInsert;
 
 // Tradie Referral Programme
 /**
