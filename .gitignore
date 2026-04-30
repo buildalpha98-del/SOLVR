@@ -114,3 +114,6 @@ backups/
 
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
+
+# Git worktrees (isolated workspaces for parallel development)
+.worktrees/
