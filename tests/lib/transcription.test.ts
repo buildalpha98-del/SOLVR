@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the ENV import (from server/_core/env) before importing the module under test.
-// voiceTranscription relies on ENV.whisperBaseUrl, ENV.whisperApiKey, ENV.whisperModel.
+// transcribeAudio relies on ENV.whisperBaseUrl, ENV.whisperApiKey, ENV.whisperModel.
 vi.mock("../../server/_core/env", () => ({
   ENV: {
     whisperBaseUrl: "https://api.openai.com/v1",
