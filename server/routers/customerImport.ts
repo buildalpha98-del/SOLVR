@@ -38,9 +38,16 @@ function clean(value: string | null | undefined): string {
 }
 
 /**
- * Best-effort phone normalisation to E.164 AU format.
+ * Best-effort phone normalisation for customer-import display fields.
  * Handles 0412345678 → +61412345678, 61412345678 → +61412345678, etc.
- * Returns "" if it can't normalise to something we'd actually use.
+ * Returns "" on failure (not null) so callers can use it directly in DB inserts.
+ *
+ * NOTE: This is intentionally local — it writes into a customer-display field
+ * where an empty string on failure is the right fallback. Do NOT swap it for:
+ *   - `server/lib/phoneNumber.ts` normalisePhone — returns best-effort "+digits"
+ *     for unrecognised numbers (wrong for display fields that require valid AU format)
+ *   - `server/lib/sms.ts` normalisePhone — returns null on failure (private,
+ *     not exported, and intended for SMS send-path guards only)
  */
 function normaliseAuPhone(raw: string): string {
   const t = clean(raw);
