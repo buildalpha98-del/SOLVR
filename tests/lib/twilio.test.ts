@@ -61,4 +61,31 @@ describe("validateTwilioSignature", () => {
       validateTwilioSignature({ authToken, signature: "aGVsbG8=", url, params })
     ).toBe(false);
   });
+
+  it("returns false (fail-closed) when the SDK would throw due to a malformed URL", () => {
+    // twilio.validateRequest throws "Invalid URL" for non-http(s) schemes.
+    // The wrapper must catch and return false rather than propagating.
+    expect(
+      validateTwilioSignature({
+        authToken,
+        signature: validSignature,
+        url: "not-a-real-url",
+        params,
+      })
+    ).toBe(false);
+  });
+
+  it("returns false when a different authToken is used to compute the signature", () => {
+    // "right signature, wrong secret" — signature was generated with a different token
+    const differentToken = "different-auth-token-0987654321fedcba";
+    const signatureForDifferentToken = twilio.getExpectedTwilioSignature(differentToken, url, params);
+    expect(
+      validateTwilioSignature({
+        authToken, // correct token — does NOT match the signature above
+        signature: signatureForDifferentToken,
+        url,
+        params,
+      })
+    ).toBe(false);
+  });
 });

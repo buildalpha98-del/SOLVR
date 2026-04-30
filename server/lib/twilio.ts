@@ -23,10 +23,20 @@ export interface ValidateTwilioSignatureOpts {
 
 /**
  * Returns true if the request signature is valid, false otherwise.
- * Returns false (not throws) on missing or invalid signature so callers can
- * decide the rejection shape (status code, body, logging).
+ * Returns false on missing or invalid signature so callers can decide the
+ * rejection shape (status code, body, logging).
+ * Returns false (not throws) if the underlying SDK validation throws (e.g.
+ * malformed URL). Never throws.
  */
 export function validateTwilioSignature(opts: ValidateTwilioSignatureOpts): boolean {
   if (!opts.signature) return false;
-  return twilio.validateRequest(opts.authToken, opts.signature, opts.url, opts.params);
+  try {
+    return twilio.validateRequest(opts.authToken, opts.signature, opts.url, opts.params);
+  } catch (err) {
+    console.warn(
+      `[validateTwilioSignature] SDK threw during validation (url=${opts.url}):`,
+      err instanceof Error ? err.message : String(err),
+    );
+    return false;
+  }
 }
