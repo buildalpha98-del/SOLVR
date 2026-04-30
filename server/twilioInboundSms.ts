@@ -37,6 +37,7 @@ import { eq, desc, or, sql } from "drizzle-orm";
 import { sendExpoPush } from "./expoPush";
 import { sendPushToClient } from "./pushNotifications";
 import { sendSmsAndLog } from "./lib/sms";
+import { normalisePhone } from "./lib/phoneNumber";
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
 
@@ -56,18 +57,7 @@ export interface InboundSmsPayload {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Normalise a phone number to E.164 for consistent comparison.
- * Handles +61, 61, and 04xx formats.
- */
-export function normalisePhone(raw: string): string {
-  if (!raw) return raw;
-  const digits = raw.replace(/\D/g, "");
-  if (raw.startsWith("+")) return `+${digits}`;
-  if (digits.startsWith("61") && digits.length === 11) return `+${digits}`;
-  if (digits.startsWith("0") && digits.length === 10) return `+61${digits.slice(1)}`;
-  return `+${digits}`;
-}
+export { normalisePhone };
 
 /**
  * Find the most recent non-lost job for a given customer phone number.
