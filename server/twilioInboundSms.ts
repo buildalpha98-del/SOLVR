@@ -57,8 +57,6 @@ export interface InboundSmsPayload {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-export { normalisePhone };
-
 /**
  * Find the most recent non-lost job for a given customer phone number.
  * Checks both customerPhone and callerPhone fields.
