@@ -184,7 +184,7 @@ function partToAnthropicBlock(
       };
     }
     // Audio/video are not supported by Anthropic's Messages API. The codebase
-    // transcribes audio separately (server/_core/voiceTranscription.ts), so
+    // transcribes audio separately (server/lib/transcription.ts), so
     // these callers should never reach here — fall back to a text note.
     return { type: "text", text: `[attached file: ${part.file_url.url}]` };
   }

@@ -1,36 +1,12 @@
 /**
  * Tests for the Twilio inbound SMS webhook handler.
- * Covers: phone normalisation, note building, and job lookup logic.
+ * Covers: note building and job lookup logic.
+ *
+ * normalisePhone tests live in tests/lib/phoneNumber.test.ts — the shim
+ * re-export has been removed; import directly from server/lib/phoneNumber.ts.
  */
 import { describe, it, expect } from "vitest";
-import { normalisePhone, buildUpdatedNotes } from "./twilioInboundSms";
-
-// ── normalisePhone ─────────────────────────────────────────────────────────────
-describe("normalisePhone", () => {
-  it("passes through E.164 numbers unchanged", () => {
-    expect(normalisePhone("+61412345678")).toBe("+61412345678");
-  });
-
-  it("converts 04xx format to E.164", () => {
-    expect(normalisePhone("0412345678")).toBe("+61412345678");
-  });
-
-  it("converts 61xxxxxxxxx (no +) to E.164", () => {
-    expect(normalisePhone("61412345678")).toBe("+61412345678");
-  });
-
-  it("handles numbers with spaces", () => {
-    expect(normalisePhone("+61 412 345 678")).toBe("+61412345678");
-  });
-
-  it("returns empty string for empty input", () => {
-    expect(normalisePhone("")).toBe("");
-  });
-
-  it("handles international number without + prefix", () => {
-    expect(normalisePhone("447911123456")).toBe("+447911123456");
-  });
-});
+import { buildUpdatedNotes } from "./twilioInboundSms";
 
 // ── buildUpdatedNotes ──────────────────────────────────────────────────────────
 describe("buildUpdatedNotes", () => {

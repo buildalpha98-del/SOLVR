@@ -139,6 +139,13 @@ export async function sendSmsAndLog(opts: SendSmsAndLogOptions): Promise<SendSms
  *   0412 345 678  → +61412345678
  *   61412345678   → +61412345678
  *   +61412345678  → +61412345678 (no-op)
+ *
+ * NOTE: This is a private, sms.ts-local variant. It returns `null` for short /
+ * unrecognisable numbers rather than a best-guess string. Callers here rely on
+ * that null-on-fail contract to skip the send. Do NOT replace with the exported
+ * `normalisePhone` from `server/lib/phoneNumber.ts` — that one returns a
+ * best-effort `+<digits>` string for non-AU numbers and never returns null.
+ * Use `lib/phoneNumber.ts` for AU E.164 lookups; use this for send-path guards.
  */
 function normalisePhone(raw: string): string | null {
   const digits = raw.replace(/\D/g, "");

@@ -33,6 +33,7 @@ import {
   listPortalJobsWithQuote,
 } from "./db";
 import { sendSmsAndLog } from "./lib/sms";
+import { normalisePhone } from "./lib/phoneNumber";
 import { portalCalendarEvents, crmClients } from "../drizzle/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 
@@ -116,15 +117,6 @@ export function buildBookingToolDefinitions() {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
-
-function normalisePhone(raw: string): string {
-  if (!raw) return raw;
-  const digits = raw.replace(/\D/g, "");
-  if (raw.startsWith("+")) return `+${digits}`;
-  if (digits.startsWith("61") && digits.length === 11) return `+${digits}`;
-  if (digits.startsWith("0") && digits.length === 10) return `+61${digits.slice(1)}`;
-  return `+${digits}`;
-}
 
 /**
  * Resolve the SOLVR client from a Vapi assistantId. Returns null if not

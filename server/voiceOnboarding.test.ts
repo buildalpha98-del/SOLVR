@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-vi.mock("../server/_core/voiceTranscription", () => ({
+vi.mock("../server/lib/transcription", () => ({
   transcribeAudio: vi.fn(),
 }));
 
@@ -37,7 +37,7 @@ vi.mock("../server/db", () => ({
   getClientProfile: vi.fn(),
 }));
 
-import { transcribeAudio } from "../server/_core/voiceTranscription";
+import { transcribeAudio } from "../server/lib/transcription";
 import { extractOnboardingData, getMissingRequiredFields } from "../server/_core/onboardingExtraction";
 import {
   getPortalSessionBySessionToken,

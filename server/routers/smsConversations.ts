@@ -28,7 +28,7 @@ import {
   updateSmsConversation,
 } from "../db";
 import { sendSmsAndLog } from "../lib/sms";
-import { normalisePhone } from "../twilioInboundSms";
+import { normalisePhone } from "../lib/phoneNumber";
 
 export const smsConversationsRouter = router({
   /**

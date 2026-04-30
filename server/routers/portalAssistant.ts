@@ -27,7 +27,7 @@ import {
 } from "../db";
 import { invokeLLM } from "../_core/llm";
 import { groqChat } from "../_core/groqChat";
-import { transcribeAudio } from "../_core/voiceTranscription";
+import { transcribeAudio } from "../lib/transcription";
 import { getDb } from "../db";
 import {
   portalJobs,

@@ -1,31 +1,22 @@
 /**
- * Voice transcription helper using internal Speech-to-Text service
+ * Audio transcription helper using OpenAI Whisper (or any compatible endpoint).
  *
- * Frontend implementation guide:
- * 1. Capture audio using MediaRecorder API
- * 2. Upload audio to storage (e.g., S3) to get URL
- * 3. Call transcription with the URL
- * 
- * Example usage:
- * ```tsx
- * // Frontend component
- * const transcribeMutation = trpc.voice.transcribe.useMutation({
- *   onSuccess: (data) => {
- *     console.log(data.text); // Full transcription
- *     console.log(data.language); // Detected language
- *     console.log(data.segments); // Timestamped segments
- *   }
- * });
- * 
- * // After uploading audio to storage
- * transcribeMutation.mutate({
- *   audioUrl: uploadedAudioUrl,
- *   language: 'en', // optional
- *   prompt: 'Transcribe the meeting' // optional
- * });
- * ```
+ * Extracted from server/_core/voiceTranscription.ts so that Cloud Phone V2 and
+ * other callers can import from a single canonical location.
+ *
+ * Used by:
+ *   - server/routers/quotes.ts       — Voice-to-Quote pipeline (existing)
+ *   - server/routers/portalJobTasks.ts — Voice note transcription (existing)
+ *   - server/routers/portalAssistant.ts — Voice assistant pipeline (existing)
+ *   - server/routers/portal.ts       — Voice-to-Quote portal flow (existing)
+ *   - server/_core/callIntelligence.ts — Cloud Phone V2 call AI pipeline (forthcoming)
+ *
+ * The wrapper accepts an audioUrl (remote, e.g. R2/S3).
+ * Returns a WhisperResponse on success, or a TranscriptionError on failure (never throws).
+ *
+ * @see docs/specs/2026-04-27-solvr-cloud-phone-design.md — pre-requisite refactor #3
  */
-import { ENV } from "./env";
+import { ENV } from "../_core/env";
 
 export type TranscribeOptions = {
   audioUrl: string; // URL to the audio file (e.g., S3 URL)
@@ -66,7 +57,7 @@ export type TranscriptionError = {
 
 /**
  * Transcribe audio to text using the internal Speech-to-Text service
- * 
+ *
  * @param options - Audio data and metadata
  * @returns Transcription result or error
  */
@@ -105,10 +96,10 @@ export async function transcribeAudio(
           details: `HTTP ${response.status}: ${response.statusText}`
         };
       }
-      
+
       audioBuffer = Buffer.from(await response.arrayBuffer());
       mimeType = response.headers.get('content-type') || 'audio/mpeg';
-      
+
       // Check file size (16MB limit)
       const sizeMB = audioBuffer.length / (1024 * 1024);
       if (sizeMB > 16) {
@@ -128,12 +119,12 @@ export async function transcribeAudio(
 
     // Step 3: Create FormData for multipart upload to Whisper API
     const formData = new FormData();
-    
+
     // Create a Blob from the buffer and append to form
     const filename = `audio.${getFileExtension(mimeType)}`;
     const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType });
     formData.append("file", audioBlob, filename);
-    
+
     formData.append("model", ENV.whisperModel);
     formData.append("response_format", "verbose_json");
 
@@ -177,7 +168,7 @@ export async function transcribeAudio(
 
     // Step 5: Parse and return the transcription result
     const whisperResponse = await response.json() as WhisperResponse;
-    
+
     // Validate response structure
     if (!whisperResponse.text || typeof whisperResponse.text !== 'string') {
       return {
@@ -213,7 +204,7 @@ function getFileExtension(mimeType: string): string {
     'audio/m4a': 'm4a',
     'audio/mp4': 'm4a',
   };
-  
+
   return mimeToExt[mimeType] || 'audio';
 }
 
@@ -242,48 +233,6 @@ function getLanguageName(langCode: string): string {
     'no': 'Norwegian',
     'fi': 'Finnish',
   };
-  
+
   return langMap[langCode] || langCode;
 }
-
-/**
- * Example tRPC procedure implementation:
- * 
- * ```ts
- * // In server/routers.ts
- * import { transcribeAudio } from "./_core/voiceTranscription";
- * 
- * export const voiceRouter = router({
- *   transcribe: protectedProcedure
- *     .input(z.object({
- *       audioUrl: z.string(),
- *       language: z.string().optional(),
- *       prompt: z.string().optional(),
- *     }))
- *     .mutation(async ({ input, ctx }) => {
- *       const result = await transcribeAudio(input);
- *       
- *       // Check if it's an error
- *       if ('error' in result) {
- *         throw new TRPCError({
- *           code: 'BAD_REQUEST',
- *           message: result.error,
- *           cause: result,
- *         });
- *       }
- *       
- *       // Optionally save transcription to database
- *       await db.insert(transcriptions).values({
- *         userId: ctx.user.id,
- *         text: result.text,
- *         duration: result.duration,
- *         language: result.language,
- *         audioUrl: input.audioUrl,
- *         createdAt: new Date(),
- *       });
- *       
- *       return result;
- *     }),
- * });
- * ```
- */

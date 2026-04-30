@@ -27,7 +27,7 @@ import {
 } from "../db";
 import { getTradeTemplate } from "../lib/tradeTaskTemplates";
 import { invokeLLM } from "../_core/llm";
-import { transcribeAudio } from "../_core/voiceTranscription";
+import { transcribeAudio } from "../lib/transcription";
 import { createAiTaskAudit, getClientProfile, getCrmClientById } from "../db";
 import { getDb } from "../db";
 import { portalJobs } from "../../drizzle/schema";

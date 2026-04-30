@@ -13,7 +13,7 @@ import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../_core/trpc";
 import { getPortalClient, requirePortalAuth, requirePortalWrite } from "../_core/portalAuth";
 import { requireFeature } from "../_core/featureGate";
-import { transcribeAudio } from "../_core/voiceTranscription";
+import { transcribeAudio } from "../lib/transcription";
 import { extractQuoteData, sanitiseExtracted } from "../_core/quoteExtraction";
 import { analyseQuotePhotos } from "../_core/photoAnalysis";
 import { generateQuoteReport } from "../_core/reportGeneration";
