@@ -23,7 +23,6 @@
  */
 import { randomUUID } from "crypto";
 import { Request, Response } from "express";
-import twilio from "twilio";
 import {
   getDb,
   upsertSmsConversation,
@@ -38,6 +37,7 @@ import { sendExpoPush } from "./expoPush";
 import { sendPushToClient } from "./pushNotifications";
 import { sendSmsAndLog } from "./lib/sms";
 import { normalisePhone } from "./lib/phoneNumber";
+import { validateTwilioSignature } from "./lib/twilio";
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
 
@@ -272,21 +272,16 @@ export async function handleTwilioInboundSms(
     const signature = req.headers["x-twilio-signature"] as string | undefined;
     const url = `https://solvr.com.au/api/twilio/inbound-sms`;
 
-    if (!signature) {
-      console.warn("[TwilioInbound] Missing X-Twilio-Signature — rejecting");
-      res.status(403).send("Forbidden");
-      return;
-    }
-
-    const isValid = twilio.validateRequest(
-      twilioAuthToken,
+    const isValid = validateTwilioSignature({
+      authToken: twilioAuthToken,
       signature,
       url,
-      req.body as Record<string, string>
-    );
+      params: req.body as Record<string, string>,
+    });
 
     if (!isValid) {
-      console.warn("[TwilioInbound] Invalid Twilio signature — rejecting");
+      const reason = signature ? "Invalid Twilio signature" : "Missing X-Twilio-Signature";
+      console.warn(`[TwilioInbound] ${reason} — rejecting`);
       res.status(403).send("Forbidden");
       return;
     }
