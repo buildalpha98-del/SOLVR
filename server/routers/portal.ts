@@ -82,7 +82,7 @@ import {
 } from "../db";
 import { generateComplianceDocument, type ComplianceDocType } from "../_core/complianceDocGeneration";
 import { storagePut } from "../storage";
-import { transcribeAudio } from "../_core/voiceTranscription";
+import { transcribeAudio } from "../lib/transcription";
 import { extractOnboardingData, getMissingRequiredFields } from "../_core/onboardingExtraction";
 import { autoGeneratePromptForClient } from "../autoGeneratePrompt";
 import { sendEmail } from "../_core/email";
