@@ -1,0 +1,34 @@
+{
+  "name": "@buildalpha/capacitor-voice",
+  "version": "0.1.0",
+  "description": "Generic Capacitor plugin for VoIP calling via Twilio Voice + CallKit + PushKit. Solvr-blind — drop into any Capacitor app.",
+  "main": "dist/plugin.cjs.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "private": true,
+  "files": [
+    "dist/",
+    "ios/Plugin/",
+    "BuildAlphaCapacitorVoice.podspec"
+  ],
+  "author": "Jayden Kowaider <jayden@amanaoshc.com.au>",
+  "license": "UNLICENSED",
+  "scripts": {
+    "verify": "npm run verify:ios && npm run verify:web",
+    "verify:ios": "cd ios && pod install && xcodebuild -workspace Plugin.xcworkspace -scheme Plugin -destination generic/platform=iOS",
+    "verify:web": "npm run build",
+    "build": "tsc && rollup -c rollup.config.js",
+    "clean": "rimraf ./dist"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@types/node": "^24.0.0",
+    "rimraf": "^5.0.0",
+    "rollup": "^4.0.0",
+    "typescript": "~5.9.0"
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^7.0.0"
+  }
+}
