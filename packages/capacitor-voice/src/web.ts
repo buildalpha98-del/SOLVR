@@ -6,9 +6,10 @@ import type {
   VoiceCallParams,
 } from "./definitions";
 
-const NOT_AVAILABLE = new Error(
-  "@buildalpha/capacitor-voice is iOS-only (Android in V2.5). The web fallback is a no-op for build/preview compatibility.",
-);
+const notAvailable = (): Error =>
+  new Error(
+    "@buildalpha/capacitor-voice is iOS-only (Android in V2.5). The web fallback is a no-op for build/preview compatibility.",
+  );
 
 /**
  * Web fallback for BuildAlphaVoicePlugin.
@@ -23,30 +24,30 @@ export class BuildAlphaVoiceWeb
   implements BuildAlphaVoicePlugin
 {
   registerVoipPush(): Promise<RegisterVoipPushResult> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 
   connect(_opts: VoiceCallParams): Promise<{ callSid: string }> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 
   acceptIncoming(): Promise<void> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 
   rejectIncoming(): Promise<void> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 
   disconnect(): Promise<void> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 
   setMuted(_opts: { muted: boolean }): Promise<void> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 
   setSpeaker(_opts: { on: boolean }): Promise<void> {
-    return Promise.reject(NOT_AVAILABLE);
+    return Promise.reject(notAvailable());
   }
 }

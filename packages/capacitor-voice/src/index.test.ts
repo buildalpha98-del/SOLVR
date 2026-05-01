@@ -10,6 +10,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { PluginListenerHandle } from "@capacitor/core";
+import type {
+  IncomingCallEvent,
+  CallConnectedEvent,
+  CallAcceptedEvent,
+  CallEndedEvent,
+  RecordingReadyEvent,
+  VoipTokenUpdatedEvent,
+} from "./definitions";
 
 // ── Mock @capacitor/core before importing the plugin ───────────────────────
 
@@ -91,36 +99,40 @@ describe("BuildAlphaVoice plugin object", () => {
   });
 
   describe("addListener is callable for each of the 6 event names", () => {
-    const noop = () => undefined;
-
-    it("accepts 'incomingCall'", async () => {
-      await BuildAlphaVoice.addListener("incomingCall", noop as never);
-      expect(mockAddListener).toHaveBeenCalledWith("incomingCall", noop);
+    it("accepts 'incomingCall' with correctly-typed callback", async () => {
+      const cb = (_e: IncomingCallEvent) => undefined;
+      await BuildAlphaVoice.addListener("incomingCall", cb);
+      expect(mockAddListener).toHaveBeenCalledWith("incomingCall", cb);
     });
 
-    it("accepts 'callConnected'", async () => {
-      await BuildAlphaVoice.addListener("callConnected", noop as never);
-      expect(mockAddListener).toHaveBeenCalledWith("callConnected", noop);
+    it("accepts 'callConnected' with correctly-typed callback", async () => {
+      const cb = (_e: CallConnectedEvent) => undefined;
+      await BuildAlphaVoice.addListener("callConnected", cb);
+      expect(mockAddListener).toHaveBeenCalledWith("callConnected", cb);
     });
 
-    it("accepts 'callAccepted'", async () => {
-      await BuildAlphaVoice.addListener("callAccepted", noop as never);
-      expect(mockAddListener).toHaveBeenCalledWith("callAccepted", noop);
+    it("accepts 'callAccepted' with correctly-typed callback", async () => {
+      const cb = (_e: CallAcceptedEvent) => undefined;
+      await BuildAlphaVoice.addListener("callAccepted", cb);
+      expect(mockAddListener).toHaveBeenCalledWith("callAccepted", cb);
     });
 
-    it("accepts 'callEnded'", async () => {
-      await BuildAlphaVoice.addListener("callEnded", noop as never);
-      expect(mockAddListener).toHaveBeenCalledWith("callEnded", noop);
+    it("accepts 'callEnded' with correctly-typed callback", async () => {
+      const cb = (_e: CallEndedEvent) => undefined;
+      await BuildAlphaVoice.addListener("callEnded", cb);
+      expect(mockAddListener).toHaveBeenCalledWith("callEnded", cb);
     });
 
-    it("accepts 'recordingReady'", async () => {
-      await BuildAlphaVoice.addListener("recordingReady", noop as never);
-      expect(mockAddListener).toHaveBeenCalledWith("recordingReady", noop);
+    it("accepts 'recordingReady' with correctly-typed callback", async () => {
+      const cb = (_e: RecordingReadyEvent) => undefined;
+      await BuildAlphaVoice.addListener("recordingReady", cb);
+      expect(mockAddListener).toHaveBeenCalledWith("recordingReady", cb);
     });
 
-    it("accepts 'voipTokenUpdated'", async () => {
-      await BuildAlphaVoice.addListener("voipTokenUpdated", noop as never);
-      expect(mockAddListener).toHaveBeenCalledWith("voipTokenUpdated", noop);
+    it("accepts 'voipTokenUpdated' with correctly-typed callback", async () => {
+      const cb = (_e: VoipTokenUpdatedEvent) => undefined;
+      await BuildAlphaVoice.addListener("voipTokenUpdated", cb);
+      expect(mockAddListener).toHaveBeenCalledWith("voipTokenUpdated", cb);
     });
   });
 });
