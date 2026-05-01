@@ -29,6 +29,31 @@ public class BuildAlphaVoicePlugin: CAPPlugin {
     private let twilio = TwilioVoiceClient()
     private let stateMachine = VoiceStateMachine()
 
+    // MARK: - Double-emission guard (Fix C)
+    //
+    // When the user hangs up locally:
+    //   1. callKit.endCall(uuid:) → CXEndCallAction → providerDidPerformEndCall
+    //      fires on .main → emits callEnded("local") → transitions to .ended.
+    //   2. Twilio's callDidDisconnect fires afterward → twilioCallDidDisconnect
+    //      would emit a second callEnded("local").
+    //
+    // `didEmitCallEnded` prevents the duplicate. It is reset when the state
+    // machine returns to .idle (end of every call) and on reset().
+
+    private var didEmitCallEnded: Bool = false
+
+    /// Emits "callEnded" exactly once per call lifecycle.
+    private func emitCallEndedIfFirst(payload: [String: Any]) {
+        guard !didEmitCallEnded else { return }
+        didEmitCallEnded = true
+        notifyListeners("callEnded", data: payload)
+    }
+
+    /// Called whenever the state machine settles to .idle or on hard reset.
+    private func resetCallEndedFlag() {
+        didEmitCallEnded = false
+    }
+
     /// Capacitor calls this once when the plugin loads. We wire up the
     /// subsystem delegates here so they survive for the app lifetime.
     public override func load() {
@@ -101,6 +126,16 @@ public class BuildAlphaVoicePlugin: CAPPlugin {
     }
 
     @objc func acceptIncoming(_ call: CAPPluginCall) {
+        // Fix E: guard against the race window where the Twilio SDK hasn't yet
+        // delivered the CallInvite. If we emit callAccepted now and JS calls
+        // notifyAccepted (which fans out cancel pushes to other devices), but
+        // no call ever connects, the other devices drop their rings and the
+        // caller hears silence.
+        guard twilio.hasPendingInvite() else {
+            call.reject("No incoming call to accept — invite may have expired")
+            return
+        }
+
         guard let uuid = currentCallUUID() else {
             call.reject("No incoming call to accept")
             return
@@ -249,8 +284,9 @@ extension BuildAlphaVoicePlugin: PushKitDelegateOutput {
             CAPLog.print("[BuildAlphaVoice] cancel state error: \(error)")
             stateMachine.reset()
         }
+        resetCallEndedFlag()
 
-        notifyListeners("callEnded", data: [
+        emitCallEndedIfFirst(payload: [
             "callSid": callSid,
             "durationSeconds": 0,
             "endedBy": "remote"
@@ -264,6 +300,7 @@ extension BuildAlphaVoicePlugin: CallKitProviderOutput {
     func providerDidReset() {
         twilio.disconnect()
         stateMachine.reset()
+        resetCallEndedFlag()
     }
 
     func providerDidPerformAnswerCall(uuid: UUID, callSid: String?) {
@@ -285,11 +322,12 @@ extension BuildAlphaVoicePlugin: CallKitProviderOutput {
         } catch {
             stateMachine.reset()
         }
-        notifyListeners("callEnded", data: [
+        emitCallEndedIfFirst(payload: [
             "callSid": callSid ?? "",
             "durationSeconds": computeDuration(forCallSid: callSid),
             "endedBy": "local"
         ])
+        resetCallEndedFlag()
     }
 
     func providerDidPerformSetMuted(uuid: UUID, muted: Bool) {
@@ -332,12 +370,13 @@ extension BuildAlphaVoicePlugin: TwilioVoiceClientOutput {
         } catch {
             stateMachine.reset()
         }
-        notifyListeners("callEnded", data: [
+        emitCallEndedIfFirst(payload: [
             "callSid": callSid ?? "",
             "durationSeconds": 0,
             "endedBy": "error",
             "errorCode": nsError.code
         ])
+        resetCallEndedFlag()
     }
 
     func twilioCallDidDisconnect(callSid: String?, error: Error?) {
@@ -348,7 +387,8 @@ extension BuildAlphaVoicePlugin: TwilioVoiceClientOutput {
             errorCode = nsError.code
         } else {
             // Could be local or remote; we report "remote" by default. The
-            // CXEndCallAction path already emits "local" before this fires.
+            // CXEndCallAction path already emits "local" before this fires,
+            // so didEmitCallEnded will suppress the duplicate in that case.
             endedBy = stateMachine.state == .ended ? "local" : "remote"
         }
         if stateMachine.state != .idle {
@@ -369,7 +409,8 @@ extension BuildAlphaVoicePlugin: TwilioVoiceClientOutput {
         if let code = errorCode {
             payload["errorCode"] = code
         }
-        notifyListeners("callEnded", data: payload)
+        emitCallEndedIfFirst(payload: payload)
+        resetCallEndedFlag()
     }
 
     func twilioCallInviteCancelled(callSid: String) {
@@ -382,11 +423,12 @@ extension BuildAlphaVoicePlugin: TwilioVoiceClientOutput {
         } catch {
             stateMachine.reset()
         }
-        notifyListeners("callEnded", data: [
+        emitCallEndedIfFirst(payload: [
             "callSid": callSid,
             "durationSeconds": 0,
             "endedBy": "remote"
         ])
+        resetCallEndedFlag()
     }
 
     func twilioRecordingReady(callSid: String, recordingSid: String) {

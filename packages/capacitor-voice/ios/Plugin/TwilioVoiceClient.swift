@@ -42,8 +42,11 @@ final class TwilioVoiceClient: NSObject {
 
     /// Hand the raw push payload to the SDK so it can synthesize the
     /// TVOCallInvite. The SDK then calls `callInviteReceived` on this delegate.
+    /// We pass `.main` as the delegateQueue so all Twilio callbacks land on the
+    /// same queue as CXProviderDelegate callbacks — preventing races when both
+    /// mutate VoiceStateMachine during the connecting → connected window.
     func handleIncomingPushPayload(_ payload: [AnyHashable: Any]) {
-        TwilioVoiceSDK.handleNotification(payload, delegate: self, delegateQueue: nil)
+        TwilioVoiceSDK.handleNotification(payload, delegate: self, delegateQueue: DispatchQueue.main)
     }
 
     /// Called from the CallKit answer-action handler. The CallKit UUID flows
@@ -91,6 +94,13 @@ final class TwilioVoiceClient: NSObject {
 
     func currentCallSid() -> String? {
         activeCall?.sid
+    }
+
+    /// Returns true when the SDK has delivered a CallInvite that has not yet
+    /// been accepted or rejected. Used by the plugin to guard against
+    /// `acceptIncoming` racing ahead of the Twilio SDK invite delivery.
+    func hasPendingInvite() -> Bool {
+        pendingCallInvite != nil
     }
 }
 
