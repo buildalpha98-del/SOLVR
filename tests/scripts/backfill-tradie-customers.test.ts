@@ -67,6 +67,44 @@ describe("Test 1 — single job with phone creates customer and sets FK", () => 
   });
 });
 
+// ─── Test 1b: insertCustomer recovers from ER_DUP_ENTRY and script proceeds ────
+describe("Test 1b — ER_DUP_ENTRY recovery: script uses id returned by insertCustomer", () => {
+  it("links the job using the id returned by insertCustomer even when it recovered from dup-key internally", async () => {
+    // The live insertCustomer implementation catches ER_DUP_ENTRY internally and
+    // re-fetches the racer's row, returning its id. From the script's perspective,
+    // insertCustomer always resolves to { insertId }. We simulate the recovered
+    // state: findCustomerByPhone returns undefined (triggering insert), and
+    // insertCustomer resolves to the racer's id (55) — as if the live impl
+    // successfully re-fetched after the collision.
+    const insertCustomer = vi.fn().mockResolvedValue({ insertId: 55 });
+    const findCustomerByPhone = vi.fn().mockResolvedValue(undefined);
+    const linkJob = vi.fn().mockResolvedValue(undefined);
+
+    const job = {
+      id: 101,
+      clientId: 5,
+      customerPhone: "0412345678",
+      customerName: "Alice Smith",
+      customerEmail: null,
+      customerAddress: null,
+    };
+
+    const db = makeDb({
+      selectUnlinkedJobs: vi.fn().mockResolvedValue([job]),
+      findCustomerByPhone,
+      insertCustomer,
+      linkJob,
+    });
+
+    const summary = await backfillTradieCustomers(db);
+
+    // Script must link using whatever id insertCustomer returned
+    expect(linkJob).toHaveBeenCalledWith(101, 55);
+    expect(summary.customersCreated).toBe(1);
+    expect(summary.portalJobsLinked).toBe(1);
+  });
+});
+
 // ─── Test 2: Two jobs with same phone → 1 customer, both jobs linked ─────────
 describe("Test 2 — two jobs with same phone produce one customer", () => {
   it("deduplicates on second job and links both", async () => {
@@ -276,49 +314,23 @@ describe("Test 7 — aggregate recompute uses job_progress_payments totals", () 
     expect(summary.aggregatesRecomputed).toBeGreaterThanOrEqual(1);
   });
 
-  it("recomputes with correct aggregate inputs — jobCount=2, totalSpentCents=70000", async () => {
-    // Simulate the aggregate data the recompute function would produce.
-    // The aggregate SQL runs: SUM(jpp.amountCents) from job_progress_payments
-    // joined to portal_jobs where tradieCustomerId=X.
-    // We verify that recomputeAggregates is called with the expected computed values.
-    const recomputeAggregates = vi.fn().mockImplementation(async (customerId: number, data: {
-      jobCount: number;
-      totalSpentCents: number;
-      lastJobAt: Date | null;
-    }) => {
-      // Verify inputs for our seeded scenario
-      expect(customerId).toBe(3);
-      expect(data.jobCount).toBe(2);
-      expect(data.totalSpentCents).toBe(70000); // $400 + $300 = $700 = 70000 cents
-      expect(data.lastJobAt).toBeInstanceOf(Date);
-    });
+  it("recomputeAggregates is called even when no new customers were created in passes 1 and 2", async () => {
+    // All rows are already linked (empty unlinked sets) — but the script must
+    // still refresh aggregates for any customers whose FK-linked jobs changed.
+    const recomputeAggregates = vi.fn().mockResolvedValue(undefined);
 
-    const completedAt1 = new Date("2025-03-01T10:00:00Z");
-    const completedAt2 = new Date("2025-04-15T10:00:00Z");
-
-    // Two completed jobs for customer 3
-    const selectLinkedCompletedJobs = vi.fn().mockResolvedValue([
-      { id: 10, tradieCustomerId: 3, completedAt: completedAt1 },
-      { id: 11, tradieCustomerId: 3, completedAt: completedAt2 },
-    ]);
-
-    // Progress payments: job 10 has $400 total, job 11 has $300 total
-    const selectPaymentsForJobs = vi.fn().mockResolvedValue([
-      { jobId: 10, amountCents: 25000 },
-      { jobId: 10, amountCents: 15000 },
-      { jobId: 11, amountCents: 30000 },
-    ]);
-
-    // Pass a richer db mock that simulates the aggregate recompute flow
     const db = makeDb({
       selectUnlinkedJobs: vi.fn().mockResolvedValue([]),
       selectUnlinkedQuotes: vi.fn().mockResolvedValue([]),
-      // Override recomputeAggregates so the test exercises the calculation
-      recomputeAggregates: vi.fn().mockResolvedValue(undefined),
+      recomputeAggregates,
     });
 
     const summary = await backfillTradieCustomers(db);
-    // Aggregate recompute runs regardless of whether there are new rows
-    expect(summary.aggregatesRecomputed).toBeGreaterThanOrEqual(1);
+
+    expect(recomputeAggregates).toHaveBeenCalledOnce();
+    expect(summary.customersCreated).toBe(0);
+    expect(summary.portalJobsLinked).toBe(0);
+    expect(summary.quotesLinked).toBe(0);
+    expect(summary.aggregatesRecomputed).toBe(1);
   });
 });

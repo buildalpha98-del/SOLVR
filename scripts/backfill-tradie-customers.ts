@@ -279,16 +279,47 @@ async function buildLiveDb(): Promise<BackfillDb> {
     },
 
     async insertCustomer(input: InsertCustomerInput): Promise<{ insertId: number }> {
-      const result = await db.insert(tradieCustomers).values({
-        clientId: input.clientId,
-        name: input.name,
-        phone: input.phone,
-        email: input.email ?? null,
-        address: input.address ?? null,
-        jobCount: 0,
-        totalSpentCents: 0,
-      });
-      return { insertId: Number((result as any)[0]?.insertId ?? 0) };
+      try {
+        const [row] = await db.insert(tradieCustomers).values({
+          clientId: input.clientId,
+          name: input.name,
+          phone: input.phone,
+          email: input.email ?? null,
+          address: input.address ?? null,
+          jobCount: 0,
+          totalSpentCents: 0,
+        }).$returningId();
+        if (!row?.id) {
+          throw new Error(
+            `insertCustomer returned no id for clientId=${input.clientId} phone=${input.phone}`,
+          );
+        }
+        return { insertId: row.id };
+      } catch (err: unknown) {
+        // MySQL/TiDB 1062 = duplicate key. Concurrent operator run already
+        // inserted this customer — re-fetch and return its id instead.
+        const mysqlErr = err as { code?: string; errno?: number };
+        if (mysqlErr.code === "ER_DUP_ENTRY" || mysqlErr.errno === 1062) {
+          const rows = await db
+            .select({ id: tradieCustomers.id })
+            .from(tradieCustomers)
+            .where(
+              and(
+                eq(tradieCustomers.clientId, input.clientId),
+                eq(tradieCustomers.phone, input.phone),
+              ),
+            )
+            .limit(1);
+          const existing = rows[0];
+          if (!existing) {
+            throw new Error(
+              `Duplicate-key on insert for clientId=${input.clientId} phone=${input.phone} but follow-up SELECT returned empty`,
+            );
+          }
+          return { insertId: existing.id };
+        }
+        throw err;
+      }
     },
 
     async enrichCustomer(customerId: number, fields: EnrichFields): Promise<void> {
