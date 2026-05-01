@@ -6,15 +6,22 @@
  * correctly end-to-end.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, symlinkSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+// Resolve the directory of this test file so we can construct paths relative
+// to the actual plugin package (needed for the self-host detection test).
+const __testFilename = fileURLToPath(import.meta.url);
+const __testDirname = resolve(__testFilename, "..");
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import * as plist from "plist";
 
 // We import the named exports so we can unit-test the helpers in isolation.
 import {
   findHostInfoPlist,
+  isSelfHostedDevContext,
   ensureMicrophoneUsageDescription,
   ensureBackgroundModes,
   run,
@@ -58,12 +65,55 @@ describe("postinstall", () => {
     consoleSpy.warn.mockClear();
   });
 
+  // ── isSelfHostedDevContext ──────────────────────────────────────────────────
+
+  describe("isSelfHostedDevContext", () => {
+    it("returns false when initCwd is an empty string (no cwd provided)", () => {
+      // Empty string is falsy — treated the same as no cwd.
+      expect(isSelfHostedDevContext("")).toBe(false);
+    });
+
+    it("returns false when the candidate path does not exist in initCwd", () => {
+      const root = mkdtempSync(join(tmpdir(), "cap-voice-selfhost-false-"));
+      expect(isSelfHostedDevContext(root)).toBe(false);
+    });
+
+    it("returns true when initCwd contains a symlink that resolves to the plugin's own package.json", () => {
+      // Build a fake monorepo root that has packages/capacitor-voice/ pointing
+      // at the real plugin directory via a symlink.
+      const fakeRoot = mkdtempSync(join(tmpdir(), "cap-voice-selfhost-true-"));
+      const fakePackagesDir = join(fakeRoot, "packages");
+      mkdirSync(fakePackagesDir, { recursive: true });
+      // The real plugin root is two directories above scripts/ (scripts → package root).
+      const realPluginRoot = resolve(__testDirname, "..");
+      symlinkSync(realPluginRoot, join(fakePackagesDir, "capacitor-voice"));
+      expect(isSelfHostedDevContext(fakeRoot)).toBe(true);
+    });
+  });
+
   // ── findHostInfoPlist ───────────────────────────────────────────────────────
 
   describe("findHostInfoPlist", () => {
     it("returns null when INIT_CWD points to the plugin itself", () => {
       const result = findHostInfoPlist("/some/repo/packages/capacitor-voice");
       expect(result).toBeNull();
+    });
+
+    it("returns null and logs self-hosted message when initCwd is the plugin's own monorepo root", () => {
+      // Build a fake monorepo root with packages/capacitor-voice symlinked to
+      // the real plugin directory — replicates running `pnpm install` from the
+      // SOLVR repo root during plugin development.
+      const fakeRoot = mkdtempSync(join(tmpdir(), "cap-voice-selfhost-skip-"));
+      const fakePackagesDir = join(fakeRoot, "packages");
+      mkdirSync(fakePackagesDir, { recursive: true });
+      const realPluginRoot = resolve(__testDirname, "..");
+      symlinkSync(realPluginRoot, join(fakePackagesDir, "capacitor-voice"));
+
+      const result = findHostInfoPlist(fakeRoot);
+      expect(result).toBeNull();
+      expect(consoleSpy.log).toHaveBeenCalledWith(
+        expect.stringContaining("self-hosted dev install"),
+      );
     });
 
     it("returns the path when the default Info.plist exists", () => {

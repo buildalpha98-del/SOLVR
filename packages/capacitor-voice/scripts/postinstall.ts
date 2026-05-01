@@ -10,20 +10,59 @@
  * Fails open: logs a warning and exits 0 on any error — never crashes `pnpm install`.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, existsSync, realpathSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import * as plist from "plist";
+
+// Resolve __dirname in ESM context.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = resolve(__filename, "..");
+
+/**
+ * Returns true when pnpm/npm install is being run from the plugin's own
+ * monorepo (i.e. INIT_CWD is the repo root and
+ * `<INIT_CWD>/packages/capacitor-voice/package.json` resolves to the same
+ * canonical file as this plugin's own package.json).
+ *
+ * In this situation modifying a sibling app's Info.plist would be premature,
+ * so we skip entirely.
+ */
+export function isSelfHostedDevContext(initCwd?: string): boolean {
+  const cwd = initCwd ?? process.env.INIT_CWD;
+  if (!cwd) return false;
+  // This plugin's own package.json (one directory up from scripts/).
+  const pluginPkgPath = resolve(__dirname, "..", "package.json");
+  // What the plugin's package.json would be if it lives inside this host repo.
+  const candidatePath = resolve(cwd, "packages", "capacitor-voice", "package.json");
+  try {
+    return realpathSync(pluginPkgPath) === realpathSync(candidatePath);
+  } catch {
+    // candidatePath doesn't exist → not a self-host context.
+    return false;
+  }
+}
 
 const REQUIRED_BG_MODES = ["audio", "voip"];
 
 export function findHostInfoPlist(initCwd?: string): string | null {
   const cwd = initCwd ?? process.env.INIT_CWD ?? process.cwd();
 
-  // Skip if we are being run from inside the plugin itself (dev install).
+  // Skip if we are being run from inside the plugin directory itself (dev install).
   if (
     cwd.endsWith("/packages/capacitor-voice") ||
     cwd.endsWith("\\packages\\capacitor-voice")
   ) {
+    return null;
+  }
+
+  // Skip if pnpm install is being run from the plugin's own monorepo root
+  // (i.e. the plugin lives at <INIT_CWD>/packages/capacitor-voice/).
+  if (isSelfHostedDevContext(cwd)) {
+    console.log(
+      "[capacitor-voice] postinstall: detected self-hosted dev install " +
+        "(plugin lives in the same repo as the host), skipping Info.plist modification.",
+    );
     return null;
   }
 
