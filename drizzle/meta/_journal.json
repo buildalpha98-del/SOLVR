@@ -561,6 +561,13 @@
       "when": 1777113373280,
       "tag": "0079_lumpy_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "5",
+      "when": 1777536045115,
+      "tag": "0080_solvr_cloud_phone",
+      "breakpoints": true
     }
   ]
 }
