@@ -1,68 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-  <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleDisplayName</key>
-    <string>Solvr</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>$(MARKETING_VERSION)</string>
-    <key>CFBundleVersion</key>
-    <string>$(CURRENT_PROJECT_VERSION)</string>
-    <key>LSRequiresIPhoneOS</key>
-    <true/>
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
-    <key>UIMainStoryboardFile</key>
-    <string>Main</string>
-    <key>UIRequiredDeviceCapabilities</key>
-    <array>
-      <string>arm64</string>
-    </array>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-      <string>UIInterfaceOrientationPortrait</string>
-      <string>UIInterfaceOrientationLandscapeLeft</string>
-      <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-      <string>UIInterfaceOrientationPortrait</string>
-      <string>UIInterfaceOrientationPortraitUpsideDown</string>
-      <string>UIInterfaceOrientationLandscapeLeft</string>
-      <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UIViewControllerBasedStatusBarAppearance</key>
-    <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Solvr uses your microphone to record job details for voice-to-quote generation.</string>
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>Solvr needs access to your photo library so you can attach photos to your quotes.</string>
-    <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Solvr needs permission to save generated quote PDFs to your photo library.</string>
-    <key>NSCameraUsageDescription</key>
-    <string>Solvr uses the camera so you can take photos of job sites to attach to quotes.</string>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Solvr uses your location to log GPS check-in and check-out for job sites so your team's hours are verified.</string>
-    <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
-    <key>UIStatusBarStyle</key>
-    <string>UIStatusBarStyleLightContent</string>
-    <key>UIBackgroundModes</key>
-    <array>
-      <string>audio</string>
-      <string>voip</string>
-    </array>
-  </dict>
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>Solvr</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<!-- ─── Permission strings (required by Apple for any API that touches user data) ─── -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Solvr uses your microphone to record job details for voice-to-quote generation.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Solvr needs access to your photo library so you can attach photos to your quotes.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Solvr needs permission to save generated quote PDFs to your photo library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Solvr uses the camera so you can take photos of job sites to attach to quotes.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Solvr uses your location to log GPS check-in and check-out for job sites so your team's hours are verified.</string>
+	<!-- ─── Export compliance: declare no non-exempt encryption so App Store review doesn't ask ─── -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- ─── Viewport meta safety: modern iPhones require viewport-fit=cover for safe areas ─── -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<!-- ─── Disable IPv4 requirement for networking (sandbox permits HTTPS to solvr.com.au) ─── -->
+</dict>
 </plist>
