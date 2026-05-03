@@ -22,6 +22,7 @@ import {
   clientPhoneNumbers,
   callLogs,
   tradieCustomers,
+  type InsertCallLog,
 } from "../../drizzle/schema";
 import { and, eq, gte } from "drizzle-orm";
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -34,14 +35,15 @@ const ALLOWED_SUBSCRIPTION_STATUSES = new Set(["trial", "active", "past_due"]);
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /**
- * Build the full URL for Twilio signature validation.
- * Reconstructed from the Express request so it matches what Twilio signed.
+ * Returns the canonical webhook URL Twilio signs against. We hardcode
+ * the production URL because Twilio's signature is computed against
+ * that exact string regardless of which environment the request arrives at.
+ * (For local dev with ngrok, override via process.env.TWILIO_WEBHOOK_BASE_URL
+ * if set.)
  */
-function buildWebhookUrl(req: Request): string {
-  // Production: use the fixed production URL so the signature matches.
-  // In test/dev environments, TWILIO_AUTH_TOKEN is typically absent and
-  // signature validation is skipped anyway.
-  return `https://solvr.com.au/api/webhooks/twilio/voice`;
+function buildWebhookUrl(): string {
+  const base = process.env.TWILIO_WEBHOOK_BASE_URL ?? "https://solvr.com.au";
+  return `${base}/api/webhooks/twilio/voice`;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -61,35 +63,44 @@ export async function handleIncomingVoiceCall(
   // ── 1. Validate Twilio signature ───────────────────────────────────────────
   // Read directly from process.env at call-time so tests can set the env var
   // in beforeEach without needing to reload the module (ENV is frozen at boot).
-  const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const isProd = process.env.NODE_ENV === "production";
 
-  if (authToken) {
+  if (!authToken) {
+    if (isProd) {
+      console.error(
+        "[TwilioVoice] TWILIO_AUTH_TOKEN missing in production — rejecting all webhooks"
+      );
+      res.status(500).type("text/xml").send("<Response/>");
+      return;
+    }
+    // Dev: skip signature validation but make it loud
+    console.warn(
+      "[TwilioVoice] TWILIO_AUTH_TOKEN not set — skipping signature validation (DEV ONLY)"
+    );
+  } else {
     const signature = req.headers["x-twilio-signature"] as string | undefined;
     const isValid = validateTwilioSignature({
       authToken,
       signature,
-      url: buildWebhookUrl(req),
+      url: buildWebhookUrl(),
       params: req.body as Record<string, string>,
     });
 
     if (!isValid) {
       console.warn(
-        "[twilioVoice.handleIncomingVoiceCall] Invalid or missing Twilio signature — rejecting"
+        "[TwilioVoice] Invalid or missing Twilio signature — rejecting"
       );
       res.status(403).type("text/xml").send("<Response/>");
       return;
     }
-  } else {
-    console.warn(
-      "[twilioVoice.handleIncomingVoiceCall] TWILIO_AUTH_TOKEN not set — skipping signature validation"
-    );
   }
 
   // ── DB availability ────────────────────────────────────────────────────────
   const db = await getDb();
   if (!db) {
     console.error(
-      "[twilioVoice.handleIncomingVoiceCall] DB unavailable — returning 500"
+      "[TwilioVoice] DB unavailable — returning 500"
     );
     res.status(500).type("text/xml").send("<Response/>");
     return;
@@ -102,7 +113,7 @@ export async function handleIncomingVoiceCall(
   };
 
   console.log(
-    `[twilioVoice.handleIncomingVoiceCall] Inbound call — To:${To} From:${From} SID:${CallSid}`
+    `[TwilioVoice] Inbound call — To:${To} From:${From} SID:${CallSid}`
   );
 
   // ── 2. Look up clientPhoneNumbers by To ───────────────────────────────────
@@ -114,7 +125,7 @@ export async function handleIncomingVoiceCall(
 
   if (phoneRows.length === 0) {
     console.warn(
-      `[twilioVoice.handleIncomingVoiceCall] Unknown To number: ${To} — rejecting`
+      `[TwilioVoice] Unknown To number: ${To} — rejecting`
     );
     res.status(404).type("text/xml").send("<Response><Reject/></Response>");
     return;
@@ -133,7 +144,7 @@ export async function handleIncomingVoiceCall(
       ? `subscription=${phone.subscriptionStatus}`
       : `inboundMinutesUsed=${phone.inboundMinutesUsed} >= ${INBOUND_CAP_MINUTES}`;
     console.log(
-      `[twilioVoice.handleIncomingVoiceCall] Subscription/cap gate triggered (${reason}) — clientId:${phone.clientId}`
+      `[TwilioVoice] Subscription/cap gate triggered (${reason}) — clientId:${phone.clientId}`
     );
 
     if (phone.aiFallbackEnabled) {
@@ -181,7 +192,7 @@ export async function handleIncomingVoiceCall(
 
   if (inProgressRows.length > 0) {
     console.log(
-      `[twilioVoice.handleIncomingVoiceCall] Concurrent call in progress — routing to Vapi fallback — clientId:${phone.clientId}`
+      `[TwilioVoice] Concurrent call in progress — routing to Vapi fallback — clientId:${phone.clientId}`
     );
     const callLogId = await insertCallLog(db, {
       clientId: phone.clientId,
@@ -224,7 +235,7 @@ export async function handleIncomingVoiceCall(
   });
 
   console.log(
-    `[twilioVoice.handleIncomingVoiceCall] callLog inserted — id:${callLogId} clientId:${phone.clientId} sid:${CallSid}`
+    `[TwilioVoice] callLog inserted — id:${callLogId} clientId:${phone.clientId} sid:${CallSid}`
   );
 
   // ── 7. VoIP push ───────────────────────────────────────────────────────────
@@ -241,7 +252,7 @@ export async function handleIncomingVoiceCall(
     // Log but don't fail — Twilio still processes the TwiML we return, so the
     // call will ring via the Twilio Client web-socket if the app is foregrounded.
     console.error(
-      "[twilioVoice.handleIncomingVoiceCall] sendIncomingCallPush failed — continuing",
+      "[TwilioVoice] sendIncomingCallPush failed — continuing",
       e
     );
   }
@@ -274,12 +285,16 @@ type InsertCallLogParams = {
 /**
  * INSERT a call_logs row with status='ringing' and direction='inbound'.
  * Returns the new row's auto-incremented id.
+ *
+ * Idempotent: Twilio retries POSTs on any 5xx for ~24 hours. If the INSERT
+ * hits a ER_DUP_ENTRY on twilioCallSid (errno 1062), we SELECT the existing
+ * row and return its id so the handler can proceed without looping.
  */
 async function insertCallLog(
   db: Awaited<ReturnType<typeof getDb>> & {},
   params: InsertCallLogParams
 ): Promise<number> {
-  const result = await db.insert(callLogs).values({
+  const values: InsertCallLog = {
     clientId: params.clientId,
     twilioCallSid: params.twilioCallSid,
     direction: "inbound",
@@ -289,7 +304,36 @@ async function insertCallLog(
     customerPhone: params.customerPhone,
     tradieCustomerId: params.tradieCustomerId ?? undefined,
     calledAt: new Date(),
-  }).$returningId();
+  };
 
-  return result[0].id;
+  try {
+    const inserted = await db.insert(callLogs).values(values).$returningId();
+    if (!inserted[0]?.id) {
+      throw new Error(
+        `insertCallLog returned no id for twilioCallSid=${params.twilioCallSid}`
+      );
+    }
+    return inserted[0].id;
+  } catch (err: unknown) {
+    const code = (err as { code?: string; errno?: number }).code;
+    const errno = (err as { code?: string; errno?: number }).errno;
+    if (code === "ER_DUP_ENTRY" || errno === 1062) {
+      console.warn(
+        "[TwilioVoice] retry detected, looking up existing row",
+        { twilioCallSid: params.twilioCallSid }
+      );
+      const existing = await db
+        .select({ id: callLogs.id })
+        .from(callLogs)
+        .where(eq(callLogs.twilioCallSid, params.twilioCallSid))
+        .limit(1);
+      if (!existing[0]?.id) {
+        throw new Error(
+          `Duplicate-key on insertCallLog for twilioCallSid=${params.twilioCallSid} but follow-up SELECT returned empty`
+        );
+      }
+      return existing[0].id;
+    }
+    throw err;
+  }
 }

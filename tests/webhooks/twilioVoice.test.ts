@@ -372,6 +372,79 @@ describe("handleIncomingVoiceCall", () => {
     });
   });
 
+  // ── 8. Dup-key on INSERT (Twilio retry) → recovers, proceeds as normal ───────
+  it("dup-key on insertCallLog (Twilio retry) → recovers existing row id and calls sendIncomingCallPush", async () => {
+    const EXISTING_ID = 123;
+    const phoneRow = makePhoneRow({ subscriptionStatus: "active", inboundMinutesUsed: 10 });
+
+    // Build a special DB mock: INSERT throws ER_DUP_ENTRY, then SELECT returns existing row
+    const dupKeyError = Object.assign(new Error("Duplicate entry"), {
+      code: "ER_DUP_ENTRY",
+      errno: 1062,
+    });
+
+    // The recovery SELECT after dup-key, plus the normal customer lookup SELECT
+    // We need to control what queue slot gets used. We'll use a custom db where
+    // insert throws on first call, and limit returns results in order.
+    const queue: unknown[][] = [
+      [phoneRow],                // clientPhoneNumbers lookup
+      [],                        // callLogs in_progress check → none
+      [{ id: 5 }],              // tradieCustomers lookup
+      [{ id: EXISTING_ID }],     // recovery SELECT after dup-key
+    ];
+    const returningId = vi.fn().mockRejectedValue(dupKeyError);
+    const values = vi.fn().mockReturnValue({ $returningId: returningId });
+    const insert = vi.fn().mockReturnValue({ values });
+
+    const limit = vi.fn().mockImplementation(() => {
+      const rows = queue.shift() ?? [];
+      return Promise.resolve(rows);
+    });
+    const where = vi.fn().mockReturnValue({ limit });
+    const from = vi.fn().mockReturnValue({ where });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const db = { select, insert, _values: values, _returningId: returningId };
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeReq();
+    const res = makeRes();
+
+    await handleIncomingVoiceCall(req, res);
+
+    // Should have proceeded normally — same TwiML as happy path
+    expect(res._status).toBe(200);
+    expect(res._body).toContain("<Dial");
+
+    // sendIncomingCallPush must be called with the EXISTING id, not a new one
+    expect(mockSendIncomingCallPush).toHaveBeenCalledOnce();
+    expect(mockSendIncomingCallPush).toHaveBeenCalledWith(
+      expect.objectContaining({ callLogId: EXISTING_ID })
+    );
+  });
+
+  // ── 9. Empty TWILIO_AUTH_TOKEN in production → 500 ────────────────────────
+  it("empty TWILIO_AUTH_TOKEN in production → 500 + empty TwiML, no DB call", async () => {
+    const savedNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    delete process.env.TWILIO_AUTH_TOKEN;
+
+    const req = makeReq();
+    const res = makeRes();
+
+    try {
+      await handleIncomingVoiceCall(req, res);
+    } finally {
+      process.env.NODE_ENV = savedNodeEnv;
+      process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+    }
+
+    expect(res._status).toBe(500);
+    expect(res._body).toBe("<Response/>");
+    expect(mockGetDb).not.toHaveBeenCalled();
+    expect(mockSendIncomingCallPush).not.toHaveBeenCalled();
+  });
+
   // ── Bonus: voipPush throws → still returns Dial TwiML ────────────────────────
   it("sendIncomingCallPush throws → logs error but still returns Dial TwiML", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
