@@ -29,6 +29,7 @@ import { scheduleAppointmentReminderCron } from "../cron/appointmentReminder";
 import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
 import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
 import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
+import { registerUsageTrackingCron } from "../cron/usageTracking";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
 import { handleIncomingVoiceCall, handleDialResult, handleRecording, handleOutgoing, handleStatus } from "../webhooks/twilioVoice";
 
@@ -223,6 +224,7 @@ async function startServer() {
   scheduleLicenceExpiryWarningCron();
   scheduleIdleJobNudgeCron();
   scheduleMaintenanceCron();
+  registerUsageTrackingCron();
 
   // Bind to 0.0.0.0 so containerised platforms (Railway, Docker) can route to us.
   // "localhost" would only accept loopback traffic and the container would look dead.
