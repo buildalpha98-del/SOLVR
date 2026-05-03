@@ -139,7 +139,8 @@ describe("sendIncomingCallPush", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("410 cleanup — deletes the dead token row", async () => {
+  it("410 cleanup — deletes the dead token row and logs a warn", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const tokens = [
       makeToken({ token: "tok-alive", deviceId: "dev-A" }),
       makeToken({ token: "tok-dead", deviceId: "dev-B" }),
@@ -162,6 +163,46 @@ describe("sendIncomingCallPush", () => {
     // delete().where() should have been called once for the dead token
     expect(db.delete).toHaveBeenCalledOnce();
     expect(db._deleteWhere).toHaveBeenCalledOnce();
+    // 410 reap should be logged
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[voipPush.sendIncomingCallPush] reaped invalid VoIP token",
+      expect.objectContaining({ userId: 10, device: "tok-dead" })
+    );
+  });
+
+  it("non-410 failure — returns sent.length and logs console.error with details", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const tokens = [
+      makeToken({ token: "tok-A", deviceId: "dev-A" }),
+      makeToken({ token: "tok-B", deviceId: "dev-B" }),
+    ];
+    const db = makeDb(tokens);
+    mockGetDb.mockResolvedValue(db);
+    mockSend.mockResolvedValue({
+      sent: [{ device: "tok-A" }],
+      failed: [{ status: 500, device: "tok-B", error: "InternalServerError" }],
+    });
+
+    const result = await sendIncomingCallPush({
+      userId: 10,
+      callLogId: 7,
+      fromNumber: "+61400000002",
+      callSid: "CA500",
+    });
+
+    expect(result).toBe(1);
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[voipPush.sendIncomingCallPush] APNs returned non-410 failures",
+      expect.objectContaining({
+        userId: 10,
+        callSid: "CA500",
+        failureCount: 1,
+        failures: expect.arrayContaining([
+          expect.objectContaining({ device: "tok-B", status: 500 }),
+        ]),
+      })
+    );
   });
 
   it("missing env vars — throws clearly naming the missing vars", async () => {
@@ -227,5 +268,66 @@ describe("sendCancelPush", () => {
 
     expect(result).toBe(0);
     expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("410 cleanup — deletes the dead token row and logs a warn", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const tokens = [
+      makeToken({ token: "tok-B", deviceId: "device-B" }),
+      makeToken({ token: "tok-C", deviceId: "device-C" }),
+    ];
+    const db = makeDb(tokens);
+    mockGetDb.mockResolvedValue(db);
+    mockSend.mockResolvedValue({
+      sent: [{ device: "tok-B" }],
+      failed: [{ status: 410, device: "tok-C" }],
+    });
+
+    const result = await sendCancelPush({
+      userId: 10,
+      callSid: "CA777",
+      exceptDeviceId: "device-A",
+    });
+
+    expect(result).toBe(1);
+    expect(db.delete).toHaveBeenCalledOnce();
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[voipPush.sendCancelPush] reaped invalid VoIP token",
+      expect.objectContaining({ userId: 10, device: "tok-C" })
+    );
+  });
+
+  it("non-410 failure — returns sent.length and logs console.error with details", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const tokens = [
+      makeToken({ token: "tok-B", deviceId: "device-B" }),
+      makeToken({ token: "tok-C", deviceId: "device-C" }),
+    ];
+    const db = makeDb(tokens);
+    mockGetDb.mockResolvedValue(db);
+    mockSend.mockResolvedValue({
+      sent: [{ device: "tok-B" }],
+      failed: [{ status: 400, device: "tok-C", error: "BadDeviceToken" }],
+    });
+
+    const result = await sendCancelPush({
+      userId: 10,
+      callSid: "CA400",
+      exceptDeviceId: "device-A",
+    });
+
+    expect(result).toBe(1);
+    expect(db.delete).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[voipPush.sendCancelPush] APNs returned non-410 failures",
+      expect.objectContaining({
+        userId: 10,
+        callSid: "CA400",
+        failureCount: 1,
+        failures: expect.arrayContaining([
+          expect.objectContaining({ device: "tok-C", status: 400 }),
+        ]),
+      })
+    );
   });
 });

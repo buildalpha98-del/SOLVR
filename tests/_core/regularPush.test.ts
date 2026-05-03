@@ -146,7 +146,8 @@ describe("sendCallSummaryPush", () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("410 cleanup — NULLs the regularApnsToken column, does not delete the row", async () => {
+  it("410 cleanup — NULLs the regularApnsToken column, does not delete the row, logs warn", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const tokens = [
       makeToken({ regularApnsToken: "reg-alive", deviceId: "dev-A" }),
       makeToken({ id: 2, regularApnsToken: "reg-dead", deviceId: "dev-B" }),
@@ -170,6 +171,46 @@ describe("sendCallSummaryPush", () => {
     expect(db.update).toHaveBeenCalledOnce();
     expect(db._updateSet).toHaveBeenCalledWith({ regularApnsToken: null });
     expect(db._updateWhere).toHaveBeenCalledOnce();
+    // 410 reap should be logged
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[regularPush.sendCallSummaryPush] NULLed regularApnsToken on token-invalid",
+      expect.objectContaining({ userId: 10, device: "reg-dead" })
+    );
+  });
+
+  it("non-410 failure — returns sent.length and logs console.error with details", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const tokens = [
+      makeToken({ regularApnsToken: "reg-tok-A", deviceId: "dev-A" }),
+      makeToken({ id: 2, regularApnsToken: "reg-tok-B", deviceId: "dev-B" }),
+    ];
+    const db = makeDb(tokens);
+    mockGetDb.mockResolvedValue(db);
+    mockSend.mockResolvedValue({
+      sent: [{ device: "reg-tok-A" }],
+      failed: [{ status: 500, device: "reg-tok-B", error: "InternalServerError" }],
+    });
+
+    const result = await sendCallSummaryPush({
+      userId: 10,
+      callLogId: 9,
+      callerName: "Dave",
+      summary: "Blocked sewer",
+    });
+
+    expect(result).toBe(1);
+    expect(db.update).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[regularPush.sendCallSummaryPush] APNs returned non-410 failures",
+      expect.objectContaining({
+        userId: 10,
+        callLogId: 9,
+        failureCount: 1,
+        failures: expect.arrayContaining([
+          expect.objectContaining({ device: "reg-tok-B", status: 500 }),
+        ]),
+      })
+    );
   });
 
   it("missing env vars — throws clearly naming the missing vars", async () => {

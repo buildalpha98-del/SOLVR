@@ -87,10 +87,26 @@ export async function sendIncomingCallPush(opts: SendIncomingCallPushOpts): Prom
 
   // Reap dead tokens
   for (const failure of result.failed) {
-    if (failure.status === 410) {
+    if (Number(failure.status) === 410) {
       await db.delete(voipPushTokens).where(eq(voipPushTokens.token, failure.device));
+      console.warn("[voipPush.sendIncomingCallPush] reaped invalid VoIP token", {
+        userId: opts.userId,
+        device: failure.device,
+      });
     }
   }
+
+  // Surface non-410 failures so they don't disappear silently
+  const otherFailures = result.failed.filter(f => Number(f.status) !== 410);
+  if (otherFailures.length > 0) {
+    console.error("[voipPush.sendIncomingCallPush] APNs returned non-410 failures", {
+      userId: opts.userId,
+      callSid: opts.callSid,
+      failureCount: otherFailures.length,
+      failures: otherFailures.map(f => ({ device: f.device, status: f.status, error: f.error })),
+    });
+  }
+
   return result.sent.length;
 }
 
@@ -130,9 +146,25 @@ export async function sendCancelPush(opts: SendCancelPushOpts): Promise<number> 
 
   // Reap dead tokens
   for (const failure of result.failed) {
-    if (failure.status === 410) {
+    if (Number(failure.status) === 410) {
       await db.delete(voipPushTokens).where(eq(voipPushTokens.token, failure.device));
+      console.warn("[voipPush.sendCancelPush] reaped invalid VoIP token", {
+        userId: opts.userId,
+        device: failure.device,
+      });
     }
   }
+
+  // Surface non-410 failures so they don't disappear silently
+  const otherFailures = result.failed.filter(f => Number(f.status) !== 410);
+  if (otherFailures.length > 0) {
+    console.error("[voipPush.sendCancelPush] APNs returned non-410 failures", {
+      userId: opts.userId,
+      callSid: opts.callSid,
+      failureCount: otherFailures.length,
+      failures: otherFailures.map(f => ({ device: f.device, status: f.status, error: f.error })),
+    });
+  }
+
   return result.sent.length;
 }

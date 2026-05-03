@@ -94,13 +94,29 @@ export async function sendCallSummaryPush(opts: SendCallSummaryPushOpts): Promis
 
   // Reap dead regular tokens
   for (const failure of result.failed) {
-    if (failure.status === 410) {
+    if (Number(failure.status) === 410) {
       // NULL the regularApnsToken column for this token (don't delete the row,
       // the VoIP token may still be valid)
       await db.update(voipPushTokens)
         .set({ regularApnsToken: null })
         .where(eq(voipPushTokens.regularApnsToken, failure.device));
+      console.warn("[regularPush.sendCallSummaryPush] NULLed regularApnsToken on token-invalid", {
+        userId: opts.userId,
+        device: failure.device,
+      });
     }
   }
+
+  // Surface non-410 failures so they don't disappear silently
+  const otherFailures = result.failed.filter(f => Number(f.status) !== 410);
+  if (otherFailures.length > 0) {
+    console.error("[regularPush.sendCallSummaryPush] APNs returned non-410 failures", {
+      userId: opts.userId,
+      callLogId: opts.callLogId,
+      failureCount: otherFailures.length,
+      failures: otherFailures.map(f => ({ device: f.device, status: f.status, error: f.error })),
+    });
+  }
+
   return result.sent.length;
 }
