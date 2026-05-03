@@ -29,7 +29,9 @@ import { scheduleAppointmentReminderCron } from "../cron/appointmentReminder";
 import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
 import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
 import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
+import { registerUsageTrackingCron } from "../cron/usageTracking";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
+import { handleIncomingVoiceCall, handleDialResult, handleRecording, handleOutgoing, handleStatus } from "../webhooks/twilioVoice";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -156,6 +158,13 @@ async function startServer() {
   // Uses urlencoded body (Twilio sends application/x-www-form-urlencoded)
   app.post("/api/twilio/inbound-sms", express.urlencoded({ extended: false }), handleTwilioInboundSms);
 
+  // Cloud Phone V2 — Twilio voice webhooks (urlencoded body)
+  app.post("/api/webhooks/twilio/voice", express.urlencoded({ extended: false }), handleIncomingVoiceCall);
+  app.post("/api/webhooks/twilio/dial-result", express.urlencoded({ extended: false }), handleDialResult);
+  app.post("/api/webhooks/twilio/recording", express.urlencoded({ extended: false }), handleRecording);
+  app.post("/api/webhooks/twilio/outgoing", express.urlencoded({ extended: false }), handleOutgoing);
+  app.post("/api/webhooks/twilio/status", express.urlencoded({ extended: false }), handleStatus);
+
   // Xero OAuth start + callback — see server/xeroOAuth.ts for the flow.
   // The start endpoint requires an authenticated portal session; the
   // callback verifies a short-lived state cookie set by start.
@@ -215,6 +224,7 @@ async function startServer() {
   scheduleLicenceExpiryWarningCron();
   scheduleIdleJobNudgeCron();
   scheduleMaintenanceCron();
+  registerUsageTrackingCron();
 
   // Bind to 0.0.0.0 so containerised platforms (Railway, Docker) can route to us.
   // "localhost" would only accept loopback traffic and the container would look dead.

@@ -14,6 +14,7 @@
  * the previous Forge-backed implementation — all 16 callers work as-is.
  */
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -131,6 +132,19 @@ export async function storageGet(
     { expiresIn: 60 * 60 }
   );
   return { key, url };
+}
+
+/**
+ * Delete an object from R2.
+ *
+ * Does not throw if the object doesn't exist — R2/S3 DeleteObject is
+ * idempotent and returns 204 whether or not the key was present.
+ */
+export async function storageDelete(relKey: string): Promise<void> {
+  const cfg = getR2Config();
+  const client = getClient(cfg);
+  const key = normalizeKey(relKey);
+  await client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: key }));
 }
 
 /**
