@@ -25,7 +25,9 @@ import {
   tradieCustomers,
   type InsertCallLog,
 } from "../../drizzle/schema";
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
+import { storagePut } from "../storage";
+import { analyseCallTranscript } from "../_core/callIntelligence";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const INBOUND_CAP_MINUTES = 200;
@@ -533,4 +535,245 @@ export async function handleDialResult(
   res.type("text/xml").send(
     `<Response><Say voice="Polly.Nicole">You've reached ${businessName}. Please leave a message after the beep.</Say><Record maxLength="120" action="/api/webhooks/twilio/recording" /></Response>`
   );
+}
+
+// ── handleRecording ───────────────────────────────────────────────────────────
+
+const SECONDS_PER_MINUTE = 60;
+
+/**
+ * POST /api/webhooks/twilio/recording
+ *
+ * Fires when Twilio finishes processing a call recording. Idempotent via
+ * recordingSid guard: once a recording is uploaded for a callSid, subsequent
+ * POSTs (Twilio's 24h retry window) short-circuit to 200 + skip.
+ *
+ * Steps:
+ *   1. Validate Twilio signature
+ *   2. Look up callLog by CallSid
+ *   3. Idempotency check (recordingSid already set → skip)
+ *   4. Fetch .mp3 from Twilio with Basic auth
+ *   5. Upload to R2 at call-recordings/{clientId}/{callLogId}.mp3
+ *   6. UPDATE callLog: recordingUrl, recordingSid, durationSeconds
+ *   7. Atomic increment of inbound/outboundMinutesUsed by Math.ceil(duration/60)
+ *   8. Trigger AI analysis pipeline (Chunk 4 stub; Chunk 5 fills it in)
+ *   9. Return empty TwiML
+ *
+ * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 4.4)
+ */
+export async function handleRecording(
+  req: Request,
+  res: Response
+): Promise<void> {
+  // ── 1. Validate Twilio signature ───────────────────────────────────────────
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!authToken) {
+    if (isProd) {
+      console.error(
+        "[TwilioVoice] TWILIO_AUTH_TOKEN missing in production — rejecting all webhooks"
+      );
+      res.status(500).type("text/xml").send("<Response/>");
+      return;
+    }
+    console.warn(
+      "[TwilioVoice] TWILIO_AUTH_TOKEN not set — skipping signature validation (DEV ONLY)"
+    );
+  } else {
+    const signature = req.headers["x-twilio-signature"] as string | undefined;
+    const isValid = validateTwilioSignature({
+      authToken,
+      signature,
+      url: buildWebhookUrl("/api/webhooks/twilio/recording"),
+      params: req.body as Record<string, string>,
+    });
+
+    if (!isValid) {
+      console.warn(
+        "[TwilioVoice] recording: Invalid or missing Twilio signature — rejecting"
+      );
+      res.status(403).type("text/xml").send("<Response/>");
+      return;
+    }
+  }
+
+  // ── 2. Parse body ──────────────────────────────────────────────────────────
+  const { CallSid, RecordingSid, RecordingUrl, RecordingDuration } =
+    req.body as {
+      CallSid: string;
+      RecordingSid: string;
+      RecordingUrl: string;
+      RecordingDuration: string;
+    };
+
+  console.log(
+    `[TwilioVoice] /recording — CallSid:${CallSid} RecordingSid:${RecordingSid} Duration:${RecordingDuration}s`
+  );
+
+  // ── 3. DB availability ─────────────────────────────────────────────────────
+  const db = await getDb();
+  if (!db) {
+    console.error("[TwilioVoice] recording: DB unavailable — returning 500");
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 4. Look up callLog by CallSid ──────────────────────────────────────────
+  const callLogRows = await db
+    .select()
+    .from(callLogs)
+    .where(eq(callLogs.twilioCallSid, CallSid))
+    .limit(1);
+
+  if (callLogRows.length === 0) {
+    console.warn(
+      `[TwilioVoice] recording: callLog not found for CallSid=${CallSid} — rejecting`
+    );
+    res.status(404).type("text/xml").send("<Response><Reject/></Response>");
+    return;
+  }
+
+  const callLog = callLogRows[0];
+
+  // ── 5. Idempotency guard ───────────────────────────────────────────────────
+  // Once recordingSid is written, all future retries for this callSid no-op.
+  if (callLog.recordingSid) {
+    console.log(
+      "[TwilioVoice] /recording: already processed, skipping",
+      { CallSid, recordingSid: callLog.recordingSid }
+    );
+    res.type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 6. Fetch audio from Twilio ─────────────────────────────────────────────
+  let audioBuffer: Buffer;
+  try {
+    audioBuffer = await fetchTwilioRecording(RecordingUrl);
+  } catch (err) {
+    console.error(
+      "[TwilioVoice] recording: Twilio audio fetch failed — returning 500 for retry",
+      err
+    );
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 7. Upload to R2 ────────────────────────────────────────────────────────
+  const relKey = `call-recordings/${callLog.clientId}/${callLog.id}.mp3`;
+  let recordingUrl: string;
+  try {
+    const result = await storagePut(relKey, audioBuffer, "audio/mpeg");
+    recordingUrl = result.url;
+  } catch (err) {
+    console.error(
+      "[TwilioVoice] recording: R2 upload failed — returning 500 for retry",
+      err
+    );
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 8. UPDATE callLog ──────────────────────────────────────────────────────
+  const durationSeconds = parseInt(RecordingDuration, 10) || 0;
+  try {
+    await db
+      .update(callLogs)
+      .set({
+        recordingUrl,
+        recordingSid: RecordingSid,
+        durationSeconds,
+      })
+      .where(eq(callLogs.id, callLog.id));
+  } catch (err) {
+    // KNOWN MINOR ISSUE (V2): audio is already in R2 but the callLog
+    // recordingSid was not written. Twilio will retry; the next attempt will
+    // re-fetch and re-upload the same key (R2 PUT is idempotent). The
+    // idempotency guard only fires once recordingSid lands successfully.
+    console.error(
+      "[TwilioVoice] recording: DB update failed after R2 upload — returning 500 for retry",
+      { callLogId: callLog.id, r2Key: relKey },
+      err
+    );
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 9. Atomic minute counter increment ────────────────────────────────────
+  const minutesUsed = Math.ceil(durationSeconds / SECONDS_PER_MINUTE);
+  const direction = callLog.direction; // "inbound" | "outbound"
+
+  try {
+    if (direction === "inbound") {
+      await db
+        .update(clientPhoneNumbers)
+        .set({
+          inboundMinutesUsed: sql`${clientPhoneNumbers.inboundMinutesUsed} + ${minutesUsed}`,
+        })
+        .where(eq(clientPhoneNumbers.clientId, callLog.clientId));
+    } else {
+      await db
+        .update(clientPhoneNumbers)
+        .set({
+          outboundMinutesUsed: sql`${clientPhoneNumbers.outboundMinutesUsed} + ${minutesUsed}`,
+        })
+        .where(eq(clientPhoneNumbers.clientId, callLog.clientId));
+    }
+  } catch (err) {
+    // Non-fatal for the recording itself — the audio and callLog are saved.
+    // Log loudly so the billing discrepancy is visible but don't return 500
+    // (Twilio would re-trigger the whole flow including duplicate AI runs).
+    console.error(
+      "[TwilioVoice] recording: minute counter update failed — audio saved but usage not incremented",
+      { callLogId: callLog.id, direction, minutesUsed },
+      err
+    );
+  }
+
+  // ── 10. Trigger AI analysis ────────────────────────────────────────────────
+  try {
+    await analyseCallTranscript(callLog.id);
+  } catch (err) {
+    // Non-fatal — audio + billing are the critical writes. AI can be retried
+    // manually or by a future background job.
+    console.error(
+      "[TwilioVoice] recording: AI analysis trigger failed",
+      { callLogId: callLog.id },
+      err
+    );
+  }
+
+  console.log(
+    `[TwilioVoice] /recording: done — callLogId:${callLog.id} r2Key:${relKey} duration:${durationSeconds}s minutes:${minutesUsed}`
+  );
+
+  // ── 11. Return empty TwiML ─────────────────────────────────────────────────
+  res.type("text/xml").send("<Response/>");
+}
+
+// ── fetchTwilioRecording ──────────────────────────────────────────────────────
+
+/**
+ * Fetches the MP3 audio for a Twilio recording using HTTP Basic auth.
+ * Appends ".mp3" to the RecordingUrl if not already present (Twilio's default
+ * URL returns JSON metadata; the binary audio needs the explicit extension).
+ */
+async function fetchTwilioRecording(recordingUrl: string): Promise<Buffer> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!accountSid || !authToken) {
+    throw new Error("TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN required");
+  }
+  const url = recordingUrl.endsWith(".mp3") ? recordingUrl : `${recordingUrl}.mp3`;
+  const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  const resp = await fetch(url, {
+    headers: { Authorization: `Basic ${auth}` },
+  });
+  if (!resp.ok) {
+    throw new Error(
+      `Twilio recording fetch failed: ${resp.status} ${resp.statusText}`
+    );
+  }
+  return Buffer.from(await resp.arrayBuffer());
 }

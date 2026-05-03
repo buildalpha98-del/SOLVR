@@ -764,3 +764,326 @@ describe("handleDialResult", () => {
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handleRecording — Task 4.4
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Hoist storage + AI mocks so vi.mock() factories can reference them
+const { mockStoragePut, mockAnalyseCallTranscript } = vi.hoisted(() => ({
+  mockStoragePut: vi.fn(),
+  mockAnalyseCallTranscript: vi.fn(),
+}));
+
+vi.mock("../../server/storage", () => ({ storagePut: mockStoragePut }));
+vi.mock("../../server/_core/callIntelligence", () => ({
+  analyseCallTranscript: mockAnalyseCallTranscript,
+}));
+
+// Import handleRecording after mocks are in place
+import { handleRecording } from "../../server/webhooks/twilioVoice";
+
+const RECORDING_SID = "REtest789";
+const RECORDING_URL = "https://api.twilio.com/2010-04-01/Accounts/ACtest/Recordings/REtest789";
+const RECORDING_DURATION = "90"; // 90 seconds → 2 minutes (Math.ceil)
+const R2_URL = "https://cdn.solvr.com.au/call-recordings/42/99.mp3";
+const R2_KEY = "call-recordings/42/99.mp3";
+
+/**
+ * callLog fixture for /recording tests.
+ * direction defaults to "inbound" — override to "outbound" for outbound tests.
+ */
+function makeCallLogRow(overrides: Partial<typeof CALL_LOG_ROW> = {}) {
+  return {
+    ...CALL_LOG_ROW,
+    twilioCallSid: CALL_SID,
+    recordingSid: null,
+    recordingUrl: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Build a minimal mock DB for handleRecording:
+ *   - select chain: queue-based
+ *   - update chain: returns void
+ */
+function makeRecordingDb(opts: {
+  selectResultsQueue: unknown[][];
+}) {
+  const queue = [...opts.selectResultsQueue];
+
+  const limit = vi.fn().mockImplementation(() => {
+    const rows = queue.shift() ?? [];
+    return Promise.resolve(rows);
+  });
+  const selectWhere = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where: selectWhere });
+  const select = vi.fn().mockReturnValue({ from });
+
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const set = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set });
+
+  return {
+    select,
+    update,
+    _update: update,
+    _set: set,
+    _updateWhere: updateWhere,
+    _limit: limit,
+  };
+}
+
+/** Build a mock recording request */
+function makeRecordingReq(overrides: Partial<{
+  body: Record<string, string>;
+  headers: Record<string, string>;
+}> = {}) {
+  return {
+    body: {
+      CallSid: CALL_SID,
+      RecordingSid: RECORDING_SID,
+      RecordingUrl: RECORDING_URL,
+      RecordingDuration: RECORDING_DURATION,
+      ...overrides.body,
+    },
+    headers: {
+      "x-twilio-signature": "valid-sig",
+      ...overrides.headers,
+    },
+    header(name: string) {
+      return (this.headers as Record<string, string>)[name.toLowerCase()];
+    },
+  } as unknown as import("express").Request;
+}
+
+describe("handleRecording", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockValidateTwilioSignature.mockReturnValue(true);
+    process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+    process.env.TWILIO_ACCOUNT_SID = "ACtest";
+
+    // Default: fetch returns a valid MP3 buffer
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => Buffer.from("fake-mp3-data").buffer,
+    } as unknown as Response);
+
+    // Default: storagePut succeeds
+    mockStoragePut.mockResolvedValue({ key: R2_KEY, url: R2_URL });
+
+    // Default: AI analysis stub resolves
+    mockAnalyseCallTranscript.mockResolvedValue(undefined);
+  });
+
+  // ── 1. Invalid Twilio signature → 403 ───────────────────────────────────────
+  it("invalid Twilio signature → 403 + empty TwiML", async () => {
+    mockValidateTwilioSignature.mockReturnValue(false);
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(403);
+    expect(res._body).toBe("<Response/>");
+    expect(mockGetDb).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(mockStoragePut).not.toHaveBeenCalled();
+  });
+
+  // ── 2. callLog not found → 404 + Reject ─────────────────────────────────────
+  it("callLog not found by twilioCallSid → 404 + Reject TwiML", async () => {
+    const db = makeRecordingDb({ selectResultsQueue: [[]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(404);
+    expect(res._body).toContain("<Reject/>");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(mockStoragePut).not.toHaveBeenCalled();
+  });
+
+  // ── 3. Idempotency: recordingSid already set → 200, no side-effects ──────────
+  it("idempotency: callLog already has recordingSid set → 200 + skip, no fetch/upload/counter change", async () => {
+    const alreadyProcessed = makeCallLogRow({ recordingSid: RECORDING_SID });
+    const db = makeRecordingDb({ selectResultsQueue: [[alreadyProcessed]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toBe("<Response/>");
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(mockStoragePut).not.toHaveBeenCalled();
+    expect(db._update).not.toHaveBeenCalled();
+    expect(mockAnalyseCallTranscript).not.toHaveBeenCalled();
+  });
+
+  // ── 4. Happy path (inbound) ──────────────────────────────────────────────────
+  it("happy path (inbound): fetches audio, uploads to R2, updates callLog, increments inboundMinutesUsed, triggers AI", async () => {
+    const callLogRow = makeCallLogRow({ direction: "inbound" });
+    const db = makeRecordingDb({ selectResultsQueue: [[callLogRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toBe("<Response/>");
+
+    // R2 upload called with correct key and content type
+    expect(mockStoragePut).toHaveBeenCalledOnce();
+    expect(mockStoragePut).toHaveBeenCalledWith(
+      `call-recordings/${CLIENT_ID}/${CALL_LOG_ID}.mp3`,
+      expect.any(Buffer),
+      "audio/mpeg"
+    );
+
+    // callLog updated with recordingUrl, recordingSid, durationSeconds
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recordingUrl: R2_URL,
+        recordingSid: RECORDING_SID,
+        durationSeconds: 90,
+      })
+    );
+
+    // inboundMinutesUsed incremented atomically (Math.ceil(90/60)=2)
+    expect(db._update).toHaveBeenCalledTimes(2); // callLog + clientPhoneNumbers
+    const secondUpdateCall = db._set.mock.calls[1]?.[0];
+    // Should contain inboundMinutesUsed SQL expression (not outbound)
+    expect(secondUpdateCall).toHaveProperty("inboundMinutesUsed");
+    expect(secondUpdateCall).not.toHaveProperty("outboundMinutesUsed");
+
+    // AI triggered with correct callLogId
+    expect(mockAnalyseCallTranscript).toHaveBeenCalledOnce();
+    expect(mockAnalyseCallTranscript).toHaveBeenCalledWith(CALL_LOG_ID);
+  });
+
+  // ── 5. Happy path (outbound) ─────────────────────────────────────────────────
+  it("happy path (outbound): increments outboundMinutesUsed (not inbound)", async () => {
+    const callLogRow = makeCallLogRow({ direction: "outbound" });
+    const db = makeRecordingDb({ selectResultsQueue: [[callLogRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(200);
+
+    // Second update (minute counter) should set outboundMinutesUsed
+    const secondUpdateCall = db._set.mock.calls[1]?.[0];
+    expect(secondUpdateCall).toHaveProperty("outboundMinutesUsed");
+    expect(secondUpdateCall).not.toHaveProperty("inboundMinutesUsed");
+  });
+
+  // ── 6. Twilio fetch returns 4xx/5xx → 500 (let Twilio retry) ────────────────
+  it("Twilio fetch returns 4xx → 500, no DB writes", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    } as unknown as Response);
+
+    const callLogRow = makeCallLogRow();
+    const db = makeRecordingDb({ selectResultsQueue: [[callLogRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(500);
+    expect(mockStoragePut).not.toHaveBeenCalled();
+    expect(db._update).not.toHaveBeenCalled();
+    expect(mockAnalyseCallTranscript).not.toHaveBeenCalled();
+  });
+
+  // ── 7. R2 upload throws → 500 (let Twilio retry), no DB writes ──────────────
+  it("R2 upload throws → 500, no callLog updates", async () => {
+    mockStoragePut.mockRejectedValue(new Error("R2 connection timeout"));
+
+    const callLogRow = makeCallLogRow();
+    const db = makeRecordingDb({ selectResultsQueue: [[callLogRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(500);
+    expect(db._update).not.toHaveBeenCalled();
+    expect(mockAnalyseCallTranscript).not.toHaveBeenCalled();
+  });
+
+  // ── 8. DB update fails after R2 upload → 500 (inconsistency window, retry-safe) ──
+  it("DB update fails after R2 upload → 500, logs loudly", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Make the update chain reject on the first .where() call
+    const callLogRow = makeCallLogRow();
+    const updateWhere = vi.fn().mockRejectedValue(new Error("DB deadlock"));
+    const set = vi.fn().mockReturnValue({ where: updateWhere });
+    const update = vi.fn().mockReturnValue({ set });
+
+    const limit = vi.fn().mockResolvedValue([callLogRow]);
+    const selectWhere = vi.fn().mockReturnValue({ limit });
+    const from = vi.fn().mockReturnValue({ where: selectWhere });
+    const select = vi.fn().mockReturnValue({ from });
+
+    const db = { select, update, _update: update, _set: set, _updateWhere: updateWhere };
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq();
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(500);
+    expect(mockStoragePut).toHaveBeenCalledOnce(); // R2 upload happened
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("DB update failed after R2 upload"),
+      expect.anything(),
+      expect.any(Error)
+    );
+    expect(mockAnalyseCallTranscript).not.toHaveBeenCalled();
+
+    errorSpy.mockRestore();
+  });
+
+  // ── 9. Math.ceil minutes: 1-second call = 1 minute ───────────────────────────
+  it("1-second call → Math.ceil(1/60)=1 minute incremented", async () => {
+    const callLogRow = makeCallLogRow({ direction: "inbound" });
+    const db = makeRecordingDb({ selectResultsQueue: [[callLogRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeRecordingReq({ body: { RecordingDuration: "1" } });
+    const res = makeRes();
+
+    await handleRecording(req, res);
+
+    expect(res._status).toBe(200);
+    // durationSeconds=1 in callLog update
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({ durationSeconds: 1 })
+    );
+    // minute counter update fires (1 minute for 1s call)
+    const secondUpdateCall = db._set.mock.calls[1]?.[0];
+    expect(secondUpdateCall).toHaveProperty("inboundMinutesUsed");
+  });
+});
