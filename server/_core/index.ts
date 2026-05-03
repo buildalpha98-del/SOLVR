@@ -30,6 +30,7 @@ import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
 import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
 import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
+import { handleIncomingVoiceCall } from "../webhooks/twilioVoice";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -155,6 +156,9 @@ async function startServer() {
   // Twilio inbound SMS — receives customer replies to booking/quote SMS messages
   // Uses urlencoded body (Twilio sends application/x-www-form-urlencoded)
   app.post("/api/twilio/inbound-sms", express.urlencoded({ extended: false }), handleTwilioInboundSms);
+
+  // Cloud Phone V2 — Twilio voice webhooks (urlencoded body)
+  app.post("/api/webhooks/twilio/voice", express.urlencoded({ extended: false }), handleIncomingVoiceCall);
 
   // Xero OAuth start + callback — see server/xeroOAuth.ts for the flow.
   // The start endpoint requires an authenticated portal session; the
