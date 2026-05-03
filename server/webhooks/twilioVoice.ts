@@ -21,6 +21,7 @@ import { normalisePhone } from "../lib/phoneNumber";
 import {
   clientPhoneNumbers,
   callLogs,
+  crmClients,
   tradieCustomers,
   type InsertCallLog,
 } from "../../drizzle/schema";
@@ -35,15 +36,15 @@ const ALLOWED_SUBSCRIPTION_STATUSES = new Set(["trial", "active", "past_due"]);
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /**
- * Returns the canonical webhook URL Twilio signs against. We hardcode
- * the production URL because Twilio's signature is computed against
- * that exact string regardless of which environment the request arrives at.
- * (For local dev with ngrok, override via process.env.TWILIO_WEBHOOK_BASE_URL
- * if set.)
+ * Returns the canonical webhook URL Twilio signs against for a given path.
+ * We hardcode the production base URL because Twilio's signature is computed
+ * against that exact string regardless of which environment the request
+ * arrives at. (For local dev with ngrok, override via
+ * process.env.TWILIO_WEBHOOK_BASE_URL if set.)
  */
-function buildWebhookUrl(): string {
+function buildWebhookUrl(path: string): string {
   const base = process.env.TWILIO_WEBHOOK_BASE_URL ?? "https://solvr.com.au";
-  return `${base}/api/webhooks/twilio/voice`;
+  return `${base}${path}`;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ export async function handleIncomingVoiceCall(
     const isValid = validateTwilioSignature({
       authToken,
       signature,
-      url: buildWebhookUrl(),
+      url: buildWebhookUrl("/api/webhooks/twilio/voice"),
       params: req.body as Record<string, string>,
     });
 
@@ -336,4 +337,200 @@ async function insertCallLog(
     }
     throw err;
   }
+}
+
+// ── handleDialResult ──────────────────────────────────────────────────────────
+
+/**
+ * POST /api/webhooks/twilio/dial-result?callLogId=N
+ *
+ * Fires when the <Dial> verb from /voice ends. Twilio posts DialCallStatus
+ * ('completed' | 'no-answer' | 'busy' | 'failed') and DialCallDuration.
+ *
+ * Decision tree:
+ *   completed                            → status=completed, answeredBy=human
+ *   no-answer|busy|failed + aiFallback   → status=no_answer, answeredBy=ai_receptionist, Redirect to vapi-handoff
+ *   no-answer|busy|failed + no fallback  → status=voicemail, answeredBy=voicemail, Say+Record TwiML
+ *
+ * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 4.2)
+ */
+export async function handleDialResult(
+  req: Request,
+  res: Response
+): Promise<void> {
+  // ── 1. Validate Twilio signature ───────────────────────────────────────────
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!authToken) {
+    if (isProd) {
+      console.error(
+        "[TwilioVoice] TWILIO_AUTH_TOKEN missing in production — rejecting all webhooks"
+      );
+      res.status(500).type("text/xml").send("<Response/>");
+      return;
+    }
+    console.warn(
+      "[TwilioVoice] TWILIO_AUTH_TOKEN not set — skipping signature validation (DEV ONLY)"
+    );
+  } else {
+    const signature = req.headers["x-twilio-signature"] as string | undefined;
+    // Build the URL without query string — Twilio signs the base URL and
+    // includes query params as part of the POST body map when they are present.
+    const urlWithQuery = buildWebhookUrl("/api/webhooks/twilio/dial-result") +
+      (req.query.callLogId ? `?callLogId=${req.query.callLogId}` : "");
+    const isValid = validateTwilioSignature({
+      authToken,
+      signature,
+      url: urlWithQuery,
+      params: req.body as Record<string, string>,
+    });
+
+    if (!isValid) {
+      console.warn(
+        "[TwilioVoice] dial-result: Invalid or missing Twilio signature — rejecting"
+      );
+      res.status(403).type("text/xml").send("<Response/>");
+      return;
+    }
+  }
+
+  // ── 2. Parse + validate callLogId query param ──────────────────────────────
+  const rawId = req.query.callLogId;
+  if (!rawId || Array.isArray(rawId)) {
+    res.status(400).type("text/xml").send("<Response/>");
+    return;
+  }
+  const callLogId = parseInt(rawId as string, 10);
+  if (isNaN(callLogId) || callLogId <= 0) {
+    res.status(400).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 3. DB availability ─────────────────────────────────────────────────────
+  const db = await getDb();
+  if (!db) {
+    console.error("[TwilioVoice] dial-result: DB unavailable — returning 500");
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 4. Load callLog row ────────────────────────────────────────────────────
+  const callLogRows = await db
+    .select()
+    .from(callLogs)
+    .where(eq(callLogs.id, callLogId))
+    .limit(1);
+
+  if (callLogRows.length === 0) {
+    console.warn(
+      `[TwilioVoice] dial-result: callLog id=${callLogId} not found`
+    );
+    res.status(404).type("text/xml").send("<Response><Reject/></Response>");
+    return;
+  }
+
+  const callLog = callLogRows[0];
+
+  // ── 5. Load clientPhoneNumbers for aiFallbackEnabled ──────────────────────
+  const phoneRows = await db
+    .select()
+    .from(clientPhoneNumbers)
+    .where(eq(clientPhoneNumbers.clientId, callLog.clientId))
+    .limit(1);
+
+  const aiFallbackEnabled = phoneRows[0]?.aiFallbackEnabled ?? false;
+
+  // ── 6. Parse Twilio body fields ────────────────────────────────────────────
+  const { DialCallStatus, DialCallDuration } = req.body as {
+    DialCallStatus: string;
+    DialCallDuration?: string;
+  };
+
+  console.log(
+    `[TwilioVoice] dial-result callLogId=${callLogId} DialCallStatus=${DialCallStatus} aiFallback=${aiFallbackEnabled}`
+  );
+
+  const endedAt = new Date();
+
+  // ── 7. Branch on DialCallStatus ────────────────────────────────────────────
+
+  if (DialCallStatus === "completed") {
+    // Tradie answered — human pick-up
+    const durationSecs = DialCallDuration ? parseInt(DialCallDuration, 10) : undefined;
+
+    await db
+      .update(callLogs)
+      .set({
+        status: "completed",
+        answeredBy: "human",
+        answeredAt: new Date(),
+        endedAt,
+        ...(durationSecs != null && !isNaN(durationSecs)
+          ? { talkTimeSeconds: durationSecs }
+          : {}),
+      })
+      .where(eq(callLogs.id, callLogId));
+
+    // Empty TwiML — Twilio doesn't need further instructions after a completed dial
+    res.type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // No-pickup outcomes: no-answer, busy, failed
+  const isNoPickup =
+    DialCallStatus === "no-answer" ||
+    DialCallStatus === "busy" ||
+    DialCallStatus === "failed";
+
+  if (!isNoPickup) {
+    // Unknown status — log and return empty TwiML
+    console.warn(
+      `[TwilioVoice] dial-result: unexpected DialCallStatus=${DialCallStatus} — returning empty TwiML`
+    );
+    res.type("text/xml").send("<Response/>");
+    return;
+  }
+
+  if (aiFallbackEnabled) {
+    // Route to Vapi AI receptionist
+    await db
+      .update(callLogs)
+      .set({
+        status: "no_answer",
+        answeredBy: "ai_receptionist",
+        endedAt,
+      })
+      .where(eq(callLogs.id, callLogId));
+
+    res
+      .type("text/xml")
+      .send(
+        `<Response><Redirect>/api/webhooks/twilio/vapi-handoff?callLogId=${callLogId}</Redirect></Response>`
+      );
+    return;
+  }
+
+  // ── Voicemail path ─────────────────────────────────────────────────────────
+  // Look up businessName from crmClients for the greeting
+  const clientRows = await db
+    .select({ businessName: crmClients.businessName })
+    .from(crmClients)
+    .where(eq(crmClients.id, callLog.clientId))
+    .limit(1);
+
+  const businessName = clientRows[0]?.businessName ?? "this business";
+
+  await db
+    .update(callLogs)
+    .set({
+      status: "voicemail",
+      answeredBy: "voicemail",
+      endedAt,
+    })
+    .where(eq(callLogs.id, callLogId));
+
+  res.type("text/xml").send(
+    `<Response><Say voice="Polly.Nicole">You've reached ${businessName}. Please leave a message after the beep.</Say><Record maxLength="120" action="/api/webhooks/twilio/recording" /></Response>`
+  );
 }

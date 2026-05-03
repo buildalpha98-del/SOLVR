@@ -30,7 +30,7 @@ import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
 import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
 import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
-import { handleIncomingVoiceCall } from "../webhooks/twilioVoice";
+import { handleIncomingVoiceCall, handleDialResult } from "../webhooks/twilioVoice";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -159,6 +159,7 @@ async function startServer() {
 
   // Cloud Phone V2 — Twilio voice webhooks (urlencoded body)
   app.post("/api/webhooks/twilio/voice", express.urlencoded({ extended: false }), handleIncomingVoiceCall);
+  app.post("/api/webhooks/twilio/dial-result", express.urlencoded({ extended: false }), handleDialResult);
 
   // Xero OAuth start + callback — see server/xeroOAuth.ts for the flow.
   // The start endpoint requires an authenticated portal session; the

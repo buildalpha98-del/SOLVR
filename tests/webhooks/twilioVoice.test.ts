@@ -32,7 +32,7 @@ vi.mock("../../server/lib/twilio", () => ({
 // E.164 numbers and has no side-effects.
 
 // ── Import module under test (after mocks are in place) ──────────────────────
-import { handleIncomingVoiceCall } from "../../server/webhooks/twilioVoice";
+import { handleIncomingVoiceCall, handleDialResult } from "../../server/webhooks/twilioVoice";
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -465,6 +465,302 @@ describe("handleIncomingVoiceCall", () => {
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("sendIncomingCallPush failed"),
       expect.any(Error)
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handleDialResult — Task 4.2
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Build a mock DB that supports both the select chain AND the update chain
+ * used by handleDialResult:
+ *   db.select().from().where().limit()   → rows (queue)
+ *   db.update(table).set(vals).where()   → resolves void
+ */
+function makeDialResultDb(opts: {
+  selectResultsQueue: unknown[][];
+}) {
+  const queue = [...opts.selectResultsQueue];
+
+  // select chain
+  const limit = vi.fn().mockImplementation(() => {
+    const rows = queue.shift() ?? [];
+    return Promise.resolve(rows);
+  });
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+
+  // update chain: db.update(table).set(vals).where(cond) → Promise<void>
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const set = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set });
+
+  return {
+    select,
+    update,
+    _update: update,
+    _set: set,
+    _updateWhere: updateWhere,
+    _limit: limit,
+  };
+}
+
+const CALL_LOG_ROW = {
+  id: CALL_LOG_ID,
+  clientId: CLIENT_ID,
+  twilioCallSid: "CAtest456",
+  direction: "inbound" as const,
+  status: "ringing" as const,
+  fromNumber: FROM_NUMBER,
+  toNumber: PHONE_NUMBER,
+  customerPhone: FROM_NUMBER,
+  tradieCustomerId: null,
+  answeredBy: null,
+  durationSeconds: null,
+  talkTimeSeconds: null,
+  recordingUrl: null,
+  recordingSid: null,
+  transcript: null,
+  aiSummary: null,
+  aiIntent: null,
+  aiActionItems: null,
+  aiSentiment: null,
+  linkedQuoteId: null,
+  linkedJobId: null,
+  calledAt: new Date(),
+  answeredAt: null,
+  endedAt: null,
+  createdAt: new Date(),
+};
+
+const PHONE_ROW_AI = makePhoneRow({ aiFallbackEnabled: true });
+const PHONE_ROW_NO_AI = makePhoneRow({ aiFallbackEnabled: false });
+const CRM_CLIENT_ROW = { businessName: "Acme Plumbing" };
+
+/** Make a dial-result request.
+ * Pass `query` to fully replace the default query object (not merge).
+ * Default query has callLogId=CALL_LOG_ID. */
+function makeDialResultReq(overrides: Partial<{
+  body: Record<string, string>;
+  headers: Record<string, string>;
+  query: Record<string, string | undefined>;
+}> = {}) {
+  return {
+    body: {
+      DialCallStatus: "completed",
+      DialCallDuration: "30",
+      ...overrides.body,
+    },
+    headers: {
+      "x-twilio-signature": "valid-sig",
+      ...overrides.headers,
+    },
+    query: overrides.query !== undefined
+      ? overrides.query
+      : { callLogId: String(CALL_LOG_ID) },
+    header(name: string) {
+      return (this.headers as Record<string, string>)[name.toLowerCase()];
+    },
+  } as unknown as import("express").Request;
+}
+
+describe("handleDialResult", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockValidateTwilioSignature.mockReturnValue(true);
+    process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+  });
+
+  // ── 1. Invalid signature → 403 ──────────────────────────────────────────────
+  it("invalid Twilio signature → 403 + empty TwiML", async () => {
+    mockValidateTwilioSignature.mockReturnValue(false);
+    const req = makeDialResultReq();
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(403);
+    expect(res._body).toBe("<Response/>");
+    expect(mockGetDb).not.toHaveBeenCalled();
+  });
+
+  // ── 2. callLogId missing → 400 ──────────────────────────────────────────────
+  it("missing callLogId query param → 400", async () => {
+    const req = makeDialResultReq({ query: {} });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(400);
+  });
+
+  // ── 3. callLogId non-numeric → 400 ─────────────────────────────────────────
+  it("non-numeric callLogId → 400", async () => {
+    const req = makeDialResultReq({ query: { callLogId: "abc" } });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(400);
+  });
+
+  // ── 4. callLog not found → 404 + <Reject/> ─────────────────────────────────
+  it("callLog not found → 404 + Reject TwiML", async () => {
+    const db = makeDialResultDb({ selectResultsQueue: [[]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeDialResultReq();
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(404);
+    expect(res._body).toContain("<Reject/>");
+  });
+
+  // ── 5. DialCallStatus=completed → status=completed, answeredBy=human ────────
+  it("DialCallStatus=completed → callLog updated status=completed answeredBy=human, returns empty TwiML", async () => {
+    const db = makeDialResultDb({
+      selectResultsQueue: [
+        [CALL_LOG_ROW],   // callLogs lookup
+        [PHONE_ROW_AI],   // clientPhoneNumbers lookup
+      ],
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeDialResultReq({
+      body: { DialCallStatus: "completed", DialCallDuration: "45" },
+    });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toBe("<Response/>");
+
+    // Verify update was called with correct fields
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        answeredBy: "human",
+        talkTimeSeconds: 45,
+      })
+    );
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endedAt: expect.any(Date),
+        answeredAt: expect.any(Date),
+      })
+    );
+  });
+
+  // ── 6. no-answer + aiFallbackEnabled=true → redirect to vapi-handoff ────────
+  it("DialCallStatus=no-answer + aiFallbackEnabled=true → status=no_answer, answeredBy=ai_receptionist, Redirect TwiML", async () => {
+    const db = makeDialResultDb({
+      selectResultsQueue: [
+        [CALL_LOG_ROW],
+        [PHONE_ROW_AI],
+      ],
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeDialResultReq({
+      body: { DialCallStatus: "no-answer" },
+    });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain("<Redirect>");
+    expect(res._body).toContain(
+      `/api/webhooks/twilio/vapi-handoff?callLogId=${CALL_LOG_ID}`
+    );
+
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "no_answer",
+        answeredBy: "ai_receptionist",
+      })
+    );
+  });
+
+  // ── 7. busy + aiFallbackEnabled=true → same redirect path ───────────────────
+  it("DialCallStatus=busy + aiFallbackEnabled=true → same redirect as no-answer", async () => {
+    const db = makeDialResultDb({
+      selectResultsQueue: [
+        [CALL_LOG_ROW],
+        [PHONE_ROW_AI],
+      ],
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeDialResultReq({ body: { DialCallStatus: "busy" } });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain(
+      `/api/webhooks/twilio/vapi-handoff?callLogId=${CALL_LOG_ID}`
+    );
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "no_answer", answeredBy: "ai_receptionist" })
+    );
+  });
+
+  // ── 8. failed + aiFallbackEnabled=true → same redirect path ─────────────────
+  it("DialCallStatus=failed + aiFallbackEnabled=true → same redirect as no-answer", async () => {
+    const db = makeDialResultDb({
+      selectResultsQueue: [
+        [CALL_LOG_ROW],
+        [PHONE_ROW_AI],
+      ],
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeDialResultReq({ body: { DialCallStatus: "failed" } });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain(
+      `/api/webhooks/twilio/vapi-handoff?callLogId=${CALL_LOG_ID}`
+    );
+  });
+
+  // ── 9. no-answer + aiFallbackEnabled=false → voicemail TwiML ────────────────
+  it("DialCallStatus=no-answer + aiFallbackEnabled=false → status=voicemail, answeredBy=voicemail, Say+Record TwiML", async () => {
+    const db = makeDialResultDb({
+      selectResultsQueue: [
+        [CALL_LOG_ROW],
+        [PHONE_ROW_NO_AI],
+        [CRM_CLIENT_ROW],  // businessName lookup
+      ],
+    });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeDialResultReq({ body: { DialCallStatus: "no-answer" } });
+    const res = makeRes();
+
+    await handleDialResult(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain("<Say");
+    expect(res._body).toContain("Acme Plumbing");
+    expect(res._body).toContain("Please leave a message after the beep");
+    expect(res._body).toContain('<Record maxLength="120"');
+    expect(res._body).toContain('action="/api/webhooks/twilio/recording"');
+
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "voicemail",
+        answeredBy: "voicemail",
+      })
     );
   });
 });
