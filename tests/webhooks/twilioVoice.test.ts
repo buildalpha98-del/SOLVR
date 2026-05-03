@@ -1087,3 +1087,428 @@ describe("handleRecording", () => {
     expect(secondUpdateCall).toHaveProperty("inboundMinutesUsed");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handleOutgoing — Task 4.5
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Import handleOutgoing + handleStatus after all mocks are set up
+import { handleOutgoing, handleStatus } from "../../server/webhooks/twilioVoice";
+
+const OUTGOING_FROM = "client:42";      // iOS SDK identity format
+const OUTGOING_TO = "+61400000002";     // destination number
+const OUTGOING_CALL_SID = "CAoutgoing1";
+const OUTGOING_LOG_ID = 200;
+
+/**
+ * Build a mock DB for handleOutgoing:
+ *   - select chain: queue-based (pops rows for each .limit() call)
+ *   - insert chain: $returningId returns insertedId
+ *   - update chain: resolves void (not used by /outgoing but included for symmetry)
+ */
+function makeOutgoingDb(opts: {
+  selectResultsQueue: unknown[][];
+  insertedId?: number;
+}) {
+  const queue = [...opts.selectResultsQueue];
+  const insertedId = opts.insertedId ?? OUTGOING_LOG_ID;
+
+  const returningId = vi.fn().mockResolvedValue([{ id: insertedId }]);
+  const values = vi.fn().mockReturnValue({ $returningId: returningId });
+  const insert = vi.fn().mockReturnValue({ values });
+
+  const limit = vi.fn().mockImplementation(() => {
+    const rows = queue.shift() ?? [];
+    return Promise.resolve(rows);
+  });
+  const where = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where });
+  const select = vi.fn().mockReturnValue({ from });
+
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const set = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set });
+
+  return {
+    select,
+    insert,
+    update,
+    _insert: insert,
+    _values: values,
+    _returningId: returningId,
+    _limit: limit,
+    _where: where,
+    _set: set,
+  };
+}
+
+/** Build an /outgoing mock request */
+function makeOutgoingReq(overrides: Partial<{
+  body: Record<string, string>;
+  headers: Record<string, string>;
+  query: Record<string, string | undefined>;
+}> = {}) {
+  return {
+    body: {
+      From: OUTGOING_FROM,
+      To: OUTGOING_TO,
+      CallSid: OUTGOING_CALL_SID,
+      ...overrides.body,
+    },
+    headers: {
+      "x-twilio-signature": "valid-sig",
+      ...overrides.headers,
+    },
+    query: overrides.query ?? {},
+    header(name: string) {
+      return (this.headers as Record<string, string>)[name.toLowerCase()];
+    },
+  } as unknown as import("express").Request;
+}
+
+function makeOutgoingPhoneRow(overrides: Partial<ReturnType<typeof makePhoneRow>> = {}) {
+  return makePhoneRow({
+    clientId: CLIENT_ID,
+    phoneNumber: PHONE_NUMBER,
+    subscriptionStatus: "active",
+    outboundMinutesUsed: 0,
+    ...overrides,
+  });
+}
+
+describe("handleOutgoing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockValidateTwilioSignature.mockReturnValue(true);
+    process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+  });
+
+  // ── 1. Invalid signature → 403 ──────────────────────────────────────────────
+  it("invalid Twilio signature → 403 + empty TwiML", async () => {
+    mockValidateTwilioSignature.mockReturnValue(false);
+    const req = makeOutgoingReq();
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(403);
+    expect(res._body).toBe("<Response/>");
+    expect(mockGetDb).not.toHaveBeenCalled();
+  });
+
+  // ── 2. Malformed From → 400 ─────────────────────────────────────────────────
+  it("malformed From (not client:N) → 400 + empty TwiML", async () => {
+    const req = makeOutgoingReq({ body: { From: "sip:user@domain.com", To: OUTGOING_TO, CallSid: OUTGOING_CALL_SID } });
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(400);
+    expect(res._body).toBe("<Response/>");
+    expect(mockGetDb).not.toHaveBeenCalled();
+  });
+
+  // ── 3. clientPhoneNumbers not found → 404 + <Reject/> ──────────────────────
+  it("no provisioned number for clientId → 404 + Reject TwiML", async () => {
+    const db = makeOutgoingDb({ selectResultsQueue: [[]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeOutgoingReq();
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(404);
+    expect(res._body).toContain(`<Reject reason="rejected"/>`);
+  });
+
+  // ── 4. Subscription cancelled → <Reject reason="rejected"/> ────────────────
+  it("subscription cancelled → Reject TwiML (no Vapi fallback for outbound)", async () => {
+    const phoneRow = makeOutgoingPhoneRow({ subscriptionStatus: "cancelled" });
+    const db = makeOutgoingDb({ selectResultsQueue: [[phoneRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeOutgoingReq();
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain(`<Reject reason="rejected"/>`);
+    expect(db._insert).not.toHaveBeenCalled();
+  });
+
+  // ── 5. outboundMinutesUsed >= 100 → <Reject reason="rejected"/> ─────────────
+  it("outboundMinutesUsed >= 100 → Reject TwiML", async () => {
+    const phoneRow = makeOutgoingPhoneRow({ subscriptionStatus: "active", outboundMinutesUsed: 100 });
+    const db = makeOutgoingDb({ selectResultsQueue: [[phoneRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeOutgoingReq();
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain(`<Reject reason="rejected"/>`);
+    expect(db._insert).not.toHaveBeenCalled();
+  });
+
+  // ── 6. Happy path, no pre-existing callLogId → INSERTs, returns Dial TwiML ──
+  it("happy path (no callLogId) → INSERTs outbound callLog, returns Dial TwiML", async () => {
+    const phoneRow = makeOutgoingPhoneRow();
+    const db = makeOutgoingDb({ selectResultsQueue: [[phoneRow]], insertedId: OUTGOING_LOG_ID });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeOutgoingReq();
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain("<Dial");
+    expect(res._body).toContain(`callerId="${PHONE_NUMBER}"`);
+    expect(res._body).toContain('record="record-from-answer-dual"');
+    expect(res._body).toContain(`action="/api/webhooks/twilio/dial-result?callLogId=${OUTGOING_LOG_ID}"`);
+    expect(res._body).toContain(OUTGOING_TO);
+
+    // callLog inserted with outbound direction + in_progress status
+    expect(db._values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: CLIENT_ID,
+        twilioCallSid: OUTGOING_CALL_SID,
+        direction: "outbound",
+        status: "in_progress",
+        fromNumber: PHONE_NUMBER,
+        toNumber: OUTGOING_TO,
+      })
+    );
+  });
+
+  // ── 7. Happy path with pre-existing callLogId from query param ──────────────
+  it("happy path with pre-existing callLogId (query param) → uses existing row, no insert", async () => {
+    const PRE_EXISTING_ID = 777;
+    const phoneRow = makeOutgoingPhoneRow();
+    const db = makeOutgoingDb({ selectResultsQueue: [[phoneRow]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeOutgoingReq({ query: { callLogId: String(PRE_EXISTING_ID) } });
+    const res = makeRes();
+
+    await handleOutgoing(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toContain(`action="/api/webhooks/twilio/dial-result?callLogId=${PRE_EXISTING_ID}"`);
+    // No insert should have been called
+    expect(db._insert).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handleStatus — Task 4.5
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STATUS_CALL_SID = "CAstatus1";
+const STATUS_LOG_ID = 300;
+
+const STATUS_CALL_LOG_ROW = {
+  ...CALL_LOG_ROW,
+  id: STATUS_LOG_ID,
+  twilioCallSid: STATUS_CALL_SID,
+  talkTimeSeconds: null,
+  endedAt: null,
+};
+
+/**
+ * Build a minimal mock DB for handleStatus:
+ *   - select chain: queue-based
+ *   - update chain: resolves void
+ */
+function makeStatusDb(opts: { selectResultsQueue: unknown[][] }) {
+  const queue = [...opts.selectResultsQueue];
+
+  const limit = vi.fn().mockImplementation(() => {
+    const rows = queue.shift() ?? [];
+    return Promise.resolve(rows);
+  });
+  const selectWhere = vi.fn().mockReturnValue({ limit });
+  const from = vi.fn().mockReturnValue({ where: selectWhere });
+  const select = vi.fn().mockReturnValue({ from });
+
+  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const set = vi.fn().mockReturnValue({ where: updateWhere });
+  const update = vi.fn().mockReturnValue({ set });
+
+  return {
+    select,
+    update,
+    _update: update,
+    _set: set,
+    _updateWhere: updateWhere,
+  };
+}
+
+/** Build an /status mock request */
+function makeStatusReq(overrides: Partial<{
+  body: Record<string, string>;
+  headers: Record<string, string>;
+}> = {}) {
+  return {
+    body: {
+      CallSid: STATUS_CALL_SID,
+      CallStatus: "ringing",
+      ...overrides.body,
+    },
+    headers: {
+      "x-twilio-signature": "valid-sig",
+      ...overrides.headers,
+    },
+    header(name: string) {
+      return (this.headers as Record<string, string>)[name.toLowerCase()];
+    },
+  } as unknown as import("express").Request;
+}
+
+describe("handleStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockValidateTwilioSignature.mockReturnValue(true);
+    process.env.TWILIO_AUTH_TOKEN = "test-auth-token";
+  });
+
+  // ── 1. Invalid signature → 403 ──────────────────────────────────────────────
+  it("invalid Twilio signature → 403 + empty TwiML", async () => {
+    mockValidateTwilioSignature.mockReturnValue(false);
+    const req = makeStatusReq();
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(403);
+    expect(res._body).toBe("<Response/>");
+    expect(mockGetDb).not.toHaveBeenCalled();
+  });
+
+  // ── 2. callLog not found → 200 + empty TwiML, no DB writes ─────────────────
+  it("callLog not found → 200 + empty TwiML, no update", async () => {
+    const db = makeStatusDb({ selectResultsQueue: [[]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq();
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    expect(res._body).toBe("<Response/>");
+    expect(db._update).not.toHaveBeenCalled();
+  });
+
+  // ── 3. CallStatus=ringing → status='ringing' ────────────────────────────────
+  it("CallStatus=ringing → callLog status updated to ringing", async () => {
+    const db = makeStatusDb({ selectResultsQueue: [[STATUS_CALL_LOG_ROW]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq({ body: { CallSid: STATUS_CALL_SID, CallStatus: "ringing" } });
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "ringing" })
+    );
+  });
+
+  // ── 4. CallStatus=in-progress → status='in_progress' ───────────────────────
+  it("CallStatus=in-progress → callLog status updated to in_progress", async () => {
+    const db = makeStatusDb({ selectResultsQueue: [[STATUS_CALL_LOG_ROW]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq({ body: { CallSid: STATUS_CALL_SID, CallStatus: "in-progress" } });
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "in_progress" })
+    );
+  });
+
+  // ── 5. CallStatus=completed with CallDuration=120 → completed, endedAt, talkTimeSeconds=120 ──
+  it("CallStatus=completed + CallDuration=120 → status=completed, endedAt set, talkTimeSeconds=120", async () => {
+    const db = makeStatusDb({ selectResultsQueue: [[STATUS_CALL_LOG_ROW]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq({
+      body: { CallSid: STATUS_CALL_SID, CallStatus: "completed", CallDuration: "120" },
+    });
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        endedAt: expect.any(Date),
+        talkTimeSeconds: 120,
+      })
+    );
+  });
+
+  // ── 6. CallStatus=no-answer → status='no_answer' ────────────────────────────
+  it("CallStatus=no-answer → callLog status updated to no_answer", async () => {
+    const db = makeStatusDb({ selectResultsQueue: [[STATUS_CALL_LOG_ROW]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq({ body: { CallSid: STATUS_CALL_SID, CallStatus: "no-answer" } });
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "no_answer" })
+    );
+  });
+
+  // ── 7. CallStatus=canceled → status='failed' (folded into failed) ───────────
+  it("CallStatus=canceled → callLog status updated to failed", async () => {
+    const db = makeStatusDb({ selectResultsQueue: [[STATUS_CALL_LOG_ROW]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq({ body: { CallSid: STATUS_CALL_SID, CallStatus: "canceled" } });
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    expect(db._set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed" })
+    );
+  });
+
+  // ── 8. Idempotent retry: talkTimeSeconds already set → not overwritten ───────
+  it("completed with talkTimeSeconds already set → talkTimeSeconds not overwritten", async () => {
+    const alreadyCompleted = { ...STATUS_CALL_LOG_ROW, talkTimeSeconds: 90, endedAt: new Date() };
+    const db = makeStatusDb({ selectResultsQueue: [[alreadyCompleted]] });
+    mockGetDb.mockResolvedValue(db);
+
+    const req = makeStatusReq({
+      body: { CallSid: STATUS_CALL_SID, CallStatus: "completed", CallDuration: "120" },
+    });
+    const res = makeRes();
+
+    await handleStatus(req, res);
+
+    expect(res._status).toBe(200);
+    // talkTimeSeconds and endedAt should NOT be in the update payload
+    const updatePayload = db._set.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(updatePayload).not.toHaveProperty("talkTimeSeconds");
+    expect(updatePayload).not.toHaveProperty("endedAt");
+    // But status should still be updated
+    expect(updatePayload).toHaveProperty("status", "completed");
+  });
+});

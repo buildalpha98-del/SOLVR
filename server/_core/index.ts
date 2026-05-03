@@ -30,7 +30,7 @@ import { scheduleLicenceExpiryWarningCron } from "../cron/licenceExpiryWarning";
 import { scheduleIdleJobNudgeCron } from "../cron/idleJobNudge";
 import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
-import { handleIncomingVoiceCall, handleDialResult, handleRecording } from "../webhooks/twilioVoice";
+import { handleIncomingVoiceCall, handleDialResult, handleRecording, handleOutgoing, handleStatus } from "../webhooks/twilioVoice";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -161,6 +161,8 @@ async function startServer() {
   app.post("/api/webhooks/twilio/voice", express.urlencoded({ extended: false }), handleIncomingVoiceCall);
   app.post("/api/webhooks/twilio/dial-result", express.urlencoded({ extended: false }), handleDialResult);
   app.post("/api/webhooks/twilio/recording", express.urlencoded({ extended: false }), handleRecording);
+  app.post("/api/webhooks/twilio/outgoing", express.urlencoded({ extended: false }), handleOutgoing);
+  app.post("/api/webhooks/twilio/status", express.urlencoded({ extended: false }), handleStatus);
 
   // Xero OAuth start + callback — see server/xeroOAuth.ts for the flow.
   // The start endpoint requires an authenticated portal session; the

@@ -752,6 +752,377 @@ export async function handleRecording(
   res.type("text/xml").send("<Response/>");
 }
 
+// ── handleOutgoing ────────────────────────────────────────────────────────────
+
+const OUTBOUND_CAP_MINUTES = 100;
+
+/**
+ * POST /api/webhooks/twilio/outgoing
+ *
+ * Twilio's Voice SDK calls this when the iOS plugin's connect({toNumber}) dials
+ * a number. Returns TwiML <Dial callerId=phone record=record-from-answer-dual>
+ * so the outbound call shows the tradie's Solvr business number AND gets
+ * recorded for AI analysis. Subscription gate + 100-minute outbound cap; rejects
+ * via TwiML <Reject reason="rejected"> (no Vapi fallback for outbound).
+ *
+ * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 4.5)
+ */
+export async function handleOutgoing(
+  req: Request,
+  res: Response
+): Promise<void> {
+  // ── 1. Validate Twilio signature ───────────────────────────────────────────
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!authToken) {
+    if (isProd) {
+      console.error(
+        "[TwilioVoice] TWILIO_AUTH_TOKEN missing in production — rejecting all webhooks"
+      );
+      res.status(500).type("text/xml").send("<Response/>");
+      return;
+    }
+    console.warn(
+      "[TwilioVoice] TWILIO_AUTH_TOKEN not set — skipping signature validation (DEV ONLY)"
+    );
+  } else {
+    const signature = req.headers["x-twilio-signature"] as string | undefined;
+    const urlWithQuery =
+      buildWebhookUrl("/api/webhooks/twilio/outgoing") +
+      (req.query.callLogId ? `?callLogId=${req.query.callLogId}` : "");
+    const isValid = validateTwilioSignature({
+      authToken,
+      signature,
+      url: urlWithQuery,
+      params: req.body as Record<string, string>,
+    });
+
+    if (!isValid) {
+      console.warn(
+        "[TwilioVoice] outgoing: Invalid or missing Twilio signature — rejecting"
+      );
+      res.status(403).type("text/xml").send("<Response/>");
+      return;
+    }
+  }
+
+  // ── 2. Parse From to extract clientId ─────────────────────────────────────
+  // Expected format: "client:<userId>"
+  const { From, To, CallSid } = req.body as {
+    From: string;
+    To: string;
+    CallSid: string;
+  };
+
+  const clientMatch = /^client:(\d+)$/.exec(From ?? "");
+  if (!clientMatch) {
+    console.warn(
+      `[TwilioVoice] outgoing: malformed From field '${From}' — expected client:<N>`
+    );
+    res.status(400).type("text/xml").send("<Response/>");
+    return;
+  }
+  const clientId = parseInt(clientMatch[1], 10);
+
+  console.log(
+    `[TwilioVoice] /outgoing — clientId:${clientId} To:${To} SID:${CallSid}`
+  );
+
+  // ── 3. DB availability ─────────────────────────────────────────────────────
+  const db = await getDb();
+  if (!db) {
+    console.error("[TwilioVoice] outgoing: DB unavailable — returning 500");
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 4. Look up clientPhoneNumbers by clientId ──────────────────────────────
+  const phoneRows = await db
+    .select()
+    .from(clientPhoneNumbers)
+    .where(eq(clientPhoneNumbers.clientId, clientId))
+    .limit(1);
+
+  if (phoneRows.length === 0) {
+    console.warn(
+      `[TwilioVoice] outgoing: no phone number provisioned for clientId:${clientId}`
+    );
+    res
+      .status(404)
+      .type("text/xml")
+      .send(`<Response><Reject reason="rejected"/></Response>`);
+    return;
+  }
+
+  const phone = phoneRows[0];
+
+  // ── 5. Subscription gate ───────────────────────────────────────────────────
+  const subscriptionOk = ALLOWED_SUBSCRIPTION_STATUSES.has(
+    phone.subscriptionStatus
+  );
+  const underOutboundCap = phone.outboundMinutesUsed < OUTBOUND_CAP_MINUTES;
+
+  if (!subscriptionOk || !underOutboundCap) {
+    const reason = !subscriptionOk
+      ? `subscription=${phone.subscriptionStatus}`
+      : `outboundMinutesUsed=${phone.outboundMinutesUsed} >= ${OUTBOUND_CAP_MINUTES}`;
+    console.log(
+      `[TwilioVoice] outgoing: gate triggered (${reason}) — clientId:${clientId}`
+    );
+    res
+      .type("text/xml")
+      .send(`<Response><Reject reason="rejected"/></Response>`);
+    return;
+  }
+
+  // ── 6. Find or insert callLog row ──────────────────────────────────────────
+  // If a callLogId was pre-created by phone.initiateCall (Chunk 5), use it.
+  // Otherwise insert a new outbound row.
+  let callLogId: number;
+
+  const rawCallLogId =
+    (req.query.callLogId as string | undefined) ??
+    (req.body as Record<string, string>).callLogId;
+
+  if (rawCallLogId) {
+    const parsed = parseInt(rawCallLogId, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      callLogId = parsed;
+      console.log(
+        `[TwilioVoice] outgoing: using pre-created callLogId:${callLogId}`
+      );
+    } else {
+      // Malformed but non-fatal — fall through to insert a fresh row
+      console.warn(
+        `[TwilioVoice] outgoing: ignoring malformed callLogId param '${rawCallLogId}' — inserting new row`
+      );
+      callLogId = await insertOutboundCallLog(db, {
+        clientId: phone.clientId,
+        twilioCallSid: CallSid,
+        fromNumber: phone.phoneNumber,
+        toNumber: To,
+      });
+    }
+  } else {
+    callLogId = await insertOutboundCallLog(db, {
+      clientId: phone.clientId,
+      twilioCallSid: CallSid,
+      fromNumber: phone.phoneNumber,
+      toNumber: To,
+    });
+  }
+
+  // ── 7. Return TwiML ────────────────────────────────────────────────────────
+  res.type("text/xml").send(
+    `<Response><Dial callerId="${phone.phoneNumber}" record="record-from-answer-dual" action="/api/webhooks/twilio/dial-result?callLogId=${callLogId}">${To}</Dial></Response>`
+  );
+}
+
+// ── insertOutboundCallLog ─────────────────────────────────────────────────────
+
+type InsertOutboundCallLogParams = {
+  clientId: number;
+  twilioCallSid: string;
+  fromNumber: string;
+  toNumber: string;
+};
+
+/**
+ * INSERT a call_logs row with status='in_progress' and direction='outbound'.
+ * Returns the new row's auto-incremented id.
+ * Idempotent on ER_DUP_ENTRY — returns the existing row's id on Twilio retries.
+ */
+async function insertOutboundCallLog(
+  db: Awaited<ReturnType<typeof getDb>> & {},
+  params: InsertOutboundCallLogParams
+): Promise<number> {
+  const values: InsertCallLog = {
+    clientId: params.clientId,
+    twilioCallSid: params.twilioCallSid,
+    direction: "outbound",
+    status: "in_progress",
+    fromNumber: params.fromNumber,
+    toNumber: params.toNumber,
+    customerPhone: normalisePhone(params.toNumber),
+    calledAt: new Date(),
+  };
+
+  try {
+    const inserted = await db.insert(callLogs).values(values).$returningId();
+    if (!inserted[0]?.id) {
+      throw new Error(
+        `insertOutboundCallLog returned no id for twilioCallSid=${params.twilioCallSid}`
+      );
+    }
+    return inserted[0].id;
+  } catch (err: unknown) {
+    const code = (err as { code?: string; errno?: number }).code;
+    const errno = (err as { code?: string; errno?: number }).errno;
+    if (code === "ER_DUP_ENTRY" || errno === 1062) {
+      console.warn(
+        "[TwilioVoice] outgoing: retry detected, looking up existing row",
+        { twilioCallSid: params.twilioCallSid }
+      );
+      const existing = await db
+        .select({ id: callLogs.id })
+        .from(callLogs)
+        .where(eq(callLogs.twilioCallSid, params.twilioCallSid))
+        .limit(1);
+      if (!existing[0]?.id) {
+        throw new Error(
+          `Duplicate-key on insertOutboundCallLog for twilioCallSid=${params.twilioCallSid} but follow-up SELECT returned empty`
+        );
+      }
+      return existing[0].id;
+    }
+    throw err;
+  }
+}
+
+// ── handleStatus ──────────────────────────────────────────────────────────────
+
+/** Map Twilio's CallStatus → our callLogs.status enum */
+function mapTwilioStatus(
+  twilioStatus: string
+): "ringing" | "in_progress" | "completed" | "busy" | "failed" | "no_answer" {
+  switch (twilioStatus) {
+    case "queued":
+    case "ringing":
+      return "ringing";
+    case "in-progress":
+      return "in_progress";
+    case "completed":
+      return "completed";
+    case "busy":
+      return "busy";
+    case "failed":
+    case "canceled":
+      return "failed";
+    case "no-answer":
+      return "no_answer";
+    default:
+      return "failed";
+  }
+}
+
+/**
+ * POST /api/webhooks/twilio/status
+ *
+ * Twilio's call lifecycle callbacks. Updates callLogs.status by mapping
+ * Twilio's CallStatus enum to our schema enum. On completed, also sets
+ * endedAt and talkTimeSeconds from CallDuration (only if not already set).
+ * callLog-not-found returns 200 + empty TwiML — status callbacks for unknown
+ * calls aren't an error. Naturally idempotent since same-value UPDATE is
+ * harmless.
+ *
+ * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 4.5)
+ */
+export async function handleStatus(
+  req: Request,
+  res: Response
+): Promise<void> {
+  // ── 1. Validate Twilio signature ───────────────────────────────────────────
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (!authToken) {
+    if (isProd) {
+      console.error(
+        "[TwilioVoice] TWILIO_AUTH_TOKEN missing in production — rejecting all webhooks"
+      );
+      res.status(500).type("text/xml").send("<Response/>");
+      return;
+    }
+    console.warn(
+      "[TwilioVoice] TWILIO_AUTH_TOKEN not set — skipping signature validation (DEV ONLY)"
+    );
+  } else {
+    const signature = req.headers["x-twilio-signature"] as string | undefined;
+    const isValid = validateTwilioSignature({
+      authToken,
+      signature,
+      url: buildWebhookUrl("/api/webhooks/twilio/status"),
+      params: req.body as Record<string, string>,
+    });
+
+    if (!isValid) {
+      console.warn(
+        "[TwilioVoice] status: Invalid or missing Twilio signature — rejecting"
+      );
+      res.status(403).type("text/xml").send("<Response/>");
+      return;
+    }
+  }
+
+  // ── 2. Parse body ──────────────────────────────────────────────────────────
+  const { CallSid, CallStatus, CallDuration } = req.body as {
+    CallSid: string;
+    CallStatus: string;
+    CallDuration?: string;
+  };
+
+  console.log(
+    `[TwilioVoice] /status — CallSid:${CallSid} CallStatus:${CallStatus}`
+  );
+
+  // ── 3. DB availability ─────────────────────────────────────────────────────
+  const db = await getDb();
+  if (!db) {
+    console.error("[TwilioVoice] status: DB unavailable — returning 500");
+    res.status(500).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  // ── 4. Look up callLog by twilioCallSid ────────────────────────────────────
+  const callLogRows = await db
+    .select()
+    .from(callLogs)
+    .where(eq(callLogs.twilioCallSid, CallSid))
+    .limit(1);
+
+  if (callLogRows.length === 0) {
+    // Not an error — status callbacks can fire for calls we never knew about
+    console.log(
+      `[TwilioVoice] status: callLog not found for CallSid=${CallSid} — returning 200`
+    );
+    res.type("text/xml").send("<Response/>");
+    return;
+  }
+
+  const callLog = callLogRows[0];
+
+  // ── 5. Map + UPDATE status ─────────────────────────────────────────────────
+  const mappedStatus = mapTwilioStatus(CallStatus);
+  const isCompleted = CallStatus === "completed";
+
+  const updateFields: Record<string, unknown> = { status: mappedStatus };
+
+  if (isCompleted) {
+    if (!callLog.endedAt) {
+      updateFields.endedAt = new Date();
+    }
+    if (callLog.talkTimeSeconds == null && CallDuration) {
+      const dur = parseInt(CallDuration, 10);
+      if (!isNaN(dur)) {
+        updateFields.talkTimeSeconds = dur;
+      }
+    }
+  }
+
+  await db
+    .update(callLogs)
+    .set(updateFields)
+    .where(eq(callLogs.id, callLog.id));
+
+  console.log(
+    `[TwilioVoice] /status: updated callLogId:${callLog.id} status:${mappedStatus}`
+  );
+
+  // ── 6. Return empty TwiML ──────────────────────────────────────────────────
+  res.type("text/xml").send("<Response/>");
+}
+
 // ── fetchTwilioRecording ──────────────────────────────────────────────────────
 
 /**
