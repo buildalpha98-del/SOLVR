@@ -26,6 +26,7 @@ const {
   mockResetRateLimitBuckets,
   mockResetTokenCache,
   mockStripeSubscriptionsCreate,
+  mockGetTwilioClient,
 } = vi.hoisted(() => ({
   mockGetDb: vi.fn(),
   mockRequirePortalAuth: vi.fn(),
@@ -34,6 +35,7 @@ const {
   mockResetRateLimitBuckets: vi.fn(),
   mockResetTokenCache: vi.fn(),
   mockStripeSubscriptionsCreate: vi.fn(),
+  mockGetTwilioClient: vi.fn(),
 }));
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -55,6 +57,12 @@ vi.mock("../../server/stripe", async (importOriginal) => {
     }),
   };
 });
+
+// Mock getTwilioClient for searchNumbers + purchaseNumber (no real Twilio calls)
+vi.mock("../../server/lib/twilioClient", () => ({
+  getTwilioClient: mockGetTwilioClient,
+  _resetTwilioClient: vi.fn(),
+}));
 
 // No twilio mock needed — the real twilio package is available and env vars
 // are set in beforeEach, so real JWTs (short-lived test JWTs) are minted.
@@ -571,31 +579,315 @@ describe("phone.linkToJob", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// provisionNumber
+// searchNumbers — Task 5.5
 // ─────────────────────────────────────────────────────────────────────────────
-describe("phone.provisionNumber", () => {
-  it("happy path — returns stub candidates", async () => {
-    const result = await callProcedure("provisionNumber", {});
-    expect(result.candidates).toEqual([]);
-    expect(result.note).toContain("Task 5.5");
+describe("phone.searchNumbers", () => {
+  const fakeMobileNumbers = [
+    { phoneNumber: "+61412000001", friendlyName: "+61 412 000 001", locality: "Sydney", region: "NSW" },
+    { phoneNumber: "+61412000002", friendlyName: "+61 412 000 002", locality: null, region: null },
+  ];
+  const fakeLocalNumbers = [
+    { phoneNumber: "+61285000001", friendlyName: "+61 2 8500 0001", locality: "Sydney", region: "NSW" },
+  ];
+
+  function makeTwilioMobile(numbers: typeof fakeMobileNumbers) {
+    return {
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: vi.fn().mockResolvedValue(numbers) },
+        local: { list: vi.fn().mockResolvedValue(fakeLocalNumbers) },
+      }),
+    };
+  }
+
+  function makeTwilioLocal(numbers: typeof fakeLocalNumbers) {
+    return {
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: vi.fn().mockResolvedValue(fakeMobileNumbers) },
+        local: { list: vi.fn().mockResolvedValue(numbers) },
+      }),
+    };
+  }
+
+  it("auth rejection — UNAUTHORIZED when no session", async () => {
+    mockRequirePortalAuth.mockRejectedValue(
+      new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." })
+    );
+    await expect(callProcedure("searchNumbers", {})).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+  });
+
+  it("rate limit — throws TOO_MANY_REQUESTS after 3 calls", async () => {
+    mockGetTwilioClient.mockReturnValue(makeTwilioMobile(fakeMobileNumbers));
+    for (let i = 0; i < 3; i++) {
+      await callProcedure("searchNumbers", {});
+    }
+    await expect(callProcedure("searchNumbers", {})).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
+  });
+
+  it("no areaCode → calls mobile.list with limit: 5", async () => {
+    const mobileMock = vi.fn().mockResolvedValue(fakeMobileNumbers);
+    const localMock = vi.fn().mockResolvedValue([]);
+    mockGetTwilioClient.mockReturnValue({
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: mobileMock },
+        local: { list: localMock },
+      }),
+    });
+
+    const result = await callProcedure("searchNumbers", {});
+    expect(mobileMock).toHaveBeenCalledWith({ limit: 5 });
+    expect(localMock).not.toHaveBeenCalled();
+    expect(result.numbers).toHaveLength(2);
+    expect(result.numbers[0].phoneNumber).toBe("+61412000001");
+  });
+
+  it("with areaCode → calls local.list with areaCode as number + limit: 5", async () => {
+    const mobileMock = vi.fn().mockResolvedValue([]);
+    const localMock = vi.fn().mockResolvedValue(fakeLocalNumbers);
+    mockGetTwilioClient.mockReturnValue({
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: mobileMock },
+        local: { list: localMock },
+      }),
+    });
+
+    const result = await callProcedure("searchNumbers", { areaCode: "2" });
+    expect(localMock).toHaveBeenCalledWith({ areaCode: 2, limit: 5 });
+    expect(mobileMock).not.toHaveBeenCalled();
+    expect(result.numbers).toHaveLength(1);
+  });
+
+  it("Twilio returns empty array → returns empty numbers array", async () => {
+    mockGetTwilioClient.mockReturnValue({
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: vi.fn().mockResolvedValue([]) },
+        local: { list: vi.fn().mockResolvedValue([]) },
+      }),
+    });
+
+    const result = await callProcedure("searchNumbers", {});
+    expect(result.numbers).toEqual([]);
+  });
+
+  it("Twilio throws → INTERNAL_SERVER_ERROR", async () => {
+    mockGetTwilioClient.mockReturnValue({
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: vi.fn().mockRejectedValue(new Error("Twilio API error")) },
+        local: { list: vi.fn().mockResolvedValue([]) },
+      }),
+    });
+
+    await expect(callProcedure("searchNumbers", {})).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// purchaseNumber — Task 5.5
+// ─────────────────────────────────────────────────────────────────────────────
+describe("phone.purchaseNumber", () => {
+  const validInput = { phoneNumber: "+61412345678" };
+  const activePhoneRow = { id: 7, clientId: CLIENT_ID, subscriptionStatus: "active" };
+  const trialPhoneRow = { id: 7, clientId: CLIENT_ID, subscriptionStatus: "trial" };
+
+  function makeTwilioPurchaseMock(result: { sid: string; phoneNumber: string }) {
+    return {
+      incomingPhoneNumbers: {
+        create: vi.fn().mockResolvedValue(result),
+      },
+    };
+  }
+
+  function makeSelectDbWithPhoneRow(phoneRow: typeof activePhoneRow | null) {
+    return {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        then: (resolve: (v: unknown[]) => unknown) =>
+          Promise.resolve(resolve(phoneRow ? [phoneRow] : [])),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockResolvedValue({}),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue({}) }),
+      }),
+    };
+  }
+
+  beforeEach(() => {
+    process.env.TWILIO_WEBHOOK_BASE_URL = "https://test.solvr.com.au";
+  });
+
+  afterEach(() => {
+    delete process.env.TWILIO_WEBHOOK_BASE_URL;
   });
 
   it("auth rejection — UNAUTHORIZED when no session", async () => {
     mockRequirePortalWrite.mockRejectedValue(
       new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." })
     );
-    await expect(callProcedure("provisionNumber", {})).rejects.toMatchObject({
+    await expect(callProcedure("purchaseNumber", validInput)).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });
   });
 
   it("rate limit — throws TOO_MANY_REQUESTS after 3 calls", async () => {
+    mockGetDb.mockResolvedValue(makeSelectDbWithPhoneRow(activePhoneRow));
+    mockGetTwilioClient.mockReturnValue(
+      makeTwilioPurchaseMock({ sid: "PN123", phoneNumber: "+61412345678" })
+    );
     for (let i = 0; i < 3; i++) {
-      await callProcedure("provisionNumber", {});
+      await callProcedure("purchaseNumber", validInput);
     }
-    await expect(callProcedure("provisionNumber", {})).rejects.toMatchObject({
+    await expect(callProcedure("purchaseNumber", validInput)).rejects.toMatchObject({
       code: "TOO_MANY_REQUESTS",
     });
+  });
+
+  it("no active phone subscription → FORBIDDEN", async () => {
+    mockGetDb.mockResolvedValue(makeSelectDbWithPhoneRow(null));
+    await expect(callProcedure("purchaseNumber", validInput)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Subscribe to Solvr Phone before provisioning a number",
+    });
+  });
+
+  it("cancelled subscription status → FORBIDDEN", async () => {
+    mockGetDb.mockResolvedValue(
+      makeSelectDbWithPhoneRow({ id: 7, clientId: CLIENT_ID, subscriptionStatus: "cancelled" })
+    );
+    await expect(callProcedure("purchaseNumber", validInput)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+
+  it("happy path — active subscription — calls Twilio, INSERTs row, returns phoneNumber + twilioSid", async () => {
+    const db = makeSelectDbWithPhoneRow(activePhoneRow);
+    const insertValuesMock = vi.fn().mockResolvedValue({});
+    db.insert = vi.fn().mockReturnValue({ values: insertValuesMock });
+    mockGetDb.mockResolvedValue(db);
+
+    const purchaseCreateMock = vi.fn().mockResolvedValue({
+      sid: "PNabc123",
+      phoneNumber: "+61412345678",
+    });
+    mockGetTwilioClient.mockReturnValue({
+      incomingPhoneNumbers: { create: purchaseCreateMock },
+    });
+
+    const result = await callProcedure("purchaseNumber", validInput);
+    expect(result.phoneNumber).toBe("+61412345678");
+    expect(result.twilioSid).toBe("PNabc123");
+    expect(typeof result.friendlyNumber).toBe("string");
+    expect(result.friendlyNumber.length).toBeGreaterThan(0);
+
+    // Verify the Twilio create was called with the right webhook URL
+    expect(purchaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: "+61412345678",
+        voiceUrl: "https://test.solvr.com.au/api/webhooks/twilio/voice",
+        voiceMethod: "POST",
+      })
+    );
+
+    // Verify INSERT was called with clientId = auth'd client
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: CLIENT_ID,
+        twilioSid: "PNabc123",
+        phoneNumber: "+61412345678",
+        type: "provisioned",
+        isActive: true,
+        isDefault: true,
+      })
+    );
+  });
+
+  it("happy path — trial subscription is also allowed", async () => {
+    const db = makeSelectDbWithPhoneRow(trialPhoneRow);
+    db.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue({}) });
+    mockGetDb.mockResolvedValue(db);
+    mockGetTwilioClient.mockReturnValue({
+      incomingPhoneNumbers: {
+        create: vi.fn().mockResolvedValue({ sid: "PNtrial", phoneNumber: "+61412345678" }),
+      },
+    });
+
+    const result = await callProcedure("purchaseNumber", validInput);
+    expect(result.twilioSid).toBe("PNtrial");
+  });
+
+  it("Twilio purchase fails → INTERNAL_SERVER_ERROR, no DB INSERT", async () => {
+    const db = makeSelectDbWithPhoneRow(activePhoneRow);
+    const insertValuesMock = vi.fn().mockResolvedValue({});
+    db.insert = vi.fn().mockReturnValue({ values: insertValuesMock });
+    mockGetDb.mockResolvedValue(db);
+
+    mockGetTwilioClient.mockReturnValue({
+      incomingPhoneNumbers: {
+        create: vi.fn().mockRejectedValue(new Error("Twilio purchase failed")),
+      },
+    });
+
+    await expect(callProcedure("purchaseNumber", validInput)).rejects.toMatchObject({
+      code: "INTERNAL_SERVER_ERROR",
+    });
+    // DB INSERT must NOT have fired
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("input validation — rejects non-E.164 phone number", async () => {
+    await expect(
+      callProcedure("purchaseNumber", { phoneNumber: "0412345678" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("cross-client safety — INSERT uses auth'd clientId, not request-body-supplied one", async () => {
+    // The auth'd client is CLIENT_ID = 42 — there is no way to override clientId via input
+    const db = makeSelectDbWithPhoneRow(activePhoneRow);
+    const insertValuesMock = vi.fn().mockResolvedValue({});
+    db.insert = vi.fn().mockReturnValue({ values: insertValuesMock });
+    mockGetDb.mockResolvedValue(db);
+    mockGetTwilioClient.mockReturnValue({
+      incomingPhoneNumbers: {
+        create: vi.fn().mockResolvedValue({ sid: "PNxsec", phoneNumber: "+61412345678" }),
+      },
+    });
+
+    await callProcedure("purchaseNumber", validInput);
+
+    // clientId in the INSERT must be the auth'd user's id (42), never something else
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: CLIENT_ID })
+    );
+  });
+
+  it("TWILIO_WEBHOOK_BASE_URL defaults to https://solvr.com.au when env not set", async () => {
+    delete process.env.TWILIO_WEBHOOK_BASE_URL;
+    const db = makeSelectDbWithPhoneRow(activePhoneRow);
+    db.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue({}) });
+    mockGetDb.mockResolvedValue(db);
+
+    const purchaseCreateMock = vi.fn().mockResolvedValue({
+      sid: "PNdefault",
+      phoneNumber: "+61412345678",
+    });
+    mockGetTwilioClient.mockReturnValue({
+      incomingPhoneNumbers: { create: purchaseCreateMock },
+    });
+
+    await callProcedure("purchaseNumber", validInput);
+    expect(purchaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voiceUrl: "https://solvr.com.au/api/webhooks/twilio/voice",
+      })
+    );
   });
 });
 
@@ -745,7 +1037,7 @@ describe("phone.updateSettings", () => {
 // trpcRateLimit — bucket isolation between procedures
 // ─────────────────────────────────────────────────────────────────────────────
 describe("trpcRateLimit bucket isolation", () => {
-  it("hitting getAccessToken limit does not affect provisionNumber", async () => {
+  it("hitting getAccessToken limit does not affect searchNumbers", async () => {
     // Exhaust getAccessToken (10 rpm)
     for (let i = 0; i < 10; i++) {
       await callProcedure("getAccessToken", undefined);
@@ -754,8 +1046,14 @@ describe("trpcRateLimit bucket isolation", () => {
       code: "TOO_MANY_REQUESTS",
     });
 
-    // provisionNumber (3 rpm) should still work
-    const result = await callProcedure("provisionNumber", {});
-    expect(result.candidates).toEqual([]);
+    // searchNumbers (3 rpm) should still work
+    mockGetTwilioClient.mockReturnValue({
+      availablePhoneNumbers: vi.fn().mockReturnValue({
+        mobile: { list: vi.fn().mockResolvedValue([]) },
+        local: { list: vi.fn().mockResolvedValue([]) },
+      }),
+    });
+    const result = await callProcedure("searchNumbers", {});
+    expect(result.numbers).toEqual([]);
   });
 });

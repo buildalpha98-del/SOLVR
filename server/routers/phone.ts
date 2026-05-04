@@ -18,6 +18,7 @@ import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "../_core/trpc";
 import { requirePortalAuth, requirePortalWrite } from "./portalAuth";
 import { getDb } from "../db";
+import { getTwilioClient } from "../lib/twilioClient";
 import {
   callLogs,
   voipPushTokens,
@@ -52,6 +53,36 @@ export function mapStripeStatusToSolvrPhone(
     case "paused":
     default:                    return "cancelled";
   }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Convert an E.164 AU phone number to a local display format.
+ *   +61412345678  → 0412 345 678
+ *   +61800000001  → 1800 000 001 (toll-free / 13xx — leave as-is after stripping +61)
+ * Falls back to the E.164 string if the format doesn't match an AU pattern.
+ */
+export function formatAuPhone(e164: string): string {
+  // Strip + prefix
+  const withCountry = e164.startsWith("+") ? e164.slice(1) : e164;
+  if (!withCountry.startsWith("61")) return e164;
+
+  const local = "0" + withCountry.slice(2); // e.g. "0412345678"
+  // Mobile: 04XX XXX XXX
+  if (/^04\d{8}$/.test(local)) {
+    return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`;
+  }
+  // Landline: 0X XXXX XXXX
+  if (/^0[2-9]\d{8}$/.test(local)) {
+    return `${local.slice(0, 2)} ${local.slice(2, 6)} ${local.slice(6)}`;
+  }
+  // Toll-free: 1800/1300/13XX — no leading 0, format directly
+  const noLeadingZero = withCountry.slice(2);
+  if (/^1[38]\d{6,8}$/.test(noLeadingZero)) {
+    return noLeadingZero;
+  }
+  return local;
 }
 
 // ── Twilio Access Token cache ─────────────────────────────────────────────────
@@ -470,21 +501,170 @@ export const phoneRouter = router({
     }),
 
   /**
-   * Search available Twilio numbers for provisioning.
-   * TODO: Task 5.5 — number provisioning (Twilio search + purchase) not yet implemented.
-   * Rate: 3 rpm (expensive Twilio API call once implemented).
+   * Search available Twilio numbers in AU for provisioning.
+   * With areaCode → searches local numbers in that area code.
+   * Without areaCode → searches AU mobile numbers (04XX).
+   * Returns up to 5 candidates with phoneNumber, friendlyName, locality, region.
+   * Rate: 3 rpm (Twilio API cost).
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 5.5)
    */
-  provisionNumber: publicProcedure
+  searchNumbers: publicProcedure
     .input(z.object({ areaCode: z.string().optional() }))
-    .mutation(async ({ ctx }) => {
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(
+        ctx.req as unknown as { cookies?: Record<string, string> }
+      );
+      checkRateLimit({ procedureName: "phone.searchNumbers", rpmPerUser: 3 }, client.id);
+
+      try {
+        const twilioClient = getTwilioClient();
+        let numbers: Array<{
+          phoneNumber: string | null;
+          friendlyName: string | null;
+          locality: string | null;
+          region: string | null;
+        }>;
+
+        if (input.areaCode) {
+          const areaCodeNum = parseInt(input.areaCode, 10);
+          const results = await twilioClient
+            .availablePhoneNumbers("AU")
+            .local.list({ areaCode: areaCodeNum, limit: 5 });
+          numbers = results.map((n) => ({
+            phoneNumber: n.phoneNumber ?? null,
+            friendlyName: n.friendlyName ?? null,
+            locality: n.locality ?? null,
+            region: n.region ?? null,
+          }));
+        } else {
+          const results = await twilioClient
+            .availablePhoneNumbers("AU")
+            .mobile.list({ limit: 5 });
+          numbers = results.map((n) => ({
+            phoneNumber: n.phoneNumber ?? null,
+            friendlyName: n.friendlyName ?? null,
+            locality: n.locality ?? null,
+            region: n.region ?? null,
+          }));
+        }
+
+        console.info("[Phone] searchNumbers returned", {
+          clientId: client.id,
+          areaCode: input.areaCode,
+          count: numbers.length,
+        });
+        return { numbers };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[Phone] searchNumbers Twilio error", { clientId: client.id, err: msg });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to search available numbers",
+        });
+      }
+    }),
+
+  /**
+   * Purchase a specific Twilio number for this client.
+   * Validates active phone subscription before purchasing (don't sell numbers
+   * to non-subscribers). Configures the voice webhook and INSERTs a
+   * clientPhoneNumbers row.
+   * Rate: 3 rpm (~$3.50 AUD per number purchase).
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 5.5)
+   */
+  purchaseNumber: publicProcedure
+    .input(
+      z.object({
+        /** E.164 format, e.g. +61412345678 */
+        phoneNumber: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone number must be in E.164 format"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(
         ctx.req as unknown as { cookies?: Record<string, string> }
       );
-      checkRateLimit({ procedureName: "phone.provisionNumber", rpmPerUser: 3 }, client.id);
+      checkRateLimit({ procedureName: "phone.purchaseNumber", rpmPerUser: 3 }, client.id);
 
-      // TODO: Task 5.5 — implement Twilio number search + purchase
-      console.info("[Phone] provisionNumber stub called", { clientId: client.id });
-      return { candidates: [] as string[], note: "Task 5.5 not yet implemented" };
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      // 1. Verify active phone subscription
+      const [existingPhoneRow] = await db
+        .select({
+          id: clientPhoneNumbers.id,
+          subscriptionStatus: clientPhoneNumbers.subscriptionStatus,
+        })
+        .from(clientPhoneNumbers)
+        .where(eq(clientPhoneNumbers.clientId, client.id))
+        .limit(1);
+
+      const activeStatuses = ["trial", "active"] as const;
+      const isSubscribed =
+        existingPhoneRow != null &&
+        (activeStatuses as readonly string[]).includes(existingPhoneRow.subscriptionStatus);
+
+      if (!isSubscribed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Subscribe to Solvr Phone before provisioning a number",
+        });
+      }
+
+      // 2. Build webhook URL
+      const baseUrl =
+        process.env.TWILIO_WEBHOOK_BASE_URL ?? "https://solvr.com.au";
+      const voiceUrl = `${baseUrl}/api/webhooks/twilio/voice`;
+      const statusCallback = `${voiceUrl}?status`;
+
+      // 3. Purchase the number via Twilio
+      let twilioResult: { sid: string; phoneNumber: string };
+      try {
+        const result = await getTwilioClient().incomingPhoneNumbers.create({
+          phoneNumber: input.phoneNumber,
+          voiceUrl,
+          voiceMethod: "POST",
+          statusCallback,
+          statusCallbackMethod: "POST",
+        });
+        twilioResult = { sid: result.sid, phoneNumber: result.phoneNumber };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[Phone] purchaseNumber Twilio purchase failed", {
+          clientId: client.id,
+          phoneNumber: input.phoneNumber,
+          err: msg,
+        });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to purchase phone number",
+        });
+      }
+
+      // 4. Format a local-display friendly number (E.164 → AU local format)
+      const friendlyNumber = formatAuPhone(twilioResult.phoneNumber);
+
+      // 5. INSERT into clientPhoneNumbers
+      await db.insert(clientPhoneNumbers).values({
+        clientId: client.id,
+        twilioSid: twilioResult.sid,
+        phoneNumber: twilioResult.phoneNumber,
+        friendlyNumber,
+        type: "provisioned",
+        isActive: true,
+        isDefault: true,
+      });
+
+      console.info("[Phone] purchaseNumber complete", {
+        clientId: client.id,
+        phoneNumber: twilioResult.phoneNumber,
+        twilioSid: twilioResult.sid,
+      });
+
+      return {
+        phoneNumber: twilioResult.phoneNumber,
+        friendlyNumber,
+        twilioSid: twilioResult.sid,
+      };
     }),
 
   /**
