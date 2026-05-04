@@ -292,17 +292,9 @@ interface PostCallBodyProps {
 }
 
 function PostCallBody({ postCall, incoming, activeCall, onDismiss, onNavigate }: PostCallBodyProps) {
-  // ── Mutations (stubbed where server procedures don't exist yet) ───────────
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
-  /**
-   * TODO (follow-up): Implement quotes.createFromCall on the server side.
-   * For now we stub this call — the CTA renders and disables correctly, but
-   * the mutation below will be wired to the real procedure in the next PR.
-   *
-   * Expected server shape:
-   *   quotes.createFromCall.useMutation({ callLogId: number }) → { quoteId: string }
-   */
-  const createQuoteMutation = trpc.quotes.createDraft.useMutation({
+  const createQuoteMutation = trpc.quotes.createFromCall.useMutation({
     onSuccess: (data) => {
       toast.success("Quote draft created — review & send");
       onDismiss();
@@ -310,29 +302,15 @@ function PostCallBody({ postCall, incoming, activeCall, onDismiss, onNavigate }:
     },
     onError: (err: Error) => {
       toast.error(err.message || "Could not create quote — please try again", {
-        // destructive variant via className (sonner supports this)
         className: "destructive",
       });
     },
   });
 
-  /**
-   * TODO (follow-up): Implement phone.addCallNote on the server side.
-   * This procedure should insert a CRM interaction linked to the callLogId,
-   * with optional quoteId / jobId linking. Expected shape:
-   *   phone.addCallNote.useMutation({
-   *     callLogId: number;
-   *     note: string;
-   *     linkedQuoteId?: string;
-   *     linkedJobId?: number;
-   *   }) → { ok: true }
-   *
-   * For now we stub this with phone.linkToQuote (if available) or a no-op.
-   * The UI renders and toasts correctly; the DB write is a follow-up.
-   */
-  const addNoteMutation = trpc.phone.linkToQuote.useMutation({
+  const addNoteMutation = trpc.phone.addCallNote.useMutation({
     onSuccess: () => {
       toast.success("Note added");
+      onDismiss();
     },
     onError: (err: Error) => {
       toast.error(err.message || "Could not save note — please try again", {
@@ -367,36 +345,23 @@ function PostCallBody({ postCall, incoming, activeCall, onDismiss, onNavigate }:
     const callLogId = postCall.callLogId;
 
     if (postCall.aiIntent === "new_quote") {
-      // TODO (follow-up): Replace with trpc.quotes.createFromCall.mutate({ callLogId })
-      // For now stub: createDraft with minimal fields derived from AI summary
-      createQuoteMutation.mutate({
-        jobTitle: referencedJobTitle ?? "New job from call",
-        jobDescription: postCall.aiSummary,
-        customerName: incoming?.customerName ?? undefined,
-        customerPhone: incoming?.fromNumber ?? undefined,
-        notes: `Auto-created from call ${callLogId}`,
-        lineItems: [],
-      });
+      createQuoteMutation.mutate({ callLogId });
       return;
     }
 
-    // For all other intents: add a note
-    // TODO (follow-up): Replace with trpc.phone.addCallNote.mutate({
-    //   callLogId, note: postCall.aiSummary,
-    //   linkedQuoteId: referencedQuoteNumber ? ... : undefined,
-    //   linkedJobId: referencedJobTitle ? ... : undefined,
-    // })
-    // Stubbed: linkToQuote with a placeholder quoteId of "0" to exercise the
-    // onError/onSuccess path. Real implementation is a follow-up PR.
-    toast.success("Note saved (stub — follow-up PR will write to DB)", {
-      description: "phone.addCallNote procedure not yet implemented on server",
+    // All other intents (quote_followup, job_update, new_job, etc.) → add call note
+    addNoteMutation.mutate({
+      callLogId,
+      note: postCall.aiSummary,
     });
   }
 
   // ── Secondary: add as standalone note ──────────────────────────────────
   function handleAddAsNote() {
-    // TODO (follow-up): trpc.phone.addCallNote.mutate({ callLogId: postCall.callLogId, note: postCall.aiSummary })
-    toast.success("Note saved (stub — follow-up PR will write to DB)");
+    addNoteMutation.mutate({
+      callLogId: postCall.callLogId,
+      note: postCall.aiSummary,
+    });
   }
 
   // ── Secondary: link to existing ────────────────────────────────────────
