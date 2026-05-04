@@ -26,6 +26,7 @@ import { trpc } from "@/lib/trpc";
 import { ErrorState } from "@/components/portal/ErrorState";
 import CallListCard from "@/components/phone/CallListCard";
 import CapBanner from "@/components/phone/CapBanner";
+import PhoneOnboardingWizard from "./PhoneOnboardingWizard";
 
 // ─── Date grouping ─────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ export default function PortalPhone() {
   const {
     data: usageData,
     isLoading: usageLoading,
+    refetch: refetchUsage,
   } = trpc.phone.getUsage.useQuery(undefined, {
     retry: 2,
     staleTime: 30_000,
@@ -108,6 +110,35 @@ export default function PortalPhone() {
 
   const isLoading = callsLoading || usageLoading;
   const totalCalls = callsData?.total ?? 0;
+
+  // ─── Onboarding wizard ────────────────────────────────────────────────────
+  // Show spinner while usage is loading so we don't flash the wrong screen.
+  // Once loaded, if the client has no number yet, render the wizard (full-
+  // screen — no PortalLayout wrapper, wizard owns its own chrome).
+  if (usageLoading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#0F1F3D" }}
+      >
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#F5A623" }} />
+      </div>
+    );
+  }
+
+  if (usageData && !usageData.hasNumber) {
+    return (
+      <PhoneOnboardingWizard
+        onComplete={() => {
+          // Refetch both usage and calls so PortalPhone re-renders into the normal
+          // call list view with up-to-date data after wizard completion.
+          void refetchUsage();
+          void refetchCalls();
+          navigate("/portal/phone");
+        }}
+      />
+    );
+  }
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
