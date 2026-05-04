@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { hapticSuccess } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import { ErrorState } from "@/components/portal/ErrorState";
+import { useSolvrPhone } from "@/hooks/useSolvrPhone";
 import {
   Users, Search, MessageSquare, ChevronRight, Phone, UserPlus,
   MapPin, Loader2, CheckSquare, Square, Download, Upload, DollarSign, Briefcase,
@@ -49,6 +50,7 @@ function fmtAUD(cents: number) {
 
 export default function PortalCustomers() {
   const [, navigate] = useLocation();
+  const phone = useSolvrPhone();
   const [activeTab, setActiveTab] = useState<"customers" | "history">("customers");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -474,6 +476,18 @@ export default function PortalCustomers() {
                       {c.phone && (
                         <span className="flex items-center gap-1 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
                           <Phone className="w-3 h-3" />{c.phone}
+                          <button
+                            type="button"
+                            aria-label={`Call ${c.phone}`}
+                            title={`Call ${c.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void phone.makeCall(c.phone!);
+                            }}
+                            className="ml-1 flex items-center justify-center min-h-[44px] min-w-[44px] -my-3 transition-opacity hover:opacity-70 active:scale-95"
+                          >
+                            <span className="text-base" aria-hidden="true">📞</span>
+                          </button>
                         </span>
                       )}
                       {c.suburb && (

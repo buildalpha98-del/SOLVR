@@ -23,10 +23,12 @@ import { toast } from "sonner";
 import { hapticSuccess, hapticWarning, hapticMedium } from "@/lib/haptics";
 import { ViewerBanner, WriteGuard } from "@/components/portal/ViewerBanner";
 import { CustomerAssetsSection } from "@/components/portal/CustomerAssetsSection";
+import CallListCard from "@/components/phone/CallListCard";
+import { useSolvrPhone } from "@/hooks/useSolvrPhone";
 import {
   ArrowLeft, Phone, Mail, MapPin, DollarSign, Briefcase,
   Calendar, FileText, Loader2, Save, RefreshCw, CheckCircle2,
-  Clock, AlertCircle, MessageSquare,
+  Clock, AlertCircle, MessageSquare, PhoneCall,
 } from "lucide-react";
 
 function fmtDate(val: Date | string | null | undefined) {
@@ -103,12 +105,23 @@ export default function PortalCustomerDetail() {
   const [, navigate] = useLocation();
   const [notes, setNotes] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
+  const phone = useSolvrPhone();
 
   const { data, isLoading, error } = trpc.portalCustomers.get.useQuery(
     { id: customerId },
     {
       enabled: !!customerId,
       retry: false,
+    },
+  );
+
+  // V2: parallel query for call history + quotes + jobs via getById
+  const { data: v2Data } = trpc.portalCustomers.getById.useQuery(
+    { customerId },
+    {
+      enabled: !!customerId,
+      retry: 2,
+      staleTime: 30_000,
     },
   );
 
@@ -211,6 +224,20 @@ export default function PortalCustomerDetail() {
                     >
                       <Phone className="w-3.5 h-3.5" />{customer.phone}
                     </a>
+                    {/* V2 tap-to-call button */}
+                    <WriteGuard>
+                      <button
+                        type="button"
+                        aria-label={`Call ${customer.name} via Solvr`}
+                        title="Call via Solvr Cloud Phone"
+                        onClick={() => void phone.makeCall(customer.phone!)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md min-h-[44px] text-xs font-semibold transition-opacity hover:opacity-80 active:scale-95"
+                        style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)" }}
+                      >
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        Call
+                      </button>
+                    </WriteGuard>
                     <CustomerMessagesChip customerPhone={customer.phone} />
                   </>
                 )}
@@ -325,6 +352,104 @@ export default function PortalCustomerDetail() {
       <div className="mb-6">
         <CustomerAssetsSection customerId={customer.id} customerName={customer.name} />
       </div>
+
+      {/* ── V2: Call History ── */}
+      {v2Data && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Call History ({v2Data.callHistory.length})
+          </h2>
+          {v2Data.callHistory.length === 0 ? (
+            <div
+              className="rounded-xl p-8 text-center"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <PhoneCall className="w-7 h-7 mx-auto mb-2" style={{ color: "rgba(255,255,255,0.15)" }} />
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>No calls on record yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {v2Data.callHistory.map((call) => (
+                <CallListCard
+                  key={call.id}
+                  callLogId={call.id}
+                  direction={call.direction as "inbound" | "outbound"}
+                  customerName={customer.name}
+                  customerPhone={customer.phone ?? null}
+                  durationSeconds={call.durationSeconds ?? null}
+                  aiIntent={call.aiIntent as "new_quote" | "quote_followup" | "job_update" | "new_job" | "complaint" | "payment" | "general_enquiry" | "scheduling" | "other" | null | undefined}
+                  aiSummary={call.aiSummary ?? null}
+                  calledAt={call.calledAt}
+                  status={call.status as "ringing" | "in_progress" | "completed" | "missed" | "voicemail" | "no_answer" | "busy" | "failed"}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── V2: Quotes ── */}
+      {v2Data && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Quotes ({v2Data.quotes.length})
+          </h2>
+          {v2Data.quotes.length === 0 ? (
+            <div
+              className="rounded-xl p-8 text-center"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <FileText className="w-7 h-7 mx-auto mb-2" style={{ color: "rgba(255,255,255,0.15)" }} />
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>No quotes for this customer.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {v2Data.quotes.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => navigate(`/portal/quotes/${q.id}`)}
+                  className="w-full text-left rounded-xl px-4 py-3 min-h-[52px] transition-colors active:scale-[0.99]"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-semibold text-white truncate">
+                        {q.quoteNumber ?? `#${q.id.slice(-6)}`}
+                      </span>
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                        style={{
+                          background:
+                            q.status === "accepted" ? "rgba(74,222,128,0.12)" :
+                            q.status === "sent" ? "rgba(96,165,250,0.12)" :
+                            q.status === "draft" ? "rgba(245,166,35,0.12)" :
+                            "rgba(255,255,255,0.06)",
+                          color:
+                            q.status === "accepted" ? "#4ade80" :
+                            q.status === "sent" ? "#60a5fa" :
+                            q.status === "draft" ? "#F5A623" :
+                            "rgba(255,255,255,0.4)",
+                        }}
+                      >
+                        {q.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-sm font-semibold" style={{ color: "#4ade80" }}>
+                        {fmtAUD(q.totalCents)}
+                      </span>
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                        {fmtDate(q.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Job History */}
       <div className="flex items-center justify-between mb-3">
