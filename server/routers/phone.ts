@@ -168,7 +168,7 @@ export const phoneRouter = router({
     .input(
       z.object({
         toNumber: z.string().min(1),
-        linkedQuoteId: z.number().optional(),
+        linkedQuoteId: z.string().optional(), // FK→quotes.id (UUID varchar(36))
         linkedJobId: z.number().optional(),
       })
     )
@@ -322,10 +322,8 @@ export const phoneRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Call not found" });
       }
 
-      // Optionally join linked customer and job in parallel.
-      // NOTE: linkedQuoteId is int but quotes.id is varchar UUID — quote join is deferred
-      // until the schema migration adds a numeric sequence to quotes (Task 5.3).
-      const [customer, job] = await Promise.all([
+      // Optionally join linked customer, job, and quote in parallel.
+      const [customer, job, quote] = await Promise.all([
         callRow.tradieCustomerId
           ? db
               .select()
@@ -342,8 +340,15 @@ export const phoneRouter = router({
               .limit(1)
               .then((r) => r[0] ?? null)
           : Promise.resolve(null),
+        callRow.linkedQuoteId
+          ? db
+              .select()
+              .from(quotes)
+              .where(eq(quotes.id, callRow.linkedQuoteId))
+              .limit(1)
+              .then((r) => r[0] ?? null)
+          : Promise.resolve(null),
       ]);
-      const quote = null; // Deferred: quotes.id is varchar UUID, linkedQuoteId is int — resolved in Task 5.3
 
       return { ...callRow, customer, quote, job };
     }),
@@ -385,16 +390,10 @@ export const phoneRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Quote not accessible" });
       }
 
-      // NOTE: callLogs.linkedQuoteId is int but quotes.id is varchar UUID.
-      // The numeric FK is a schema forward-ref (will be resolved in a future migration).
-      // For now we verify ownership and log the link; the DB column update is a no-op
-      // until the migration adds a numeric sequences column to quotes.
-      // Full wiring happens in Task 5.3.
-      console.info("[Phone] linkToQuote verified ownership", {
-        clientId: client.id,
-        callLogId: input.callLogId,
-        quoteId: input.quoteId,
-      });
+      await db
+        .update(callLogs)
+        .set({ linkedQuoteId: input.quoteId })
+        .where(eq(callLogs.id, input.callLogId));
 
       console.info("[Phone] linkToQuote", { clientId: client.id, callLogId: input.callLogId, quoteId: input.quoteId });
       return { ok: true as const };

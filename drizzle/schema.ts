@@ -284,8 +284,8 @@ export const callLogs = mysqlTable("call_logs", {
   ]),
   aiActionItems: json("aiActionItems").$type<string[]>(),
   aiSentiment: mysqlEnum("aiSentiment", ["positive", "neutral", "negative"]),
-  /** FK→quotes.id, set when post-call confirm picks "Generate Quote" or "Add note to Q-XXX" */
-  linkedQuoteId: int("linkedQuoteId"),
+  /** FK→quotes.id (UUID varchar(36)), set when post-call confirm picks "Generate Quote" or "Add note to Q-XXX" */
+  linkedQuoteId: varchar("linkedQuoteId", { length: 36 }),
   /** FK→portalJobs.id, set when post-call confirm picks "Add note to <job>" */
   linkedJobId: int("linkedJobId"),
   calledAt: timestamp("calledAt").notNull(),

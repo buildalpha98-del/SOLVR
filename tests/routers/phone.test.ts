@@ -446,22 +446,33 @@ describe("phone.linkToQuote", () => {
     };
   }
 
-  it("happy path — verifies ownership and returns { ok: true }", async () => {
+  it("happy path — verifies ownership, performs DB UPDATE, returns { ok: true }", async () => {
     let callCount = 0;
+    const mockWhere = vi.fn().mockResolvedValue({});
+    const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
+    const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
     const db = {
       select: vi.fn().mockImplementation(() => {
         callCount++;
         // First select = call log, second select = quote
         return makeSelectChain(callCount === 1 ? [{ id: 1 }] : [{ id: "quote-uuid-abc" }]);
       }),
-      update: vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue({}) }),
-      }),
+      update: mockUpdate,
     };
     mockGetDb.mockResolvedValue(db);
 
     const result = await callProcedure("linkToQuote", validInput);
     expect(result).toEqual({ ok: true });
+    // Assert the UPDATE actually fired with the UUID string (not a no-op)
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockSet).toHaveBeenCalledWith({ linkedQuoteId: "quote-uuid-abc" });
+  });
+
+  it("rejects non-UUID (numeric) quoteId — Zod BAD_REQUEST", async () => {
+    // quoteId must be a non-empty string; passing a number should be caught by Zod
+    await expect(
+      callProcedure("linkToQuote", { callLogId: 1, quoteId: 123 as unknown as string })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("cross-client safety — FORBIDDEN when quote belongs to another client", async () => {
