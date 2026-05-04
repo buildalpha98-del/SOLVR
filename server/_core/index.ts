@@ -32,6 +32,7 @@ import { scheduleMaintenanceCron } from "../cron/maintenanceSchedule";
 import { registerUsageTrackingCron } from "../cron/usageTracking";
 import { handleTwilioInboundSms } from "../twilioInboundSms";
 import { handleIncomingVoiceCall, handleDialResult, handleRecording, handleOutgoing, handleStatus } from "../webhooks/twilioVoice";
+import { handlePhoneEventsStream } from "../routes/phoneEvents";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -164,6 +165,10 @@ async function startServer() {
   app.post("/api/webhooks/twilio/recording", express.urlencoded({ extended: false }), handleRecording);
   app.post("/api/webhooks/twilio/outgoing", express.urlencoded({ extended: false }), handleOutgoing);
   app.post("/api/webhooks/twilio/status", express.urlencoded({ extended: false }), handleStatus);
+
+  // Cloud Phone V2 — SSE stream for real-time call:processed events
+  // Must be registered before json middleware so the response stays streaming
+  app.get("/api/sse/phone-events", handlePhoneEventsStream);
 
   // Xero OAuth start + callback — see server/xeroOAuth.ts for the flow.
   // The start endpoint requires an authenticated portal session; the

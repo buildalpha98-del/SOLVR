@@ -51,6 +51,7 @@ import { liveTrackingRouter } from "./routers/liveTracking";
 import { customerImportRouter } from "./routers/customerImport";
 import { xeroRouter } from "./routers/xero";
 import { customerAssetsRouter } from "./routers/customerAssets";
+import { phoneRouter } from "./routers/phone";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
@@ -1604,5 +1605,6 @@ export const appRouter = router({
   customerImport: customerImportRouter,
   xero: xeroRouter,
   customerAssets: customerAssetsRouter,
+  phone: phoneRouter,
 });
 export type AppRouter = typeof appRouter;

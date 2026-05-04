@@ -15,9 +15,13 @@
  *  - listSmsCampaigns: return send history for the authenticated tradie
  */
 import { z } from "zod";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "../_core/trpc";
 import { requirePortalAuth, requirePortalWrite } from "../_core/portalAuth";
+import { getDb } from "../db";
+import { tradieCustomers, callLogs, quotes, portalJobs } from "../../drizzle/schema";
+import { checkRateLimit } from "../_core/trpcRateLimit";
 import {
   listTradieCustomers,
   getTradieCustomer,
@@ -592,5 +596,148 @@ export const portalCustomersRouter = router({
         recipientCount: targets.length,
         message: `Campaign scheduled for ${scheduledDate.toLocaleString("en-AU")} with ${targets.length} recipient${targets.length !== 1 ? "s" : ""}.`,
       };
+    }),
+
+  /**
+   * V2 Customers tab — full customer profile with call history, quotes, and jobs.
+   *
+   * Returns the tradieCustomer row + last 50 call logs (joined via tradieCustomerId)
+   * + all quotes + all portalJobs. Three parallel queries via Promise.all.
+   * Every join is filtered by clientId for belt-and-braces cross-client safety.
+   * Rate: 60 rpm.
+   */
+  getById: publicProcedure
+    .input(z.object({ customerId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(
+        ctx.req as unknown as { cookies?: Record<string, string> }
+      );
+      checkRateLimit({ procedureName: "portalCustomers.getById", rpmPerUser: 60 }, client.id);
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      // Fetch the customer — cross-client gate
+      const [customer] = await db
+        .select()
+        .from(tradieCustomers)
+        .where(
+          and(
+            eq(tradieCustomers.id, input.customerId),
+            eq(tradieCustomers.clientId, client.id),
+          ),
+        )
+        .limit(1);
+
+      if (!customer) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found" });
+      }
+
+      // Parallel queries — all filtered by clientId defensively
+      const [callHistory, customerQuotes, jobs] = await Promise.all([
+        db
+          .select({
+            id: callLogs.id,
+            direction: callLogs.direction,
+            status: callLogs.status,
+            durationSeconds: callLogs.durationSeconds,
+            aiSummary: callLogs.aiSummary,
+            aiIntent: callLogs.aiIntent,
+            calledAt: callLogs.calledAt,
+          })
+          .from(callLogs)
+          .where(
+            and(
+              eq(callLogs.tradieCustomerId, input.customerId),
+              eq(callLogs.clientId, client.id),
+            ),
+          )
+          .orderBy(desc(callLogs.calledAt))
+          .limit(50),
+
+        db
+          .select({
+            id: quotes.id,
+            quoteNumber: quotes.quoteNumber,
+            totalCents: sql<number>`CAST(COALESCE(${quotes.totalAmount}, 0) * 100 AS SIGNED)`,
+            status: quotes.status,
+            createdAt: quotes.createdAt,
+          })
+          .from(quotes)
+          .where(
+            and(
+              eq(quotes.tradieCustomerId, input.customerId),
+              eq(quotes.clientId, client.id),
+            ),
+          )
+          .orderBy(desc(quotes.createdAt)),
+
+        db
+          .select({
+            id: portalJobs.id,
+            jobType: portalJobs.jobType,
+            status: portalJobs.stage,
+            completedAt: portalJobs.completedAt,
+            totalSpentCents: portalJobs.invoicedAmount,
+          })
+          .from(portalJobs)
+          .where(
+            and(
+              eq(portalJobs.tradieCustomerId, input.customerId),
+              eq(portalJobs.clientId, client.id),
+            ),
+          )
+          .orderBy(desc(portalJobs.createdAt)),
+      ]);
+
+      return { customer, callHistory, quotes: customerQuotes, jobs };
+    }),
+
+  /**
+   * V2 Dial Pad — partial name or phone search for candidate customers.
+   *
+   * Trims + lowercases the query, returns empty array immediately for blank input.
+   * Linear LIKE-scan is fine for V1 row counts (hundreds – low thousands per tradie).
+   * Rate: 60 rpm.
+   */
+  search: publicProcedure
+    .input(
+      z.object({
+        query: z.string(),
+        limit: z.number().int().positive().max(100).default(20),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const { client } = await requirePortalAuth(
+        ctx.req as unknown as { cookies?: Record<string, string> }
+      );
+      checkRateLimit({ procedureName: "portalCustomers.search", rpmPerUser: 60 }, client.id);
+
+      const trimmed = input.query.trim().toLowerCase();
+      if (!trimmed) return [];
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const pattern = `%${trimmed}%`;
+      const rows = await db
+        .select({
+          id: tradieCustomers.id,
+          name: tradieCustomers.name,
+          phone: tradieCustomers.phone,
+          lastJobAt: tradieCustomers.lastJobAt,
+          jobCount: tradieCustomers.jobCount,
+        })
+        .from(tradieCustomers)
+        .where(
+          and(
+            eq(tradieCustomers.clientId, client.id),
+            sql`(LOWER(${tradieCustomers.name}) LIKE ${pattern} OR ${tradieCustomers.phone} LIKE ${pattern})`,
+          ),
+        )
+        .orderBy(desc(tradieCustomers.lastJobAt))
+        .limit(input.limit);
+
+      return rows;
     }),
 });

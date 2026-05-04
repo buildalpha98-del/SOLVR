@@ -9,7 +9,7 @@
  * where Twilio is not configured.
  */
 import { randomUUID } from "crypto";
-import twilio from "twilio";
+import { getTwilioClient } from "./twilioClient";
 import { ENV } from "../_core/env";
 import {
   upsertSmsConversation,
@@ -69,7 +69,7 @@ export async function sendSms(opts: SendSmsOptions): Promise<SendSmsResult> {
   }
 
   try {
-    const client = twilio(twilioAccountSid, twilioAuthToken);
+    const client = getTwilioClient();
     const message = await client.messages.create({
       body: opts.body,
       from: twilioFromNumber,

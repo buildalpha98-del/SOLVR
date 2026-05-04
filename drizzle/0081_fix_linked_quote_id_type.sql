@@ -1,0 +1,1 @@
+ALTER TABLE `call_logs` MODIFY COLUMN `linkedQuoteId` varchar(36);

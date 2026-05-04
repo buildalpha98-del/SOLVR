@@ -44,8 +44,23 @@ IOS_BUNDLE_ID=com.solvr.mobile
 
 The VoIP topic is derived automatically as `${IOS_BUNDLE_ID}.voip`.
 
+## Stripe — Solvr Phone add-on
+
+```
+# Stripe Price ID for the Solvr Phone $39/month add-on.
+# Create the Price in the Stripe dashboard first:
+#   Products → New Price → $39/month AUD recurring
+# Then paste its `price_xxx` ID here.
+STRIPE_PRICE_ID_SOLVR_PHONE=price_xxxxx
+```
+
+The subscription is created with `metadata.product = "solvr_phone"` so the
+webhook can distinguish it from the AI Receptionist subscription events.
+
 ## Implementation references
 
 - `server/_core/voipPush.ts` — VoIP push helper (.p12)
 - `server/_core/regularPush.ts` — regular push helper (.p8)
+- `server/routers/phone.ts` — `phone.startSubscription` mutation (Task 5.4)
+- `server/stripe.ts` — `syncSolvrPhoneSubscription` + `markSolvrPhoneCancelled` helpers (Task 5.4)
 - Plan: `docs/plans/2026-04-28-solvr-cloud-phone-implementation.md` (Task 4.6)

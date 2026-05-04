@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { getDb, insertCrmInteraction, getCrmClientById, getStripeConnectionByAccountId, updateStripeConnection, upsertStripeDispute, getPaymentLinkByToken, updatePaymentLink } from "./db";
-import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals, portalSessions, invoiceChases, paymentLinks } from "../drizzle/schema";
+import { voiceAgentSubscriptions, clientProducts, crmClients, clientReferrals, portalSessions, invoiceChases, paymentLinks, clientPhoneNumbers } from "../drizzle/schema";
 import { VOICE_AGENT_PLANS, SOLVR_PLANS, PRODUCT_ID_TO_PLAN, type PlanKey, type BillingCycle } from "./stripeProducts";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { sendEmail } from "./_core/email";
@@ -327,6 +327,60 @@ export const stripeRouter = router({
     }),
 });
 
+// ─── Solvr Phone add-on — webhook helpers ────────────────────────────────────
+
+/**
+ * Maps a Stripe Subscription.Status to the clientPhoneNumbers.subscriptionStatus
+ * enum. Mirrors the same function exported from server/routers/phone.ts; kept
+ * here to avoid a circular import (phone.ts → stripe.ts → phone.ts).
+ */
+function mapStripeStatusToSolvrPhone(
+  stripeStatus: Stripe.Subscription.Status,
+): "trial" | "active" | "past_due" | "unpaid" | "incomplete" | "cancelled" {
+  switch (stripeStatus) {
+    case "trialing":            return "trial";
+    case "active":              return "active";
+    case "past_due":            return "past_due";
+    case "unpaid":              return "unpaid";
+    case "incomplete":
+    case "incomplete_expired":  return "incomplete";
+    case "canceled":
+    case "paused":
+    default:                    return "cancelled";
+  }
+}
+
+/**
+ * Syncs a Solvr Phone subscription state change to clientPhoneNumbers.
+ * Called for customer.subscription.created and customer.subscription.updated
+ * events where metadata.product === "solvr_phone".
+ */
+async function syncSolvrPhoneSubscription(sub: Stripe.Subscription): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const ourStatus = mapStripeStatusToSolvrPhone(sub.status);
+  await db
+    .update(clientPhoneNumbers)
+    .set({ subscriptionStatus: ourStatus })
+    .where(eq(clientPhoneNumbers.stripeSubscriptionId, sub.id));
+  console.log("[Stripe] Solvr Phone subscription synced", { subId: sub.id, ourStatus });
+}
+
+/**
+ * Marks a Solvr Phone subscription as cancelled.
+ * Called for customer.subscription.deleted events where
+ * metadata.product === "solvr_phone".
+ */
+async function markSolvrPhoneCancelled(subId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(clientPhoneNumbers)
+    .set({ subscriptionStatus: "cancelled" })
+    .where(eq(clientPhoneNumbers.stripeSubscriptionId, subId));
+  console.log("[Stripe] Solvr Phone subscription cancelled", { subId });
+}
+
 // ─── Webhook Handler ─────────────────────────────────────────────────────────
 import type { Request, Response } from "express";
 
@@ -626,8 +680,17 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         }
         break;
       }
+      case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
+        // ── Solvr Phone add-on branch ─────────────────────────────────────────
+        if (sub.metadata?.product === "solvr_phone") {
+          await syncSolvrPhoneSubscription(sub);
+          break;
+        }
+        // customer.subscription.created has no further handling for AI Receptionist.
+        if (event.type === "customer.subscription.created") break;
+        // ── AI Receptionist branch (existing flow — do not modify) ────────────
         const db = await getDb();
         if (db) {
           const statusMap: Record<string, "trialing" | "active" | "cancelled" | "past_due" | "incomplete"> = {
@@ -670,6 +733,12 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       }
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
+        // ── Solvr Phone add-on branch ─────────────────────────────────────────
+        if (sub.metadata?.product === "solvr_phone") {
+          await markSolvrPhoneCancelled(sub.id);
+          break;
+        }
+        // ── AI Receptionist branch (existing flow — do not modify) ────────────
         const db = await getDb();
         if (db) {
           // Mark subscription as cancelled
