@@ -24,6 +24,7 @@ import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import { OfflineBanner } from "@/components/portal/OfflineBanner";
 import { IncomingCallOverlay } from "@/components/phone/IncomingCallOverlay";
+import { InCallScreen } from "@/components/phone/InCallScreen";
 import { PortalRoleContext } from "@/contexts/PortalRoleContext";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import {
@@ -546,9 +547,11 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
         <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} referralEnabled={referralEnabled} unreadMessages={unreadMessages} />
       </nav>
 
-      {/* ── Incoming call overlay (z-100 — above all nav/modals) ────────── */}
-      {/* Rendered here at root so it covers any portal page */}
+      {/* ── Phone overlays (z-100 — above all nav/modals) ───────────────── */}
+      {/* Only one is visible at a time: IncomingCallOverlay shows on      */}
+      {/* state=incoming, InCallScreen shows on state=connecting|connected. */}
       <IncomingCallOverlay />
+      <InCallScreen />
     </div>
   );
 }
