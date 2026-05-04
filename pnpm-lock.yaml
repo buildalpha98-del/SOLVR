@@ -25,6 +25,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.693.0
         version: 3.1022.0
+      '@buildalpha/capacitor-voice':
+        specifier: workspace:*
+        version: link:packages/capacitor-voice
       '@capacitor/app':
         specifier: ^7.0.0
         version: 7.1.2(@capacitor/core@7.6.1)

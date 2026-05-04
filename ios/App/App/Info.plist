@@ -47,7 +47,16 @@
 	<true/>
 	<!-- ─── Permission strings (required by Apple for any API that touches user data) ─── -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Solvr uses your microphone to record job details for voice-to-quote generation.</string>
+	<string>Solvr uses your microphone to record job details for voice-to-quote generation and to make VoIP calls to customers.</string>
+	<!-- ─── Background modes required by @buildalpha/capacitor-voice (Task 7.7) ─── -->
+	<!-- "audio" keeps the call audio session alive when the app is backgrounded.  -->
+	<!-- "voip" registers the app with PushKit so CallKit can wake the app for     -->
+	<!-- incoming calls even when the app is suspended.                             -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>voip</string>
+	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Solvr needs access to your photo library so you can attach photos to your quotes.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
