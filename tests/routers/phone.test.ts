@@ -25,6 +25,7 @@ const {
   mockSendCancelPush,
   mockResetRateLimitBuckets,
   mockResetTokenCache,
+  mockStripeSubscriptionsCreate,
 } = vi.hoisted(() => ({
   mockGetDb: vi.fn(),
   mockRequirePortalAuth: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockSendCancelPush: vi.fn(),
   mockResetRateLimitBuckets: vi.fn(),
   mockResetTokenCache: vi.fn(),
+  mockStripeSubscriptionsCreate: vi.fn(),
 }));
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -43,6 +45,16 @@ vi.mock("../../server/routers/portalAuth", () => ({
 vi.mock("../../server/_core/voipPush", () => ({
   sendCancelPush: mockSendCancelPush,
 }));
+// Mock getStripe so startSubscription tests don't need real Stripe credentials
+vi.mock("../../server/stripe", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../server/stripe")>();
+  return {
+    ...original,
+    getStripe: () => ({
+      subscriptions: { create: mockStripeSubscriptionsCreate },
+    }),
+  };
+});
 
 // No twilio mock needed — the real twilio package is available and env vars
 // are set in beforeEach, so real JWTs (short-lived test JWTs) are minted.
@@ -588,13 +600,60 @@ describe("phone.provisionNumber", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// startSubscription
+// startSubscription — Task 5.4 real Stripe wiring
 // ─────────────────────────────────────────────────────────────────────────────
 describe("phone.startSubscription", () => {
-  it("happy path — returns stub ok: false", async () => {
+  const voiceRow = { stripeCustomerId: "cus_test_abc" };
+  const phoneRow = { id: 1, clientId: CLIENT_ID, subscriptionStatus: "incomplete", isActive: true };
+
+  function makeSubSelectDb(rows: unknown[][]) {
+    let callCount = 0;
+    return {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        then: (resolve: (v: unknown[]) => unknown) => {
+          const r = rows[callCount] ?? [];
+          callCount++;
+          return Promise.resolve(resolve(r));
+        },
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue({}),
+        }),
+      }),
+    };
+  }
+
+  beforeEach(() => {
+    process.env.STRIPE_PRICE_ID_SOLVR_PHONE = "price_test_phone";
+    mockStripeSubscriptionsCreate.mockResolvedValue({
+      id: "sub_test_001",
+      status: "active",
+      metadata: { product: "solvr_phone" },
+    });
+  });
+
+  afterEach(() => {
+    delete process.env.STRIPE_PRICE_ID_SOLVR_PHONE;
+  });
+
+  it("happy path — creates subscription and returns ok: true", async () => {
+    mockGetDb.mockResolvedValue(makeSubSelectDb([[voiceRow], [phoneRow]]));
     const result = await callProcedure("startSubscription", {});
-    expect(result.ok).toBe(false);
-    expect(result.message).toContain("Task 5.4");
+    expect(result.ok).toBe(true);
+    expect((result as Record<string, unknown>).alreadyActive).toBe(false);
+    expect((result as Record<string, unknown>).subscriptionId).toBe("sub_test_001");
+    expect(mockStripeSubscriptionsCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("idempotency — already active returns alreadyActive=true, no Stripe call", async () => {
+    const activePhoneRow = { ...phoneRow, subscriptionStatus: "active" };
+    mockGetDb.mockResolvedValue(makeSubSelectDb([[voiceRow], [activePhoneRow]]));
+    const result = await callProcedure("startSubscription", {});
+    expect(result).toMatchObject({ ok: true, alreadyActive: true });
+    expect(mockStripeSubscriptionsCreate).not.toHaveBeenCalled();
   });
 
   it("auth rejection — UNAUTHORIZED when no session", async () => {
@@ -608,6 +667,7 @@ describe("phone.startSubscription", () => {
 
   it("rate limit — throws TOO_MANY_REQUESTS after 5 calls", async () => {
     for (let i = 0; i < 5; i++) {
+      mockGetDb.mockResolvedValue(makeSubSelectDb([[voiceRow], [phoneRow]]));
       await callProcedure("startSubscription", {});
     }
     await expect(callProcedure("startSubscription", {})).rejects.toMatchObject({

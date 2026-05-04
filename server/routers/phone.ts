@@ -25,9 +25,34 @@ import {
   tradieCustomers,
   quotes,
   portalJobs,
+  voiceAgentSubscriptions,
 } from "../../drizzle/schema";
 import * as voipPush from "../_core/voipPush";
 import { checkRateLimit } from "../_core/trpcRateLimit";
+import { getStripe } from "../stripe";
+import type Stripe from "stripe";
+
+// ── Stripe status mapper (phone add-on) ───────────────────────────────────────
+/**
+ * Maps a Stripe Subscription.Status to our clientPhoneNumbers.subscriptionStatus
+ * enum. Used by startSubscription (at create time) and re-exported so the
+ * webhook helper in server/stripe.ts can share the same mapping.
+ */
+export function mapStripeStatusToSolvrPhone(
+  stripeStatus: Stripe.Subscription.Status,
+): "trial" | "active" | "past_due" | "unpaid" | "incomplete" | "cancelled" {
+  switch (stripeStatus) {
+    case "trialing":            return "trial";
+    case "active":              return "active";
+    case "past_due":            return "past_due";
+    case "unpaid":              return "unpaid";
+    case "incomplete":
+    case "incomplete_expired":  return "incomplete";
+    case "canceled":
+    case "paused":
+    default:                    return "cancelled";
+  }
+}
 
 // ── Twilio Access Token cache ─────────────────────────────────────────────────
 // Keyed by clientId. Evicted on next call after expiry (lazy eviction).
@@ -463,21 +488,117 @@ export const phoneRouter = router({
     }),
 
   /**
-   * Start a Stripe subscription for the Cloud Phone product.
-   * TODO: Task 5.4 — Stripe wiring not yet implemented.
+   * Start a Stripe subscription for the Cloud Phone $39/month add-on.
+   * Idempotent — returns { ok: true, alreadyActive: true } if the subscription
+   * is already active or trialling.
+   *
+   * Input: { clientPhoneNumberId? } — optional, defaults to the client's first
+   * active phone number row. V2 tradies have one number; the param is
+   * forward-compat for multi-number scenarios.
+   *
    * Rate: 5 rpm.
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 5.4)
    */
   startSubscription: publicProcedure
-    .input(z.object({ stripePriceId: z.string().optional() }))
-    .mutation(async ({ ctx }) => {
+    .input(z.object({ clientPhoneNumberId: z.number().int().optional() }))
+    .mutation(async ({ ctx, input }) => {
       const { client } = await requirePortalWrite(
         ctx.req as unknown as { cookies?: Record<string, string> }
       );
       checkRateLimit({ procedureName: "phone.startSubscription", rpmPerUser: 5 }, client.id);
 
-      // TODO: Task 5.4 — implement Stripe subscription creation
-      console.info("[Phone] startSubscription stub called", { clientId: client.id });
-      return { ok: false as const, message: "Task 5.4 not yet implemented" };
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      // 1. Look up the Stripe customer ID from the client's voice-agent subscription row.
+      const voiceSub = await db
+        .select({ stripeCustomerId: voiceAgentSubscriptions.stripeCustomerId })
+        .from(voiceAgentSubscriptions)
+        .where(eq(voiceAgentSubscriptions.clientId, client.id))
+        .then(rows => rows.find(r => r.stripeCustomerId) ?? null);
+
+      if (!voiceSub?.stripeCustomerId) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No Stripe customer found. Complete account setup first.",
+        });
+      }
+
+      // 2. Resolve the clientPhoneNumbers row.
+      let phoneRow;
+      if (input.clientPhoneNumberId !== undefined) {
+        [phoneRow] = await db
+          .select()
+          .from(clientPhoneNumbers)
+          .where(and(
+            eq(clientPhoneNumbers.id, input.clientPhoneNumberId),
+            eq(clientPhoneNumbers.clientId, client.id),
+          ));
+        if (!phoneRow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Phone number not found." });
+        }
+      } else {
+        [phoneRow] = await db
+          .select()
+          .from(clientPhoneNumbers)
+          .where(and(
+            eq(clientPhoneNumbers.clientId, client.id),
+            eq(clientPhoneNumbers.isActive, true),
+          ));
+        if (!phoneRow) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "No active phone number found." });
+        }
+      }
+
+      // 3. Idempotency guard — already active or trialling.
+      if (phoneRow.subscriptionStatus === "active" || phoneRow.subscriptionStatus === "trial") {
+        return { ok: true as const, alreadyActive: true };
+      }
+
+      // 4. Resolve the Solvr Phone price ID.
+      const priceId = process.env.STRIPE_PRICE_ID_SOLVR_PHONE;
+      if (!priceId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "STRIPE_PRICE_ID_SOLVR_PHONE is not configured.",
+        });
+      }
+
+      // 5. Create the Stripe subscription.
+      const stripe = getStripe();
+      const subscription = await stripe.subscriptions.create({
+        customer: voiceSub.stripeCustomerId,
+        items: [{ price: priceId }],
+        metadata: {
+          product: "solvr_phone",
+          clientId: String(client.id),
+          clientPhoneNumberId: String(phoneRow.id),
+        },
+      });
+
+      // 6. Map Stripe status to our enum and persist to the phone row.
+      const ourStatus = mapStripeStatusToSolvrPhone(subscription.status);
+      await db
+        .update(clientPhoneNumbers)
+        .set({
+          stripeSubscriptionId: subscription.id,
+          subscriptionStatus: ourStatus,
+        })
+        .where(eq(clientPhoneNumbers.id, phoneRow.id));
+
+      console.info("[Phone] startSubscription created", {
+        clientId: client.id,
+        phoneId: phoneRow.id,
+        subscriptionId: subscription.id,
+        ourStatus,
+      });
+
+      return {
+        ok: true as const,
+        alreadyActive: false,
+        subscriptionId: subscription.id,
+        subscriptionStatus: ourStatus,
+      };
     }),
 
   /**
