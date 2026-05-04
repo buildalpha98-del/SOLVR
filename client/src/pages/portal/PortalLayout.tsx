@@ -25,6 +25,7 @@ import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import { OfflineBanner } from "@/components/portal/OfflineBanner";
 import { IncomingCallOverlay } from "@/components/phone/IncomingCallOverlay";
 import { InCallScreen } from "@/components/phone/InCallScreen";
+import { PostCallSheet } from "@/components/phone/PostCallSheet";
 import { PortalRoleContext } from "@/contexts/PortalRoleContext";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import {
@@ -549,9 +550,11 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
 
       {/* ── Phone overlays (z-100 — above all nav/modals) ───────────────── */}
       {/* Only one is visible at a time: IncomingCallOverlay shows on      */}
-      {/* state=incoming, InCallScreen shows on state=connecting|connected. */}
+      {/* state=incoming, InCallScreen shows on state=connecting|connected, */}
+      {/* PostCallSheet shows on state=ended.                              */}
       <IncomingCallOverlay />
       <InCallScreen />
+      <PostCallSheet />
     </div>
   );
 }
