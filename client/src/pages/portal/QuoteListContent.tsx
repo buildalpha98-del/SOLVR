@@ -11,6 +11,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useSolvrPhone } from "@/hooks/useSolvrPhone";
 import { getSolvrOrigin } from "@/const";
 import { QuoteEngineUpgradeButton } from "@/components/portal/QuoteEngineUpgradeButton";
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,7 @@ function useVoiceRecorder() {
 export default function QuoteListContent() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const solvrPhone = useSolvrPhone();
 
   // Handle ?activated=1 return from Stripe checkout
   useEffect(() => {
@@ -455,6 +457,25 @@ export default function QuoteListContent() {
                     {q.customerName}
                     {q.customerEmail ? ` · ${q.customerEmail}` : ""}
                   </p>
+                )}
+                {(q as typeof q & { customerPhone?: string | null }).customerPhone && (
+                  <div className="flex items-center gap-0.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      {(q as typeof q & { customerPhone?: string | null }).customerPhone}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Call ${(q as typeof q & { customerPhone?: string | null }).customerPhone} via Solvr`}
+                      title="Call via Solvr"
+                      onClick={() => void solvrPhone.makeCall(
+                        (q as typeof q & { customerPhone?: string | null }).customerPhone!,
+                        { quoteId: q.id },
+                      )}
+                      className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-3 transition-opacity hover:opacity-70 active:scale-95"
+                    >
+                      <span className="text-base" aria-hidden="true">📞</span>
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="text-right shrink-0">

@@ -16,6 +16,7 @@
 import { useState, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useSolvrPhone } from "@/hooks/useSolvrPhone";
 import { getSolvrOrigin } from "@/const";
 import { compressImage } from "@/lib/imageCompression";
 import PortalLayout from "./PortalLayout";
@@ -67,6 +68,7 @@ export default function PortalQuoteDetail() {
   const quoteId = params.id;
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const solvrPhone = useSolvrPhone();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = trpc.quotes.get.useQuery({ id: quoteId });
@@ -281,7 +283,20 @@ export default function PortalQuoteDetail() {
                 value ? (
                   <div key={label}>
                     <p className="text-white/40 text-xs mb-0.5">{label}</p>
-                    <p className="text-white">{value}</p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-white">{value}</p>
+                      {label === "Phone" && (
+                        <button
+                          type="button"
+                          onClick={() => void solvrPhone.makeCall(value, { quoteId })}
+                          aria-label={`Call ${value} via Solvr`}
+                          title="Call via Solvr"
+                          className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-2 transition-opacity hover:opacity-70 active:scale-95"
+                        >
+                          <span className="text-base" aria-hidden="true">📞</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : null,
               )}

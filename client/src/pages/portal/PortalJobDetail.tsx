@@ -20,6 +20,7 @@ import { useRoute, useLocation } from "wouter";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
 import { getSolvrOrigin } from "@/const";
+import { useSolvrPhone } from "@/hooks/useSolvrPhone";
 import { compressImage } from "@/lib/imageCompression";
 import { toast } from "sonner";
 import {
@@ -79,10 +80,12 @@ function formatDate(d: Date | string | null | undefined) {
 
 // ─── Editable Field ───────────────────────────────────────────────────────────
 function EditableField({
-  label, value, onSave, icon, placeholder = "—", type = "text",
+  label, value, onSave, icon, placeholder = "—", type = "text", onCall,
 }: {
   label: string; value: string | null | undefined; onSave: (v: string) => void;
   icon?: React.ReactNode; placeholder?: string; type?: string;
+  /** When provided, renders a 📞 tap-to-call button next to the phone number */
+  onCall?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
@@ -129,6 +132,17 @@ function EditableField({
                 >
                   <MessageSquare className="w-3 h-3" /> SMS
                 </a>
+                {onCall && (
+                  <button
+                    type="button"
+                    onClick={onCall}
+                    aria-label={`VoIP call ${value}`}
+                    title="Call via Solvr"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-2 transition-opacity hover:opacity-70 active:scale-95"
+                  >
+                    <span className="text-base" aria-hidden="true">📞</span>
+                  </button>
+                )}
               </>
             )}
             {/* Tap-to-email chip */}
@@ -609,6 +623,7 @@ export default function PortalJobDetail() {
   const [, navigate] = useLocation();
   const jobId = parseInt(params?.id ?? "0", 10);
 
+  const solvrPhone = useSolvrPhone();
   const utils = trpc.useUtils();
 
   const { data, isLoading, error } = trpc.portal.getJobDetail.useQuery(
@@ -992,7 +1007,7 @@ export default function PortalJobDetail() {
               {/* Client Details */}
               <SectionCard title="Client Details" action={<User className="w-4 h-4" style={{ color: "rgba(255,255,255,0.3)" }} />}>
                 <EditableField label="Name" value={job.customerName ?? job.callerName} onSave={v => save("customerName", v)} icon={<User className="w-3.5 h-3.5" />} placeholder="Not set" />
-                <EditableField label="Phone" value={job.customerPhone ?? job.callerPhone} onSave={v => save("customerPhone", v)} icon={<Phone className="w-3.5 h-3.5" />} placeholder="Not set" type="tel" />
+                <EditableField label="Phone" value={job.customerPhone ?? job.callerPhone} onSave={v => save("customerPhone", v)} icon={<Phone className="w-3.5 h-3.5" />} placeholder="Not set" type="tel" onCall={(job.customerPhone ?? job.callerPhone) ? () => void solvrPhone.makeCall((job.customerPhone ?? job.callerPhone)!, { jobId }) : undefined} />
                 <EditableField label="Email" value={job.customerEmail} onSave={v => save("customerEmail", v)} icon={<Mail className="w-3.5 h-3.5" />} placeholder="Not set" type="email" />
                 <EditableField label="Address" value={job.customerAddress ?? job.location} onSave={v => save("customerAddress", v)} icon={<Home className="w-3.5 h-3.5" />} placeholder="Not set" />
               </SectionCard>
