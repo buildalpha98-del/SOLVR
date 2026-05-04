@@ -159,6 +159,15 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      // The plugin's package.json points "main" at dist/plugin.cjs.js
+      // which only exists after running its own build. The web bundle
+      // only needs the TS surface (the iOS Swift code is what does the
+      // real work — bundled via Cocoapods, not Vite). Resolving to
+      // src/index.ts skips the dual-build dance.
+      "@buildalpha/capacitor-voice": path.resolve(
+        import.meta.dirname,
+        "packages/capacitor-voice/src/index.ts",
+      ),
     },
   },
   envDir: path.resolve(import.meta.dirname),

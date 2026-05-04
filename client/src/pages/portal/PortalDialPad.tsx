@@ -200,7 +200,7 @@ export default function PortalDialPad() {
   }
 
   /** Dial the raw number in the display field. */
-  async function dialNumber() {
+  async function handleDial() {
     if (!dialNumber.trim()) return;
     toast(`Calling ${dialNumber.trim()}…`);
     try {
@@ -493,7 +493,7 @@ export default function PortalDialPad() {
       {/* ── Call button ──────────────────────────────────────────────────────── */}
       <div className="px-8 mt-6">
         <button
-          onClick={() => void dialNumber()}
+          onClick={() => void handleDial()}
           disabled={!canCall}
           aria-label="Call"
           className="w-full flex items-center justify-center gap-3 rounded-full transition-opacity active:opacity-70 disabled:opacity-30"
