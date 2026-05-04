@@ -782,6 +782,43 @@ export const phoneRouter = router({
     }),
 
   /**
+   * Return usage + subscription status for the Phone tab cap banner.
+   * Returns { hasNumber: false } when the client hasn't provisioned a number yet.
+   * Rate: 60 rpm.
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 6.2)
+   */
+  getUsage: publicProcedure.query(async ({ ctx }) => {
+    const { client } = await requirePortalAuth(
+      ctx.req as unknown as { cookies?: Record<string, string> }
+    );
+    checkRateLimit({ procedureName: "phone.getUsage", rpmPerUser: 60 }, client.id);
+
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+    const rows = await db
+      .select()
+      .from(clientPhoneNumbers)
+      .where(eq(clientPhoneNumbers.clientId, client.id))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return { hasNumber: false as const };
+    }
+
+    const row = rows[0];
+    return {
+      hasNumber: true as const,
+      subscriptionStatus: row.subscriptionStatus,
+      inboundMinutesUsed: row.inboundMinutesUsed,
+      outboundMinutesUsed: row.outboundMinutesUsed,
+      billingCycleStart: row.billingCycleStart,
+      inboundCap: 200,
+      outboundCap: 100,
+    };
+  }),
+
+  /**
    * Update the ring timeout and AI fallback toggle on the client's primary phone number.
    * Ring timeout must be 5–60 seconds.
    * Rate: 60 rpm.

@@ -1057,3 +1057,79 @@ describe("trpcRateLimit bucket isolation", () => {
     expect(result.numbers).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// phone.getUsage — Task 6.2
+// ─────────────────────────────────────────────────────────────────────────────
+describe("phone.getUsage", () => {
+  const makePhoneRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 1,
+    clientId: CLIENT_ID,
+    twilioSid: "PNtest",
+    phoneNumber: "+61412345678",
+    friendlyNumber: "0412 345 678",
+    type: "provisioned",
+    isActive: true,
+    isDefault: true,
+    ringTimeoutSeconds: 20,
+    aiFallbackEnabled: true,
+    subscriptionStatus: "active",
+    stripeSubscriptionId: "sub_test",
+    billingCycleStart: new Date("2026-04-01"),
+    inboundMinutesUsed: 45,
+    outboundMinutesUsed: 12,
+    createdAt: new Date("2026-04-01"),
+    ...overrides,
+  });
+
+  it("happy path — returns usage fields when phone number exists", async () => {
+    const phoneRow = makePhoneRow();
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [phoneRow] }));
+
+    const result = await callProcedure("getUsage", undefined);
+    expect(result.hasNumber).toBe(true);
+    if (!result.hasNumber) return; // type narrowing
+    expect(result.subscriptionStatus).toBe("active");
+    expect(result.inboundMinutesUsed).toBe(45);
+    expect(result.outboundMinutesUsed).toBe(12);
+    expect(result.inboundCap).toBe(200);
+    expect(result.outboundCap).toBe(100);
+  });
+
+  it("returns { hasNumber: false } when client has no provisioned number", async () => {
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [] }));
+
+    const result = await callProcedure("getUsage", undefined);
+    expect(result.hasNumber).toBe(false);
+  });
+
+  it("returns past_due status correctly", async () => {
+    const phoneRow = makePhoneRow({ subscriptionStatus: "past_due", inboundMinutesUsed: 210 });
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [phoneRow] }));
+
+    const result = await callProcedure("getUsage", undefined);
+    expect(result.hasNumber).toBe(true);
+    if (!result.hasNumber) return;
+    expect(result.subscriptionStatus).toBe("past_due");
+    expect(result.inboundMinutesUsed).toBe(210);
+  });
+
+  it("auth rejection — UNAUTHORIZED when no session", async () => {
+    mockRequirePortalAuth.mockRejectedValue(
+      new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." })
+    );
+    await expect(callProcedure("getUsage", undefined)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+  });
+
+  it("rate limit — throws TOO_MANY_REQUESTS after 60 calls", async () => {
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [] }));
+    for (let i = 0; i < 60; i++) {
+      await callProcedure("getUsage", undefined);
+    }
+    await expect(callProcedure("getUsage", undefined)).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
+  });
+});

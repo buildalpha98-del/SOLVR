@@ -71,6 +71,7 @@ import PortalForgotPassword from "./pages/portal/PortalForgotPassword";
 import PortalResetPassword from "./pages/portal/PortalResetPassword";
 import PortalDashboard from "./pages/portal/PortalDashboard";
 import PortalCalls from "./pages/portal/PortalCalls";
+import PortalPhone from "./pages/portal/PortalPhone";
 import PortalMessages from "./pages/portal/PortalMessages";
 import PortalToday from "./pages/portal/PortalToday";
 import PortalJobs from "./pages/portal/PortalJobs";
@@ -207,7 +208,11 @@ function Router() {
       <Route path="/portal/forgot-password" component={PortalForgotPassword} />
       <Route path="/portal/reset-password" component={PortalResetPassword} />
       <Route path="/portal/dashboard" component={PortalDashboard} />
+      {/* /portal/calls kept for backward compat (emails/push notifications may link to it) */}
       <Route path="/portal/calls" component={PortalCalls} />
+      {/* Phone tab — V2 Cloud Phone (Task 6.2) */}
+      <Route path="/portal/phone/:callLogId" component={PortalPhone} />
+      <Route path="/portal/phone" component={PortalPhone} />
       <Route path="/portal/messages/:id" component={PortalMessages} />
       <Route path="/portal/messages" component={PortalMessages} />
       <Route path="/portal/today" component={PortalToday} />
