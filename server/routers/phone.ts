@@ -27,6 +27,7 @@ import {
   quotes,
   portalJobs,
   voiceAgentSubscriptions,
+  crmInteractions,
 } from "../../drizzle/schema";
 import * as voipPush from "../_core/voipPush";
 import { checkRateLimit } from "../_core/trpcRateLimit";
@@ -779,6 +780,148 @@ export const phoneRouter = router({
         subscriptionId: subscription.id,
         subscriptionStatus: ourStatus,
       };
+    }),
+
+  /**
+   * Return usage + subscription status for the Phone tab cap banner.
+   * Returns { hasNumber: false } when the client hasn't provisioned a number yet.
+   * Rate: 60 rpm.
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 6.2)
+   */
+  getUsage: publicProcedure.query(async ({ ctx }) => {
+    const { client } = await requirePortalAuth(
+      ctx.req as unknown as { cookies?: Record<string, string> }
+    );
+    checkRateLimit({ procedureName: "phone.getUsage", rpmPerUser: 60 }, client.id);
+
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+    const rows = await db
+      .select()
+      .from(clientPhoneNumbers)
+      .where(eq(clientPhoneNumbers.clientId, client.id))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return { hasNumber: false as const };
+    }
+
+    const row = rows[0];
+    return {
+      hasNumber: true as const,
+      subscriptionStatus: row.subscriptionStatus,
+      inboundMinutesUsed: row.inboundMinutesUsed,
+      outboundMinutesUsed: row.outboundMinutesUsed,
+      billingCycleStart: row.billingCycleStart,
+      inboundCap: 200,
+      outboundCap: 100,
+    };
+  }),
+
+  /**
+   * Insert a CRM call note for a completed call.
+   * Optionally links the note to an existing quote or job (cross-client safety
+   * enforced on both optional FKs). Also updates callLog.linkedQuoteId /
+   * callLog.linkedJobId when those optional params are provided.
+   * Rate: 30 rpm.
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 7.3 follow-up)
+   */
+  addCallNote: publicProcedure
+    .input(
+      z.object({
+        callLogId: z.number().int(),
+        note: z.string().min(1).max(5000),
+        linkedQuoteId: z.string().optional(),
+        linkedJobId: z.number().int().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { client } = await requirePortalWrite(
+        ctx.req as unknown as { cookies?: Record<string, string> }
+      );
+      checkRateLimit({ procedureName: "phone.addCallNote", rpmPerUser: 30 }, client.id);
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      // 1. Verify callLog belongs to this client
+      const [callRow] = await db
+        .select()
+        .from(callLogs)
+        .where(and(eq(callLogs.id, input.callLogId), eq(callLogs.clientId, client.id)))
+        .limit(1);
+
+      if (!callRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Call not found" });
+      }
+
+      // 2. Cross-client safety: verify linked quote belongs to this client
+      if (input.linkedQuoteId !== undefined) {
+        const [quoteRow] = await db
+          .select({ id: quotes.id })
+          .from(quotes)
+          .where(and(eq(quotes.id, input.linkedQuoteId), eq(quotes.clientId, client.id)))
+          .limit(1);
+        if (!quoteRow) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Quote not accessible" });
+        }
+      }
+
+      // 3. Cross-client safety: verify linked job belongs to this client
+      if (input.linkedJobId !== undefined) {
+        const [jobRow] = await db
+          .select({ id: portalJobs.id })
+          .from(portalJobs)
+          .where(and(eq(portalJobs.id, input.linkedJobId), eq(portalJobs.clientId, client.id)))
+          .limit(1);
+        if (!jobRow) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Job not accessible" });
+        }
+      }
+
+      // 4. INSERT into crmInteractions
+      const result = await db
+        .insert(crmInteractions)
+        .values({
+          clientId: client.id,
+          type: "call",
+          title: `Call note — ${new Date().toLocaleDateString("en-AU")}`,
+          body: input.note,
+          isPinned: false,
+        })
+        .$returningId();
+
+      const interactionId = result[0]?.id;
+      if (!interactionId) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create interaction" });
+      }
+
+      // 5. Update callLog with optional links
+      const callLogUpdates: Record<string, unknown> = {};
+      if (input.linkedQuoteId !== undefined) {
+        callLogUpdates.linkedQuoteId = input.linkedQuoteId;
+      }
+      if (input.linkedJobId !== undefined) {
+        callLogUpdates.linkedJobId = input.linkedJobId;
+      }
+
+      if (Object.keys(callLogUpdates).length > 0) {
+        await db
+          .update(callLogs)
+          .set(callLogUpdates)
+          .where(eq(callLogs.id, input.callLogId));
+      }
+
+      console.info("[Phone] addCallNote", {
+        clientId: client.id,
+        callLogId: input.callLogId,
+        interactionId,
+        linkedQuoteId: input.linkedQuoteId,
+        linkedJobId: input.linkedJobId,
+      });
+
+      return { interactionId, ok: true as const };
     }),
 
   /**

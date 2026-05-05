@@ -50,6 +50,10 @@ import {
 } from "../db";
 import { randomUUID, randomBytes } from "crypto";
 import type { QuoteReportContent } from "../_core/reportGeneration";
+import { checkRateLimit } from "../_core/trpcRateLimit";
+import { getDb } from "../db";
+import { callLogs, tradieCustomers } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1028,5 +1032,116 @@ export const quotesRouter = router({
       }
       await updateQuote(input.id, { warningsAcknowledged: true });
       return { success: true };
+    }),
+
+  /**
+   * Create a draft quote from a completed call log.
+   * Pre-fills customer info from the callLog's tradieCustomer (if any),
+   * sets aiSummary as the quote description, and records bidirectional linkage:
+   *   quote.sourceCallLogId = callLogId
+   *   callLog.linkedQuoteId = newQuote.id
+   *
+   * Requires AI analysis to be complete (aiSummary non-null).
+   * Rate: 30 rpm.
+   * Plan: docs/plans/2026-04-28-solvr-cloud-phone-implementation.md (Task 7.3 follow-up)
+   */
+  createFromCall: publicProcedure
+    .input(z.object({ callLogId: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      const portalAuth = await requirePortalWrite(ctx.req);
+      const { client } = portalAuth;
+      checkRateLimit({ procedureName: "quotes.createFromCall", rpmPerUser: 30 }, client.id);
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      // 1. Verify callLog belongs to this client
+      const [callRow] = await db
+        .select()
+        .from(callLogs)
+        .where(and(eq(callLogs.id, input.callLogId), eq(callLogs.clientId, client.id)))
+        .limit(1);
+
+      if (!callRow) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Call not found" });
+      }
+
+      // 2. Require AI analysis to be complete
+      if (!callRow.aiSummary) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "AI analysis not yet complete — please wait a few seconds and try again",
+        });
+      }
+
+      // 3. Look up customer details
+      let customerName: string | null = null;
+      let customerPhone: string | null = null;
+      let customerEmail: string | null = null;
+
+      if (callRow.tradieCustomerId) {
+        const [customer] = await db
+          .select()
+          .from(tradieCustomers)
+          .where(eq(tradieCustomers.id, callRow.tradieCustomerId))
+          .limit(1);
+
+        if (customer) {
+          customerName = customer.name;
+          customerPhone = customer.phone ?? null;
+          customerEmail = customer.email ?? null;
+        }
+      }
+
+      // Fallback phone from the call itself (caller for inbound, destination for outbound)
+      if (!customerPhone) {
+        customerPhone =
+          callRow.direction === "inbound" ? callRow.fromNumber : callRow.toNumber;
+      }
+
+      if (!customerName) {
+        customerName = customerPhone ?? "Unknown caller";
+      }
+
+      // 4. Build the draft quote
+      const gstRate = client.quoteGstRate ?? "10.00";
+      const validityDays = client.quoteValidityDays ?? 30;
+      const quoteId = randomUUID();
+      const quoteNumber = await getNextQuoteNumber(client.id);
+      const customerToken = generateCustomerToken();
+
+      const financials = calcFinancials([], gstRate);
+      const validUntil = addDays(validityDays);
+
+      await insertQuote({
+        id: quoteId,
+        clientId: client.id,
+        quoteNumber,
+        status: "draft",
+        customerName,
+        customerEmail,
+        customerPhone,
+        customerAddress: null,
+        jobTitle: "Quote from call",
+        jobDescription: callRow.aiSummary,
+        subtotal: financials.subtotal,
+        gstRate,
+        gstAmount: financials.gstAmount,
+        totalAmount: financials.totalAmount,
+        paymentTerms: client.quotePaymentTerms ?? "Due on completion",
+        validityDays,
+        validUntil,
+        notes: null,
+        customerToken,
+        sourceCallLogId: input.callLogId,
+      });
+
+      // 5. Update callLog.linkedQuoteId for the reverse link
+      await db
+        .update(callLogs)
+        .set({ linkedQuoteId: quoteId })
+        .where(eq(callLogs.id, input.callLogId));
+
+      return { quoteId, quoteNumber };
     }),
 });

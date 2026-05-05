@@ -13,6 +13,7 @@
 import { useCallback, useState } from "react";
 import PortalLayout from "./PortalLayout";
 import { trpc } from "@/lib/trpc";
+import { useSolvrPhone } from "@/hooks/useSolvrPhone";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/portal/PullToRefreshIndicator";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ function ChannelBadge({ channel }: { channel: "sms" | "email" | "both" }) {
 }
 
 export default function PortalReviews() {
+  const solvrPhone = useSolvrPhone();
   const requestsQuery = trpc.portal.listReviewRequests.useQuery({ limit: 100 });
   const statsQuery = trpc.portal.getReviewRequestStats.useQuery();
   const resendMutation = trpc.portal.resendReviewRequest.useMutation({
@@ -192,13 +194,24 @@ export default function PortalReviews() {
                 </p>
                 <p className="text-sm truncate" style={{ color: "rgba(255,255,255,0.45)" }}>
                   {req.customerPhone ? (
-                    <a
-                      href={`tel:${req.customerPhone}`}
-                      className="underline underline-offset-2 active:opacity-70"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {req.customerPhone}
-                    </a>
+                    <span className="flex items-center gap-0.5">
+                      <a
+                        href={`tel:${req.customerPhone}`}
+                        className="underline underline-offset-2 active:opacity-70"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {req.customerPhone}
+                      </a>
+                      <button
+                        type="button"
+                        aria-label={`Call ${req.customerPhone} via Solvr`}
+                        title="Call via Solvr"
+                        onClick={(e) => { e.stopPropagation(); void solvrPhone.makeCall(req.customerPhone!); }}
+                        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-3 transition-opacity hover:opacity-70 active:scale-95"
+                      >
+                        <span className="text-base" aria-hidden="true">📞</span>
+                      </button>
+                    </span>
                   ) : req.customerEmail ? (
                     <a
                       href={`mailto:${req.customerEmail}`}

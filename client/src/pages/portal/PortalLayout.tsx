@@ -23,6 +23,9 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { SessionExpiryBanner } from "@/components/portal/SessionExpiryBanner";
 import { OfflineBanner } from "@/components/portal/OfflineBanner";
+import { IncomingCallOverlay } from "@/components/phone/IncomingCallOverlay";
+import { InCallScreen } from "@/components/phone/InCallScreen";
+import { PostCallSheet } from "@/components/phone/PostCallSheet";
 import { PortalRoleContext } from "@/contexts/PortalRoleContext";
 import { usePortalRole } from "@/hooks/usePortalRole";
 import {
@@ -55,7 +58,7 @@ const ALL_TABS: NavTab[] = [
   // ── Overflow items (More drawer) ──
   { key: "calendar", label: "Calendar", href: "/portal/calendar", icon: <Calendar className="w-4 h-4" />, feature: "calendar", badge: "Pro" },
   { key: "assistant", label: "AI Assistant", href: "/portal/assistant", icon: <Bot className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
-  { key: "calls", label: "Calls", href: "/portal/calls", icon: <Phone className="w-4 h-4" />, feature: "calls" },
+  { key: "phone", label: "Phone", href: "/portal/phone", icon: <Phone className="w-4 h-4" />, feature: "calls" },
   // Quotes merged into Jobs tab — no longer in More drawer
   { key: "customers", label: "Customers", href: "/portal/customers", icon: <Users className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
   { key: "compliance", label: "Compliance", href: "/portal/compliance", icon: <ShieldCheck className="w-4 h-4" />, feature: "jobs", badge: "Pro" },
@@ -544,6 +547,14 @@ export default function PortalLayout({ children, activeTab }: PortalLayoutProps)
       >
         <BottomTabBar features={features} currentTab={currentTab} onLogout={() => logoutMutation.mutate()} isLoggingOut={logoutMutation.isPending} referralEnabled={referralEnabled} unreadMessages={unreadMessages} />
       </nav>
+
+      {/* ── Phone overlays (z-100 — above all nav/modals) ───────────────── */}
+      {/* Only one is visible at a time: IncomingCallOverlay shows on      */}
+      {/* state=incoming, InCallScreen shows on state=connecting|connected, */}
+      {/* PostCallSheet shows on state=ended.                              */}
+      <IncomingCallOverlay />
+      <InCallScreen />
+      <PostCallSheet />
     </div>
   );
 }

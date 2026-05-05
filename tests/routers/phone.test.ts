@@ -1057,3 +1057,248 @@ describe("trpcRateLimit bucket isolation", () => {
     expect(result.numbers).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// phone.getUsage — Task 6.2
+// ─────────────────────────────────────────────────────────────────────────────
+describe("phone.getUsage", () => {
+  const makePhoneRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 1,
+    clientId: CLIENT_ID,
+    twilioSid: "PNtest",
+    phoneNumber: "+61412345678",
+    friendlyNumber: "0412 345 678",
+    type: "provisioned",
+    isActive: true,
+    isDefault: true,
+    ringTimeoutSeconds: 20,
+    aiFallbackEnabled: true,
+    subscriptionStatus: "active",
+    stripeSubscriptionId: "sub_test",
+    billingCycleStart: new Date("2026-04-01"),
+    inboundMinutesUsed: 45,
+    outboundMinutesUsed: 12,
+    createdAt: new Date("2026-04-01"),
+    ...overrides,
+  });
+
+  it("happy path — returns usage fields when phone number exists", async () => {
+    const phoneRow = makePhoneRow();
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [phoneRow] }));
+
+    const result = await callProcedure("getUsage", undefined);
+    expect(result.hasNumber).toBe(true);
+    if (!result.hasNumber) return; // type narrowing
+    expect(result.subscriptionStatus).toBe("active");
+    expect(result.inboundMinutesUsed).toBe(45);
+    expect(result.outboundMinutesUsed).toBe(12);
+    expect(result.inboundCap).toBe(200);
+    expect(result.outboundCap).toBe(100);
+  });
+
+  it("returns { hasNumber: false } when client has no provisioned number", async () => {
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [] }));
+
+    const result = await callProcedure("getUsage", undefined);
+    expect(result.hasNumber).toBe(false);
+  });
+
+  it("returns past_due status correctly", async () => {
+    const phoneRow = makePhoneRow({ subscriptionStatus: "past_due", inboundMinutesUsed: 210 });
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [phoneRow] }));
+
+    const result = await callProcedure("getUsage", undefined);
+    expect(result.hasNumber).toBe(true);
+    if (!result.hasNumber) return;
+    expect(result.subscriptionStatus).toBe("past_due");
+    expect(result.inboundMinutesUsed).toBe(210);
+  });
+
+  it("auth rejection — UNAUTHORIZED when no session", async () => {
+    mockRequirePortalAuth.mockRejectedValue(
+      new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." })
+    );
+    await expect(callProcedure("getUsage", undefined)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+  });
+
+  it("rate limit — throws TOO_MANY_REQUESTS after 60 calls", async () => {
+    mockGetDb.mockResolvedValue(makeDb({ selectResult: [] }));
+    for (let i = 0; i < 60; i++) {
+      await callProcedure("getUsage", undefined);
+    }
+    await expect(callProcedure("getUsage", undefined)).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// addCallNote
+// ─────────────────────────────────────────────────────────────────────────────
+describe("phone.addCallNote", () => {
+  const validInput = { callLogId: 5, note: "Customer called about leak repair" };
+
+  function makeSelectChain(results: unknown[]) {
+    return {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve(results)),
+    };
+  }
+
+  it("happy path standalone — inserts crmInteraction, no callLog UPDATE", async () => {
+    const mockWhere = vi.fn().mockResolvedValue({});
+    const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
+    const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
+    const db = {
+      select: vi.fn().mockImplementation(() =>
+        makeSelectChain([{ id: 5, clientId: CLIENT_ID, direction: "inbound", fromNumber: "+61400000001", toNumber: "+61800000002" }])
+      ),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          $returningId: vi.fn().mockResolvedValue([{ id: 201 }]),
+        }),
+      }),
+      update: mockUpdate,
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    const result = await callProcedure("addCallNote", validInput);
+    expect(result).toEqual({ interactionId: 201, ok: true });
+    // No callLog update fired because no linkedQuoteId/linkedJobId
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("happy path with linkedQuoteId — inserts note AND updates callLog.linkedQuoteId", async () => {
+    let selectCall = 0;
+    const mockWhere = vi.fn().mockResolvedValue({});
+    const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
+    const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
+    const db = {
+      select: vi.fn().mockImplementation(() => {
+        selectCall++;
+        // 1st select: callLog, 2nd select: quote ownership check
+        return makeSelectChain(
+          selectCall === 1
+            ? [{ id: 5, clientId: CLIENT_ID, direction: "inbound", fromNumber: "+61400000001", toNumber: "+61800000002" }]
+            : [{ id: "quote-abc" }]
+        );
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          $returningId: vi.fn().mockResolvedValue([{ id: 202 }]),
+        }),
+      }),
+      update: mockUpdate,
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    const result = await callProcedure("addCallNote", {
+      ...validInput,
+      linkedQuoteId: "quote-abc",
+    });
+    expect(result).toEqual({ interactionId: 202, ok: true });
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockSet).toHaveBeenCalledWith({ linkedQuoteId: "quote-abc" });
+  });
+
+  it("happy path with linkedJobId — inserts note AND updates callLog.linkedJobId", async () => {
+    let selectCall = 0;
+    const mockWhere = vi.fn().mockResolvedValue({});
+    const mockSet = vi.fn().mockReturnValue({ where: mockWhere });
+    const mockUpdate = vi.fn().mockReturnValue({ set: mockSet });
+    const db = {
+      select: vi.fn().mockImplementation(() => {
+        selectCall++;
+        // 1st select: callLog, 2nd select: job ownership check
+        return makeSelectChain(
+          selectCall === 1
+            ? [{ id: 5, clientId: CLIENT_ID, direction: "inbound", fromNumber: "+61400000001", toNumber: "+61800000002" }]
+            : [{ id: 77 }]
+        );
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          $returningId: vi.fn().mockResolvedValue([{ id: 203 }]),
+        }),
+      }),
+      update: mockUpdate,
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    const result = await callProcedure("addCallNote", {
+      ...validInput,
+      linkedJobId: 77,
+    });
+    expect(result).toEqual({ interactionId: 203, ok: true });
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    expect(mockSet).toHaveBeenCalledWith({ linkedJobId: 77 });
+  });
+
+  it("auth rejection — UNAUTHORIZED when no session", async () => {
+    mockRequirePortalWrite.mockRejectedValue(
+      new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated." })
+    );
+    await expect(callProcedure("addCallNote", validInput)).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+  });
+
+  it("cross-client: callLog belongs to another client — NOT_FOUND", async () => {
+    const db = {
+      select: vi.fn().mockImplementation(() => makeSelectChain([])),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(callProcedure("addCallNote", validInput)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  it("cross-client: linkedQuoteId belongs to another client — FORBIDDEN", async () => {
+    let selectCall = 0;
+    const db = {
+      select: vi.fn().mockImplementation(() => {
+        selectCall++;
+        // 1st select: callLog found, 2nd select: quote NOT found (different client)
+        return makeSelectChain(
+          selectCall === 1
+            ? [{ id: 5, clientId: CLIENT_ID, direction: "inbound", fromNumber: "+61400000001", toNumber: "+61800000002" }]
+            : []
+        );
+      }),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    await expect(
+      callProcedure("addCallNote", { ...validInput, linkedQuoteId: "other-client-quote" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rate limit — throws TOO_MANY_REQUESTS after 30 calls", async () => {
+    const db = {
+      select: vi.fn().mockImplementation(() =>
+        makeSelectChain([{ id: 5, clientId: CLIENT_ID, direction: "inbound", fromNumber: "+61400000001", toNumber: "+61800000002" }])
+      ),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          $returningId: vi.fn().mockResolvedValue([{ id: 204 }]),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue({}) }),
+      }),
+    };
+    mockGetDb.mockResolvedValue(db);
+
+    for (let i = 0; i < 30; i++) {
+      await callProcedure("addCallNote", validInput);
+    }
+    await expect(callProcedure("addCallNote", validInput)).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+    });
+  });
+});
