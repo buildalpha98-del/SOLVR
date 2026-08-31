@@ -258,4 +258,42 @@ export const blogPosts: BlogPost[] = [
       "roofer job management app Australia",
     ],
   },
+  {
+    slug: "how-to-price-tradie-jobs-profitably",
+    title: "How to Price Tradie Jobs Profitably: A Practical Guide for 2026",
+    excerpt:
+      "Stop guessing what to charge. Learn how to calculate a profitable tradie rate, price materials and risk properly, and present your quote with confidence.",
+    category: "Quoting & Invoicing",
+    readTime: "10 min read",
+    publishedDate: "2026-08-31",
+    metaTitle: "How to Price Tradie Jobs Profitably in Australia | Solvr",
+    metaDescription:
+      "Learn how to price tradie jobs profitably in Australia. Calculate your real hourly rate, cover overheads, choose the right pricing model and protect your margin.",
+    keywords: [
+      "how to price tradie jobs",
+      "how much should a tradie charge Australia",
+      "tradie pricing strategy",
+      "calculate hourly rate tradie",
+      "profitable quoting for tradies",
+    ],
+  },
+  {
+    slug: "gst-for-tradies-australia-guide",
+    title: "GST for Tradies in Australia: A Practical Guide to Quotes, Invoices and BAS",
+    excerpt:
+      "GST does not need to be confusing. Here is what Australian tradies need to know about registration, GST-inclusive quotes, tax invoices, BAS records and cash flow.",
+    category: "Tax & Finance",
+    readTime: "11 min read",
+    publishedDate: "2026-08-31",
+    metaTitle: "GST for Tradies Australia: Quotes, Invoices & BAS Guide | Solvr",
+    metaDescription:
+      "A practical GST guide for Australian tradies. Understand GST registration, quoting and invoicing, tax invoices, BAS records, deposits, variations and cash flow.",
+    keywords: [
+      "GST for tradies Australia",
+      "GST on trade services",
+      "GST invoice tradie",
+      "BAS guide for tradies",
+      "GST registration small business Australia",
+    ],
+  },
 ];

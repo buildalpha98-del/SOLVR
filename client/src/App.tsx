@@ -40,6 +40,8 @@ import BestQuotingAppHVAC from "./pages/blog/BestQuotingAppHVAC";
 import BestQuotingAppCarpenters from "./pages/blog/BestQuotingAppCarpenters";
 import BestQuotingAppPainters from "./pages/blog/BestQuotingAppPainters";
 import BestQuotingAppRoofers from "./pages/blog/BestQuotingAppRoofers";
+import HowToPriceTradieJobsProfitably from "./pages/blog/HowToPriceTradieJobsProfitably";
+import GstForTradiesAustraliaGuide from "./pages/blog/gst-for-tradies-australia-guide";
 import TradesRoofers from "./pages/trades/Roofers";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
@@ -152,6 +154,8 @@ function Router() {
       <Route path="/blog/best-quoting-app-for-carpenters-australia-2026" component={BestQuotingAppCarpenters} />
       <Route path="/blog/best-quoting-app-for-painters-australia-2026" component={BestQuotingAppPainters} />
       <Route path="/blog/best-quoting-app-for-roofers-australia-2026" component={BestQuotingAppRoofers} />
+      <Route path="/blog/how-to-price-tradie-jobs-profitably" component={HowToPriceTradieJobsProfitably} />
+      <Route path="/blog/gst-for-tradies-australia-guide" component={GstForTradiesAustraliaGuide} />
       <Route path="/trades/roofers" component={TradesRoofers} />
       <Route path="/trades/electricians" component={TradesElectricians} />
       <Route path="/trades/carpenters" component={TradesCarpenters} />
