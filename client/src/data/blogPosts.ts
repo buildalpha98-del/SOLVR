@@ -32,7 +32,8 @@ export const blogPosts: BlogPost[] = [
   },
   {
     slug: "best-tradie-apps-australia-2026",
-    title: "Best Tradie Apps in Australia 2026: Honest Comparison for Small Businesses",
+    title:
+      "Best Tradie Apps in Australia 2026: Honest Comparison for Small Businesses",
     excerpt:
       "We tested the top 8 tradie apps available in Australia in 2026. Here's an honest breakdown of pricing, features, and who each app is actually built for.",
     category: "App Reviews",
@@ -76,7 +77,8 @@ export const blogPosts: BlogPost[] = [
     category: "Quoting & Invoicing",
     readTime: "9 min read",
     publishedDate: "2026-05-01",
-    metaTitle: "How to Write a Professional Tradie Quote — Template & Tips | Solvr",
+    metaTitle:
+      "How to Write a Professional Tradie Quote — Template & Tips | Solvr",
     metaDescription:
       "Learn how to write a professional tradie quote that wins more jobs. Includes a quote template, what to include, common mistakes, and how to present pricing confidently.",
     keywords: [
@@ -279,13 +281,15 @@ export const blogPosts: BlogPost[] = [
   },
   {
     slug: "gst-for-tradies-australia-guide",
-    title: "GST for Tradies in Australia: A Practical Guide to Quotes, Invoices and BAS",
+    title:
+      "GST for Tradies in Australia: A Practical Guide to Quotes, Invoices and BAS",
     excerpt:
       "GST does not need to be confusing. Here is what Australian tradies need to know about registration, GST-inclusive quotes, tax invoices, BAS records and cash flow.",
     category: "Tax & Finance",
     readTime: "11 min read",
     publishedDate: "2026-08-31",
-    metaTitle: "GST for Tradies Australia: Quotes, Invoices & BAS Guide | Solvr",
+    metaTitle:
+      "GST for Tradies Australia: Quotes, Invoices & BAS Guide | Solvr",
     metaDescription:
       "A practical GST guide for Australian tradies. Understand GST registration, quoting and invoicing, tax invoices, BAS records, deposits, variations and cash flow.",
     keywords: [
@@ -294,6 +298,44 @@ export const blogPosts: BlogPost[] = [
       "GST invoice tradie",
       "BAS guide for tradies",
       "GST registration small business Australia",
+    ],
+  },
+  {
+    slug: "how-to-reduce-tradie-no-shows",
+    title: "How to Reduce No-Shows as a Tradie: A Practical System",
+    excerpt:
+      "No-shows waste travel time, leave gaps in your day and chip away at margin. Use this practical confirmation and reminder system to protect your schedule.",
+    category: "Business Growth",
+    readTime: "9 min read",
+    publishedDate: "2026-09-30",
+    metaTitle: "How to Reduce No-Shows as a Tradie | Solvr",
+    metaDescription:
+      "Learn how Australian tradies can reduce no-shows with booking confirmations, SMS reminders, access checks, deposits and a simple follow-up process.",
+    keywords: [
+      "how to reduce tradie no shows",
+      "tradie appointment reminders",
+      "reduce missed appointments tradie",
+      "tradie booking confirmation SMS",
+      "tradie customer communication",
+    ],
+  },
+  {
+    slug: "how-to-get-more-5-star-google-reviews-tradie",
+    title: "How to Get More 5-Star Google Reviews as a Tradie",
+    excerpt:
+      "A practical, ethical system for Australian tradies to earn more Google reviews, ask at the right moment and turn happy customers into local proof.",
+    category: "Business Growth",
+    readTime: "10 min read",
+    publishedDate: "2026-09-30",
+    metaTitle: "How to Get More Google Reviews as a Tradie | Solvr",
+    metaDescription:
+      "Discover how Australian tradies can get more Google reviews with better service, direct review links, smart timing and professional responses.",
+    keywords: [
+      "how to get more Google reviews tradie",
+      "5 star reviews for tradies",
+      "Google Business Profile tradie",
+      "tradie review request SMS",
+      "local marketing for tradies",
     ],
   },
 ];

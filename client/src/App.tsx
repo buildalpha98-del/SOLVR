@@ -42,6 +42,8 @@ import BestQuotingAppPainters from "./pages/blog/BestQuotingAppPainters";
 import BestQuotingAppRoofers from "./pages/blog/BestQuotingAppRoofers";
 import HowToPriceTradieJobsProfitably from "./pages/blog/HowToPriceTradieJobsProfitably";
 import GstForTradiesAustraliaGuide from "./pages/blog/gst-for-tradies-australia-guide";
+import HowToReduceTradieNoShows from "./pages/blog/HowToReduceTradieNoShows";
+import HowToGetMore5StarGoogleReviewsTradie from "./pages/blog/how-to-get-more-5-star-google-reviews-tradie";
 import TradesRoofers from "./pages/trades/Roofers";
 
 // ── Solvr Operations Console & Tools ─────────────────────────────────────────
@@ -141,21 +143,74 @@ function Router() {
 
       {/* ── Blog (SEO content hub) ────────────────────────────────────────── */}
       <Route path="/blog" component={Blog} />
-      <Route path="/blog/how-to-quote-faster-as-a-tradie" component={HowToQuoteFaster} />
-      <Route path="/blog/best-tradie-apps-australia-2026" component={BestTradieApps} />
-      <Route path="/blog/ai-receptionist-for-tradies" component={AIReceptionist} />
-      <Route path="/blog/tradie-business-tips-grow-revenue" component={GrowTradieRevenue} />
-      <Route path="/blog/how-to-write-a-professional-tradie-quote" component={HowToWriteAQuote} />
-      <Route path="/blog/best-accounting-software-tradies-australia-2026" component={BestAccountingSoftware} />
-      <Route path="/blog/best-quoting-app-for-plumbers-australia-2026" component={BestQuotingAppPlumbers} />
-      <Route path="/blog/best-quoting-app-for-electricians-australia-2026" component={BestQuotingAppElectricians} />
-      <Route path="/blog/best-quoting-app-for-builders-australia-2026" component={BestQuotingAppBuilders} />
-      <Route path="/blog/best-quoting-app-for-hvac-technicians-australia-2026" component={BestQuotingAppHVAC} />
-      <Route path="/blog/best-quoting-app-for-carpenters-australia-2026" component={BestQuotingAppCarpenters} />
-      <Route path="/blog/best-quoting-app-for-painters-australia-2026" component={BestQuotingAppPainters} />
-      <Route path="/blog/best-quoting-app-for-roofers-australia-2026" component={BestQuotingAppRoofers} />
-      <Route path="/blog/how-to-price-tradie-jobs-profitably" component={HowToPriceTradieJobsProfitably} />
-      <Route path="/blog/gst-for-tradies-australia-guide" component={GstForTradiesAustraliaGuide} />
+      <Route
+        path="/blog/how-to-quote-faster-as-a-tradie"
+        component={HowToQuoteFaster}
+      />
+      <Route
+        path="/blog/best-tradie-apps-australia-2026"
+        component={BestTradieApps}
+      />
+      <Route
+        path="/blog/ai-receptionist-for-tradies"
+        component={AIReceptionist}
+      />
+      <Route
+        path="/blog/tradie-business-tips-grow-revenue"
+        component={GrowTradieRevenue}
+      />
+      <Route
+        path="/blog/how-to-write-a-professional-tradie-quote"
+        component={HowToWriteAQuote}
+      />
+      <Route
+        path="/blog/best-accounting-software-tradies-australia-2026"
+        component={BestAccountingSoftware}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-plumbers-australia-2026"
+        component={BestQuotingAppPlumbers}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-electricians-australia-2026"
+        component={BestQuotingAppElectricians}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-builders-australia-2026"
+        component={BestQuotingAppBuilders}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-hvac-technicians-australia-2026"
+        component={BestQuotingAppHVAC}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-carpenters-australia-2026"
+        component={BestQuotingAppCarpenters}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-painters-australia-2026"
+        component={BestQuotingAppPainters}
+      />
+      <Route
+        path="/blog/best-quoting-app-for-roofers-australia-2026"
+        component={BestQuotingAppRoofers}
+      />
+      <Route
+        path="/blog/how-to-price-tradie-jobs-profitably"
+        component={HowToPriceTradieJobsProfitably}
+      />
+      <Route
+        path="/blog/gst-for-tradies-australia-guide"
+        component={GstForTradiesAustraliaGuide}
+      />
+      <Route
+        path="/blog/how-to-reduce-tradie-no-shows"
+        component={HowToReduceTradieNoShows}
+      />
+      <Route
+        path="/blog/how-to-get-more-5-star-google-reviews-tradie"
+        component={HowToGetMore5StarGoogleReviewsTradie}
+      />
       <Route path="/trades/roofers" component={TradesRoofers} />
       <Route path="/trades/electricians" component={TradesElectricians} />
       <Route path="/trades/carpenters" component={TradesCarpenters} />
@@ -192,7 +247,10 @@ function Router() {
       <Route path="/console/ai" component={ConsoleAIAssistant} />
       <Route path="/console/crm" component={CrmDashboard} />
       <Route path="/console/crm/:id" component={CrmClientDetail} />
-      <Route path="/console/crm/:id/checklist" component={OnboardingChecklist} />
+      <Route
+        path="/console/crm/:id/checklist"
+        component={OnboardingChecklist}
+      />
       <Route path="/console/onboarding" component={AdminOnboarding} />
       <Route path="/console/leads" component={AdminLeads} />
       <Route path="/console/prompt-builder" component={PromptBuilder} />
@@ -228,7 +286,10 @@ function Router() {
       <Route path="/portal/invoices" component={PortalInvoices} />
       <Route path="/portal/subscription" component={PortalSubscription} />
       <Route path="/portal/referral" component={PortalReferral} />
-      <Route path="/portal/customers/import" component={PortalCustomersImport} />
+      <Route
+        path="/portal/customers/import"
+        component={PortalCustomersImport}
+      />
       <Route path="/portal/customers/:id" component={PortalCustomerDetail} />
       <Route path="/portal/customers" component={PortalCustomers} />
       <Route path="/portal/insights" component={PortalAIInsights} />
